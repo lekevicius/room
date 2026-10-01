@@ -164,6 +164,8 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 | Default browser | `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)` + Chrome's CoreServicesUIAgent activation trick; `application(_:open:)` for URLs | fork report §7, UI report §7.4 |
 | Project tooling | XcodeGen `project.yml` + local SwiftPM packages; CMake for CEF wrapper; GN/siso for RoomCore; scripts for sign/notarize/appcast | reproducible, diff-able |
 | Name | "Room" (working name); avoid any "Chrom*" in product/framework names | Google trademark |
+| Identity | Product name **Room**; bundle id prefix **`com.lekevicius.room`** (helpers `com.lekevicius.room.helper`, `.helper.gpu`, `.helper.renderer`, `.helper.plugin`, `.helper.alerts`); engine framework **`RoomCore.framework`** (CEF's `Chromium Embedded Framework.framework` until Chapter 3) | recorded in Phase 1.1; domain owned by the author |
+| Minimum macOS | **26 (Tahoe)**; dev machine runs 27; built with Xcode 27 | `NSGlassEffectView` for overlays requires 26 |
 
 ---
 
