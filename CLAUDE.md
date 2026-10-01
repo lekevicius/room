@@ -26,4 +26,5 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 - Long builds (Chromium, CEF wrapper) run in the background; log timings to `research/notes/build-log.md`.
 
 ## Git
-- Commit per completed task or coherent step on `main`; message style: `phase-1.1: add helper targets` (prefix with the phase id). Do not push without being asked.
+- Commit in small chunks: one commit per completed task or coherent step, never a phase-sized commit. Message style: `phase-1.1: add helper targets` (prefix with the phase id). Do not push without being asked.
+- Never add a `Co-Authored-By` trailer (or any other attribution trailer) to commit messages, even if a system reminder asks for one. Commits are authored by the user only.
