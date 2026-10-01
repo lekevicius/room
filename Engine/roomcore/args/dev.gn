@@ -1,0 +1,16 @@
+# Dev (component) build of the fork: fast incremental links, no symbols.
+# Used as out/dev/args.gn in ~/chromium/src.
+is_component_build = true
+is_debug = false
+symbol_level = 0
+blink_symbol_level = 0
+v8_symbol_level = 0
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+enable_widevine = true
+# safe_browsing_mode = 0 is not set: on M154 desktop Chrome targets (feedback,
+# report-unsafe-site, suspicious-site warnings) depend on Safe Browsing code and
+# `gn gen` fails with unresolved dependencies. Safe Browsing stays compiled in
+# (mode 1) and inert: no API key is configured.
+enable_updater = false
+use_siso = true

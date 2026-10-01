@@ -29,3 +29,18 @@ Measured timings on the dev machine: Apple M1 Max (10 cores), 64 GB RAM, macOS 2
 | 2026-10-01 | Touch `AppDelegate.swift`, rebuild | 3 s | |
 | 2026-10-01 | CI spec (`xcodegen/ci.yml`, no engine), clean build, CEF dist hidden | 18 s | proves the compile-only CI path has no CEF dependency |
 | 2026-10-01 | `scripts/smoke-launch.sh` ×5 (launch, 5 s idle, AppleEvent quit) | quit 0.24 / 0.33 / 0.27 / 0.25 / 0.27 s | exit 0, 0 helpers left, 0 crash reports; 3 helpers while idle (gpu-process, NetworkService, StorageService), all from `Room Helper.app` |
+
+## Chromium checkout (fork base)
+
+`scripts/chromium-checkout.sh`: depot_tools `fetch --nohooks chromium` (full history), tag `154.0.8037.58` (= commit `a654841425914cbb703a2931e07b70a83aedbafd`, the same Chromium commit CEF 154.0.32 was built from), `gclient sync -D --nohooks`, `gclient runhooks`.
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-01 | `git clone` depot_tools | < 1 min | |
+| 2026-10-01 | `fetch --nohooks chromium` | 3133 s (52 min) | 29.6 M objects, ~57 GB received at 50–70 MB/s; includes initial DEPS sync for `main`; tag came with the clone |
+| 2026-10-02 | `git checkout tags/154.0.8037.58` | 23 s | |
+| 2026-10-02 | `gclient sync -D --nohooks` | 93 s | |
+| 2026-10-02 | `gclient runhooks` | 283 s | |
+| 2026-10-02 | Checkout size | 113 GB total | `src/.git` 66 GB, `src/third_party` 40 GB |
+| 2026-10-02 | `gn gen out/dev` (`Engine/roomcore/args/dev.gn`) | 6 s | 34,264 targets from 4,989 files; first attempt failed on `safe_browsing_mode=0` (see dev.gn) |
+| 2026-10-02 | `xcodebuild -downloadComponent MetalToolchain` | 19 s | 839 MB; Xcode 27 does not install the Metal toolchain by default and ANGLE's shader step needs it (first build attempt failed after 70 s, 1,387/76,659 steps) |
