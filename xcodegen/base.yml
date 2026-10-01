@@ -1,0 +1,67 @@
+# Everything that builds without an engine distribution. project.yml adds the
+# CEF engine (xcodegen/cef.yml); CI generates from xcodegen/ci.yml (base only).
+name: Room
+options:
+  bundleIdPrefix: com.lekevicius.room
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    # Hardened runtime + Developer ID signing are exercised in Phase 1.4.
+    ENABLE_HARDENED_RUNTIME: NO
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CLANG_CXX_LANGUAGE_STANDARD: c++20
+    CLANG_ENABLE_OBJC_ARC: YES
+packages:
+  Engine:
+    path: Packages/Engine
+  Design:
+    path: Packages/Design
+  UIKitCore:
+    path: Packages/UIKitCore
+  Card:
+    path: Packages/Card
+  Infra:
+    path: Packages/Infra
+targets:
+  Room:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+        buildPhase: none
+    settings:
+      base:
+        PRODUCT_NAME: Room
+        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room
+        INFOPLIST_FILE: App/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_STRICT_CONCURRENCY: complete
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+    dependencies:
+      - package: Engine
+      - package: Design
+      - package: UIKitCore
+      - package: Card
+      - package: Infra
+schemes:
+  Room:
+    build:
+      targets:
+        Room: all
+    run:
+      config: Debug
+    archive:
+      config: Release

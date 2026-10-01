@@ -1,0 +1,18 @@
+#if !canImport(EngineCEF)
+import AppKit
+import Engine
+
+/// Stand-in used when the app is compiled without an engine (CI compile check).
+final class NoEngineApplication: EngineApplication {
+    func initialize(_ configuration: EngineConfiguration) throws {}
+
+    func run() {
+        NSApplication.shared.run()
+    }
+
+    func tryToTerminate(_ completion: @escaping (Bool) -> Void) {
+        completion(true)
+        NSApplication.shared.stop(nil)
+    }
+}
+#endif
