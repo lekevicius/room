@@ -15,3 +15,6 @@ Engine/roomcore/out/
 
 # macOS
 .DS_Store
+
+# Local xcodebuild output
+build/
