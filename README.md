@@ -7,7 +7,7 @@ A macOS browser: Chromium engine, native Swift/AppKit chrome, the Arc/Zen sideba
 - `docs/progress.md` — phase tracker and log.
 - `research/` — the research reports the plan is based on (`research/README.md` is the index).
 
-Status: Chapter 1 (Foundations) not started.
+Status: Chapter 1 (Foundations), Phase 1.1.
 
 ## Layout
 
@@ -25,4 +25,14 @@ research/          notes/, screenshots/, repos/ (gitignored clones)
 
 ## Requirements
 
-macOS 26+, Xcode 27, XcodeGen, CMake, depot_tools (for the fork; checkout lives outside the repo at `~/chromium`).
+macOS 26+ on Apple silicon, Xcode 27, XcodeGen, CMake, jq, depot_tools (for the fork; checkout lives outside the repo at `~/chromium`).
+
+## Build
+
+```
+scripts/bootstrap-cef.sh       # pinned CEF into Engine/cef/dist, builds libcef_dll_wrapper
+xcodegen                       # project.yml → Room.xcodeproj
+xcodebuild -scheme Room -derivedDataPath build/DerivedData build
+scripts/smoke-launch.sh        # launch, quit, check for a clean exit
+scripts/chromium-checkout.sh   # ~/chromium on the pinned tag (hours, ~100 GB)
+```
