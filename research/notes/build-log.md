@@ -17,3 +17,15 @@ Measured timings on the dev machine: Apple M1 Max (10 cores), 64 GB RAM, macOS 2
 | 2026-10-01 | Build `cefsimple` | 127 s | validates Xcode 27 toolchain |
 | 2026-10-01 | Run `cefsimple` 8 s, quit via AppleEvent | quit < 1 s, exit 0 | 5 helper processes while running |
 | 2026-10-01 | Whole script, cold | 201 s | |
+
+## Room.app (Xcode, CEF engine)
+
+`xcodegen && xcodebuild -scheme Room -configuration Debug`, Swift 6.4 / Xcode 27.0. Bundle 324 MB (322 MB of it the CEF framework).
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-01 | Clean Debug build (6 packages, app, 5 helpers, framework copy + ad-hoc sign) | 21 s | |
+| 2026-10-01 | No-op rebuild | 6 s | framework copy skipped via stamp |
+| 2026-10-01 | Touch `AppDelegate.swift`, rebuild | 3 s | |
+| 2026-10-01 | CI spec (`xcodegen/ci.yml`, no engine), clean build, CEF dist hidden | 18 s | proves the compile-only CI path has no CEF dependency |
+| 2026-10-01 | `scripts/smoke-launch.sh` ×5 (launch, 5 s idle, AppleEvent quit) | quit 0.24 / 0.33 / 0.27 / 0.25 / 0.27 s | exit 0, 0 helpers left, 0 crash reports; 3 helpers while idle (gpu-process, NetworkService, StorageService), all from `Room Helper.app` |
