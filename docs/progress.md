@@ -10,7 +10,7 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 - [x] git init, `.gitignore`, `README.md`, `CLAUDE.md`, directory skeleton
 - [x] Record decisions: min macOS 26, product name, bundle id prefix, framework name
 - [ ] `project.yml` (app + five helper targets, entitlements, framework copy/sign phase, local packages)
-- [ ] `scripts/bootstrap-cef.sh` (pinned CEF 154.0.32 arm64 minimal, SHA check, CMake wrapper build, cefsimple run)
+- [x] `scripts/bootstrap-cef.sh` (pinned CEF 154.0.32 arm64 minimal, SHA check, CMake wrapper build, cefsimple run)
 - [ ] Chromium checkout at `~/chromium` on tag 154.0.8037.58; `Engine/roomcore/args/dev.gn`; first component build started; `research/notes/build-log.md`
 - [ ] CI stub (compile-only `xcodebuild`)
 - [ ] Exit: `xcodegen && xcodebuild` builds `Room.app` with helpers + CEF framework; launches to an empty window; quits cleanly. Chromium checkout complete, first build finished or ETA logged.
