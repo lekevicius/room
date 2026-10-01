@@ -1,0 +1,39 @@
+# Compile-only check of the app and its packages, without an engine
+# distribution (CEF and RoomCore builds stay local in Chapter 1).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select the newest Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project (no engine)
+        run: xcodegen --spec xcodegen/ci.yml --project-root . --project .
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Room.xcodeproj \
+            -scheme Room \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO

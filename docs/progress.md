@@ -12,7 +12,7 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 - [x] `project.yml` (app + five helper targets, entitlements, framework copy/sign phase, local packages)
 - [x] `scripts/bootstrap-cef.sh` (pinned CEF 154.0.32 arm64 minimal, SHA check, CMake wrapper build, cefsimple run)
 - [ ] Chromium checkout at `~/chromium` on tag 154.0.8037.58; `Engine/roomcore/args/dev.gn`; first component build started; `research/notes/build-log.md`
-- [ ] CI stub (compile-only `xcodebuild`)
+- [x] CI stub (compile-only `xcodebuild`)
 - [ ] Exit: `xcodegen && xcodebuild` builds `Room.app` with helpers + CEF framework; launches to an empty window; quits cleanly. Chromium checkout complete, first build finished or ETA logged.
 
 ### Phase 1.2 — The `Engine` protocol

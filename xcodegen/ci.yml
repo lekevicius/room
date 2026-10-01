@@ -1,5 +1,5 @@
 # Compile-only spec for CI: the app and packages without an engine distribution.
 # Usage: xcodegen --spec xcodegen/ci.yml --project-root .
 include:
-  - path: base.yml
+  - path: xcodegen/base.yml
     relativePaths: false
