@@ -23,7 +23,8 @@ public final class CEFApplication: EngineApplication {
         try RoomCEFRuntime.initialize(
             withUserDataDirectory: configuration.userDataDirectory,
             logFile: configuration.logFile,
-            locale: configuration.locale
+            locale: configuration.locale,
+            useMockKeychain: !configuration.usesSystemKeychain
         )
     }
 

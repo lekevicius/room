@@ -19,7 +19,9 @@ NSApplication.shared.delegate = delegate
 do {
     let configuration = EngineConfiguration(
         userDataDirectory: try AppPaths.ensureDirectory(AppPaths.engineUserData),
-        logFile: try AppPaths.ensureDirectory(AppPaths.logs).appending(path: "engine.log")
+        logFile: try AppPaths.ensureDirectory(AppPaths.logs).appending(path: "engine.log"),
+        // Ad-hoc dev builds would hit a login-keychain prompt on every launch.
+        usesSystemKeychain: CodeSignature.teamIdentifier != nil
     )
     try engine.initialize(configuration)
 } catch {

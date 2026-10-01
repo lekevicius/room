@@ -8,11 +8,21 @@ public struct EngineConfiguration: Sendable {
     public var logFile: URL?
     /// UI locale such as `en-US`; `nil` follows the system.
     public var locale: String?
+    /// Whether the engine keeps its encryption key (cookies, passwords) in the
+    /// login keychain. Ad-hoc signed builds get a new code identity on every
+    /// build, so the keychain prompts on each launch; those use an in-memory key.
+    public var usesSystemKeychain: Bool
 
-    public init(userDataDirectory: URL, logFile: URL? = nil, locale: String? = nil) {
+    public init(
+        userDataDirectory: URL,
+        logFile: URL? = nil,
+        locale: String? = nil,
+        usesSystemKeychain: Bool = true
+    ) {
         self.userDataDirectory = userDataDirectory
         self.logFile = logFile
         self.locale = locale
+        self.usesSystemKeychain = usesSystemKeychain
     }
 }
 

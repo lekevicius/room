@@ -15,6 +15,26 @@ std::unique_ptr<CefScopedLibraryLoader>& LibraryLoader() {
   return loader;
 }
 
+// Browser-process command-line tweaks applied before Chromium parses them.
+class RoomCEFApp : public CefApp {
+ public:
+  explicit RoomCEFApp(bool use_mock_keychain)
+      : use_mock_keychain_(use_mock_keychain) {}
+
+  void OnBeforeCommandLineProcessing(
+      const CefString& process_type,
+      CefRefPtr<CefCommandLine> command_line) override {
+    if (process_type.empty() && use_mock_keychain_) {
+      command_line->AppendSwitch("use-mock-keychain");
+    }
+  }
+
+ private:
+  const bool use_mock_keychain_;
+
+  IMPLEMENT_REFCOUNTING(RoomCEFApp);
+};
+
 void SetPath(cef_string_t* target, NSURL* url) {
   if (url) {
     CefString(target).FromString(url.path.fileSystemRepresentation);
@@ -41,6 +61,7 @@ void SetPath(cef_string_t* target, NSURL* url) {
 + (BOOL)initializeWithUserDataDirectory:(NSURL*)userDataDirectory
                                 logFile:(NSURL*)logFile
                                  locale:(NSString*)locale
+                        useMockKeychain:(BOOL)useMockKeychain
                                   error:(NSError**)error {
   // The process's own argv, which lives for the whole process.
   CefMainArgs main_args(*_NSGetArgc(), *_NSGetArgv());
@@ -53,7 +74,8 @@ void SetPath(cef_string_t* target, NSURL* url) {
     CefString(&settings.locale).FromString(locale.UTF8String);
   }
 
-  if (!CefInitialize(main_args, settings, nullptr, nullptr)) {
+  CefRefPtr<RoomCEFApp> app(new RoomCEFApp(useMockKeychain));
+  if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
     if (error) {
       *error = [NSError errorWithDomain:@"RoomCEF"
                                    code:CefGetExitCode()
