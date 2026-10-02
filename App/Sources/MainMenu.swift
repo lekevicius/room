@@ -17,6 +17,15 @@ enum MainMenu {
         appMenu.addItem(withTitle: "Quit Room", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         main.addItem(submenu: appMenu, title: "Room")
 
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(withTitle: "New Page", action: #selector(AppDelegate.newPage(_:)), keyEquivalent: "t")
+        fileMenu.addItem(withTitle: "Open Location…", action: #selector(AppDelegate.openLocation(_:)), keyEquivalent: "l")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close Page", action: #selector(AppDelegate.closePage(_:)), keyEquivalent: "w")
+        let closeWindow = fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        closeWindow.keyEquivalentModifierMask = [.command, .shift]
+        main.addItem(submenu: fileMenu, title: "File")
+
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
         let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
@@ -31,10 +40,15 @@ enum MainMenu {
         let viewMenu = NSMenu(title: "View")
         // Reaches the key window's controller through the responder chain.
         viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: "Reload Page", action: #selector(AppDelegate.reloadPage(_:)), keyEquivalent: "r")
+        viewMenu.addItem(withTitle: "Back", action: #selector(AppDelegate.goBack(_:)), keyEquivalent: "[")
+        viewMenu.addItem(withTitle: "Forward", action: #selector(AppDelegate.goForward(_:)), keyEquivalent: "]")
+        let devTools = viewMenu.addItem(withTitle: "Developer Tools", action: #selector(AppDelegate.toggleDevTools(_:)), keyEquivalent: "i")
+        devTools.keyEquivalentModifierMask = [.command, .option]
         main.addItem(submenu: viewMenu, title: "View")
 
         let windowMenu = NSMenu(title: "Window")
-        windowMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         main.addItem(submenu: windowMenu, title: "Window")

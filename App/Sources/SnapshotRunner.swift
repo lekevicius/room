@@ -20,7 +20,12 @@ enum SnapshotRunner {
         var tint: NSColor?
     }
 
-    static func run(_ controller: RoomWindowController, into directory: URL) async {
+    /// `-RoomSnapshotPageURL <url>`: also capture the page-in-card states (Phase 1.4).
+    static var pageURL: URL? {
+        UserDefaults.standard.string(forKey: "RoomSnapshotPageURL").flatMap(URL.init(string:))
+    }
+
+    static func run(_ controller: RoomWindowController, session: DebugSession?, into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         // The window as Dia's reference capture frames it: 1244×818 pt, 280 pt sidebar.
         let dia = NSSize(width: 1244, height: 818)
@@ -41,22 +46,24 @@ enum SnapshotRunner {
         ]
         var report: [String] = []
         for state in active {
-            // Launching from a script does not always make the app frontmost,
-            // macOS may refuse self-activation (scripts/window-snapshots.sh
-            // also activates it from outside), and other apps can take focus
-            // mid-capture: retry until the window stays main throughout.
-            var line = ""
-            for _ in 0..<40 {
-                for _ in 0..<50 where !isFrontmost(controller) {
-                    NSApp.activate()
-                    controller.window?.makeKeyAndOrderFront(nil)
-                    try? await Task.sleep(for: .milliseconds(100))
-                }
-                guard isFrontmost(controller) else { continue }
-                line = await capture(state, controller, directory)
-                if isFrontmost(controller) { break }
+            report.append(await captureActive(state, controller, directory))
+        }
+        // The page in the card (Phase 1.4), Dia's framing and the default size.
+        if let session, let pageURL, let page = session.newPage(pageURL) {
+            for _ in 0..<300 where page.isLoading || page.url == nil {
+                try? await Task.sleep(for: .milliseconds(100))
             }
-            report.append(line)
+            try? await Task.sleep(for: .seconds(2))
+            let pageStates: [State] = [
+                State(name: "light-page-dia-compare", dark: false, sidebarOpen: true, contentSize: dia, sidebarWidth: 280),
+                State(name: "dark-page-dia-compare", dark: true, sidebarOpen: true, contentSize: dia, sidebarWidth: 280),
+                State(name: "light-page-open", dark: false, sidebarOpen: true),
+                State(name: "light-page-closed", dark: false, sidebarOpen: false),
+            ]
+            for state in pageStates {
+                report.append(await captureActive(state, controller, directory, settle: .milliseconds(1500)) + " bg=\(page.rootBackgroundColor.map { "\($0)" } ?? "nil")")
+            }
+            page.close()
         }
         // Inactive look: another window of ours takes main, as when a
         // second browser window is in front.
@@ -78,11 +85,30 @@ enum SnapshotRunner {
             .write(to: directory.appending(path: "states.txt"), atomically: true, encoding: .utf8)
     }
 
+    /// Launching from a script does not always make the app frontmost, macOS
+    /// may refuse self-activation (scripts/window-snapshots.sh also activates
+    /// it from outside), and other apps can take focus mid-capture: retry
+    /// until the window stays main throughout.
+    private static func captureActive(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
+        var line = ""
+        for _ in 0..<40 {
+            for _ in 0..<50 where !isFrontmost(controller) {
+                NSApp.activate()
+                controller.window?.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard isFrontmost(controller) else { continue }
+            line = await capture(state, controller, directory, settle: settle)
+            if isFrontmost(controller) { break }
+        }
+        return line
+    }
+
     private static func isFrontmost(_ controller: RoomWindowController) -> Bool {
         NSApp.isActive && controller.window?.isMainWindow == true
     }
 
-    private static func capture(_ state: State, _ controller: RoomWindowController, _ directory: URL) async -> String {
+    private static func capture(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
         guard let window = controller.window else { return "\(state.name): no window" }
         NSApp.appearance = NSAppearance(named: state.dark ? .darkAqua : .aqua)
         window.setContentSize(state.contentSize)
@@ -91,8 +117,9 @@ enum SnapshotRunner {
         controller.materialView.setTintColor(state.tint, animated: false)
         window.layoutIfNeeded()
         window.displayIfNeeded()
-        try? await Task.sleep(for: .milliseconds(800))
-        let url = directory.appending(path: "phase-1.3-\(state.name).png")
+        try? await Task.sleep(for: settle)
+        let phase = state.name.contains("page") ? "phase-1.4" : "phase-1.3"
+        let url = directory.appending(path: "\(phase)-\(state.name).png")
         let image = try? WindowSnapshot.writePNG(window, to: url)
         let lights = controller.trafficLights.geometry.buttonsRect.map { NSStringFromRect($0) } ?? "none"
         return "\(state.name): appActive=\(NSApp.isActive) main=\(window.isMainWindow) "

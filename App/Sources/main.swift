@@ -8,7 +8,12 @@ import EngineCEF
 // The engine creates NSApp (CEF needs its own NSApplication subclass), so it
 // must be constructed before anything touches NSApplication.shared.
 #if canImport(EngineCEF)
-let engine: any EngineApplication = CEFApplication()
+let cefApplication = CEFApplication()
+#if DEBUG
+// Docked DevTools connects its front-end through this port (127.0.0.1 only).
+cefApplication.remoteDebuggingPort = UserDefaults.standard.integer(forKey: "RoomDevToolsPort").nonZero ?? 9339
+#endif
+let engine: any EngineApplication = cefApplication
 #else
 let engine: any EngineApplication = NoEngineApplication()
 #endif
@@ -31,3 +36,7 @@ do {
 
 engine.run()
 exit(0)
+
+private extension Int {
+    var nonZero: Int? { self == 0 ? nil : self }
+}
