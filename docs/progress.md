@@ -1,6 +1,6 @@
 # Progress
 
-Current: **Chapter 2 — The sidebar browser**, Phase 2.1 next (when the user says go). Chapter 1 closed 2026-10-03 (`research/notes/chapter-1-review.md`).
+Current: **Chapter 2 — The sidebar browser**, Phase 2.1 done; Phase 2.2a next (when the user says go). Chapter 1 closed 2026-10-03 (`research/notes/chapter-1-review.md`).
 
 Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 
@@ -71,13 +71,15 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit criteria last.
 
 ### Phase 2.1 — Model and store
-- [ ] `Model` on GRDB: schema v1, migrations, one database
-- [ ] `Store`: `@Observable` MainActor stores as the only writers
-- [ ] Persistence: debounced transactional writes, generation counter, JSON snapshot, unclean-exit flag
-- [ ] Domain rules with tests (§A.9 conversions, Essentials cap, `isChanged`, MRU, ⌘W behaviour, folder depth, ⌘1–9 order)
-- [ ] Window state: sidebar width/visibility persisted (Chapter 1 carry-over)
-- [ ] First-launch seed
-- [ ] Exit: 100 random `kill -9`s, every reopen intact at the last committed generation; tests in Room scheme and CI
+- [x] `Model` on GRDB: schema v1, migrations, one database
+- [x] `Store`: `@Observable` MainActor stores as the only writers
+- [x] Persistence: debounced transactional writes, generation counter, JSON snapshot, unclean-exit flag
+- [x] Domain rules with tests (§A.9 conversions, Essentials cap, `isChanged`, MRU, ⌘W behaviour, folder depth, ⌘1–9 order)
+- [x] Window state: sidebar width/visibility persisted (Chapter 1 carry-over)
+- [x] First-launch seed
+- [x] Exit: 100 random `kill -9`s, every reopen intact at the last committed generation; tests in Room scheme and CI
+
+**Phase 2.1 done (2026-10-03).** Review: the sidebar's data now lives in `Model` (GRDB 7.11.1, schema v1 with all eleven tables incl. trigram FTS5 history, one `Room.sqlite` in Application Support) behind `Store`'s three `@Observable` stores, which are its only writers and report each mutation's touched ids instead of diffing the tree. Writes coalesce for 300 ms into one generation-numbered transaction that writes only the diff, then a JSON snapshot; a corrupt database is rebuilt from the snapshot. Two 100-kill runs (300 ms and 5 ms debounce) reopened intact every time: integrity ok, content hash equal to the generation on disk, 56 kills landed mid-transaction and all rolled back cleanly (`spike-results.md`). The kill test found one real bug, a JSON backup that could fall two generations behind, now fixed at open. 42 Model and 21 Store tests (plus 2 new window tests) run in the Room scheme and the no-engine CI spec; the app restores sidebar width/visibility and the window frame, and the window title now comes from the seeded space.
 
 ### Phase 2.2 — Sidebar
 - [ ] `Sidebar` package: outline tree, Essentials grid, header, footer placeholder
@@ -194,3 +196,8 @@ Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit cr
   - Decisions: search suggestions on by default, default engine Google (ROADMAP 2.4). Passkey entitlement request on hold until the product name/bundle id are settled (B-6). Drive reformat later (B-10).
   - Pushed to GitHub; CI fixed (dark-inactive snapshot checks the hairline) and green. New backlog B-14: RoomCore's Crashpad database still lives under `Application Support/Chromium`.
 - 2026-10-03 — Chapter 1 review accepted (planner). ⌘, returns to the reserved set (17 shortcuts): Settings must be reachable from any page, as in every macOS app; `docs/shortcuts.md` and the tests updated. ROADMAP 2.2 split into sessions 2.2a/2.2b; the debug toolbar's URL field now lives until 2.4 (2.3 would otherwise leave no way to enter a URL). Implementer prompt generalized for Chapter 2. Next: Phase 2.1, when the user says go.
+- 2026-10-03 — Phase 2.1 (Claude Code, Mac mini). Phase done.
+  - Done: `Packages/Model` (GRDB 7.11.1 pinned exactly; `Timestamp`, `Profile`, `Space`, `Entry`, `SplitGroup`, `WindowState`, `WindowSpace`, `Favicon`, `Settings`, `RoomState`; `Schema` v1 migration; `RoomDatabase`; `StateWriter`; `RoomStorage` with snapshot recovery; rules: `URLNormalization`, `EntryRules`, `FolderRules`, `NavigationRules`); `Packages/Store` (`SidebarStore`, `WindowStore`, `SettingsStore`, `Persistence`, `RoomStore` with the seed; executable `room-persistence-harness`); `scripts/persistence-kill-test.sh`; `RoomWindowController` reports sidebar width/visibility (toggle, splitter drag end), frame and close; `AppDelegate` opens the store (`-RoomStateDirectory` override; DEBUG snapshot/spike runs use a temporary directory), restores the window, flushes on window close and writes the clean-exit flag at quit (`applicationWillTerminate`, and after `engine.run()` returns because CEF's terminate path skips it). Tests: Model 42, Store 21, UIKitCore +2; Room scheme and the no-engine CI spec build and pass (160 tests). App checks with a scratch state directory: first launch writes profile "Default", space "Space", a 240 pt window record and `running=1`; Quit sets `running=0`; a database edited to a 1111×777 frame at (150,120) with a hidden 333 pt sidebar reopens at exactly that frame (window-server bounds) and keeps both values. CEF smoke: quit 0.20 s, exit 0, no helpers left, no crash reports (load 14.8).
+  - Deviations / decisions: (1) The 300 ms "debounce" starts at the first mutation and is not reset by later ones, so continuous mutation still writes ~3×/s (a resetting debounce would never write while the user drags). (2) Timestamps are INTEGER milliseconds (`Timestamp`), not `Date`: `Date` does not round-trip exactly through SQLite, which would break the writer's diff and the kill test's hashes. (3) `entry.isCollapsed` added for folders (not in the ROADMAP column list); column names are the Swift property names (`spaceID`, not `spaceId`). (4) Foreign keys are deferred and never cascade: the writer applies a whole-state diff in any order and the store removes dependents itself; `entry.faviconID` has no foreign key (cache semantics, a missing row = letter tile). (5) Interpretations: folder depth counts folder levels from the pinned root (top-level folder = 1, max 5); ⌘1–9 order skips children of collapsed folders and the pinned section when it is collapsed, and ⌘9 is the last item; the ⌘W fallback is the most recently used other entry of the space, then the first Today tab, then a new Today tab + palette (permanent) or the empty state (Today). (6) Deleting a space deletes its pinned and Today entries (essentials stay with the profile); spec §B moves them to the Archive, which is Chapter 4.1. (7) The window frame persists too, not only sidebar width/visibility. (8) "Exactly the last committed generation" is checked as: generation on disk ≥ last acknowledged commit, ≤ last begun, and the reopened content hashes to what was begun for that generation; no round ever reopened at an unacknowledged commit. (9) The kill harness is not in CI (one run takes ~60 s); it is `scripts/persistence-kill-test.sh`. (10) Access to Room for UI automation was declined in this session, so the sidebar toggle/drag → store path is covered by unit tests (`WindowStateCallbackTests`, store window-state tests) and the restore path by the launch check above, not by clicking in the app.
+  - Next: Phase 2.2a (sidebar tree, rows, clicks, menus, toasts), when the user says go.
+
