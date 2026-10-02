@@ -287,6 +287,37 @@ struct StorageTests {
         #expect(refreshed.generation == 2 && refreshed.state.entries.contains { $0.customLabel == "newer" })
     }
 
+    @Test("A database another connection holds locked fails the open and stays where it is (2.1 review)")
+    func lockedIsNotCorrupt() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let storage = RoomStorage(directory: directory.url, busyTimeout: 0.1)
+        let state = sampleState()
+        do {
+            let opened = try storage.open()
+            try storage.makeWriter(for: opened).writeAndWait(state, generation: 3)
+            try opened.database.pool.close()
+        }
+        // A second Room instance in the middle of a write transaction.
+        var configuration = Configuration()
+        configuration.allowsUnsafeTransactions = true
+        let other = try DatabaseQueue(path: storage.databaseURL.path, configuration: configuration)
+        try other.writeWithoutTransaction { db in try db.execute(sql: "BEGIN IMMEDIATE") }
+        #expect {
+            _ = try storage.open()
+        } throws: { error in
+            guard case RoomStorage.OpenError.inUse = error else { return false }
+            return true
+        }
+        #expect(!FileManager.default.fileExists(atPath: directory.url.appending(path: "Corrupt").path))
+        try other.writeWithoutTransaction { db in try db.execute(sql: "ROLLBACK") }
+        try other.close()
+        let reopened = try storage.open()
+        #expect(reopened.recovery == nil)
+        #expect(reopened.generation == 3)
+        #expect(reopened.state.canonical() == state.canonical())
+    }
+
     @Test("A corrupt database without a snapshot starts empty")
     func recoverEmpty() throws {
         let directory = try TemporaryDirectory()

@@ -1,15 +1,38 @@
 import Foundation
+import GRDB
 
-/// Opens the database in a directory, recovering from the JSON snapshot when
-/// the file cannot be opened or fails `PRAGMA integrity_check`.
+/// Opens the database in a directory, recovering from the JSON snapshot only
+/// when the file is damaged: SQLite reports it corrupt or not a database, or
+/// `PRAGMA integrity_check` finds faults. Any other failure (above all a
+/// database another process holds locked) fails the open and leaves the file
+/// where it is.
 public struct RoomStorage: Sendable {
     public static let databaseName = "Room.sqlite"
     public static let snapshotName = "Room-snapshot.json"
 
     public let directory: URL
+    /// Passed to `RoomDatabase` (tests shorten it).
+    public let busyTimeout: TimeInterval
 
-    public init(directory: URL) {
+    public init(directory: URL, busyTimeout: TimeInterval = RoomDatabase.defaultBusyTimeout) {
         self.directory = directory
+        self.busyTimeout = busyTimeout
+    }
+
+    /// Why `open()` failed without touching the database file.
+    public enum OpenError: Error, CustomStringConvertible {
+        /// Another connection kept the database locked past the busy timeout
+        /// (typically a second Room instance using the same directory).
+        case inUse(path: String, underlying: String)
+        /// SQLite failed for a reason other than damage or locking.
+        case unreadable(path: String, underlying: String)
+
+        public var description: String {
+            switch self {
+            case .inUse(let path, let underlying): "The database at \(path) is in use by another process (\(underlying))"
+            case .unreadable(let path, let underlying): "The database at \(path) could not be opened (\(underlying))"
+            }
+        }
     }
 
     public var databaseURL: URL { directory.appending(path: Self.databaseName) }
@@ -31,23 +54,40 @@ public struct RoomStorage: Sendable {
         case empty(movedAside: URL)
     }
 
-    /// Opens, checks and loads. Marks the session as running.
+    /// Opens, checks and loads. Marks the session as running. Throws
+    /// `OpenError` when the database is locked or fails for a reason other
+    /// than damage; only damage moves it aside (`Opened.recovery`).
     public func open() throws -> Opened {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        if let database = try? RoomDatabase(url: databaseURL),
-           (try? database.integrityCheck()) == ["ok"],
-           let loaded = try? database.loadState() {
+        var opened: RoomDatabase?
+        do {
+            let database = try RoomDatabase(url: databaseURL, busyTimeout: busyTimeout)
+            opened = database
+            guard try database.integrityCheck() == ["ok"] else {
+                try? database.pool.close()
+                return try recover()
+            }
+            let loaded = try database.loadState()
             let unclean = try database.beginSession()
             refreshSnapshot(loaded.state, generation: loaded.generation)
             return Opened(database: database, state: loaded.state, generation: loaded.generation,
                           uncleanExit: unclean, recovery: nil)
+        } catch let error as DatabaseError {
+            try? opened?.pool.close()
+            switch error.resultCode {
+            case .SQLITE_CORRUPT, .SQLITE_NOTADB:
+                return try recover()
+            case .SQLITE_BUSY, .SQLITE_LOCKED:
+                throw OpenError.inUse(path: databaseURL.path, underlying: "\(error)")
+            default:
+                throw OpenError.unreadable(path: databaseURL.path, underlying: "\(error)")
+            }
         }
-        return try recover()
     }
 
     private func recover() throws -> Opened {
         let aside = try moveDatabaseAside()
-        let database = try RoomDatabase(url: databaseURL)
+        let database = try RoomDatabase(url: databaseURL, busyTimeout: busyTimeout)
         guard let snapshot = try? StateSnapshot.read(from: snapshotURL) else {
             try database.beginSession()
             return Opened(database: database, state: RoomState(), generation: 0, uncleanExit: true,

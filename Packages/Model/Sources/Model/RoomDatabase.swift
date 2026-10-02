@@ -6,12 +6,17 @@ public final class RoomDatabase: Sendable {
     public let url: URL
     public let pool: DatabasePool
 
+    /// How long a statement waits for another connection's lock (a second
+    /// Room instance writing the same file) before failing with SQLITE_BUSY.
+    public static let defaultBusyTimeout: TimeInterval = 5
+
     /// Opens (creating if needed) and migrates to the latest schema.
-    public init(url: URL) throws {
+    public init(url: URL, busyTimeout: TimeInterval = RoomDatabase.defaultBusyTimeout) throws {
         self.url = url
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true
         configuration.label = "Room"
+        configuration.busyMode = .timeout(busyTimeout)
         // Default synchronous mode (FULL): a committed write survives a crash
         // of the process and of the machine.
         pool = try DatabasePool(path: url.path, configuration: configuration)

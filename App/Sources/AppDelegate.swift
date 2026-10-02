@@ -2,6 +2,7 @@ import AppKit
 import Design
 import Engine
 import Infra
+import Model
 import Store
 import SwiftUI
 import UIKitCore
@@ -21,6 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.make()
         store = Self.openStore()
+        if Self.quitRequested {
+            NSApp.terminate(nil)
+            return
+        }
         showWindow()
         NSApp.activate()
         Task { await startSession() }
@@ -101,9 +106,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return store
         } catch {
             NSLog("Room: cannot open the state database in \(directory.path): \(error); nothing will be saved")
+            presentStoreError(error, directory: directory)
             return nil
         }
     }
+
+    /// The database could not be opened and was left untouched (never
+    /// treated as corruption): say so, and let the user quit or go on
+    /// without saving.
+    private static func presentStoreError(_ error: any Error, directory: URL) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Room can't open its sidebar"
+        if case RoomStorage.OpenError.inUse = error {
+            alert.informativeText = "Another copy of Room is using \(directory.path). Quit it and open Room again. "
+                + "If you continue, nothing you change in this window is saved."
+        } else {
+            alert.informativeText = "\(error)\n\nIf you continue, nothing you change in this window is saved."
+        }
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Continue Without Saving")
+        if alert.runModal() == .alertFirstButtonReturn { quitRequested = true }
+    }
+
+    /// Set when the user chose Quit in the store error alert.
+    private static var quitRequested = false
 
     /// Restores the window's saved sidebar width/visibility and frame and
     /// keeps the store up to date as the user changes them.
