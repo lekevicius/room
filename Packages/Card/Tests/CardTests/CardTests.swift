@@ -11,7 +11,7 @@ struct CardTests {
         return card
     }
 
-    @Test("Container clips with a continuous 12pt corner")
+    @Test("Container clips with a continuous corner")
     func clipping() throws {
         let layer = try #require(makeCard().container.layer)
         #expect(layer.cornerRadius == CardMetrics.cornerRadius)

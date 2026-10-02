@@ -38,10 +38,13 @@ public enum SidebarMetrics {
 /// The inset page card (PLAN §2.4).
 public enum CardMetrics {
     /// Gap between the card and the window edge on the top, trailing and bottom sides.
-    public static let inset: CGFloat = Spacing.s
+    /// Measured from Dia's window (6pt); the ROADMAP's first guess was 8.
+    public static let inset: CGFloat = 6
     /// Gap on the sidebar side while the sidebar is open (the card butts against it).
     public static let sidebarSideInset: CGFloat = 0
-    public static let cornerRadius: CGFloat = Radius.large
+    /// Continuous corner; fitted to Dia's card (its curve reaches the fill
+    /// ~3pt along the diagonal, 12pt reaches it at ~3.75pt). ROADMAP guessed 12.
+    public static let cornerRadius: CGFloat = Radius.medium
     public static let borderWidth: CGFloat = 1
     public static let shadowRadius: CGFloat = 4
     public static let shadowOffset = CGSize(width: 0, height: -1)
