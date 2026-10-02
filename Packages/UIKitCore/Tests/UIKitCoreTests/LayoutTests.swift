@@ -60,7 +60,7 @@ struct RoomWindowControllerTests {
         let controller = makeController()
         defer { controller.close() }
         let splitter = controller.rootView.splitterView
-        var posts = 0
+        nonisolated(unsafe) var posts = 0
         let token = NotificationCenter.default.addObserver(
             forName: RoomWindowController.sidebarDidSnapClosedNotification, object: controller, queue: nil
         ) { _ in posts += 1 }

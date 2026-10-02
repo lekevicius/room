@@ -1,4 +1,5 @@
 import AppKit
+import UIKitCore
 
 /// The main menu, built in code. Phase 2.8 replaces this with the full command set.
 enum MainMenu {
@@ -28,8 +29,8 @@ enum MainMenu {
         main.addItem(submenu: editMenu, title: "Edit")
 
         let viewMenu = NSMenu(title: "View")
-        // Handled by RoomWindowController through the responder chain.
-        viewMenu.addItem(withTitle: "Hide Sidebar", action: Selector(("toggleSidebar:")), keyEquivalent: "s")
+        // Reaches the key window's controller through the responder chain.
+        viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
         main.addItem(submenu: viewMenu, title: "View")
 
         let windowMenu = NSMenu(title: "Window")

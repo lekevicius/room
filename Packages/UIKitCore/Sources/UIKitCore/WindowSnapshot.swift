@@ -15,6 +15,9 @@ public enum WindowSnapshot {
         return unsafeBitCast(symbol, to: CreateImage.self)
     }()
 
+    /// Whether the capture function is exported by this system.
+    public static var isAvailable: Bool { createImage != nil }
+
     /// The window's content at backing resolution, without its frame shadow.
     public static func capture(_ window: NSWindow) -> CGImage? {
         guard let createImage, window.windowNumber > 0 else { return nil }
