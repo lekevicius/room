@@ -48,7 +48,7 @@ public enum CardMetrics {
     public static let borderWidth: CGFloat = 1
     public static let shadowRadius: CGFloat = 4
     public static let shadowOffset = CGSize(width: 0, height: -1)
-    public static let shadowOpacityLight: Float = 0.10
+    public static let shadowOpacityLight: Float = 0.15
     public static let shadowOpacityDark: Float = 0.35
 }
 
