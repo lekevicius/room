@@ -183,3 +183,39 @@ struct WindowMaterialTests {
         #expect(inactive < active)
     }
 }
+
+@Suite("Window state callbacks (persisted by the store)", .serialized)
+struct WindowStateCallbackTests {
+    @Test("Toggle and splitter drags report width and visibility; programmatic sets do not")
+    func sidebarState() {
+        let controller = RoomWindowController()
+        defer { controller.close() }
+        var reports: [(CGFloat, Bool)] = []
+        controller.onSidebarStateChange = { reports.append(($0, $1)) }
+        controller.sidebarWidth = 300
+        controller.isSidebarOpen = true
+        #expect(reports.isEmpty)
+        controller.toggleSidebar(nil)
+        #expect(reports.count == 1 && reports[0] == (300, false))
+        controller.toggleSidebar(nil)
+        controller.rootView.splitterView.onDrag?(350)
+        controller.rootView.splitterView.onEnd?()
+        #expect(reports.last.map { $0 == (350, true) } == true)
+        // Dragged under the snap threshold: closed, and the pre-drag width kept.
+        controller.rootView.splitterView.onDrag?(60)
+        controller.rootView.splitterView.onEnd?()
+        #expect(reports.last.map { $0 == (350, false) } == true)
+    }
+
+    @Test("A saved frame is restored only if it is on a screen")
+    func restoreFrame() throws {
+        let controller = RoomWindowController()
+        defer { controller.close() }
+        let screen = try #require(NSScreen.main).visibleFrame
+        let onScreen = NSRect(x: screen.minX + 20, y: screen.minY + 20, width: 1000, height: 700)
+        #expect(controller.restoreFrame(onScreen))
+        #expect(controller.window?.frame == onScreen)
+        #expect(!controller.restoreFrame(NSRect(x: -100_000, y: -100_000, width: 1000, height: 700)))
+        #expect(controller.window?.frame == onScreen)
+    }
+}
