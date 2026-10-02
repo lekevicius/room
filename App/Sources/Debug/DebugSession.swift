@@ -1,5 +1,6 @@
 import AppKit
 import Engine
+import UIKitCore
 import Observation
 
 /// Chapter 1 throwaway: a flat list of pages in one window, driven by the
