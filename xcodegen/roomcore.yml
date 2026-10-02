@@ -1,0 +1,40 @@
+# RoomCore engine (Phase 1.5 embryo): the Swift host `RoomCoreHost` (product
+# Room.app, App/RoomCore) linked against RoomCore.framework from our Chromium
+# fork. Build it with scripts/roomcore-package.sh, which stages the framework
+# in build/roomcore and uses its own DerivedData (the CEF target also
+# produces a Room.app). Nothing here is needed by the CEF app or CI.
+targets:
+  RoomCoreHost:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/RoomCore
+    settings:
+      base:
+        PRODUCT_NAME: Room
+        PRODUCT_MODULE_NAME: RoomCoreHost
+        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room
+        INFOPLIST_FILE: App/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_STRICT_CONCURRENCY: complete
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/build/roomcore"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+    dependencies:
+      - package: Design
+      - package: UIKitCore
+      - package: Card
+      - package: Infra
+      - framework: build/roomcore/RoomCore.framework
+        embed: false
+    postBuildScripts:
+      - name: Embed RoomCore.framework
+        script: '"$SRCROOT/scripts/embed-roomcore-framework.sh"'
+        basedOnDependencyAnalysis: false
+schemes:
+  Room (RoomCore):
+    build:
+      targets:
+        RoomCoreHost: all
+    run:
+      config: Debug
