@@ -141,18 +141,141 @@ Chapter 1 exit: Phases 1.1–1.6 closed; `PLAN.md` §4 decisions updated with an
 
 ## Chapter 2 — The sidebar browser (on CEF)
 
-**End state.** You use Room all day for light browsing. All Arc/Zen interaction decisions are implemented and felt; the only complaints are the known CEF caps (no extension popups, no password save prompts). Spec: `feature-spec.md` sections A–I minus items that need RoomCore.
+**End state.** You use Room all day for light browsing. All Arc/Zen interaction decisions are implemented and felt; the only complaints are the known CEF caps (below). Spec: `feature-spec.md` sections A–I minus items that need RoomCore; shortcuts: `docs/shortcuts.md`; tokens: `docs/design-tokens.md` (both frozen in Phase 1.6).
 
-Phases:
-- **2.1 Model and store.** GRDB schema (spaces, entries with kind/storedURL/title/favicon/customIcon, folders, split groups, windows, settings), `@Observable` store, debounced transactional session writes with generation counter + JSON snapshot, favicon cache, migrations. Exit: store survives kill -9 mid-write; unit tests.
-- **2.2 Sidebar.** `NSOutlineView`-based tree: essentials grid row, space title row, pinned section with folders, separator/Clear, today section, footer; selection pill; hover states; inline rename; context menus; drag/drop within and across sections with type conversion; multi-select; keyboard navigation. Exit: every interaction in spec §A.2–A.9 works against `FakeEngine`.
-- **2.3 Tabs and the card.** One `WebContents` per loaded entry; hidden views for background tabs; selection switching; unloaded entries; ⌘W semantics (`reset-unload-switch`); discard on idle; audio state; changed-dot and reset; link-from-pinned behavior (in place for v1; Peek in 2.7). Exit: 50 entries, 10 loaded, switching under 16ms.
-- **2.4 Palette v1.** Centered overlay; ⌘T/⌘L semantics; groups: top hit, open tabs, pinned/essentials, local history (small FTS5 table recorded from navigations; throwaway), search suggest (Google/DDG/Kagi), commands; inline host completion; site-search keywords. Exit: spec §C minus engine-provided ranking.
-- **2.5 Spaces.** Create/edit (name, icon, theme colors, algorithm), per-space lists, window tint, footer icons/dots, ⌃1–9, ⌘⌥←/→, two-finger swipe, drag-to-space-icon, per-space `CefRequestContext` (container). Exit: spec §B minus routing.
-- **2.6 Chrome surfaces.** Downloads (footer button with progress ring, popover, fly-in animation, filename decision), permission popover anchored to the address field, JS dialogs as in-card sheets, context menus, file chooser, HTTP auth, certificate errors, popups → entries, find bar, zoom, print, DevTools pane with resize, status pill. Exit: all CEF delegate callbacks have UI.
-- **2.7 Hide/reveal, split view, Peek.** ⌘S/⌘⌥S, edge hover band + overlay, splitter snap toast; split groups ≤4 with layouts, drag-to-split zones, pane header; Peek overlay for off-site links from permanent entries. Exit: spec §D, §E, §I.6.
-- **2.8 Shortcuts, menus, app integration.** Full §G table, main menu in code with validation, settings for remapping, default-browser prompt, URL ingestion from other apps, Sparkle wired (dev feed), Sentry wired.
-- **2.9 Dogfood week.** Use it exclusively for a week; triage; fix the top 20; write `chapter-2-review.md`.
+**Detailed spec written in Phase 1.6** (`research/notes/chapter-1-review.md` for the reasoning). Each phase below has tasks and exit criteria like Chapter 1; `docs/progress.md` carries the checklists.
+
+**New packages** (PLAN §2.2, `macos-ui-stack.md` §9.4): `Model` (GRDB), `Store`, `Sidebar`, `Palette`, `Omnibox`, `Chrome` (toasts, popovers, dialogs, downloads). The Chapter 1 throwaways (`DebugSession`, `DebugToolbar`, `OverlaySpike`, the flat page list) are deleted as their replacements land (2.3 at the latest); the DEBUG `SpikeRunner` stays.
+
+**CEF caps this chapter lives with** (from Phase 1.4; all lifted by RoomCore in Chapter 3):
+- Cookies and saved passwords are encrypted with the mock keychain key, not the login keychain: a Chapter 2 build is **not a safe daily driver for sensitive accounts**. Dogfooding (2.9) uses accounts you can afford to expose on disk.
+- No extension action popups, toolbar or `chrome://extensions`; content scripts and service workers work.
+- No password/address save prompts; the autocomplete dropdown works on http(s).
+- Docked DevTools needs the Debug-only 127.0.0.1 debugging port (default 9339; any local process can attach); Release builds get CEF's separate DevTools window.
+- `isAudible` sees Web Audio start but not stop (media elements are exact).
+- No engine omnibox ranking or history: the palette's history is our own throwaway FTS5 table until 3.5.
+
+**Carried in from Chapter 1 and placed below:** sidebar width persistence (2.1); double-click on the sidebar background = new tab (2.2); with the sidebar closed the traffic lights sit over the card and nothing is a drag handle, so the floating traffic-light cluster is also the drag region (2.7); the header's fullscreen fallback (16 pt inset) needs a real-Space test (2.8); Close Window is ⇧⌘W because ⌘W closes the tab (done).
+
+**Background RoomCore work** (Chapter 3 overlap) that may run whenever a build is waiting on nothing: the network-call audit and the static release build measurement (3.1). It never blocks a Chapter 2 exit.
+
+### Phase 2.1 — Model and store
+
+Goal: the sidebar's data, persisted crash-safely, with no UI.
+
+Tasks:
+1. `Model` package on GRDB (SwiftPM dependency, pinned): schema v1 — `profile`, `space` (name, icon, theme colors/algorithm/opacity, profileId, position, pinnedCollapsed), `entry` (kind `essential|pinned|folder|today`, spaceId (null for essentials), profileId, folderId, splitGroupId, position, storedURL, storedTitle, customLabel, customIcon, faviconId, createdAt, lastActiveAt, liveURL, liveTitle), `split_group` (layout, ratios), `window` (frame, sidebarWidth, sidebarVisible, activeSpaceId), `window_space` (selected entry per space per window), `favicon` (host, png, sha256, updatedAt), `history_url` + `history_visit` + `history_fts` (FTS5 trigram, external content; throwaway until 3.5), `kv` (settings JSON). Migrations through `DatabaseMigrator`; one database in `~/Library/Application Support/Room/`.
+2. `Store` package: `@Observable` `MainActor` stores (`SidebarStore` per profile/space tree, `WindowStore`, `SettingsStore`) as the only writers; value snapshots for the UI; no state-diffing of the whole tree on hot paths.
+3. Persistence pipeline: every mutation schedules a debounced write (300 ms; flushed on quit, window close, `applicationWillTerminate`), one transaction per write, a monotonically increasing generation so a stale write never lands after a newer one; after each successful write a JSON snapshot (`Data.write(.atomic)`); `running` flag in `kv` for unclean-exit detection.
+4. Domain rules as pure functions with tests: entry type conversions (spec §A.9), the Essentials cap (12), `isChanged` normalisation (§A.1: trailing slash and fragment ignored, query counts), MRU order per space, ⌘W behaviour selection (§A.3 `permanentCloseBehavior`), folder depth ≤ 5, sidebar order for ⌘1–9.
+5. Window state: sidebar width and visibility per window persist and restore (Chapter 1 carry-over).
+6. Seed: first launch creates profile "Default", space "Space", no entries.
+
+Exit criteria: a test harness writes continuously and is `kill -9`'d at random points 100 times; every reopen succeeds, passes `PRAGMA integrity_check`, and holds exactly the last committed generation; domain-rule and migration tests pass in the Room scheme and CI.
+
+### Phase 2.2 — Sidebar
+
+Goal: the whole sidebar tree, interactive against `FakeEngine`.
+
+Tasks:
+1. `Sidebar` package: view-based `NSOutlineView` for space title → pinned (folders) → separator/Clear → Today; Essentials as a grid row above it (`NSCollectionView` or a custom grid; ≤12, 36 pt squircles, favicon-tinted background); footer placeholder (filled in 2.5/2.6). Header (address field showing the domain only, site button, copy button on hover) laid out by `TrafficLightLayout`.
+2. Row states (spec §A.1, §I.2–I.4, I.8): unloaded (60% favicon), loaded, changed dot + reset button on hover with the ⌘ sublabel swap, audio indicator, hover background 6%, close × for Today rows; selection pill animated with `Motion.pill`; insert/remove animation 150 ms; reduced-motion crossfades.
+3. Click semantics (spec §A.2): select, click-selected-changed = reset, ⌘-click = reset + open current page as Today, middle-click unload/remove, double-click rename (inline field, pulse on commit), Enter renames the focused row.
+4. Context menus (spec §A.8, §A.6 folders) with the palette's command names; commands that need later phases are present and disabled.
+5. Drag and drop (spec §A.9): reorder with insertion line and lifted row; cross-section type conversion with the Essentials cap shake; drop on a folder (middle 60%, 500 ms); ⌥-drag duplicates; text/URL drops from outside; multi-select (⌘-click, ⇧-click within a section) with group drag; haptic tick on insertion-line moves. Drag-to-space-icon and drag-out-to-new-window wait for 2.5 / Chapter 4.8.
+6. Keyboard focus in the sidebar (spec §I.13), overflow indicator (§I.11), Clear (⇧⌘K) with staggered slide-out, Pin ⌘D, Essentials ⇧⌘D, double-click on empty sidebar = new tab (Chapter 1 carry-over).
+7. `Chrome` package, first piece: toasts (spec §F: one at a time, spring in, 2 s / 5 s with a button, hover pauses) — needed here for Clear · Undo, rename and pinned-URL toasts.
+8. Snapshot tests of rows in every state, light/dark, active/inactive.
+
+Exit criteria: every interaction in spec §A.2–A.9 works against `FakeEngine` (checklist in `docs/progress.md`, one line per spec bullet); a 500-entry sidebar scrolls without dropped frames on the 120 Hz panel; drag-conversion and Clear/Undo have tests.
+
+### Phase 2.3 — Tabs and the card
+
+Goal: entries become real pages on CEF; the card shows the selected one.
+
+Tasks:
+1. `TabController` (App or `Store`-side coordinator): one `WebContents` per loaded entry, created on first selection; background loaded pages stay hidden browsers; the card swaps `nativeView` on selection; `rootBackgroundColor` binding per page (Phase 1.4 `PageHost` becomes this).
+2. Lifecycle (spec §H): unloaded entries; restore on launch with only the selected entry per window loaded; discard after idle (Today 60 min, permanent 3 h) and on memory pressure (`DISPATCH_MEMORYPRESSURE_WARN`, LRU across spaces, never selected/audible); discarded entries keep URL/title/favicon (CEF has no navigation-history serialisation: back/forward is lost on discard and recorded as a CEF cap).
+3. ⌘W (spec §A.3) with MRU fallback, ⇧⌘T reopen stack, related-tab insertion under the opener (§A.7), MRU on close, closing the last Today tab → empty state ("Press ⌘T…").
+4. Tab switching: ⌃Tab MRU overlay (5 recent, hold ⌃, W closes), ⌘1–9, ⇧⌘] / ⇧⌘[, ⌥⌘↓ / ⌥⌘↑ (reserved set, `UIKitCore.ReservedShortcuts`).
+5. Page state into the store: title, favicon (download + cache by host, letter-tile fallback), live URL, `isChanged`, loading, audible (mute ⇧⌘M), `lastActiveAt`.
+6. Links from permanent entries navigate in place this phase (Peek in 2.7).
+7. Delete the Chapter 1 debug page list and toolbar; keep `SpikeRunner`.
+
+Exit criteria: 50 entries with 10 loaded; switching selection under 16 ms main-thread from click to the new page in the card (median and p95 recorded in `spike-results.md`), summed RSS recorded; quit and relaunch restore the tree with only the selected entry loaded; ⌘W/⇧⌘T/MRU behave per spec in tests against `FakeEngine` and by hand on CEF.
+
+### Phase 2.4 — Palette v1
+
+Goal: ⌘T/⌘L as one centred palette with our own suggestion pipeline.
+
+Tasks:
+1. `Palette` package: in-window overlay on `NSGlassEffectView`, 640 pt wide at 18% from the content top, `NSTextField` with field-editor commands (↑/↓/⏎/⎋/⇥), results list (SwiftUI rows in `NSHostingView`), open/close animation 120 ms; focus returns to the page on close.
+2. Semantics (spec §C): ⌘T new (no tab until commit; Enter = new Today tab, ⌘Enter = current tab, ⌥Enter = background), ⌘L edit (prefilled, selected; Enter unchanged = reload), ⌘T/⌘L again closes, header-field click edits in place, typed text kept per tab for 45 s, inline host completion from history only.
+3. `Omnibox` package: providers (verbatim/URL fixup, open tabs across spaces, pinned & essentials, history FTS5 + frecency, search suggest, commands registry with the spec §C list), one scorer in Chromium-like bands, dedupe by normalised URL, max 8 rows, Tab cycles groups, `>` or Tab-from-empty enters commands, site-search keywords (`yt` + Tab).
+4. History recording: committed main-frame navigations → `history_url`/`history_visit` (Model), delete-suggestion (⇧Delete / ⌘⌥Delete).
+5. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); default engine chosen at first run (2.8), DuckDuckGo until then.
+
+Exit criteria: spec §C works minus engine-provided ranking; scorer and provider unit tests; keystroke-to-local-results p95 under 16 ms with 50k history rows (synthetic) — measured and recorded; with suggestions off, no network request leaves the app while typing (verified with a net-log or proxy).
+
+### Phase 2.5 — Spaces
+
+Goal: many spaces, each with its own lists, look and (optionally) profile.
+
+Tasks:
+1. Space CRUD and the creation/edit form (spec §B: name, icon picker emoji/SF Symbol, up to 3 colours with the five algorithms, profile menu) as a SwiftUI leaf; the space context menu.
+2. Switching: footer icons (active 1.15×, hover labels, ≤1 space hides the row), ⌃1…⌃9/⌃0, ⌥⌘←/→ with wrap, two-finger swipe over the sidebar (25% threshold + velocity, rubber band, edge → new-space form), ⌃+wheel, palette "Focus on {space}"; slide 250 ms + tint crossfade; reduced-motion crossfade.
+3. Per-space selection memory; essentials crossfade when the profile changes.
+4. Profiles as CEF request contexts at `<root>/Room Profile <name>` (Phase 1.4 finding); moving an entry to a space with another profile reloads it in the new context with a one-time warning.
+5. Drag an entry onto a space icon (500 ms) to move it (2.2 carry).
+
+Exit criteria: spec §B minus routing (routing is 4.2); two profiles keep separate cookies (verified with a test page setting a cookie); switching spaces with 10 loaded pages per space shows no material flash.
+
+### Phase 2.6 — Chrome surfaces
+
+Goal: every CEF delegate callback has real UI.
+
+Tasks:
+1. Downloads: footer button with progress ring, bounce and badge; popover (name, progress, cancel, reveal, Clear); fly-in animation from the click point; filename decision and location from Settings; ⇧⌘J.
+2. Permission popover anchored to the header's site button; JS dialogs and `beforeunload` as in-card sheets; HTTP auth sheet; certificate-error interstitial (our page, proceed only for non-HSTS); file chooser; context menus (`MenuModel` → `NSMenu`) with Room items (open in new tab/Peek, copy link); popups and `window.open` → new Today entries (or the opener's split in 2.7).
+3. Find bar (⌘F/⌘G/⇧⌘G, "3 of 12") at the card's top-right; zoom ⌘=/⌘-/⌘0 with a transient zoom indicator; print (CEF's dialog); status pill for link hover (600 ms, 1.5 s full URL, dodges the cursor); Copy URL / Markdown with toasts; site panel (permissions per origin, clear site data).
+4. DevTools pane with a resize handle (Phase 1.4 front-end over the debug port in Debug; separate window in Release).
+
+Exit criteria: a checklist of every `WebContentsUIDelegate`, `NavigationDelegate` and `DownloadsDelegate` member in `docs/engine-api.md` with its UI, each exercised once on CEF (test pages in `research/spikes/phase-2.6/`).
+
+### Phase 2.7 — Hide/reveal, split view, Peek
+
+Goal: the three layout modes that make Arc feel like Arc.
+
+Tasks:
+1. Sidebar hide/reveal (spec §E): ⌘S (page-first), ⌥⌘S pin, 4 pt edge band with 150 ms dwell, floating glass overlay with 10 pt inset, 150 ms keep-open grace, 200/100 pt outside-window tolerance, popups/menus/palette keep it open; splitter snap-close toast once; background-tab, new-space and download-complete toasts while hidden.
+2. Floating traffic-light cluster (38 pt) when the sidebar is hidden; it fades after 2 s without pointer movement near it and is **the window's drag region** together with the top 5% of the card (Chapter 1 carry-over); optional "Show toolbar" (View menu) 36 pt toolbar.
+3. Split view (spec §D): groups of ≤4 panes, `hbox`/`vbox`/`grid`, persisted ratios, resizers (7 pt hit, double-click equalises), pane header on hover (domain, grip, layout, ×), focus follows click (URL field follows the focused pane), group row in the sidebar with tinted focused segment, drag-to-split zones in the card, row-centre join (500 ms), ⌥-click duplicate into split, keyboard ⇧⌘=, ⌃⇧-, ⌥⌘G/V/H/U, ⌃⇧1…4, ⌃⇧] / ⌃⇧[; ⌘W closes only the focused pane.
+4. Peek (spec §A.4, §I.6): off-site links from permanent entries and ⇧-click open an overlay card (86%, 24 pt radius, 30% dim) with Open as tab (⌘O), Split (⇧⌘O), close (Esc, ⌘W, click outside), reopen with ⇧⌘T; login/OAuth exemptions per §A.4.
+
+Exit criteria: spec §D, §E and §I.6 work on CEF; window-state snapshot tests extended to hidden-sidebar and split states; the overlay never passes events to the page under it (Phase 1.4 method).
+
+### Phase 2.8 — Shortcuts, menus, app integration
+
+Goal: Room behaves like a Mac app and can be your default browser.
+
+Tasks:
+1. Main menu in code from `docs/shortcuts.md` (every row present; unimplemented ones disabled with their chapter in the tooltip), `validateMenuItem` everywhere, the reserved set from `UIKitCore.ReservedShortcuts`. Remapping moves to 4.4 with the full settings window (amended in Phase 1.6: one place for shortcut editing).
+2. Settings v0 (SwiftUI window): search engine and suggestions off switch, download location, Peek on/off, sidebar side, appearance; the rest lands in 4.4.
+3. Default browser: first-run in-sidebar card, `NSWorkspace.setDefaultApplication` for http/https with the CoreServicesUIAgent activation, Settings entry; URL ingestion via `application(_:open:)` queued until the engine is up; Handoff out of scope.
+4. First run: default search engine choice, default-browser card, crash-reporting consent.
+5. Sparkle 2 wired to a dev feed with automatic checks **off until the user enables them** at first run; Sentry wired, **off unless the user opted in** (no network calls the user did not ask for).
+6. Fullscreen on a real Space: header fallback (16 pt inset), toolbar hidden, hover reveal works (Chapter 1 carry-over).
+
+Exit criteria: every `docs/shortcuts.md` row is either working or a disabled menu item naming its chapter; Room set as default opens links from other apps into the right window; with all opt-ins declined, a launch + browse session makes no request we did not ask for (net-log check, excluding page traffic).
+
+### Phase 2.9 — Dogfood week
+
+Tasks:
+1. Use Room as the only browser for a week (accounts you can afford under the mock keychain); log friction in `docs/backlog.md` as it happens.
+2. Triage; fix the top 20.
+3. `research/notes/chapter-2-review.md`: what worked, CEF caps hit in practice, numbers (memory with real use, switching latency, launch time), re-ranked risks; confirm the order of Chapter 3 phases.
+
+Exit criteria: a week of exclusive use; top 20 fixed; review written; Chapter 3 spec drafted.
 
 ---
 
@@ -161,8 +284,8 @@ Phases:
 **End state.** `RoomCore.framework` implements the whole `Engine` protocol plus the Chrome-only capabilities (extensions, passwords, autocomplete, session service, discarding); `EngineCEF` is deleted; the fork rebases to a new Chromium stable with a script.
 
 Phases:
-- **3.1 Bootstrap and packaging.** Everything from Phase 1.5 made production-grade: profiles directory, `Local State`, crash keys, feature flags, logging, resource bundle, locale pruning, codesign/notarize scripts for the framework and helpers, dev and release GN args, static release build measured.
-- **3.2 `RoomBrowserWindow` and `RoomBrowser`.** Real implementations of the `BrowserWindow` methods we need (activation, bounds, fullscreen, `ExclusiveAccessContext`, tab strip observer → delegate, command dispatch, status bubble, find bar interface), stubs for the rest with telemetry on hits; `Browser` per window; `takeOwnership(webContents)`; popups and PiP browser types.
+- **3.1 Bootstrap and packaging.** Everything from Phase 1.5 made production-grade: profiles directory, `Local State`, crash keys, feature flags, logging, resource bundle, locale pruning, codesign/notarize scripts for the framework and helpers, dev and release GN args, static release build measured. **Added in Phase 1.6:** network-call audit (component updater, `accounts.google.com`, `google.com/async` seen at launch; disable by prefs/switches, then `//room` hooks); Developer ID–signed keychain check; packaging for the static build (no `libchrome_dll` link in the host, no `Libraries/` rpath).
+- **3.2 `RoomBrowserWindow` and `RoomBrowser`.** Real implementations of the `BrowserWindow` methods we need (activation, bounds, fullscreen, `ExclusiveAccessContext`, tab strip observer → delegate, command dispatch, status bubble, find bar interface), stubs for the rest with telemetry on hits; `Browser` per window; `takeOwnership(webContents)`; popups and PiP browser types. **Added in Phase 1.6:** starts from the embryo's `RoomLocationBar`, `RoomExclusiveAccessContext`, feature teardown and hidden Bookmarks item; decides main-menu ownership (host menus carrying Chrome's command tags vs. `//room` owning the menu, since `AppController` walks it by tag).
 - **3.3 `RoomWebContents` parity.** Every `WebContents` member of the `Engine` protocol: navigation controller with transitions, back/forward list, find, zoom, capture, discard/freeze votes, PDF controller, media session/PiP, DevTools with CDP, print preview (Views, parented to our window), tab traits, `rootBackgroundColor`/`themeColor`.
 - **3.4 UI delegates.** Permission prompt factory → delegate; context menu model export (`RenderViewContextMenu` → `MenuModel`); downloads via `DownloadManager` with `onDeterminingFilename`; auth/cert; new contents with disposition; fullscreen/pointer lock; hung renderer; external protocol; infobars model; WebUI dialogs; consumed keys; security state.
 - **3.5 Omnibox.** Expose `AutocompleteController` (`autocomplete:cursor:preventInline:startFresh:keyword:` with streaming results, deletable matches, keyword/site search, tab match); `LocationBar` interface backed by the Swift address field; replace the Chapter 2 local history FTS with engine history.
@@ -181,7 +304,7 @@ Phases:
 - **4.1 Lifecycle and archive.** Auto-archive sweep, Archive view in the Library, restore, rolling sidebar backups, "Restore sidebar…", crash-recovery restore (all unloaded), memory-pressure discard across spaces.
 - **4.2 Routing and Peek.** Space routing rules UI (contains/equals/regex), external-link default, "Add route for domain", Peek refinements (⌘O expand, split from Peek, reopen closed Peek).
 - **4.3 Import.** Chrome/Arc/Brave/Safari bookmarks, history, passwords (CSV), cookies where allowed; map Arc's `StorableSidebar.json` spaces/pinned/folders to our model; first-run import flow.
-- **4.4 Settings.** SwiftUI settings window: general, search engines, shortcuts (conflict detection), spaces/profiles, privacy (site data, permissions per origin), downloads, appearance, extensions.
+- **4.4 Settings.** SwiftUI settings window: general, search engines, shortcuts (conflict detection), spaces/profiles, privacy (site data, permissions per origin), downloads, appearance, extensions. Shortcut remapping lives here (moved from 2.8 in Phase 1.6); the reserved set follows remapped keys.
 - **4.5 Extensions UX.** Management list, enable/disable/reload, pinned toolbar actions in the sidebar header, commands, popups polish, per-site access.
 - **4.6 Media and audio.** Audible indicator and mute click, media row above the footer, PiP, media keys.
 - **4.7 Documents.** PDF viewer polish, print preview, reader mode (basic), translate bubble UI, view source, save page, screenshots (⌘⇧2).

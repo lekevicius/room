@@ -1,6 +1,6 @@
 # Progress
 
-Current: **Chapter 1 — Foundations**, Phases 1.1–1.4 done; Phase 1.5 in progress (code written, first fork build not finished; see the last log entry).
+Current: **Chapter 2 — The sidebar browser**, Phase 2.1 next (when the user says go). Chapter 1 closed 2026-10-03 (`research/notes/chapter-1-review.md`).
 
 Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 
@@ -54,13 +54,95 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 - [x] Measurements in build-log
 - [x] Exit: page renders in the Phase 1.3 window from RoomCore; clean quit
 
-**Phase 1.5 done (2026-10-03).** Review: our Chromium fork builds as `Room.app`/`RoomCore.framework` (M154, 5 small patches, everything else in `//room`) and a Swift host drives it through an Objective-C API of our own: Wikipedia renders in the Phase 1.3 card (`research/notes/phase-1.5-roomcore-window.jpg`), navigation state flows back through KVO, real mouse and scroll input work, and ten pages quit in 0.18–0.55 s with exit 0, no helpers left and no crash reports. The clean build on the 24 GB Mac mini took 4 h 15 min, but only at 6 jobs; at 10 it swapped (PLAN §4 amended). First contact with a non-Views `BrowserWindow` produced ten failures, each small and fixed in `//room` except one patch (list in `spike-results.md`): Chrome reaches into the window for a location bar, an exclusive-access context, the main menu's Bookmarks item and feature teardown, and it CHECKs instead of tolerating their absence. Over ten sites Chrome called only 12 of the 68 stubbed `BrowserWindow` members. The surprise was the keychain: with ad-hoc builds every navigation silently stalls behind a login-password prompt for "Room Safe Storage", so ad-hoc RoomCore builds use the mock keychain. Still open: the team-signed keychain check and notarization (both need the user), unrequested Google network calls at launch, and a burst of TLS handshake errors that do not affect page loads.
+**Phase 1.5 done (2026-10-03).** Review: our Chromium fork builds as `Room.app`/`RoomCore.framework` (M154, 5 small patches, everything else in `//room`) and a Swift host drives it through an Objective-C API of our own: Wikipedia renders in the Phase 1.3 card (`research/screenshots/phase-1.5-roomcore-window.jpg`), navigation state flows back through KVO, real mouse and scroll input work, and ten pages quit in 0.18–0.55 s with exit 0, no helpers left and no crash reports. The clean build on the 24 GB Mac mini took 4 h 15 min, but only at 6 jobs; at 10 it swapped (PLAN §4 amended). First contact with a non-Views `BrowserWindow` produced ten failures, each small and fixed in `//room` except one patch (list in `spike-results.md`): Chrome reaches into the window for a location bar, an exclusive-access context, the main menu's Bookmarks item and feature teardown, and it CHECKs instead of tolerating their absence. Over ten sites Chrome called only 12 of the 68 stubbed `BrowserWindow` members. The surprise was the keychain: with ad-hoc builds every navigation silently stalls behind a login-password prompt for "Room Safe Storage", so ad-hoc RoomCore builds use the mock keychain. Still open: the team-signed keychain check and notarization (both need the user), unrequested Google network calls at launch, and a burst of TLS handshake errors that do not affect page loads.
 
 ### Phase 1.6 — Chapter review
-- [ ] `research/notes/chapter-1-review.md`
-- [ ] Engine plan confirmed/amended; `PLAN.md` §4 updated
-- [ ] Design tokens v0 and reserved shortcuts frozen
-- [ ] Chapter 2 detailed spec + `docs/backlog.md`
+- [x] `research/notes/chapter-1-review.md`
+- [x] Engine plan confirmed/amended; `PLAN.md` §4 updated
+- [x] Design tokens v0 and reserved shortcuts frozen
+- [x] Chapter 2 detailed spec + `docs/backlog.md`
+
+**Phase 1.6 done (2026-10-03).** Review: `research/notes/chapter-1-review.md` answers Chapter 1's three unknowns: clipping is pixel-exact at 120 fps; a stub-`BrowserWindow` fork is drivable from Swift at about a day of first-contact fixes; a clean build takes 4+ h. It sums up 15 spike items (12 green, 3 amber with fallbacks), both machines' build timings and the memory numbers, lists what surprised us, and re-ranks the risks: rebase/build cost is now first, and clipping, overlay z-order and traffic lights are retired. The engine plan is confirmed. PLAN §4 gains Keychain, Network calls and Main menu rows, §7 the new ranking. Tokens v0 (`docs/design-tokens.md`) and the shortcut table (`docs/shortcuts.md`) are frozen; the reserved set shrank to 16 escape-hatch shortcuts in `UIKitCore` with tests, so ⌘S and ⌘, now go to the page first. Chapter 2 is specified phase by phase in `ROADMAP.md`, with the Chapter 1 carry-overs and the CEF caps placed, and `docs/backlog.md` holds the 13 loose ends. Not done: the IOSurface composite measurement, because Instruments needs Developer mode (an admin password); it is backlog B-1 with the `RoundedCornersF` fallback kept.
+
+**Chapter 1 done (2026-10-03).** Phases 1.1–1.6 closed; PLAN §4 updated; Chapter 2 spec written.
+
+## Chapter 2 — The sidebar browser
+
+Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit criteria last.
+
+### Phase 2.1 — Model and store
+- [ ] `Model` on GRDB: schema v1, migrations, one database
+- [ ] `Store`: `@Observable` MainActor stores as the only writers
+- [ ] Persistence: debounced transactional writes, generation counter, JSON snapshot, unclean-exit flag
+- [ ] Domain rules with tests (§A.9 conversions, Essentials cap, `isChanged`, MRU, ⌘W behaviour, folder depth, ⌘1–9 order)
+- [ ] Window state: sidebar width/visibility persisted (Chapter 1 carry-over)
+- [ ] First-launch seed
+- [ ] Exit: 100 random `kill -9`s, every reopen intact at the last committed generation; tests in Room scheme and CI
+
+### Phase 2.2 — Sidebar
+- [ ] `Sidebar` package: outline tree, Essentials grid, header, footer placeholder
+- [ ] Row states and animations (§A.1, §I.2–I.4, I.8)
+- [ ] Click semantics (§A.2), rename
+- [ ] Context menus (§A.8, §A.6)
+- [ ] Drag and drop, multi-select, haptics (§A.9)
+- [ ] Keyboard focus, overflow indicator, Clear, ⌘D/⇧⌘D, double-click empty = new tab
+- [ ] `Chrome` toasts
+- [ ] Row snapshot tests
+- [ ] Exit: every §A.2–A.9 interaction against `FakeEngine`; 500 entries scroll without dropped frames; tests for conversions and Clear/Undo
+
+### Phase 2.3 — Tabs and the card
+- [ ] `TabController`: one `WebContents` per loaded entry, card swap, background binding
+- [ ] Lifecycle: unloaded restore, idle and memory-pressure discard
+- [ ] ⌘W, ⇧⌘T, related-tab insertion, MRU on close, empty state
+- [ ] Switching: ⌃Tab MRU overlay, ⌘1–9, ⇧⌘]/[, ⌥⌘↓/↑
+- [ ] Page state into the store (title, favicon cache, live URL, changed, audible/mute)
+- [ ] Delete Chapter 1 debug page list/toolbar
+- [ ] Exit: 50 entries/10 loaded, switching < 16 ms (median, p95 recorded), RSS recorded, relaunch restores with only the selection loaded
+
+### Phase 2.4 — Palette v1
+- [ ] `Palette` overlay and field-editor commands
+- [ ] ⌘T/⌘L semantics (§C)
+- [ ] `Omnibox` providers, scorer, groups, commands, site search
+- [ ] History recording + delete-suggestion
+- [ ] Search suggest clients with the off switch
+- [ ] Exit: §C minus engine ranking; tests; p95 < 16 ms local results at 50k rows; suggestions off = no requests
+
+### Phase 2.5 — Spaces
+- [ ] Space CRUD, form, context menu
+- [ ] Switching (icons, ⌃digits, ⌥⌘←/→, swipe, ⌃wheel, palette) with animation
+- [ ] Per-space selection; essentials crossfade
+- [ ] Profiles as request contexts; cross-profile move
+- [ ] Drag entry onto a space icon
+- [ ] Exit: §B minus routing; cookies separated across profiles; no material flash on switch
+
+### Phase 2.6 — Chrome surfaces
+- [ ] Downloads button, popover, fly-in, ⇧⌘J
+- [ ] Permissions, JS dialogs, auth, certificate errors, file chooser, context menus, popups
+- [ ] Find, zoom, print, status pill, Copy URL/Markdown, site panel
+- [ ] DevTools pane with resize
+- [ ] Exit: every delegate member in `docs/engine-api.md` has UI, exercised once on CEF
+
+### Phase 2.7 — Hide/reveal, split view, Peek
+- [ ] Hide/reveal (§E)
+- [ ] Floating traffic-light cluster as the drag region; optional toolbar
+- [ ] Split view (§D)
+- [ ] Peek (§A.4, §I.6)
+- [ ] Exit: §D, §E, §I.6 on CEF; snapshot tests for hidden/split; overlay passes no events to the page
+
+### Phase 2.8 — Shortcuts, menus, app integration
+- [ ] Main menu from `docs/shortcuts.md` with validation
+- [ ] Settings v0
+- [ ] Default browser + URL ingestion
+- [ ] First run (engine, default browser, crash-reporting consent)
+- [ ] Sparkle (checks off until enabled) and Sentry (opt-in)
+- [ ] Fullscreen on a real Space (Chapter 1 carry-over)
+- [ ] Exit: every shortcut row works or is a disabled menu item; links from other apps open in Room; with opt-ins declined, no unrequested requests
+
+### Phase 2.9 — Dogfood week
+- [ ] A week of exclusive use; friction into `docs/backlog.md`
+- [ ] Top 20 fixed
+- [ ] `research/notes/chapter-2-review.md`; Chapter 3 spec drafted
+- [ ] Exit: as listed
 
 ## Log
 
@@ -100,3 +182,8 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
   - Not done (needs the user): team-signed keychain check (`scripts/sign-and-notarize.sh … --no-notarize`, then launch twice and confirm no prompt on the second), notarization profile (`xcrun notarytool store-credentials room …`).
   - Observations for Chapter 3: unrequested launch-time requests to Google (component updater, `accounts.google.com/ListAccounts`, `google.com/async/folae`); ~220 TLS handshake errors (`net_error -107`) over ten sites without failed pages; Chrome's `AppController` remains `NSApp.delegate` and walks the main menu by tag, so the host's real menus should carry Chrome's tags (or `//room` should own the main menu).
   - Next: Phase 1.6 (chapter review), when the user says go.
+- 2026-10-03 — Phase 1.6 (Claude Code, Mac mini). Phase done; Chapter 1 closed.
+  - Done: `research/notes/chapter-1-review.md` (unknowns answered, spike summary, build timings on both machines, memory, surprises, engine plan, re-ranked risks); PLAN §4 engine row confirmed and new Keychain / Network calls / Main menu rows, §6 next steps, §7 re-ranked; reserved shortcuts frozen and moved to `UIKitCore.ReservedShortcuts` (16 shortcuts, arrows/Tab/shifted brackets by key code, Colemak and non-Latin layouts; 5 tests; Room scheme build + tests pass, CEF smoke quit 0.18 s); `docs/shortcuts.md`, `docs/design-tokens.md`; Chapter 2 detailed in `ROADMAP.md` (tasks and exit criteria per phase, carry-overs and CEF caps placed, Chapter 3.1/3.2 and 4.4 amended) with checklists above; `docs/backlog.md` (13 items, owners marked); the Phase 1.5 screenshot moved to `research/screenshots/`.
+  - Deviations: (1) The IOSurface composite measurement was not done: Instruments recording needs Developer Tools access (Developer mode is off; enabling it needs an admin password). The `RoundedCornersF` fallback is kept and the measurement is backlog B-1 for Chapter 5, as the ROADMAP allows. (2) The reserved set changed from Chapter 1's: ⌘S and ⌘, are now page-first so web editors keep ⌘S, and ⇧⌘N, ⌃Tab, ⇧⌘]/[ and ⌥⌘arrows were added (`docs/shortcuts.md` explains why). (3) Shortcut remapping moved from 2.8 to 4.4 to keep shortcut editing in one place, with the full settings window.
+  - Needs the user (backlog): notarization profile (B-4), team-signed keychain check (B-5), passkey entitlement request (B-6), pushing for CI (B-7), Developer mode for Instruments (B-1), suggestion defaults (B-12).
+  - Next: Phase 2.1 (model and store), when the user says go.

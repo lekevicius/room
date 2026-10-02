@@ -74,7 +74,7 @@ Card edges, corner and traffic-light/header positions match Dia to the pixel; th
 
 ## Phase 1.5 — RoomCore embryo (2026-10-02/03, Mac mini M4)
 
-The branded fork (`Room.app`/`RoomCore.framework` from `out/dev`, component build) drives the Phase 1.3 window from the Swift host `RoomCoreHost`. Timings in `build-log.md` ("Mac mini (M4)"). Screenshot: `phase-1.5-roomcore-window.jpg` (Wikipedia in the card, taken with window-level capture after the user granted access).
+The branded fork (`Room.app`/`RoomCore.framework` from `out/dev`, component build) drives the Phase 1.3 window from the Swift host `RoomCoreHost`. Timings in `build-log.md` ("Mac mini (M4)"). Screenshot: `research/screenshots/phase-1.5-roomcore-window.jpg` (Wikipedia in the card, taken with window-level capture after the user granted access).
 
 | Check | Result |
 |---|---|
