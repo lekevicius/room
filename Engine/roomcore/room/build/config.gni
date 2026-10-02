@@ -1,0 +1,7 @@
+# Room build configuration shared by //room targets and the patches that
+# reference //room from Chromium's own BUILD files.
+
+# Name of the engine framework bundle and its binary. Chromium's default is
+# "$chrome_product_full_name Framework" ("Room Framework"); the Swift app
+# links it as a Clang module, which needs a framework named after the module.
+room_framework_name = "RoomCore"
