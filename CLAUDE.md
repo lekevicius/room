@@ -20,6 +20,7 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 - No analytics, no network calls the user did not ask for; search suggestions have an off switch.
 
 ## Commands
+- New machine: follow `docs/setup.md` (tools, CEF bootstrap, Chromium checkout, RoomCore build, signing).
 - Generate project: `xcodegen` (project.yml → Room.xcodeproj, gitignored).
 - Engine bootstrap: `scripts/bootstrap-cef.sh` (downloads the pinned CEF into `Engine/cef/dist/`).
 - Chromium checkout lives at `~/chromium/src` (outside the repo); `Engine/roomcore/room` is symlinked in as `src/room`.

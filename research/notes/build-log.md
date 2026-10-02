@@ -71,3 +71,12 @@ Rule for long builds: start them from `bash` (`bash -c 'nohup … &'`), never zs
 | 2026-10-02 | `scripts/sign-and-notarize.sh` signing pass (Developer ID, hardened runtime, timestamp) | 6.7 s | 8 dylibs, framework, 5 helpers, app |
 | 2026-10-02 | Notarization zip (`ditto -c -k`) | — | 144 MB; submission blocked: no `notarytool` credential profile |
 | 2026-10-02 | Quit with 10 loaded pages (AppleEvent) ×3 | 0.54 / 0.66 / 0.60 s | load 35–40; 0 helpers left |
+
+## Phase 1.5 (RoomCore embryo)
+
+Branded fork in a fresh `out/dev` (the vanilla Phase 1.1 build moved to `out/vanilla`), `scripts/roomcore-apply.sh` + `autoninja -C out/dev chrome`, started from bash at nice 0.
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | `gn gen out/dev` with branding args | 9 s | 34,265 targets |
+| 2026-10-02 | Clean build, run 1 (stopped by hand, laptop closed) | 3,010 s (50 min) | 17,224 of 70,495 steps, 12,651 objects; load 30→260 (Zen, Arc, Claude running), ~250–460 objects/min. Resume with the same command; the clean-build total is the sum of the runs |
