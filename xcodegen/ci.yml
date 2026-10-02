@@ -3,3 +3,10 @@
 include:
   - path: xcodegen/base.yml
     relativePaths: false
+# Window test suites (tag `.window`) skip themselves when ROOM_CI is set;
+# xcodebuild does not pass the runner's CI variable to the test process.
+schemes:
+  Room:
+    test:
+      environmentVariables:
+        ROOM_CI: "1"

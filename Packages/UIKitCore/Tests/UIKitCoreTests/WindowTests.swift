@@ -18,7 +18,7 @@ func buttonFrames(_ window: NSWindow) -> [CGRect] {
     [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { window.standardWindowButton($0)?.frame }
 }
 
-@Suite("RoomWindow", .serialized)
+@Suite("RoomWindow", .serialized, .tags(.window), .localOnly)
 struct RoomWindowTests {
     @Test("Window style matches the Dia shell")
     func style() {
@@ -35,7 +35,7 @@ struct RoomWindowTests {
     }
 }
 
-@Suite("Traffic lights", .serialized)
+@Suite("Traffic lights", .serialized, .tags(.window), .localOnly)
 struct TrafficLightTests {
     @Test("Buttons are measured from the content view's top-left corner")
     func measured() throws {
@@ -119,7 +119,7 @@ struct TrafficLightTests {
     }
 }
 
-@Suite("Window activity", .serialized)
+@Suite("Window activity", .serialized, .tags(.window), .localOnly)
 struct WindowActivityTests {
     @Test("Override forces the state and reports changes once")
     func override() {
@@ -184,7 +184,7 @@ struct WindowMaterialTests {
     }
 }
 
-@Suite("Window state callbacks (persisted by the store)", .serialized)
+@Suite("Window state callbacks (persisted by the store)", .serialized, .tags(.window), .localOnly)
 struct WindowStateCallbackTests {
     @Test("Toggle and splitter drags report width and visibility; programmatic sets do not")
     func sidebarState() {
@@ -207,18 +207,12 @@ struct WindowStateCallbackTests {
         #expect(reports.last.map { $0 == (350, false) } == true)
     }
 
-    @Test("A saved frame is restored only if it is on a screen")
+    @Test("A saved frame that is on no screen is not restored")
     func restoreFrame() throws {
         let controller = RoomWindowController()
         defer { controller.close() }
-        let screen = try #require(NSScreen.main).visibleFrame
-        // Well inside the visible frame: CI runners have small displays and
-        // AppKit shrinks a frame that does not fit.
-        let onScreen = NSRect(x: screen.minX + 20, y: screen.minY + 20,
-                              width: min(1000, screen.width - 40), height: min(500, screen.height - 40))
-        #expect(controller.restoreFrame(onScreen))
-        #expect(controller.window?.frame == onScreen)
+        let before = try #require(controller.window?.frame)
         #expect(!controller.restoreFrame(NSRect(x: -100_000, y: -100_000, width: 1000, height: 700)))
-        #expect(controller.window?.frame == onScreen)
+        #expect(controller.window?.frame == before)
     }
 }

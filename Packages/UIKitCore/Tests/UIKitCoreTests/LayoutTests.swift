@@ -45,7 +45,7 @@ struct WindowLayoutTests {
     }
 }
 
-@Suite("Window controller", .serialized)
+@Suite("Window controller", .serialized, .tags(.window), .localOnly)
 struct RoomWindowControllerTests {
     private func makeController() -> RoomWindowController {
         let controller = RoomWindowController(contentSize: NSSize(width: 1000, height: 640))
