@@ -12,8 +12,8 @@ after the freeze needs a log entry in `docs/progress.md` saying why.
 
 Why so few are reserved: a reserved key is one a web app can never use. The
 set is the browser frame's escape hatches — open, close, quit, reopen, the
-palette, and moving between tabs and spaces — the same kind of set Chrome
-reserves. ⌘S (toggle sidebar) is page-first because web editors (Figma,
+palette, Settings, and moving between tabs and spaces — the same kind of set
+Chrome reserves. ⌘S (toggle sidebar) is page-first because web editors (Figma,
 StackBlitz, vscode.dev) save with it; when the page does not handle it, the
 sidebar toggles. Matching uses the active layout's character for letters (⌘T
 is the key labelled T on Colemak), the US key for non-Latin characters, and
@@ -35,7 +35,7 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | Next / previous space | ⌥⌘→ / ⌥⌘← | **yes** | 2.5 | wraps around |
 | Toggle sidebar | ⌘S | no | 1.3 | page-first; "Save page" is ⇧⌘S |
 | Pin overlay sidebar open | ⌥⌘S | no | 2.7 | |
-| Settings | ⌘, | no | 2.8 | page-first (was reserved in Chapter 1) |
+| Settings | ⌘, | **yes** | 2.8 | reserved again after the Phase 1.6 review: Settings must be reachable from any page, as in every macOS app |
 | Pin / unpin | ⌘D | no | 2.2 | |
 | Add to / remove from Essentials | ⇧⌘D | no | 2.2 | |
 | Copy URL / as Markdown | ⇧⌘C / ⌥⇧⌘C | no | 2.6 | toast |

@@ -4,6 +4,8 @@ import AppKit
 /// straight to the main menu, so a page cannot trap the user. Every other
 /// shortcut goes to the page first and reaches the menu only if the page does
 /// not handle it (⌘S toggles the sidebar unless a web editor saves with it).
+/// ⌘, is reserved: Settings must stay reachable from any page, as in every
+/// macOS app.
 ///
 /// Frozen in Phase 1.6 (`docs/shortcuts.md`): the escape hatches of the
 /// browser frame — new, close, quit, reopen, the palette, and moving between
@@ -57,6 +59,7 @@ public enum ReservedShortcuts {
     public static let all: [Shortcut] = [
         Shortcut(.character("t"), .command),               // new tab (palette)
         Shortcut(.character("l"), .command),               // edit URL (palette)
+        Shortcut(.character(","), .command),               // settings
         Shortcut(.character("n"), .command),               // new window
         Shortcut(.character("n"), [.command, .shift]),     // new incognito window
         Shortcut(.character("w"), .command),               // close tab / pane

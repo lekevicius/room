@@ -1,4 +1,4 @@
-# Implementer prompt (Chapter 1)
+# Implementer prompt
 
 Replace `<PHASE>` with the phase id (e.g. `1.3`) and paste the rest unchanged.
 
@@ -6,9 +6,13 @@ Replace `<PHASE>` with the phase id (e.g. `1.3`) and paste the rest unchanged.
 You are implementing Phase <PHASE> of the Room browser in /Users/j/Code/room.
 
 Before anything else, read CLAUDE.md, then PLAN.md (§1, §2, §4), then
-ROADMAP.md (Chapter 1 overview and the section for this phase), then
-docs/progress.md. Those files are the spec: the phase's goal, tasks, and exit
-criteria are in ROADMAP.md, and the checklist for it is in docs/progress.md.
+ROADMAP.md (the overview of the chapter this phase belongs to and the
+section for this phase), then docs/progress.md. Those files are the spec: the
+phase's goal, tasks, and exit criteria are in ROADMAP.md, and the checklist
+for it is in docs/progress.md. The frozen references the spec points at are
+docs/shortcuts.md, docs/design-tokens.md, docs/engine-api.md and
+research/notes/feature-spec.md; docs/backlog.md lists open items a phase may
+pull in when its spec names them.
 Do not re-research or re-plan. Work only on this phase; stop when its exit
 criteria are met and do not start the next phase.
 
@@ -22,9 +26,10 @@ Context you may need:
 - research/repos/ has cloned sources for reference (cef/, zen-desktop/) and
   research/repos/arccore-headers/, which is proprietary: study only, never
   copy code or comments from it.
-- The Chromium checkout lives at ~/chromium/src, outside the repo;
-  depot_tools at ~/depot_tools. Long builds run in the background; keep
-  working while they run and log timings to research/notes/build-log.md.
+- The Chromium checkout lives outside the repo (location per machine in
+  local.env, see docs/setup.md). Long builds run in the background from bash,
+  never zsh &; keep working while they run and log timings to
+  research/notes/build-log.md. Chapter 2 phases need no fork build.
 
 Working rules:
 - Commit in small chunks, one per completed task, messages prefixed

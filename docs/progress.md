@@ -96,7 +96,7 @@ Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit cr
 - [ ] ⌘W, ⇧⌘T, related-tab insertion, MRU on close, empty state
 - [ ] Switching: ⌃Tab MRU overlay, ⌘1–9, ⇧⌘]/[, ⌥⌘↓/↑
 - [ ] Page state into the store (title, favicon cache, live URL, changed, audible/mute)
-- [ ] Delete Chapter 1 debug page list/toolbar
+- [ ] Delete Chapter 1 debug page list (the toolbar's URL field stays until 2.4)
 - [ ] Exit: 50 entries/10 loaded, switching < 16 ms (median, p95 recorded), RSS recorded, relaunch restores with only the selection loaded
 
 ### Phase 2.4 — Palette v1
@@ -105,6 +105,7 @@ Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit cr
 - [ ] `Omnibox` providers, scorer, groups, commands, site search
 - [ ] History recording + delete-suggestion
 - [ ] Search suggest clients with the off switch
+- [ ] Delete the Chapter 1 debug toolbar
 - [ ] Exit: §C minus engine ranking; tests; p95 < 16 ms local results at 50k rows; suggestions off = no requests
 
 ### Phase 2.5 — Spaces
@@ -192,3 +193,4 @@ Spec: `ROADMAP.md` Chapter 2 (detailed in Phase 1.6). One line per task; exit cr
   - Card mask composite cost measured (B-1): Metal System Trace around the `scroll` spike; WindowServer GPU time 2.89 ms/frame with the mask vs 2.88 without, same pass count; clipping is green and PLAN §7 drops the risk (now 11 rows). Table empty for direct-to-display on this machine; screen sharing (`avconferenced`) was active and is the source of the one noisier segment.
   - Decisions: search suggestions on by default, default engine Google (ROADMAP 2.4). Passkey entitlement request on hold until the product name/bundle id are settled (B-6). Drive reformat later (B-10).
   - Pushed to GitHub; CI fixed (dark-inactive snapshot checks the hairline) and green. New backlog B-14: RoomCore's Crashpad database still lives under `Application Support/Chromium`.
+- 2026-10-03 — Chapter 1 review accepted (planner). ⌘, returns to the reserved set (17 shortcuts): Settings must be reachable from any page, as in every macOS app; `docs/shortcuts.md` and the tests updated. ROADMAP 2.2 split into sessions 2.2a/2.2b; the debug toolbar's URL field now lives until 2.4 (2.3 would otherwise leave no way to enter a URL). Implementer prompt generalized for Chapter 2. Next: Phase 2.1, when the user says go.

@@ -17,6 +17,7 @@ struct ReservedShortcutsTests {
     func frozenSet() {
         let events: [NSEvent] = [
             key("t", code: 17, .command), key("l", code: 37, .command),
+            key(",", code: 43, .command),
             key("n", code: 45, .command), key("n", code: 45, [.command, .shift]),
             key("w", code: 13, .command), key("w", code: 13, [.command, .shift]),
             key("t", code: 17, [.command, .shift]), key("q", code: 12, .command),
@@ -35,7 +36,6 @@ struct ReservedShortcutsTests {
     func notReserved() {
         let events: [NSEvent] = [
             key("s", code: 1, .command),            // sidebar: editors save with it
-            key(",", code: 43, .command),           // settings
             key("c", code: 8, .command), key("v", code: 9, .command), key("z", code: 6, .command),
             key("a", code: 0, .command), key("f", code: 3, .command), key("r", code: 15, .command),
             key("1", code: 18, .command), key("1", code: 18, .control),
@@ -66,7 +66,7 @@ struct ReservedShortcutsTests {
     @Test("Descriptions read like menu shortcuts")
     func descriptions() {
         #expect(ReservedShortcuts.all.map(\.description) == [
-            "⌘T", "⌘L", "⌘N", "⇧⌘N", "⌘W", "⇧⌘W", "⇧⌘T", "⌘Q", "⌃Tab", "⌃⇧Tab",
+            "⌘T", "⌘L", "⌘,", "⌘N", "⇧⌘N", "⌘W", "⇧⌘W", "⇧⌘T", "⌘Q", "⌃Tab", "⌃⇧Tab",
             "⇧⌘]", "⇧⌘[", "⌥⌘↓", "⌥⌘↑", "⌥⌘→", "⌥⌘←",
         ])
     }

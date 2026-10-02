@@ -177,6 +177,8 @@ Exit criteria: a test harness writes continuously and is `kill -9`'d at random p
 
 Goal: the whole sidebar tree, interactive against `FakeEngine`.
 
+This is the largest Chapter 2 phase. Run it as two sessions with a report after each: **2.2a** = tasks 1–4 and 7 (tree, rows, clicks, menus, toasts), **2.2b** = tasks 5, 6 and 8 (drag and drop, keyboard, snapshots). The phase is done when both are.
+
 Tasks:
 1. `Sidebar` package: view-based `NSOutlineView` for space title → pinned (folders) → separator/Clear → Today; Essentials as a grid row above it (`NSCollectionView` or a custom grid; ≤12, 36 pt squircles, favicon-tinted background); footer placeholder (filled in 2.5/2.6). Header (address field showing the domain only, site button, copy button on hover) laid out by `TrafficLightLayout`.
 2. Row states (spec §A.1, §I.2–I.4, I.8): unloaded (60% favicon), loaded, changed dot + reset button on hover with the ⌘ sublabel swap, audio indicator, hover background 6%, close × for Today rows; selection pill animated with `Motion.pill`; insert/remove animation 150 ms; reduced-motion crossfades.
@@ -200,7 +202,7 @@ Tasks:
 4. Tab switching: ⌃Tab MRU overlay (5 recent, hold ⌃, W closes), ⌘1–9, ⇧⌘] / ⇧⌘[, ⌥⌘↓ / ⌥⌘↑ (reserved set, `UIKitCore.ReservedShortcuts`).
 5. Page state into the store: title, favicon (download + cache by host, letter-tile fallback), live URL, `isChanged`, loading, audible (mute ⇧⌘M), `lastActiveAt`.
 6. Links from permanent entries navigate in place this phase (Peek in 2.7).
-7. Delete the Chapter 1 debug page list and toolbar; keep `SpikeRunner`.
+7. Delete the Chapter 1 debug page list; keep the debug toolbar's URL field, back/forward/reload until 2.4 replaces them with the palette (there is no other way to enter a URL before then); keep `SpikeRunner`.
 
 Exit criteria: 50 entries with 10 loaded; switching selection under 16 ms main-thread from click to the new page in the card (median and p95 recorded in `spike-results.md`), summed RSS recorded; quit and relaunch restore the tree with only the selected entry loaded; ⌘W/⇧⌘T/MRU behave per spec in tests against `FakeEngine` and by hand on CEF.
 
@@ -213,7 +215,8 @@ Tasks:
 2. Semantics (spec §C): ⌘T new (no tab until commit; Enter = new Today tab, ⌘Enter = current tab, ⌥Enter = background), ⌘L edit (prefilled, selected; Enter unchanged = reload), ⌘T/⌘L again closes, header-field click edits in place, typed text kept per tab for 45 s, inline host completion from history only.
 3. `Omnibox` package: providers (verbatim/URL fixup, open tabs across spaces, pinned & essentials, history FTS5 + frecency, search suggest, commands registry with the spec §C list), one scorer in Chromium-like bands, dedupe by normalised URL, max 8 rows, Tab cycles groups, `>` or Tab-from-empty enters commands, site-search keywords (`yt` + Tab).
 4. History recording: committed main-frame navigations → `history_url`/`history_visit` (Model), delete-suggestion (⇧Delete / ⌘⌥Delete).
-5. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); suggestions on by default; default engine Google until the first-run choice (2.8) (user decision, 2026-10-03).
+5. Delete the Chapter 1 debug toolbar once the palette opens URLs.
+6. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); suggestions on by default; default engine Google until the first-run choice (2.8) (user decision, 2026-10-03).
 
 Exit criteria: spec §C works minus engine-provided ranking; scorer and provider unit tests; keystroke-to-local-results p95 under 16 ms with 50k history rows (synthetic) — measured and recorded; with suggestions off, no network request leaves the app while typing (verified with a net-log or proxy).
 
