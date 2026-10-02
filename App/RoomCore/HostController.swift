@@ -108,6 +108,17 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
 
     var pages: [RoomWebContents] { browser?.webContents ?? [] }
 
+    func runSpikeCommand(_ command: Int) throws {
+        let selector = NSSelectorFromString("roomSpikeCommand:")
+        guard let browser, browser.responds(to: selector) else {
+            throw HostCDP.Failure("missing test-only Chrome command hook")
+        }
+        let result = browser.perform(selector, with: NSNumber(value: command))?.takeUnretainedValue() as? NSNumber
+        guard result?.boolValue == true else {
+            throw HostCDP.Failure("Chrome command \(command) disabled or rejected")
+        }
+    }
+
     private func show(_ page: RoomWebContents?) {
         guard page !== current || windowController?.cardView.contentView !== page?.nativeView else { return }
         current = page

@@ -35,9 +35,16 @@ enum HostSpike {
             switch name {
             case "open10": await openTen(host: host, profile: profile)
             case "nav": await navigation(host: host, profile: profile)
-            default: record("error", "unknown spike")
+            case "idle":
+                host.open(URL(string: "about:blank")!, in: profile, activate: true)
+                let seconds = max(1, UserDefaults.standard.integer(forKey: "RoomSpikeIdleSeconds"))
+                record("idle-start", Date().timeIntervalSince1970)
+                try? await Task.sleep(for: .seconds(seconds))
+                record("idle-complete", seconds)
+            default: await HostFeatureSpike.run(name, host: host, profile: profile)
             }
             record("end", name)
+            record("terminate-request-time", Date().timeIntervalSince1970)
             if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") { NSApp.terminate(nil) }
         }
     }

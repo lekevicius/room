@@ -38,3 +38,29 @@ not a failed compiler retry.
 Checkpoint 1: apply verified and rebuild started. Runtime baseline, feature
 hardening, idle network audit, TLS attribution, and Crashpad verification
 remain unverified until the component build completes.
+
+## Checkpoint 2 — preparation
+
+18-feature plan in `roomcore-feature-plan.md`. Host-only CDP driver and
+isolated loopback fixtures prepared. Net-log tooling defaults to 600 idle
+seconds, terminates through NSApp, rejects an incomplete run, and attributes
+request components from Chromium traffic annotation hashes. Seven parser
+fixture tests pass (redirects, annotation hashing, TLS dependency chain,
+unknown attribution, preconnect/DNS without URL requests, non-network URLs,
+invalid input). Swift 6 host typecheck against copied public headers in a
+stand-in framework passed; package modules read from the matching main
+checkout's existing build. This is **compile-only**, not linked fork proof.
+
+Find/zoom/print require the private command hook drafted in
+`roomcore-command-hook-draft.md`. No public header additions. Crashpad's
+PathService override is drafted in `roomcore-crashpad-draft.md`.
+The 18 feature drives are not runtime-verified yet. Several native UI checks
+are explicitly marked review-required in the plan/driver.
+
+Additional checkpoint 2 checks: six live loopback fixture checks passed
+(original popup/form pages, feature page, 26-byte attachment, unauthenticated
+401 challenge, authenticated 200). `bash -n` passed for the three launch/
+typecheck scripts. `git diff --check` uses an inherited `indent-with-non-tab`
+setting that flags the repository's existing Swift space indentation; checked
+with `core.whitespace=blank-at-eol,blank-at-eof,space-before-tab` instead,
+preserving the repository's indentation style.

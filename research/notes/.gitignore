@@ -1,0 +1,4 @@
+# Raw unattended build output; hourly measurements are committed in build-log.md.
+roomcore-build-laptop.log
+netlog-*/
+feature-*/
