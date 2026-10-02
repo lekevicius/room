@@ -1,0 +1,5 @@
+framework module RoomCore {
+  umbrella header "RoomCore.h"
+  export *
+  module * { export * }
+}

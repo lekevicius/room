@@ -1,12 +1,46 @@
-# The public Objective-C API of RoomCore.framework (headers in public/).
-# Compiled into chrome_dll, the library the framework binary is (or, in the
-# component build, re-exports).
+# The public Objective-C API of RoomCore.framework (headers in public/,
+# installed into the framework by scripts/roomcore-package.sh). Compiled into
+# chrome_dll, the library the framework binary is (or, in the component
+# build, re-exports) via patches/0004-link-room-core.patch.
 
 source_set("core") {
-  sources = [ "room_core_version.mm" ]
+  sources = [
+    "public/RoomApplication.h",
+    "public/RoomBrowser.h",
+    "public/RoomCore.h",
+    "public/RoomCrApplication.h",
+    "public/RoomExport.h",
+    "public/RoomProfile.h",
+    "public/RoomWebContents.h",
+    "room_application.mm",
+    "room_application_internal.h",
+    "room_browser.mm",
+    "room_core_version.mm",
+    "room_cr_application.mm",
+    "room_profile.mm",
+    "room_profile_internal.h",
+    "room_web_contents.mm",
+    "room_web_contents_internal.h",
+  ]
   deps = [
     "//base",
+    "//chrome/browser",
+    "//chrome/browser:chrome_browser_application_mac",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/browser_window:create_browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/common",
     "//chrome/common:version_header",
+    "//content/public/browser",
+    "//net",
+    "//room/browser",
+    "//ui/base",
+    "//url",
   ]
-  frameworks = [ "Foundation.framework" ]
+  frameworks = [
+    "AppKit.framework",
+    "Foundation.framework",
+  ]
 }
