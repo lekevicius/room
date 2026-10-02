@@ -1,10 +1,14 @@
 import AppKit
+import Design
 import Engine
+import Infra
+import Store
 import SwiftUI
 import UIKitCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine: any EngineApplication
+    private var store: RoomStore?
     private var windowController: RoomWindowController?
     private var pageHost: PageHost?
     private(set) var session: DebugSession?
@@ -16,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.make()
+        store = Self.openStore()
         showWindow()
         NSApp.activate()
         Task { await startSession() }
@@ -67,12 +72,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showWindow() {
         if windowController == nil {
             let controller = RoomWindowController()
-            // Placeholder until Chapter 2's spaces model.
-            controller.spaceTitle = "Personal"
+            if let store { bind(controller, to: store) }
             windowController = controller
             pageHost = PageHost(controller: controller)
         }
         windowController?.showWindow(nil)
+    }
+
+    // MARK: Store
+
+    /// `~/Library/Application Support/Room/Room.sqlite`. `-RoomStateDirectory`
+    /// overrides it; DEBUG snapshot and spike runs use a throwaway directory
+    /// so they never touch the user's sidebar.
+    private static func openStore() -> RoomStore? {
+        var directory = AppPaths.applicationSupport
+        if let override = UserDefaults.standard.string(forKey: "RoomStateDirectory") {
+            directory = URL(fileURLWithPath: override, isDirectory: true)
+        }
+        #if DEBUG
+        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil {
+            directory = FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
+        }
+        #endif
+        do {
+            let store = try RoomStore.open(directory: directory)
+            if store.uncleanExit { NSLog("Room: the previous session did not quit cleanly") }
+            if let recovery = store.recovery { NSLog("Room: database rebuilt at launch: \(recovery)") }
+            return store
+        } catch {
+            NSLog("Room: cannot open the state database in \(directory.path): \(error); nothing will be saved")
+            return nil
+        }
+    }
+
+    /// Restores the window's saved sidebar width/visibility and frame and
+    /// keeps the store up to date as the user changes them.
+    private func bind(_ controller: RoomWindowController, to store: RoomStore) {
+        let firstSpace = store.sidebar.spaces.first
+        let record = store.windows.restoreOrCreateWindow(defaultSidebarWidth: Double(SidebarMetrics.defaultWidth),
+                                                         space: firstSpace?.id)
+        let windowID = record.id
+        controller.sidebarWidth = CGFloat(record.sidebarWidth)
+        controller.isSidebarOpen = record.sidebarVisible
+        if let frame = record.frame { controller.restoreFrame(frame) }
+        controller.spaceTitle = record.activeSpaceID.flatMap { store.sidebar.space($0)?.name } ?? firstSpace?.name ?? ""
+        controller.onSidebarStateChange = { [weak store] width, isOpen in
+            store?.windows.setSidebarWidth(Double(width), window: windowID)
+            store?.windows.setSidebarVisible(isOpen, window: windowID)
+        }
+        controller.onFrameChange = { [weak store] frame in store?.windows.setFrame(frame, window: windowID) }
+        controller.onWillClose = { [weak store] in store?.flush() }
+    }
+
+    /// Final state write; called at quit (both termination paths).
+    func shutdown() {
+        store?.close()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        shutdown()
     }
 
     // MARK: Menu actions (end of the responder chain)

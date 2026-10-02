@@ -39,6 +39,8 @@ do {
 }
 
 engine.run()
+// CEF's terminate path leaves the run loop without applicationWillTerminate.
+delegate.shutdown()
 exit(0)
 
 private extension Int {

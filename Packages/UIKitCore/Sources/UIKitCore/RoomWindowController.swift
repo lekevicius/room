@@ -58,8 +58,19 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         set { rootView.isSidebarOpen = newValue }
     }
 
+    /// The user changed the sidebar's width or visibility (toggle, splitter
+    /// drag end); programmatic changes do not call it. The store persists it.
+    public var onSidebarStateChange: ((_ width: CGFloat, _ isOpen: Bool) -> Void)?
+
+    /// The window moved or finished resizing (not while in fullscreen).
+    public var onFrameChange: ((NSRect) -> Void)?
+
+    /// The window is about to close.
+    public var onWillClose: (() -> Void)?
+
     @objc public func toggleSidebar(_ sender: Any?) {
         isSidebarOpen.toggle()
+        onSidebarStateChange?(sidebarWidth, isSidebarOpen)
     }
 
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -83,7 +94,10 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     }
 
     private func splitterDragEnded() {
-        defer { openWidthBeforeDrag = nil }
+        defer {
+            openWidthBeforeDrag = nil
+            onSidebarStateChange?(sidebarWidth, isSidebarOpen)
+        }
         guard !isSidebarOpen else { return }
         // Reopening restores the width the drag started from, not the minimum.
         if let width = openWidthBeforeDrag { sidebarWidth = width }
@@ -116,6 +130,28 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     public func windowDidEnterFullScreen(_ notification: Notification) { rootView.needsLayout = true }
     public func windowWillExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
     public func windowDidExitFullScreen(_ notification: Notification) { rootView.needsLayout = true }
+
+    public func windowDidMove(_ notification: Notification) { reportFrame() }
+    public func windowDidEndLiveResize(_ notification: Notification) { reportFrame() }
+    public func windowDidResize(_ notification: Notification) {
+        if window?.inLiveResize == false { reportFrame() }
+    }
+    public func windowWillClose(_ notification: Notification) { onWillClose?() }
+
+    private func reportFrame() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        onFrameChange?(window.frame)
+    }
+
+    /// Restores a saved frame if it is still on a screen; otherwise keeps the
+    /// centred default. Returns whether it applied.
+    @discardableResult
+    public func restoreFrame(_ frame: NSRect) -> Bool {
+        guard let window, frame.width >= window.minSize.width, frame.height >= window.minSize.height,
+              let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(frame) }) else { return false }
+        window.setFrame(window.constrainFrameRect(frame, to: screen), display: false)
+        return true
+    }
 }
 
 /// The window's content view: material behind everything, the sidebar on the

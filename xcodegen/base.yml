@@ -35,6 +35,10 @@ packages:
     path: Packages/Card
   Infra:
     path: Packages/Infra
+  Model:
+    path: Packages/Model
+  Store:
+    path: Packages/Store
 targets:
   Room:
     type: application
@@ -58,6 +62,8 @@ targets:
       - package: UIKitCore
       - package: Card
       - package: Infra
+      - package: Model
+      - package: Store
 schemes:
   Room:
     build:
@@ -73,5 +79,7 @@ schemes:
         - package: Design/DesignTests
         - package: Card/CardTests
         - package: UIKitCore/UIKitCoreTests
+        - package: Model/ModelTests
+        - package: Store/StoreTests
     archive:
       config: Release
