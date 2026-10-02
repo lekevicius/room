@@ -5,6 +5,15 @@
 # Usage: scripts/quit-timing.sh [runs]
 set -euo pipefail
 
+# RoomCore has a native termination marker; use its exact child process and
+# avoid both AppleEvent permission and another concurrently running Room app.
+if [[ "${ROOM_QUIT_MODE:-appleevent}" == spike ]]; then
+  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  exec python3 "$ROOT/scripts/roomcore-quit-timing.py" \
+    --app "${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}" \
+    --runs "${1:-3}"
+fi
+
 RUNS="${1:-3}"
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
 BUNDLE_ID="com.lekevicius.room"

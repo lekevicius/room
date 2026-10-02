@@ -64,3 +64,31 @@ typecheck scripts. `git diff --check` uses an inherited `indent-with-non-tab`
 setting that flags the repository's existing Swift space indentation; checked
 with `core.whitespace=blank-at-eol,blank-at-eof,space-before-tab` instead,
 preserving the repository's indentation style.
+
+## Ten-page termination tooling and continuation
+
+`ROOM_QUIT_MODE=spike scripts/quit-timing.sh 3` now invokes the RoomCore host
+as an exact child, with a fresh profile per run, reads the host's
+`terminate-request-time`, checks ten pages/no outstanding loads, records
+exit status, observed child helpers and crash-report delta. It allows 5 s for
+Chrome's code-sign clone cleanup. The original AppleEvent mode remains the
+default for existing callers. This prepares B-8 but does not close it until
+real RoomCore measurements pass. Swift typecheck, shell syntax, Python compile,
+and a synthetic child termination-marker test pass (synthetic timing is not
+included as a browser baseline).
+
+A thread heartbeat `roomcore-hardening-build-and-continuation` is active every
+25 minutes, implementing the requested build polling and continuation after
+completion. It stays quiet for unchanged progress and resumes checkpoint 3
+and the original hardening/network/Crashpad work when compilation completes.
+The live build remains in exec session 18754 under nohup with a waiting bash
+parent; build PID 94522, Siso PID 94622. Last observed at 02:46:19 EEST:
+5,385/51,154 graph steps, elapsed 18m12s, nice 0, load 440.95/443.86/348.54.
+
+Main advanced during compilation (Chapter 2 and working-rule changes).
+`git diff main...HEAD` verifies this branch's changes stay in assigned paths.
+A plain `git diff main` also shows newer main-side Chapter 2 content absent
+from this older base; this is divergence, not edits made by this task. Do not
+rebase while the build reads //room. After compilation, inspect upstream
+changes and rebase safely, preserving Chapter 2, before the final exact-scope
+check requested by the user. No main push or merge is authorized.

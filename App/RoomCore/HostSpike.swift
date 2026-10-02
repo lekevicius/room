@@ -59,6 +59,10 @@ enum HostSpike {
         }
         try? await Task.sleep(for: .seconds(3))
         record("pages", host.pages.count)
+        record("loading-at-ready", host.pages.filter { $0.isLoading }.count)
+        if host.pages.count != 10 || host.pages.contains(where: { $0.isLoading }) {
+            record("error", "ten-page load incomplete")
+        }
         record("ready", Int(Date().timeIntervalSince(start)))
     }
 
