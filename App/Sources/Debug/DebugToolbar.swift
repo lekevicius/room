@@ -49,6 +49,11 @@ struct DebugToolbar: View {
                     .foregroundStyle(overlays.isHoverRevealEnabled ? Color.accentColor : Color.primary)
             }
             .controlSize(.small)
+            if overlays.isHoverRevealEnabled || overlays.isGlassOverlayShown || overlays.overlayClickCount > 0 {
+                Text("over page \(overlays.movesOverPage) · reveals \(overlays.revealCount) · overlay hover \(overlays.overlayHoverCount) click \(overlays.overlayClickCount)")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("overlay-counters")
+            }
 
             Divider()
 
