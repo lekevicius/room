@@ -20,9 +20,11 @@ std::unique_ptr<CefScopedLibraryLoader>& LibraryLoader() {
 class RoomCEFApp : public CefApp {
  public:
   RoomCEFApp(bool use_mock_keychain,
+             bool allow_devtools_frontend,
              std::string enabled_features,
              std::string disabled_features)
       : use_mock_keychain_(use_mock_keychain),
+        allow_devtools_frontend_(allow_devtools_frontend),
         enabled_features_(std::move(enabled_features)),
         disabled_features_(std::move(disabled_features)) {}
 
@@ -34,6 +36,10 @@ class RoomCEFApp : public CefApp {
     }
     if (use_mock_keychain_) {
       command_line->AppendSwitch("use-mock-keychain");
+    }
+    if (allow_devtools_frontend_) {
+      // The docked DevTools front-end connects over the debugging port.
+      command_line->AppendSwitchWithValue("remote-allow-origins", "devtools://devtools");
     }
     MergeFeatureSwitch(command_line, "enable-features", enabled_features_);
     MergeFeatureSwitch(command_line, "disable-features", disabled_features_);
@@ -54,6 +60,7 @@ class RoomCEFApp : public CefApp {
   }
 
   const bool use_mock_keychain_;
+  const bool allow_devtools_frontend_;
   const std::string enabled_features_;
   const std::string disabled_features_;
 
@@ -93,6 +100,7 @@ void SetPath(cef_string_t* target, NSURL* url) {
                         useMockKeychain:(BOOL)useMockKeychain
                         enabledFeatures:(NSArray<NSString*>*)enabledFeatures
                        disabledFeatures:(NSArray<NSString*>*)disabledFeatures
+                    remoteDebuggingPort:(NSInteger)remoteDebuggingPort
                                   error:(NSError**)error {
   // The process's own argv, which lives for the whole process.
   CefMainArgs main_args(*_NSGetArgc(), *_NSGetArgv());
@@ -101,11 +109,13 @@ void SetPath(cef_string_t* target, NSURL* url) {
   settings.no_sandbox = false;
   SetPath(&settings.root_cache_path, userDataDirectory);
   SetPath(&settings.log_file, logFile);
+  // 0 = off. Chromium binds it to 127.0.0.1 only.
+  settings.remote_debugging_port = static_cast<int>(remoteDebuggingPort);
   if (locale.length) {
     CefString(&settings.locale).FromString(locale.UTF8String);
   }
 
-  CefRefPtr<RoomCEFApp> app(new RoomCEFApp(useMockKeychain,
+  CefRefPtr<RoomCEFApp> app(new RoomCEFApp(useMockKeychain, remoteDebuggingPort > 0,
                                            JoinFeatures(enabledFeatures),
                                            JoinFeatures(disabledFeatures)));
   if (!CefInitialize(main_args, settings, app.get(), nullptr)) {

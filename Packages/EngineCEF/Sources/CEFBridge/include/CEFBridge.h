@@ -1,5 +1,7 @@
 #import <AppKit/AppKit.h>
 
+#import "RoomCEFBrowser.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// The app's NSApplication subclass. CEF requires the shared application to
@@ -28,6 +30,7 @@ NS_SWIFT_UI_ACTOR
                         useMockKeychain:(BOOL)useMockKeychain
                         enabledFeatures:(NSArray<NSString*>*)enabledFeatures
                        disabledFeatures:(NSArray<NSString*>*)disabledFeatures
+                    remoteDebuggingPort:(NSInteger)remoteDebuggingPort
                                   error:(NSError**)error;
 
 /// Runs the CEF (Chromium) message loop on top of `-[NSApplication run]`.
