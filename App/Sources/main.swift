@@ -25,8 +25,12 @@ do {
     let configuration = EngineConfiguration(
         userDataDirectory: try AppPaths.ensureDirectory(AppPaths.engineUserData),
         logFile: try AppPaths.ensureDirectory(AppPaths.logs).appending(path: "engine.log"),
-        // Ad-hoc dev builds would hit a login-keychain prompt on every launch.
-        usesSystemKeychain: CodeSignature.teamIdentifier != nil
+        // CEF 154's stable API cannot rename the "Chromium Safe Storage"
+        // keychain item, so a signed build would share (and prompt for) the
+        // item of any unbranded Chromium on the machine; ad-hoc builds would
+        // prompt on every launch. CEF builds use the mock keychain; RoomCore
+        // (Chapter 3) brands its own "Room Safe Storage" item.
+        usesSystemKeychain: false
     )
     try engine.initialize(configuration)
 } catch {

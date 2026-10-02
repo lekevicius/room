@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import Card
+import Carbon
 import Engine
 import UIKitCore
 #if canImport(EngineCEF)
@@ -42,6 +43,7 @@ enum SpikeRunner {
         case "hidden": await context.hiddenCompositing()
         case "open10": await context.openTen()
         case "diaframe": await context.diaFrame()
+        case "keys": await context.keys()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -459,6 +461,101 @@ enum SpikeRunner {
         }
         #endif
 
+        // MARK: Keyboard routing
+
+        /// Sends key events built with the characters each layout produces
+        /// (UCKeyTranslate on the layout data) through NSApp.sendEvent, and
+        /// checks reserved shortcuts, menu fall-through and editing commands.
+        func keys() async {
+            #if canImport(EngineCEF)
+            guard let page = await open(SpikeRunner.page("keys.html")) as? CEFWebContents else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            await click(page, "#t")
+            focusPage(page)
+            let pasteboard = NSPasteboard.general
+            let saved = pasteboard.pasteboardItems?.map { item in item.types.compactMap { type in item.data(forType: type).map { (type, $0) } } } ?? []
+            defer {
+                pasteboard.clearContents()
+                pasteboard.writeObjects(saved.map { pairs in
+                    let item = NSPasteboardItem()
+                    pairs.forEach { item.setData($0.1, forType: $0.0) }
+                    return item
+                })
+            }
+            for layoutID in ["com.apple.keylayout.ABC", "com.apple.keylayout.Colemak", "com.apple.keylayout.Lithuanian", "com.apple.keylayout.LithuanianColemak"] {
+                guard let layout = KeyLayout(id: layoutID) else {
+                    SpikeRunner.record("layout_\(layoutID)", "not installed")
+                    continue
+                }
+                _ = await js(page, "window.__keys = []; const t = document.getElementById('t'); t.value = 'select me and copy'; t.focus(); t.select(); 0")
+                focusPage(page)
+                var results: [String] = []
+                // Reserved: ⌘T (New Page), ⌘L (Open Location). Key codes are where the layout puts the letter.
+                let pagesBefore = session.pages.count
+                if let code = layout.keyCode(for: "t") { send(layout, code, [.command]) }
+                try? await Task.sleep(for: .milliseconds(400))
+                let newPage = session.pages.count > pagesBefore
+                if newPage, let extra = session.pages.last { extra.close() }
+                try? await Task.sleep(for: .milliseconds(300))
+                session.select(session.pages.firstIndex { $0 === page } ?? 0)
+                focusPage(page)
+                let focusBefore = session.addressFocusRequest
+                if let code = layout.keyCode(for: "l") { send(layout, code, [.command]) }
+                try? await Task.sleep(for: .milliseconds(300))
+                let focusedAddress = session.addressFocusRequest > focusBefore
+                focusPage(page)
+                _ = await js(page, "document.getElementById('t').focus(); document.getElementById('t').select(); 0")
+                // Editing: ⌘C, ⌘V, ⌘Z reach the page and fall through to the menu.
+                pasteboard.clearContents()
+                if let code = layout.keyCode(for: "c") { send(layout, code, [.command]) }
+                try? await Task.sleep(for: .milliseconds(300))
+                let copied = pasteboard.string(forType: .string)
+                pasteboard.clearContents()
+                pasteboard.setString(" PASTED", forType: .string)
+                _ = await js(page, "const t = document.getElementById('t'); t.selectionStart = t.selectionEnd = t.value.length; 0")
+                if let code = layout.keyCode(for: "v") { send(layout, code, [.command]) }
+                try? await Task.sleep(for: .milliseconds(300))
+                let afterPaste = await js(page, "document.getElementById('t').value")
+                if let code = layout.keyCode(for: "z") { send(layout, code, [.command]) }
+                try? await Task.sleep(for: .milliseconds(300))
+                let afterUndo = await js(page, "document.getElementById('t').value")
+                let seen = await js(page, "JSON.stringify(window.__keys)")
+                results.append("⌘T newPage=\(newPage)")
+                results.append("⌘L addressFocus=\(focusedAddress)")
+                results.append("⌘C pasteboard=\(copied.map { "\"\($0)\"" } ?? "nil")")
+                results.append("⌘V value=\(afterPaste)")
+                results.append("⌘Z value=\(afterUndo)")
+                results.append("page saw \(seen)")
+                // What ⌘ + the number row produces in this layout (for ⌘1–9 later).
+                let digits = [18, 19, 20, 21, 23, 22, 26, 28, 25].map { layout.characters(UInt16($0), command: true) }.joined(separator: " ")
+                results.append("⌘+number row chars: \(digits)")
+                SpikeRunner.record("keys_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))", results.joined(separator: "; "))
+            }
+            SpikeRunner.record("delegate_key_log", session.keyLog.suffix(12).joined(separator: " | "))
+            #endif
+        }
+
+        /// Makes the page's innermost view (Chromium's RenderWidgetHostViewCocoa) first responder.
+        func focusPage(_ page: any WebContents) {
+            var view: NSView = page.nativeView
+            while let next = view.subviews.last(where: { !$0.isHidden }) { view = next }
+            var responder: NSView? = view
+            while let candidate = responder, !candidate.acceptsFirstResponder { responder = candidate.superview }
+            if let responder { window.makeFirstResponder(responder) }
+        }
+
+        func send(_ layout: KeyLayout, _ keyCode: UInt16, _ flags: NSEvent.ModifierFlags) {
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                let event = NSEvent.keyEvent(
+                    with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: window.windowNumber, context: nil,
+                    characters: layout.characters(keyCode, command: flags.contains(.command)),
+                    charactersIgnoringModifiers: layout.characters(keyCode, command: false),
+                    isARepeat: false, keyCode: keyCode)
+                if let event { NSApp.sendEvent(event) }
+            }
+        }
+
         // MARK: Dia framing for external captures
 
         /// Dia's reference framing (1244×818 pt, 280 pt sidebar) with a page
@@ -602,6 +699,38 @@ enum PopupWindows {
             }
             return nil
         }
+    }
+}
+
+/// A keyboard layout's translation table, read without selecting it.
+final class KeyLayout {
+    private let data: Data
+
+    init?(id: String) {
+        let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
+        guard let list = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource],
+              let source = list.first,
+              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+        else { return nil }
+        data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
+    }
+
+    /// The string this key code types, with or without ⌘ held.
+    func characters(_ keyCode: UInt16, command: Bool) -> String {
+        var deadKeys: UInt32 = 0
+        var length = 0
+        var chars = [UniChar](repeating: 0, count: 8)
+        let modifiers: UInt32 = command ? UInt32(cmdKey >> 8) : 0
+        let status = data.withUnsafeBytes { buffer in
+            UCKeyTranslate(buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress!, keyCode, UInt16(kUCKeyActionDown),
+                           modifiers, UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, 8, &length, &chars)
+        }
+        return status == noErr ? String(utf16CodeUnits: chars, count: length) : ""
+    }
+
+    /// The key code that types `character` (unmodified), if any.
+    func keyCode(for character: String) -> UInt16? {
+        (0..<128).map(UInt16.init).first { characters($0, command: false) == character }
     }
 }
 
