@@ -79,9 +79,17 @@ struct WindowSnapshotTests {
             let further = pixels.luma(atX: card.midX, y: card.maxY + CardMetrics.inset - 1)
             #expect(below < further, "shadow \(below) vs \(further)")
         }
-        // Inset: material, not card, just outside the trailing edge.
+        // Inset: material, not card, just outside the trailing edge. The flat
+        // dark inactive material depends on what is behind the window (16
+        // levels from the card on a desktop, 5 on CI's headless runner), so
+        // there the card's edge is checked through its hairline instead.
         let outside = pixels.luma(atX: card.maxX + CardMetrics.inset / 2, y: card.midY)
-        #expect(abs(outside - interior) > 8)
+        if state.dark && !state.active {
+            let edge = pixels.luma(atX: card.maxX - 0.5, y: card.midY)
+            #expect(abs(edge - interior) > 8, "hairline \(edge) vs interior \(interior)")
+        } else {
+            #expect(abs(outside - interior) > 8, "outside \(outside) vs interior \(interior)")
+        }
 
         if state.sidebarOpen {
             let lights = try #require(controller.trafficLights.geometry.buttonsRect)
