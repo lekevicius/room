@@ -70,5 +70,6 @@ schemes:
       config: Debug
       targets:
         - package: Engine/EngineTests
+        - package: Design/DesignTests
     archive:
       config: Release
