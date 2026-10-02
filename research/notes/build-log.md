@@ -61,3 +61,13 @@ Siso (default driver), local only, 10 concurrent clang jobs. Target `chrome`: 76
 | 2026-10-02 | Launch `Chromium.app` (fresh profile, mock keychain) | ~30 s to first helper on first launch | window + 12 helpers; quit via SIGTERM, no processes left |
 
 Rule for long builds: start them from `bash` (`bash -c 'nohup … &'`), never zsh `&`, and check `ps -o nice` once.
+
+## Phase 1.4 (CEF inside the card)
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | Debug incremental build after an EngineCEF/App change | 10–40 s | load 30–90; `RoomCEFBrowser.mm` (1.4k lines ObjC++) dominates |
+| 2026-10-02 | Release build (`xcodebuild -configuration Release`), incremental | 21 s | bundle 324 MB |
+| 2026-10-02 | `scripts/sign-and-notarize.sh` signing pass (Developer ID, hardened runtime, timestamp) | 6.7 s | 8 dylibs, framework, 5 helpers, app |
+| 2026-10-02 | Notarization zip (`ditto -c -k`) | — | 144 MB; submission blocked: no `notarytool` credential profile |
+| 2026-10-02 | Quit with 10 loaded pages (AppleEvent) ×3 | 0.54 / 0.66 / 0.60 s | load 35–40; 0 helpers left |
