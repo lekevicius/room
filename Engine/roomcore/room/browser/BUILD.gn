@@ -1,0 +1,23 @@
+# RoomBrowserWindow: Chrome's BrowserWindow for a window the Swift host owns.
+
+source_set("browser") {
+  visibility = [ "//room/*" ]
+  sources = [
+    "room_browser_window.h",
+    "room_browser_window.mm",
+    "room_browser_window_stubs.cc",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/ui",
+    "//chrome/browser/ui/browser_active_state_manager",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/find_bar",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/input",
+    "//content/public/browser",
+    "//ui/base",
+    "//ui/gfx",
+  ]
+  frameworks = [ "AppKit.framework" ]
+}

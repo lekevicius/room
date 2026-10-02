@@ -1,0 +1,22 @@
+# RoomBrowserWindow members implemented in room/browser/room_browser_window.mm;
+# everything else becomes a stub (gen_browser_window_stubs.py).
+GetNativeWindow
+Show
+ShowInactive
+Hide
+Close
+Activate
+Deactivate
+IsActive
+IsVisible
+IsMinimized
+IsMaximized
+IsFullscreen
+GetBounds
+GetRestoredBounds
+OnActiveTabChanged
+HandleKeyboardEvent
+PreHandleKeyboardEvent
+GetContentsSize
+UpdateTitleBar
+AsBrowserView
