@@ -122,3 +122,14 @@ Started 2026-10-02 19:13:04 from bash with nohup, nice 0, load 4.0.
 | 2026-10-02 | **Clean build total** | **15,284 s (4 h 15 min)** | 6,449 + 8,308 + 527 s, plus ~1 min compiling `//room` alone; 63,686 steps. M1 Max 64 GB vanilla: 15,812 s (4 h 24 min, partly at nice +5). `out/dev` 8.1 GB, 518 component dylibs, `Room.app` 111 MB (`RoomCore.framework` inside) |
 
 Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blink phase spends most of its time compressing and swapping memory.
+
+### RoomCore embryo on the Mac mini (Phase 1.5)
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | `scripts/roomcore-build.sh` after a `//room` change (incl. the apply no-op ~25 s) | 44–63 s wall (build part); 71 s total | load 5–7 |
+| 2026-10-02 | `scripts/roomcore-package.sh` (stage framework + 518 dylibs, sign helpers ad hoc, xcodegen, host build) | 10 s | framework staged 916 MB (copy, not clone: the out dir is on the disk image, the stage on the internal disk), `libchrome_dll.dylib` 152 MB, `Room.app` 917 MB; host link 3.7–3.9 s |
+| 2026-10-03 | `-RoomSpike nav` (example.com → Wikipedia, back, forward, reload) | 12.2–18.2 s whole run | all states correct; `nativeView` = `WebContentsViewCocoa` in the window, 991×758; exit 0 |
+| 2026-10-03 | `-RoomSpike open10`, ten typical sites to `ready` | 12 / 12 / 12 s (load 8–13); 16 / 14 / 34 s (load 15–69) | 24–35 helper processes; browser process RSS 329–443 MB |
+| 2026-10-03 | Quit with 10 pages (`NSApp.terminate`, the ⌘Q path), "end" line to process exit ×6 | 0.31 / 0.18 / 0.26 s (load 8–13); 0.34 / 0.55 / 3.24 s (load 15, 16, 69) | exit 0, 0 crash reports; one `code-sign-clone-cleanup` helper (Chrome deleting its code-sign clone of the app) exits 1.4 s after the browser |
+| 2026-10-03 | Quit by SIGTERM after real mouse/scroll input in the page | 0.06 s | 0 helpers left after 2 s, 0 crash reports |

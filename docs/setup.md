@@ -71,7 +71,9 @@ scripts/roomcore-apply.sh
 #   branch with Engine/roomcore/patches applied, branding placeholders,
 #   out/dev/args.gn, gn gen
 bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
-#   clean component build of `chrome` (Room.app + RoomCore.framework): hours
+#   clean component build of `chrome` (Room.app + RoomCore.framework): hours.
+#   Under ~32 GB RAM add ROOM_BUILD_JOBS=6 (inside the bash -c): ten parallel
+#   Blink compiles swap on a 24 GB Mac mini (4 h 15 min at 6 jobs)
 scripts/roomcore-package.sh   # stage the framework, build the Swift host (scheme "Room (RoomCore)")
 ```
 

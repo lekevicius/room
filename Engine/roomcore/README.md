@@ -28,6 +28,7 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | `0002-keychain-room-safe-storage` | the OSCrypt keychain item is `Room Safe Storage` / `Room`, never Chromium's |
 | `0003-browser-window-factory-hook` | `BrowserWindow::CreateBrowserWindow` asks `//room` first, so a `Browser` created for a Room window gets a `RoomBrowserWindow` |
 | `0004-link-room-core` | `chrome_dll` depends on `//room/core`, so the API is inside the framework |
+| `0005-read-anything-without-side-panel` | Read Anything treats a browser without a side panel as legitimate (upstream only exempts its WebUI browser and tests) |
 
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's
@@ -48,8 +49,20 @@ Start long builds from `bash` (`bash -c 'nohup … &'`), never zsh `&`: zsh's
 
 `roomcore-package.sh` copies the ~500 component dylibs into
 `RoomCore.framework/Versions/<version>/Libraries` (APFS clones, no disk cost)
-and adds `@loader_path/Libraries` to the framework binary; the helpers already
-search that directory. The Swift host is the Xcode target `RoomCoreHost`
+(APFS clones when the out directory is on the same volume). The framework
+binary has no Mach-O header room for another rpath, so the host executable
+carries `…/RoomCore.framework/Versions/Current/Libraries` and, in the
+component build, links `libchrome_dll` directly (`xcodegen/roomcore.yml`); the
+helpers already search that directory. Helper bundles are re-signed ad hoc
+(GN leaves only linker signatures). Ad-hoc builds run with
+`--use-mock-keychain` (a new code identity per build would prompt for the
+login password on every read of "Room Safe Storage", and navigations wait on
+the cookie store until it is answered); team-signed builds use the keychain.
+
+Things Chrome expects of a browser window that the host does not provide are
+met inside `//room`: `RoomLocationBar`, `RoomExclusiveAccessContext`, a hidden
+Bookmarks menu item (`RoomCrApplication -setMainMenu:`), and
+`TearDownPreBrowserWindowDestruction()` in `~RoomBrowserWindow`. The Swift host is the Xcode target `RoomCoreHost`
 (scheme "Room (RoomCore)", sources in `App/RoomCore`), built into
 `build/roomcore/DerivedData` because the CEF target also produces a
 `Room.app`.
