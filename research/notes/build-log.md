@@ -116,4 +116,9 @@ Started 2026-10-02 19:13:04 from bash with nohup, nice 0, load 4.0.
 | Date | Step | Time | Notes |
 |---|---|---|---|
 | 2026-10-02 | Run 1, 10 local jobs (default), stopped by hand | 6,449 s (1 h 47 min) | 33,551 of 63,686 steps (22,311 C++ objects). ~750 steps/min for the first 16 min (load 39), ~370/min to 46 min, ~280/min to 76 min, then **~66/min**: in Blink each clang held 0.7–2.2 GB, siso 2.6 GB, 8.3 GB in the memory compressor, 0.9 GB swap, `kernel_task` at 130% CPU, each clang at ~50% CPU, load 99. Other apps held ~6 GB (OrbStack 1.4 GB, DaisyDisk 1.0 GB, Zen, Codex, Claude). 24 GB is not enough for 10 parallel Blink compiles |
-| 2026-10-02 | Run 2, `ROOM_BUILD_JOBS=6` (`-local_jobs=6`), resumed 21:01:15 | | load at start 55 (decaying from run 1) |
+| 2026-10-02 | Run 2, `ROOM_BUILD_JOBS=6` (`-local_jobs=6`), resumed 21:01:15 | 8,308 s (2 h 18 min) | 21,825 steps, stopped by the first `//room` compile error with 1,932 steps left. 6 clangs at ~82% CPU each, `kernel_task` ~12%, swap flat at 0.8 GB, load 9–14; ~80 steps/min in Blink core, 110–155/min later, ~280/min at the peak; 6.5 s average per C++ object in Blink |
+| 2026-10-02 | `//room` objects alone (8 files, `-j 6`), after fixes | ~30 s | three fixes: explicit `@synthesize` (`-Wobjc-missing-property-synthesis`), `CreateBrowserWindow()` instead of the now-private `Browser::Create`, no Android-only `CanResize` stub |
+| 2026-10-02 | Run 3, `ROOM_BUILD_JOBS=6`, resumed 23:23:37 | 527 s | remaining 1,539 steps incl. all links; success |
+| 2026-10-02 | **Clean build total** | **15,284 s (4 h 15 min)** | 6,449 + 8,308 + 527 s, plus ~1 min compiling `//room` alone; 63,686 steps. M1 Max 64 GB vanilla: 15,812 s (4 h 24 min, partly at nice +5). `out/dev` 8.1 GB, 518 component dylibs, `Room.app` 111 MB (`RoomCore.framework` inside) |
+
+Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blink phase spends most of its time compressing and swapping memory.
