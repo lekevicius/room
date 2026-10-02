@@ -5,7 +5,9 @@ Replace `<PHASE>` with the phase id (e.g. `1.3`) and paste the rest unchanged.
 ```
 You are implementing Phase <PHASE> of the Room browser in /Users/j/Code/room.
 
-Before anything else, read CLAUDE.md, then PLAN.md (§1, §2, §4), then
+Before anything else, run `git pull --ff-only` on main (work moves between
+two Macs through GitHub; never start from a stale checkout). Then read
+CLAUDE.md, then PLAN.md (§1, §2, §4), then
 ROADMAP.md (the overview of the chapter this phase belongs to and the
 section for this phase), then docs/progress.md. Those files are the spec: the
 phase's goal, tasks, and exit criteria are in ROADMAP.md, and the checklist
