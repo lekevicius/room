@@ -41,6 +41,8 @@ constexpr const char* kDefaultSwitches[] = {
   id _willTerminateObserver;
 }
 
+@synthesize delegate = _delegate;
+
 + (RoomApplication*)sharedApplication {
   static RoomApplication* shared = [[RoomApplication alloc] init];
   return shared;

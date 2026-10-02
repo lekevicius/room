@@ -21,13 +21,17 @@ def pure_virtuals(path, cls):
     body = text[re.search(rf"class (?:\w+\([^)]*\) )?{cls}\b", text).start():]
     # Drop comments.
     body = re.sub(r"//[^\n]*", "", body)
+    # Drop members of other platforms: a block that opens with
+    # `#if BUILDFLAG(IS_<other>)` and has no #else (asserted).
+    for block in re.findall(
+            r"#if BUILDFLAG\(IS_(?:ANDROID|CHROMEOS|WIN|LINUX|OZONE)\)\n.*?#endif",
+            body, re.S):
+        assert "#else" not in block and "#elif" not in block, block
+        body = body.replace(block, "")
     out = []
     for m in re.finditer(r"virtual\s+([^;{}]*?)\)\s*(const)?\s*=\s*0\s*;", body, re.S):
         sig = " ".join(m.group(1).split()) + ")"
         const = " const" if m.group(2) else ""
-        # ChromeOS-only members (inside #if BUILDFLAG(IS_CHROMEOS)).
-        if "ToggleMultitaskMenu" in m.group(1):
-            continue
         out.append((sig, const))
     return out
 

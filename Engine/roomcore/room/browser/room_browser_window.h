@@ -95,7 +95,6 @@ class RoomBrowserWindow : public BrowserWindow {
 
   // Stubs (room_browser_window_stubs.cc).
   ui::mojom::WindowShowState GetRestoredState() const override;
-  bool CanResize(ui::WindowResizePrecheckResult& result) const override;
   void Maximize() override;
   void Minimize() override;
   void Restore() override;

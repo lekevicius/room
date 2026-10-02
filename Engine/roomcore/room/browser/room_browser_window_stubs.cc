@@ -33,11 +33,6 @@ ui::mojom::WindowShowState RoomBrowserWindow::GetRestoredState() const {
   return ui::mojom::WindowShowState::kDefault;
 }
 
-bool RoomBrowserWindow::CanResize(ui::WindowResizePrecheckResult& result) const {
-  RoomStubHit("CanResize");
-  return false;
-}
-
 void RoomBrowserWindow::Maximize() {
   RoomStubHit("Maximize");
 }

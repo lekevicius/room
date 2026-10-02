@@ -7,7 +7,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -43,13 +43,15 @@ class Client : public room::RoomBrowserWindowClient {
 @implementation RoomBrowser {
   RoomProfile* _profile;
   NSWindow* __weak _window;
-  raw_ptr<Browser> _browser;
+  raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
   RoomWebContents* __weak _activeWebContents;
 }
+
+@synthesize delegate = _delegate;
 
 - (instancetype)initWithProfile:(RoomProfile*)profile window:(NSWindow*)window {
   if ((self = [super init])) {
@@ -64,7 +66,7 @@ class Client : public room::RoomBrowserWindowClient {
     BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
                                      *chromeProfile,
                                      /*from_user_gesture=*/true);
-    _browser = Browser::Create(std::move(params));
+    _browser = CreateBrowserWindow(std::move(params));
   }
   return self;
 }
@@ -92,7 +94,7 @@ class Client : public room::RoomBrowserWindowClient {
   if (!_browser) {
     return result;
   }
-  TabStripModel* strip = _browser->tab_strip_model();
+  TabStripModel* strip = _browser->GetTabStripModel();
   for (int i = 0; i < strip->count(); ++i) {
     if (RoomWebContents* wrapper = [RoomWebContents
             room_existingWrapperFor:strip->GetWebContentsAt(i)]) {
@@ -112,7 +114,7 @@ class Client : public room::RoomBrowserWindowClient {
       [webContents room_releaseWebContents];
   CHECK(owned) << "the page already belongs to a browser";
   [_pages addObject:webContents];
-  _browser->tab_strip_model()->AppendWebContents(std::move(owned), activate);
+  _browser->GetTabStripModel()->AppendWebContents(std::move(owned), activate);
 }
 
 - (void)close {

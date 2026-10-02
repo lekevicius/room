@@ -92,6 +92,13 @@ class Observer : public content::WebContentsObserver {
   std::unique_ptr<Observer> _observer;
 }
 
+@synthesize URL = _URL;
+@synthesize title = _title;
+@synthesize loading = _loading;
+@synthesize canGoBack = _canGoBack;
+@synthesize canGoForward = _canGoForward;
+@synthesize closed = _closed;
+
 - (instancetype)initWithChromeWebContents:
                     (std::unique_ptr<content::WebContents>)webContents
                                  profile:(RoomProfile*)profile {
