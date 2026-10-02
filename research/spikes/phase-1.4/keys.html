@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Keys</title>
+<style>body{font:15px -apple-system;margin:24px} textarea{width:420px;height:80px}</style>
+<h1>Keyboard spike</h1>
+<p>Every keydown the page sees is logged in <code>window.__keys</code>.</p>
+<textarea id="t">select me and copy</textarea>
+<pre id="log"></pre>
+<script>
+window.__keys = [];
+addEventListener('keydown', e => {
+  const k = (e.metaKey ? '⌘' : '') + (e.ctrlKey ? '⌃' : '') + (e.altKey ? '⌥' : '') + (e.shiftKey ? '⇧' : '') + e.key + '/' + e.code;
+  __keys.push(k);
+  document.getElementById('log').textContent = __keys.slice(-12).join('\n');
+}, true);
+</script>

@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Room spike extension",
+  "version": "1.0",
+  "description": "Phase 1.4: does an MV3 content script run under CEF Alloy?",
+  "action": { "default_title": "Room spike", "default_popup": "popup.html" },
+  "background": { "service_worker": "worker.js" },
+  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_end" }]
+}

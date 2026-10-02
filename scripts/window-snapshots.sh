@@ -11,13 +11,16 @@ BUNDLE_ID="com.lekevicius.room"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 rm -rf "$OUT"
-open -n "$APP" --args -RoomSnapshotDirectory "$OUT"
+open -n "$APP" --args -RoomSnapshotDirectory "$OUT" ${ROOM_SNAPSHOT_PAGE_URL:+-RoomSnapshotPageURL "$ROOM_SNAPSHOT_PAGE_URL"}
+# The last capture that needs the app frontmost (inactive states follow).
+last_active="phase-1.3-dark-dia-compare.png"
+[[ -n "${ROOM_SNAPSHOT_PAGE_URL:-}" ]] && last_active="phase-1.4-light-page-closed.png"
 sleep 2
 pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
 # Keep handing focus to the app until the runner reaches its inactive states.
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   if [[ -f "$OUT/states.txt" ]]; then break; fi
-  if ! ls "$OUT"/phase-1.3-dark-dia-compare.png >/dev/null 2>&1; then
+  if ! ls "$OUT/$last_active" >/dev/null 2>&1; then
     osascript -e "tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
   fi
   sleep 1
