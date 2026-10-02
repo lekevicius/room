@@ -22,6 +22,30 @@ final class TestStore {
     deinit { try? FileManager.default.removeItem(at: directory) }
 }
 
+/// Delivers `Persistence.onCommit` generations in order; `next()` gives up
+/// after a generous timeout so a broken pipeline fails instead of hanging.
+final class CommitWaiter {
+    private let stream: AsyncStream<Int64>
+    private var iterator: AsyncStream<Int64>.Iterator
+
+    init(_ persistence: Persistence, timeout: Duration = .seconds(30)) {
+        let (stream, continuation) = AsyncStream.makeStream(of: Int64.self)
+        self.stream = stream
+        iterator = stream.makeAsyncIterator()
+        persistence.onCommit = { continuation.yield($0) }
+        Task {
+            try? await Task.sleep(for: timeout)
+            continuation.finish()
+        }
+    }
+
+    func next() async -> Int64? {
+        var current = iterator
+        defer { iterator = current }
+        return await current.next(isolation: #isolation)
+    }
+}
+
 @Suite("Store: seed, persistence pipeline, window state")
 struct PersistenceTests {
     @Test("First launch seeds profile Default with space Space and no entries")
@@ -44,13 +68,13 @@ struct PersistenceTests {
         let test = try TestStore(debounce: .milliseconds(80))
         let store = test.store
         let space = try #require(store.sidebar.spaces.first)
-        var commits: [Int64] = []
-        store.persistence.onCommit = { commits.append($0) }
+        let commits = CommitWaiter(store.persistence)
         let start = store.persistence.generation
         for index in 0..<20 { try store.sidebar.addEntry(.today, url: "https://example.com/\(index)", space: space.id) }
         #expect(store.persistence.generation == start, "nothing written before the timer fires")
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(commits == [start + 1])
+        // Waits on the commit itself, not a fixed delay: at load 500 the timer can be seconds late.
+        #expect(await commits.next() == start + 1)
+        #expect(store.persistence.generation == start + 1 && !store.persistence.isDirty, "one write for all twenty")
         #expect(try store.storage.open().state.entries.count == 20)
     }
 
