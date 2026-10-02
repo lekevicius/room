@@ -3,8 +3,8 @@
 <title>Popups</title>
 <style>body{font:15px -apple-system;margin:24px} a,button,select,input{display:block;margin:12px 0;font-size:15px}</style>
 <h1>Popup and form-control spike</h1>
-<a id="blank" href="data:text/html,<title>target blank</title><h1>opened with target=_blank</h1>" target="_blank">target=_blank link</a>
-<button id="open" onclick="window.__popup = window.open('data:text/html,<title>window.open</title><h1>opened with window.open</h1>', 'w', 'width=400,height=300')">window.open()</button>
+<a id="blank" href="popup-target.html#blank" target="_blank">target=_blank link</a>
+<button id="open" onclick="window.__popup = window.open('popup-target.html#open', 'w', 'width=400,height=300')">window.open()</button>
 <select id="sel"><option>One</option><option>Two</option><option>Three</option><option>Four</option></select>
 <input id="date" type="date">
 <input id="color" type="color">

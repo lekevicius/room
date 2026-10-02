@@ -213,6 +213,16 @@ enum SpikeRunner {
             controller.cardView.backgroundColor = .clear
             SpikeRunner.record("control_clear_card_fill", await edgeGaps())
             controller.cardView.backgroundColor = page.rootBackgroundColor ?? .white
+            // Control 2: a page with no background over a clear card must show material.
+            if let transparent = try? session.profile.createWebContents(WebContentsConfiguration(transparentBackground: true)) {
+                transparent.load(SpikeRunner.page("transparent.html"))
+                session.host.show(transparent)
+                await waitLoaded(transparent)
+                controller.cardView.backgroundColor = .clear
+                try? await Task.sleep(for: .seconds(1))
+                SpikeRunner.record("control_transparent_page_clear_card", await edgeGaps())
+                transparent.close()
+            }
         }
 
         /// Grows the window in 24 steps and samples the card's right edge in
@@ -222,6 +232,8 @@ enum SpikeRunner {
             let original = window.frame
             var gaps = 0
             var samples = 0
+            var inside = Pixel(r: 0, g: 0, b: 0)
+            var materialSeen = Pixel(r: 0, g: 0, b: 0)
             for i in 1...24 {
                 var frame = original
                 frame.size.width = original.width - 240 + CGFloat(i) * 10
@@ -234,13 +246,15 @@ enum SpikeRunner {
                 for y in stride(from: 120.0, through: card.maxY - 40, by: 80) {
                     for inset in [2.0, 8.0, 20.0] {
                         let p = Pixel.at(image, x: (card.maxX - inset) * scale, y: y * scale)
+                        inside = p
+                        materialSeen = material
                         samples += 1
                         if p.distance(to: material) < 6 { gaps += 1 }
                     }
                 }
             }
             window.setFrame(original, display: true)
-            return "material-coloured samples inside card: \(gaps)/\(samples)"
+            return "material-coloured samples inside card: \(gaps)/\(samples); last inside rgb(\(Int(inside.r)),\(Int(inside.g)),\(Int(inside.b))) material rgb(\(Int(materialSeen.r)),\(Int(materialSeen.g)),\(Int(materialSeen.b)))"
         }
 
         // MARK: Memory
@@ -401,8 +415,11 @@ enum SpikeRunner {
 
         #if canImport(EngineCEF)
         /// Clicks an element through CDP input events (a real user gesture in the renderer).
-        func click(_ page: CEFWebContents, _ selector: String) async {
-            let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+        /// `fromRight` clicks that many points left of the element's right edge
+        /// (the date input's calendar button) instead of its centre.
+        func click(_ page: CEFWebContents, _ selector: String, fromRight: Double? = nil) async {
+            let x = fromRight.map { "r.right - \($0)" } ?? "r.x + r.width / 2"
+            let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [\(x), r.y + r.height / 2] })()")
             guard let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 else { return }
             for type in ["mousePressed", "mouseReleased"] {
                 _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": type, "x": point[0], "y": point[1], "button": "left", "clickCount": 1])
@@ -424,7 +441,12 @@ enum SpikeRunner {
             // A <select> runs a modal NSMenu tracking loop on this thread, so
             // measure and dismiss it from another thread.
             let probe = PopupWindows.probe(pid: pid, excluding: before)
-            await click(page, selector)
+            if selector == "#date" {
+                // A CDP click on the calendar glyph does not open it; showPicker() with a gesture does.
+                _ = try? await page.devToolsMethod("Runtime.evaluate", params: ["expression": "document.querySelector('#date').showPicker()", "userGesture": true])
+            } else {
+                await click(page, selector)
+            }
             let found = await probe.value
             try? await Task.sleep(for: .milliseconds(300))
             _ = await js(page, "document.activeElement && document.activeElement.blur(); 0")
@@ -568,7 +590,8 @@ enum PopupWindows {
         Task.detached {
             for _ in 0..<60 {
                 try? await Task.sleep(for: .milliseconds(50))
-                if let popup = list(pid: pid).first(where: { !excluding.contains($0.id) && $0.bounds.height > 10 }) {
+                let fresh = list(pid: pid).filter { !excluding.contains($0.id) && $0.bounds.height > 40 }
+                if let popup = fresh.max(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
                     try? await Task.sleep(for: .milliseconds(300))
                     let latest = list(pid: pid).first(where: { $0.id == popup.id }) ?? popup
                     for down in [true, false] {

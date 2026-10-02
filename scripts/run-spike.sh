@@ -18,7 +18,7 @@ sleep 2
 pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   if [[ "${ROOM_SPIKE_NO_ACTIVATE:-0}" != 1 ]]; then
-    osascript -e "tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
+    osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
   fi
   grep -q '^end:' "$OUT" 2>/dev/null && [[ "$*" == *KeepRunning* ]] && break
   sleep 1
