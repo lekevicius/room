@@ -5,7 +5,7 @@ import UIKitCore
 /// `Room -RoomSnapshotDirectory <dir>` (Debug builds): captures the window in
 /// each Phase 1.3 state as PNGs, writes `states.txt` with what the window
 /// server reported for each, and quits. Active states are captured first;
-/// the app then deactivates itself for the inactive ones.
+/// a helper window then takes main for the inactive ones.
 enum SnapshotRunner {
     static var directory: URL? {
         UserDefaults.standard.string(forKey: "RoomSnapshotDirectory").map { URL(fileURLWithPath: $0, isDirectory: true) }
@@ -40,18 +40,46 @@ enum SnapshotRunner {
             State(name: "dark-inactive-closed", dark: true, sidebarOpen: false),
         ]
         var report: [String] = []
-        // Launching from a script does not always make the app frontmost.
-        for _ in 0..<30 where !NSApp.isActive {
-            NSApp.activate()
-            controller.window?.makeKeyAndOrderFront(nil)
-            try? await Task.sleep(for: .milliseconds(100))
+        for state in active {
+            // Launching from a script does not always make the app frontmost,
+            // macOS may refuse self-activation (scripts/window-snapshots.sh
+            // also activates it from outside), and other apps can take focus
+            // mid-capture: retry until the window stays main throughout.
+            var line = ""
+            for _ in 0..<40 {
+                for _ in 0..<50 where !isFrontmost(controller) {
+                    NSApp.activate()
+                    controller.window?.makeKeyAndOrderFront(nil)
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                guard isFrontmost(controller) else { continue }
+                line = await capture(state, controller, directory)
+                if isFrontmost(controller) { break }
+            }
+            report.append(line)
         }
-        for state in active { report.append(await capture(state, controller, directory)) }
-        NSApp.deactivate()
-        try? await Task.sleep(for: .seconds(1))
-        for state in inactive { report.append(await capture(state, controller, directory)) }
+        // Inactive look: another window of ours takes main, as when a
+        // second browser window is in front.
+        let sink = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 120), styleMask: [.titled], backing: .buffered, defer: false)
+        sink.isReleasedWhenClosed = false
+        defer { sink.close() }
+        for state in inactive {
+            var line = ""
+            for _ in 0..<40 {
+                sink.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .milliseconds(200))
+                guard controller.window?.isMainWindow == false else { continue }
+                line = await capture(state, controller, directory)
+                if controller.window?.isMainWindow == false { break }
+            }
+            report.append(line)
+        }
         try? report.joined(separator: "\n").appending("\n")
             .write(to: directory.appending(path: "states.txt"), atomically: true, encoding: .utf8)
+    }
+
+    private static func isFrontmost(_ controller: RoomWindowController) -> Bool {
+        NSApp.isActive && controller.window?.isMainWindow == true
     }
 
     private static func capture(_ state: State, _ controller: RoomWindowController, _ directory: URL) async -> String {
