@@ -72,5 +72,6 @@ schemes:
         - package: Engine/EngineTests
         - package: Design/DesignTests
         - package: Card/CardTests
+        - package: UIKitCore/UIKitCoreTests
     archive:
       config: Release
