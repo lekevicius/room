@@ -65,5 +65,10 @@ schemes:
         Room: all
     run:
       config: Debug
+    # Package unit tests (Swift Testing); `swift test` in the package runs the same.
+    test:
+      config: Debug
+      targets:
+        - package: Engine/EngineTests
     archive:
       config: Release

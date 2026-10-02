@@ -18,8 +18,8 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 **Phase 1.1 done (2026-10-02).** Review: the app shell, five helpers, CEF embedding and orderly `CefShutdown` work (quit 0.23–0.33 s, no leftover helpers, no crash reports over 8 runs); the no-engine CI spec builds with the CEF dist absent. The checkout is pinned to the exact Chromium commit CEF 154.0.32 uses, and the first `chrome` component build finished. Two spec items were wrong for M154/Xcode 27 (`safe_browsing_mode=0`, missing Metal toolchain) and are recorded below. The big surprise is build cost: 4 h 24 min clean vs. the 1.3–2 h estimate (partly self-inflicted via nice +5); incrementals are fine (27–39 s). Re-measure a clean build at normal priority before trusting rebase-cost estimates in Phase 1.5/1.6.
 
 ### Phase 1.2 — The `Engine` protocol
-- [ ] `Packages/Engine` protocols and value types (§1.2 of ROADMAP)
-- [ ] `FakeEngine` + tests
+- [x] `Packages/Engine` protocols and value types (§1.2 of ROADMAP)
+- [x] `FakeEngine` + tests
 - [ ] `docs/engine-api.md` mapping table (Engine ↔ CEF ↔ Chromium/ArcCore)
 - [ ] Exit: compiles under Swift 6 strict concurrency; tests pass; mapping reviewed
 

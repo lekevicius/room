@@ -1,0 +1,66 @@
+import AppKit
+import Engine
+
+/// A pure-Swift engine for unit tests and UI previews. Pages are an
+/// `NSTextView` showing the URL; page-side events (link clicks, dialogs,
+/// permission requests, crashes) are triggered with the `simulate…` methods
+/// on `FakeWebContents` and `FakeProfile`.
+public final class FakeApplication: EngineApplication {
+    public private(set) var configuration: EngineConfiguration?
+    public private(set) var fakeProfiles: [FakeProfile] = []
+    private var isRunning = false
+
+    public init() {}
+
+    public func initialize(_ configuration: EngineConfiguration) throws {
+        guard self.configuration == nil else { throw EngineError.failed("initialize called twice") }
+        self.configuration = configuration
+    }
+
+    public func run() {
+        isRunning = true
+        NSApplication.shared.run()
+        isRunning = false
+    }
+
+    public func tryToTerminate(_ completion: @escaping (Bool) -> Void) {
+        let open = fakeProfiles.flatMap(\.openWebContents)
+        Self.confirmUnload(open[...]) { [weak self] proceed in
+            guard proceed else { return completion(false) }
+            for contents in open { contents.closeNow() }
+            completion(true)
+            if self?.isRunning == true { NSApplication.shared.stop(nil) }
+        }
+    }
+
+    public var features: EngineFeatures {
+        configuration?.features ?? EngineFeatures()
+    }
+
+    public var profiles: [any Profile] { fakeProfiles }
+
+    public func createProfile(name: String) async throws -> any Profile {
+        try profile(named: name)
+    }
+
+    /// Synchronous `createProfile` for tests and previews.
+    public func profile(named name: String) throws -> FakeProfile {
+        guard configuration != nil else { throw EngineError.notRunning }
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains(":") else {
+            throw EngineError.invalidProfileName(name)
+        }
+        if let existing = fakeProfiles.first(where: { $0.name == name }) { return existing }
+        let profile = FakeProfile(name: name)
+        fakeProfiles.append(profile)
+        return profile
+    }
+
+    /// Asks each page's beforeunload handler in turn; stops at the first "stay".
+    private static func confirmUnload(_ pages: ArraySlice<FakeWebContents>, _ completion: @escaping (Bool) -> Void) {
+        guard let first = pages.first else { return completion(true) }
+        first.confirmUnload(isReload: false) { proceed in
+            guard proceed else { return completion(false) }
+            confirmUnload(pages.dropFirst(), completion)
+        }
+    }
+}

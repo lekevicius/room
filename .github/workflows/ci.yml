@@ -1,5 +1,6 @@
-# Compile-only check of the app and its packages, without an engine
-# distribution (CEF and RoomCore builds stay local in Chapter 1).
+# Compile check of the app and its packages plus the package unit tests
+# (FakeEngine), without an engine distribution (CEF and RoomCore builds stay
+# local in Chapter 1).
 name: CI
 
 on:
@@ -29,9 +30,9 @@ jobs:
       - name: Generate project (no engine)
         run: xcodegen --spec xcodegen/ci.yml --project-root . --project .
 
-      - name: Build
+      - name: Build and test
         run: |
-          xcodebuild build \
+          xcodebuild build test \
             -project Room.xcodeproj \
             -scheme Room \
             -configuration Debug \
