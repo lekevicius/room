@@ -1,6 +1,8 @@
 # Build log
 
-Measured timings on the dev machine: Apple M1 Max (10 cores), 64 GB RAM, macOS 27.0.1, Xcode 27.0 (27A266a), CMake from Homebrew. Wall-clock seconds unless noted. Network: home connection, CDN downloads ~60–90 MB/s.
+Wall-clock seconds unless noted. Sections up to Phase 1.5 run 1 are on the first dev machine; later machines have their own heading at the end.
+
+First dev machine (MacBook Pro): Apple M1 Max (10 cores), 64 GB RAM, macOS 27.0.1, Xcode 27.0 (27A266a), CMake from Homebrew. Network: home connection, CDN downloads ~60–90 MB/s.
 
 ## CEF (scaffold engine)
 
@@ -80,3 +82,17 @@ Branded fork in a fresh `out/dev` (the vanilla Phase 1.1 build moved to `out/van
 |---|---|---|---|
 | 2026-10-02 | `gn gen out/dev` with branding args | 9 s | 34,265 targets |
 | 2026-10-02 | Clean build, run 1 (stopped by hand, laptop closed) | 3,010 s (50 min) | 17,224 of 70,495 steps, 12,651 objects; load 30→260 (Zen, Arc, Claude running), ~250–460 objects/min. Resume with the same command; the clean-build total is the sum of the runs |
+
+## Mac mini (M4), from 2026-10-02
+
+Mac16,10, Apple M4 (4 performance + 6 efficiency cores), 24 GB RAM, internal SSD 460 GB (22 GB free), macOS 27.0.1 (26A434), Xcode 27.0 (27A266a), Metal toolchain installed, Homebrew xcodegen/cmake/gh. Wired Ethernet (en0). Chromium lives in an APFS sparse bundle (`/Volumes/JL4/Chromium.sparsebundle`, 350 GB max, mounted at `/Volumes/Chromium`, Spotlight off) on a 4 TB SanDisk Extreme Pro USB SSD formatted exFAT; every Chromium number below carries that disk-image + USB overhead. Background apps during the session: Claude, VS Code, ChatGPT/Codex, Obsidian, Hermes, 1Password; idle load average 4–5.
+
+### Setup (`docs/setup.md`)
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | Tools (§1) | — | already present: Homebrew, xcodegen, cmake, gh (logged in), Metal toolchain, `Developer ID Application: Jonas Lekevicius (N56PMJ99UT)` in the keychain; no `notarytool` profile `room` |
+| 2026-10-02 | `scripts/bootstrap-cef.sh`, cold | 199 s | concurrent with the Chromium fetch below. Minimal 3 s download + 8 s extract, standard 14 s + 16 s (`tests/`), configure 3 s, wrapper 20 s, cefsimple 125 s; cefsimple ran with 5 helpers, quit 1 s, exit 0 |
+| 2026-10-02 | `xcodegen` | 0.04 s | |
+| 2026-10-02 | Clean Debug build, scheme Room | 23.5 s | M1 Max: 21 s |
+| 2026-10-02 | `scripts/smoke-launch.sh` ×3 | quit 0.18 / 0.18 / 0.19 s | exit 0, 3 helpers while idle, 0 left, 0 crash reports; load 5–6 |
