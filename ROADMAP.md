@@ -52,6 +52,7 @@ Exit criteria:
 Goal: a Swift API that both engines will implement, shaped by the ArcCore headers so the Chapter 3 bridge maps one to one.
 
 Tasks:
+0. Build on what Phase 1.1 left in `Packages/Engine` (`EngineApplication`, `EngineConfiguration` with `usesSystemKeychain`): extend, do not replace, and keep `Room.app` building and launching on `EngineCEF` at every commit (the CEF classes only need to adopt new protocol members as stubs that throw or return `nil`).
 1. In `Packages/Engine`, define (all `@MainActor`):
    - `EngineApplication`: `initialize(config)`, `run()`, `tryToTerminate(completion)`, `createProfile(name)`, `profiles`, `features`.
    - `Profile`: `createWebContents(config)`, `downloadsDelegate`, `favicon(for:)`, `clearSiteData`, later: history, bookmarks, extensions, autocomplete (declared as optional capabilities so CEF can return `nil`).
@@ -59,7 +60,7 @@ Tasks:
    - `WebContentsUIDelegate`: `didCreateNewWebContents(_, targetURL, disposition)`, `requestEnterFullscreen/exit`, `statusText`, `willShowContextMenu(MenuModel, elementInfo) -> Bool`, JS alert/confirm/prompt/beforeunload, `willAskForPermission([PermissionRequest], quiet:) completion`, `httpAuth`, `certificateError`, `fileChooser`, `didConsumeKey`, `audibleChanged/mutedChanged`, `processGone`, `didChangeSecurityState`.
    - `NavigationDelegate`: `decidePolicy(for: NavigationAction) -> Disposition`.
    - Value types: `PermissionRequest`, `MenuModel/MenuItem`, `NavigationAction`, `Disposition`, `DownloadItem`, `SecurityState`, `WebContentsConfiguration` (`initiallyHidden`, `transparentBackground`, `initiallyMuted`, `disallowAutoplay`).
-2. `FakeEngine` (pure Swift, renders an `NSTextView` with the URL) for unit tests and UI previews.
+2. `FakeEngine` (pure Swift, renders an `NSTextView` with the URL) for unit tests and UI previews. Tests use Swift Testing in `Packages/Engine/Tests`, run with `swift test` in the package and also added to the Xcode scheme's test action so CI runs them.
 3. `docs/engine-api.md`: table mapping each protocol member to its CEF handler/method and to the Chromium/ArcCore equivalent, with "CEF: not available" where applicable. This table is the Chapter 3 checklist.
 
 Exit criteria: package compiles under Swift 6 strict concurrency; `FakeEngine` passes a small test suite (navigation state, delegate dispatch); mapping doc reviewed.
@@ -115,7 +116,7 @@ Tasks:
    - `RoomBrowser` over `Browser` with `RoomBrowserWindow : BrowserWindow` (all virtuals stubbed; `GetNativeWindow` returns the host `NSWindow`; `Show/Close/Activate` forward to the host). Patch `browser_window_factory.cc` to construct it. `grep AsBrowserView() chrome/` on the pinned tag and record the count and the first crashes hit.
 4. Host executable: the Swift app (`App/main.swift`) `dlopen`s `RoomCore` and calls `RoomMain(argc, argv)` which runs `ChromeMain`; helpers reuse Chromium's helper executables renamed. (If handing the main loop to Chromium conflicts with our `NSApplication` subclass, record the fix: ArcCore does exactly this, so it is solvable.)
 5. Packaging script: assemble `Room.app` from `out/dev` artifacts (framework, helpers, resources), ad-hoc sign, launch.
-6. Measure: incremental build time for a change in `//room/core`; full relink time; framework size.
+6. Measure: incremental build time for a change in `//room/core`; full relink time; framework size. The branding change forces a large rebuild anyway, so run it as a clean build at normal priority (started from `bash`, never zsh `&`) and record it as the true clean-build time; Phase 1.1's 4 h 24 min was mostly at nice +5.
 
 Exit criteria: `Room.app` built from the fork shows a page in the Phase 1.3 window; back/forward/reload work; quit is clean; `RoomBrowserWindow` stubs did not need more than a handful of real implementations to reach this point; build-log has fork numbers.
 
