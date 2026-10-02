@@ -20,7 +20,7 @@ Legend: `[ ]` todo · `[x]` done · `[-]` dropped (say why in the log).
 ### Phase 1.2 — The `Engine` protocol
 - [x] `Packages/Engine` protocols and value types (§1.2 of ROADMAP)
 - [x] `FakeEngine` + tests
-- [ ] `docs/engine-api.md` mapping table (Engine ↔ CEF ↔ Chromium/ArcCore)
+- [x] `docs/engine-api.md` mapping table (Engine ↔ CEF ↔ Chromium/ArcCore)
 - [ ] Exit: compiles under Swift 6 strict concurrency; tests pass; mapping reviewed
 
 ### Phase 1.3 — The window
