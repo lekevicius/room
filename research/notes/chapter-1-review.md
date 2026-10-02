@@ -16,7 +16,7 @@ From `spike-results.md` (Phase 1.4 on CEF, Phase 1.5 on RoomCore):
 
 | Item | Status | Note |
 |---|---|---|
-| Clipping | amber | pixel-exact; IOSurface scan-out unmeasured; fallback `RoundedCornersF` in RoomCore |
+| Clipping | green (was amber) | pixel-exact; composite cost measured 2026-10-03 after the review: no extra WindowServer GPU work with the mask (2.89 vs 2.88 ms/frame) |
 | Empty toolbar band over the page | green | clicks reach the page; no scroll-edge effect; toolbar hidden in fullscreen |
 | Live resize | green | page colour in 576/576 samples; frames median 8.30 ms, max 10.4 ms |
 | Overlay z-order (glass over the page, hover reveal) | green | page receives no events under the overlay |
@@ -32,9 +32,11 @@ From `spike-results.md` (Phase 1.4 on CEF, Phase 1.5 on RoomCore):
 | Audibility on CEF | amber | Web Audio stop not visible until RoomCore |
 | RoomCore page in window, navigation, input, quit | green | Phase 1.5 |
 
-Totals: 15 items, 12 green, 3 amber with fallbacks, 0 red.
+Totals: 15 items, 12 green, 3 amber with fallbacks, 0 red at the review; clipping turned green the next day (13 green, 2 amber).
 
 ### The unmeasured one: does the card mask cost an extra composite?
+
+**Update 2026-10-03:** measured after the user enabled Developer mode. Mask on and off cost the same WindowServer GPU time per frame (2.89 vs 2.88 ms, same number of GPU passes); details in `spike-results.md`, "Card mask composite cost". The paragraph below is the review as written.
 
 Not measured. The ROADMAP's suggested route (Instruments' Metal System Trace or Animation Hitches, mask on vs. off, on the Phase 1.4 scroll page) needs Developer Tools access on this Mac (`DevToolsSecurity -status`: disabled), which takes an administrator password, so it did not fit in this session. What we have: with the mask on, scrolling holds 120 fps with 0 frames over 12.5 ms, the same as with the mask off, at load 30–44; whatever the extra cost is, it does not show as dropped frames on this hardware. Decision: keep the planned fallback (a Chromium-side `RoundedCornersF`/clip on the web contents layer in RoomCore, as Electron does) and measure power/composite cost in Chapter 5 with Instruments once Developer mode is on. Backlog item B-1.
 
@@ -96,7 +98,7 @@ Compared with PLAN §7 (2026-10-01). Changes in rank are explained in the last c
 | 4 | Keychain and signing identity (dev builds stall on prompts; notarization credentials) | new | Mock keychain for ad-hoc builds; Developer ID signing for keychain tests; user stores the notarytool profile once |
 | 5 | Widevine CDM download / playback | 5 | Unchanged, unverified; verify in Chapter 3 |
 | 6 | Chrome Web Store access for non-Chrome brands | 6 | Unchanged; keep unpacked/CRX path |
-| 7 | Card mask costs an extra IOSurface composite (power, not frames) | 1 | Down: pixel-exact and 120 fps; unmeasured composite cost; `RoundedCornersF` fallback; measure in Chapter 5 |
+| 7 | Card mask costs an extra IOSurface composite (power, not frames) | 1 | Retired 2026-10-03: no extra WindowServer GPU work measured (B-1) |
 | 8 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups, no password prompts) | new | Stated in the Chapter 2 spec; Chapter 2 dogfooding avoids sensitive accounts |
 | 9 | Passkey entitlement lead time | 9 | Unchanged; request from Apple before Chapter 4 |
 | 10 | Sparkle update size (RoomCore component bundle 917 MB; release static size unknown) | 10 | Measure the static release build in 3.1 |

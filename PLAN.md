@@ -198,17 +198,16 @@ Re-ranked at the end of Chapter 1; the reasoning per row is in `research/notes/c
 | 1 | Rebase and build cost at a 2-week cadence (clean build 4+ h; swaps on 24 GB) | Tiny patch set (5 at the end of Chapter 1); scripted rebase (3.8); overnight builds at 6 jobs on 24 GB machines; Extended Stable fallback |
 | 2 | `BrowserWindow` replacement entanglement: Chrome UI code assumes `BrowserView`/Chrome's main menu and CHECKs | Phase 1.5 hit 10 such failures, each small; run real input through a real window early in every Chapter 3 phase; stub-hit logging |
 | 3 | Unrequested network calls from Chrome components | Audit and disable in 3.1 |
-| 4 | Keychain and signing identity (ad-hoc builds stall on prompts; notarization credentials) | Mock keychain for ad-hoc builds; Developer ID signing for keychain work; user stores the notarytool profile |
+| 4 | Keychain and signing identity (ad-hoc builds stall on prompts; notarization credentials) | Mock keychain for ad-hoc builds; Developer ID signing for keychain work (verified 2026-10-03: one prompt on first launch, none after); notarytool profile `room` stored |
 | 5 | Widevine CDM does not download or Netflix rejects playback | Verify in Chapter 3; manual CDM copy fallback; apply for the license early |
 | 6 | Chrome Web Store tightens access for non-Chrome brands | Keep unpacked/CRX install path and own management UI |
-| 7 | The card mask costs an extra IOSurface composite (power, not frames: 120 fps measured) | Measure with Instruments in Chapter 5; fallback Chromium-side `RoundedCornersF` in RoomCore |
-| 8 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups or password prompts) | Stated in the Chapter 2 spec; avoid sensitive accounts while dogfooding on CEF |
-| 9 | Passkey entitlement lead time | Request from Apple before Chapter 4 |
-| 10 | Sparkle update size (component bundle 917 MB; static release size unknown) | Measure the static release build in 3.1; full-app updates acceptable at first |
-| 11 | Crashpad → Sentry minidump format | One forced renderer crash test in Chapter 3 |
-| 12 | Single-maintainer dependency (CEF) | Ends at 3.9 |
+| 7 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups or password prompts) | Stated in the Chapter 2 spec; avoid sensitive accounts while dogfooding on CEF |
+| 8 | Passkey entitlement lead time | Request from Apple before Chapter 4 |
+| 9 | Sparkle update size (component bundle 917 MB; static release size unknown) | Measure the static release build in 3.1; full-app updates acceptable at first |
+| 10 | Crashpad → Sentry minidump format | One forced renderer crash test in Chapter 3 |
+| 11 | Single-maintainer dependency (CEF) | Ends at 3.9 |
 
-Retired in Chapter 1: rounded-corner clipping (pixel-exact, 120 fps; only the composite-cost question remains, row 7), overlay/palette z-order over the web view (green in Phase 1.4), traffic-light geometry drift (AppKit's own placement, six-state tests).
+Retired in Chapter 1: rounded-corner clipping (pixel-exact, 120 fps, and no extra WindowServer GPU work with the mask: 2.89 vs 2.88 ms per frame, measured 2026-10-03), overlay/palette z-order over the web view (green in Phase 1.4), traffic-light geometry drift (AppKit's own placement, six-state tests).
 
 ## 8. What is in `research/`
 

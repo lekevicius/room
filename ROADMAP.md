@@ -213,7 +213,7 @@ Tasks:
 2. Semantics (spec §C): ⌘T new (no tab until commit; Enter = new Today tab, ⌘Enter = current tab, ⌥Enter = background), ⌘L edit (prefilled, selected; Enter unchanged = reload), ⌘T/⌘L again closes, header-field click edits in place, typed text kept per tab for 45 s, inline host completion from history only.
 3. `Omnibox` package: providers (verbatim/URL fixup, open tabs across spaces, pinned & essentials, history FTS5 + frecency, search suggest, commands registry with the spec §C list), one scorer in Chromium-like bands, dedupe by normalised URL, max 8 rows, Tab cycles groups, `>` or Tab-from-empty enters commands, site-search keywords (`yt` + Tab).
 4. History recording: committed main-frame navigations → `history_url`/`history_visit` (Model), delete-suggestion (⇧Delete / ⌘⌥Delete).
-5. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); default engine chosen at first run (2.8), DuckDuckGo until then.
+5. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); suggestions on by default; default engine Google until the first-run choice (2.8) (user decision, 2026-10-03).
 
 Exit criteria: spec §C works minus engine-provided ranking; scorer and provider unit tests; keystroke-to-local-results p95 under 16 ms with 50k history rows (synthetic) — measured and recorded; with suggestions off, no network request leaves the app while typing (verified with a net-log or proxy).
 
