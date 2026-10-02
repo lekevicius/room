@@ -3,6 +3,10 @@
 # per-target entitlements, verifies it, and (unless --no-notarize) submits it
 # to Apple's notary service and staples the ticket.
 #
+# Handles both engines: CEF (helpers in Contents/Frameworks) and RoomCore
+# (helpers and, in the component build, ~500 dylibs inside
+# RoomCore.framework/Versions/<v>; scripts/roomcore-package.sh).
+#
 # Notarization needs a stored credential profile, created once by the user:
 #   xcrun notarytool store-credentials room --apple-id <id> --team-id N56PMJ99UT
 # Usage: scripts/sign-and-notarize.sh [path/to/Room.app] [--no-notarize]
@@ -18,30 +22,47 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENT_APP="$ROOT/App/Resources/Room.entitlements"
 ENT_JIT="$ROOT/Helpers/Resources/Helper-JIT.entitlements"
 ENT_NONE="$ROOT/Helpers/Resources/Helper.entitlements"
-FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
 now() { perl -MTime::HiRes=time -e 'printf "%.1f\n", time'; }
 sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
 
 [[ -d "$APP" ]] || { echo "no app at $APP" >&2; exit 1; }
 t0=$(now)
 
-# 1. Framework internals, then the framework.
-find "$FW/Versions/A/Libraries" -name '*.dylib' -print0 | while IFS= read -r -d '' lib; do sign "$lib"; done
-sign "$FW/Versions/A"
+if [[ -d "$APP/Contents/Frameworks/RoomCore.framework" ]]; then
+  FW="$APP/Contents/Frameworks/RoomCore.framework"
+  FWV="$FW/Versions/$(readlink "$FW/Versions/Current")"
+  HELPERS="$FWV/Helpers"
+else
+  FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
+  FWV="$FW/Versions/A"
+  HELPERS="$APP/Contents/Frameworks"
+fi
 
-# 2. Helpers: Renderer and GPU get allow-jit, the rest nothing (as Chrome).
-# On M154 the GPU process runs from the base helper; measured in Phase 1.4,
-# it runs without allow-jit (ROOM_BASE_HELPER_ENTITLEMENTS to experiment).
-for helper in "$APP"/Contents/Frameworks/Room\ Helper*.app; do
+# 1. Framework internals (dylibs: in parallel, the component build has ~500),
+# then helper executables that are not app bundles.
+find "$FWV/Libraries" -name '*.dylib' -print0 \
+  | xargs -0 -P 8 -n 16 codesign --force --options runtime --timestamp --sign "$IDENTITY"
+for tool in chrome_crashpad_handler app_mode_loader web_app_shortcut_copier; do
+  [[ -f "$HELPERS/$tool" ]] && sign "$HELPERS/$tool"
+done
+
+# 2. Helpers: Renderer and GPU (and their Aperitif twins on RoomCore) get
+# allow-jit, the rest nothing (as Chrome). On M154 the GPU process runs from
+# the base helper; measured in Phase 1.4, it runs without allow-jit
+# (ROOM_BASE_HELPER_ENTITLEMENTS to experiment).
+for helper in "$HELPERS"/Room\ Helper*.app; do
   case "$helper" in
-    *"(Renderer)"*|*"(GPU)"*) ent="$ENT_JIT" ;;
+    *"Renderer)"*|*"GPU)"*) ent="$ENT_JIT" ;;
     *"Room Helper.app") ent="${ROOM_BASE_HELPER_ENTITLEMENTS:-$ENT_NONE}" ;;
     *) ent="$ENT_NONE" ;;
   esac
   sign --entitlements "$ent" "$helper"
 done
 
-# 3. Anything else Xcode embedded (debug dylibs in Debug builds), then the app.
+# 3. The framework (after its nested code).
+sign "$FWV"
+
+# 4. Anything else Xcode embedded (debug dylibs in Debug builds), then the app.
 find "$APP/Contents/MacOS" -name '*.dylib' -print0 | while IFS= read -r -d '' lib; do sign "$lib"; done
 sign --entitlements "$ENT_APP" "$APP"
 t1=$(now)
