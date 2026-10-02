@@ -111,27 +111,29 @@ Goal: the same page in the same window, but from `RoomCore.framework` built from
 
 Tasks:
 1. Fork layout: branch `room` in the Chromium checkout; `//room/` directory committed in this repo at `Engine/roomcore/room/` and symlinked into `~/chromium/src/room`; `Engine/roomcore/patches/` (quilt-style, applied by script); `Engine/roomcore/chromium_src/` (Brave-style shadow headers, initially empty); `scripts/roomcore-{apply,build,package}.sh`.
-2. Branding/build: a `room` branding directory (`chrome/app/theme/room` equivalent) with product name, bundle ids, icon placeholder; GN `branding_path_component`; disable `enable_updater`, Google-specific features; confirm the `chrome` target builds with `is_chrome_branded=false` and our names, producing `Room Framework.framework` (renamed `RoomCore.framework` in packaging).
+2. Branding/build: a `room` branding directory (`chrome/app/theme/room` equivalent) with product name, bundle ids, icon placeholder; GN `branding_path_component`; disable `enable_updater`, Google-specific features; confirm the `chrome` target builds with `is_chrome_branded=false` and our names, producing `Room Framework.framework` (renamed `RoomCore.framework` in packaging). The keychain item name follows the branding product name: confirm a launch of the branded build creates `Room Safe Storage` in the login keychain and never touches `Chromium Safe Storage` (Phase 1.4 found CEF cannot do this, so CEF builds run on the mock keychain; RoomCore must not).
 3. Public ObjC API target `//room/core` (compiled into the framework; umbrella `RoomCore.h` + `module.modulemap`; `NS_SWIFT_UI_ACTOR` on every class):
    - `RoomApplication` (`initialize:` with argc/argv/profile path, `run`, `tryToTerminate:`, `createProfile`, `profiles`) over `ChromeMainDelegate`/`BrowserMainParts`; the host `NSApplication` conforms to `CrAppProtocol` (patch `chrome_browser_application_mac` to accept a host-provided application object instead of creating `BrowserCrApplication`).
    - `RoomProfile` over `Profile` (`createWebContents:`).
    - `RoomWebContents` over `content::WebContents` (`nativeView`, `load:`, `goBack/goForward/reload`, title/url/isLoading KVO via `WebContentsObserver`).
    - `RoomBrowser` over `Browser` with `RoomBrowserWindow : BrowserWindow` (all virtuals stubbed; `GetNativeWindow` returns the host `NSWindow`; `Show/Close/Activate` forward to the host). Patch `browser_window_factory.cc` to construct it. `grep AsBrowserView() chrome/` on the pinned tag and record the count and the first crashes hit.
 4. Host executable: the Swift app (`App/main.swift`) `dlopen`s `RoomCore` and calls `RoomMain(argc, argv)` which runs `ChromeMain`; helpers reuse Chromium's helper executables renamed. (If handing the main loop to Chromium conflicts with our `NSApplication` subclass, record the fix: ArcCore does exactly this, so it is solvable.)
-5. Packaging script: assemble `Room.app` from `out/dev` artifacts (framework, helpers, resources), ad-hoc sign, launch.
+5. Packaging script: assemble `Room.app` from `out/dev` artifacts (framework, helpers, resources), ad-hoc sign, launch. Reuse the helper layout and per-helper entitlements that `scripts/sign-and-notarize.sh` established in Phase 1.4 (base helper hosts the GPU process on M154 and needs no `allow-jit`; Renderer/GPU helpers get it), so the Developer ID run of that script works on the fork build too.
 6. Measure: incremental build time for a change in `//room/core`; full relink time; framework size. The branding change forces a large rebuild anyway, so run it as a clean build at normal priority (started from `bash`, never zsh `&`) and record it as the true clean-build time; Phase 1.1's 4 h 24 min was mostly at nice +5.
 
-Exit criteria: `Room.app` built from the fork shows a page in the Phase 1.3 window; back/forward/reload work; quit is clean; `RoomBrowserWindow` stubs did not need more than a handful of real implementations to reach this point; build-log has fork numbers.
+Exit criteria: `Room.app` built from the fork shows a page in the Phase 1.3 window; back/forward/reload work; quit is clean (measure with `scripts/quit-timing.sh`, record the load average); `RoomBrowserWindow` stubs did not need more than a handful of real implementations to reach this point; build-log has fork numbers.
 
 ### Phase 1.6 — Chapter review
 
 Tasks:
-1. Write `research/notes/chapter-1-review.md`: spike results summary, build timings, memory numbers, what surprised us, re-ranked risk table.
+1. Write `research/notes/chapter-1-review.md`: spike results summary, build timings, memory numbers, what surprised us, re-ranked risk table. The one unmeasured spike (does the card mask cost an extra composite of Chromium's IOSurface layer) can be answered without Quartz Debug: Instruments' Metal System Trace / Animation Hitches on the mask-on vs. mask-off scroll page from Phase 1.4; do it if it fits in a morning, otherwise keep the RoomCore `RoundedCornersF` fallback and say so.
 2. Confirm or amend the engine plan (CEF scaffold → RoomCore). If Phase 1.5 failed in a way that changes the estimate materially, re-plan Chapter 3 before starting Chapter 2.
 3. Freeze design tokens v0 and the reserved-shortcut set.
 4. Draft the Chapter 2 detailed spec (phases below expanded into tasks/exit criteria) and a backlog in `docs/backlog.md`.
 
 Carry-overs the Chapter 2 spec must place (from Phase 1.3): with the sidebar closed the traffic lights sit over the card's top-left corner and nothing in the window is a drag handle (card and material refuse drags), so the floating traffic-light cluster (2.7) also has to be the drag region; sidebar width persistence (2.1 store); double-click on the sidebar background = new tab (§F); fullscreen behaviour of the header (traffic lights leave the window, header falls back to a 16pt inset) needs a real-Space test.
+
+CEF caps the Chapter 2 spec must state (from Phase 1.4), all lifted by RoomCore: cookies and saved passwords are encrypted with the mock keychain key, not the login keychain, so a Chapter 2 build is not a safe daily driver for sensitive accounts; docked DevTools needs the Debug-only 127.0.0.1 debugging port (default 9339, any local process can attach), Release builds get CEF's separate DevTools window; `isAudible` sees Web Audio start but not stop; extension action popups and `chrome://extensions` do not exist; no autofill/password save prompts; Close Window is ⇧⌘W because ⌘W closes the tab.
 
 Chapter 1 exit: Phases 1.1–1.6 closed; `PLAN.md` §4 decisions updated with anything learned; Chapter 2 spec written.
 
