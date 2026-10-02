@@ -44,3 +44,19 @@ Measured timings on the dev machine: Apple M1 Max (10 cores), 64 GB RAM, macOS 2
 | 2026-10-02 | Checkout size | 113 GB total | `src/.git` 66 GB, `src/third_party` 40 GB |
 | 2026-10-02 | `gn gen out/dev` (`Engine/roomcore/args/dev.gn`) | 6 s | 34,264 targets from 4,989 files; first attempt failed on `safe_browsing_mode=0` (see dev.gn) |
 | 2026-10-02 | `xcodebuild -downloadComponent MetalToolchain` | 19 s | 839 MB; Xcode 27 does not install the Metal toolchain by default and ANGLE's shader step needs it (first build attempt failed after 70 s, 1,387/76,659 steps) |
+
+## Chromium first component build (`out/dev`, `autoninja -C out/dev chrome`)
+
+Siso (default driver), local only, 10 concurrent clang jobs. Target `chrome`: 76,659 steps, 46,865 object files; `out/dev` 8.1 GB, 518 component dylibs, `Chromium.app` 111 MB.
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | Clean build, run 1 (stopped) | 12,806 s (3 h 33 min) | 40,147 objects. **Ran at nice +5**: zsh's `BG_NICE` renices `&` jobs; ~450 objects/min for the first 30 min, then ~130/min in V8/Blink |
+| 2026-10-02 | Clean build, run 2 (resumed at nice 0) | 3,006 s (50 min) | remaining ~6,700 objects + links; 176 objects/min measured over 10 min |
+| 2026-10-02 | **Clean build total** | **15,812 s (4 h 24 min)** | vs. 1.3–2 h estimate in `chromium-fork.md`. Even at nice 0 the 10 clang jobs used ~630% CPU of 10 cores; cause not isolated (needs `sudo powermetrics`/fs_usage). Load average stayed 330–430. A Google Chrome renderer used ~1.4 cores throughout |
+| 2026-10-02 | Touch `chrome/browser/ui/browser.cc`, rebuild | 27 s | |
+| 2026-10-02 | Touch `content/browser/web_contents/web_contents_impl.cc`, rebuild | 39 s | |
+| 2026-10-02 | No-op rebuild | 4 s | |
+| 2026-10-02 | Launch `Chromium.app` (fresh profile, mock keychain) | ~30 s to first helper on first launch | window + 12 helpers; quit via SIGTERM, no processes left |
+
+Rule for long builds: start them from `bash` (`bash -c 'nohup … &'`), never zsh `&`, and check `ps -o nice` once.
