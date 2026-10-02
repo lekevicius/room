@@ -60,6 +60,12 @@ if otool -L "$V/RoomCore" | grep -q '@rpath/libchrome_dll.dylib'; then
   # no header room for another LC_RPATH (install_name_tool refuses even an
   # in-place rewrite), so the host executable carries it
   # (xcodegen/roomcore.yml LD_RUNPATH_SEARCH_PATHS).
+  # chrome_crashpad_handler only knows the out directory; it has header room.
+  handler="$V/Helpers/chrome_crashpad_handler"
+  if ! otool -l "$handler" | grep -q 'path @executable_path/../Libraries '; then
+    install_name_tool -add_rpath @executable_path/../Libraries "$handler"
+  fi
+  codesign --force --sign - "$handler"
 fi
 
 # Ad-hoc signatures, inside-out. Linker signatures of untouched dylibs stay
