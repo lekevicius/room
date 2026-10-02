@@ -1,9 +1,10 @@
 import AppKit
 import Engine
+import UIKitCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine: any EngineApplication
-    private var window: NSWindow?
+    private var windowController: RoomWindowController?
 
     init(engine: any EngineApplication) {
         self.engine = engine
@@ -13,6 +14,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make()
         showWindow()
         NSApp.activate()
+        #if DEBUG
+        if let directory = SnapshotRunner.directory, let controller = windowController {
+            Task {
+                await SnapshotRunner.run(controller, into: directory)
+                NSApp.terminate(nil)
+            }
+        }
+        #endif
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -25,18 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showWindow() {
-        if window == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Room"
-            window.isReleasedWhenClosed = false
-            window.center()
-            self.window = window
+        if windowController == nil {
+            let controller = RoomWindowController()
+            // Placeholder until Chapter 2's spaces model.
+            controller.spaceTitle = "Personal"
+            windowController = controller
         }
-        window?.makeKeyAndOrderFront(nil)
+        windowController?.showWindow(nil)
     }
 }

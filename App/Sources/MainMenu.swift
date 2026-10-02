@@ -27,6 +27,11 @@ enum MainMenu {
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         main.addItem(submenu: editMenu, title: "Edit")
 
+        let viewMenu = NSMenu(title: "View")
+        // Handled by RoomWindowController through the responder chain.
+        viewMenu.addItem(withTitle: "Hide Sidebar", action: Selector(("toggleSidebar:")), keyEquivalent: "s")
+        main.addItem(submenu: viewMenu, title: "View")
+
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

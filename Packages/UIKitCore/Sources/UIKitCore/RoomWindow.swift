@@ -25,6 +25,15 @@ public final class RoomWindow: NSWindow {
         collectionBehavior.insert(.fullScreenPrimary)
         contentMinSize = Self.minimumContentSize
         isReleasedWhenClosed = false
+        // An empty unified toolbar gives the 52pt titlebar Dia uses: AppKit
+        // itself places the traffic lights further in and vertically centred
+        // in it. We never move them; this only selects AppKit's own layout.
+        let toolbar = NSToolbar(identifier: "RoomWindowToolbar")
+        toolbar.allowsUserCustomization = false
+        toolbar.displayMode = .iconOnly
+        self.toolbar = toolbar
+        toolbarStyle = .unified
+        titlebarSeparatorStyle = .none
         // Follow the system appearance.
         appearance = nil
     }

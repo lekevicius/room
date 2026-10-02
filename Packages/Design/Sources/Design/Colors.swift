@@ -14,13 +14,11 @@ public enum Palette {
     public static var sidebarHover: NSColor { named("SidebarHover") }
     /// Space tint when a space has no theme colors.
     public static var spaceTintDefault: NSColor { named("SpaceTintDefault") }
-    /// Splitter line shown while hovering or dragging the sidebar edge.
-    public static var splitterHighlight: NSColor { named("SplitterHighlight") }
 
     /// Every catalog color, for tests.
     public static let allNames = [
         "CardBackground", "CardBorder", "CardShadow", "SidebarSelection",
-        "SidebarHover", "SpaceTintDefault", "SplitterHighlight",
+        "SidebarHover", "SpaceTintDefault",
     ]
 
     static func named(_ name: String) -> NSColor {
