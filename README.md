@@ -7,7 +7,7 @@ A macOS browser: Chromium engine, native Swift/AppKit chrome, the Arc/Zen sideba
 - `docs/progress.md` — phase tracker and log.
 - `research/` — the research reports the plan is based on (`research/README.md` is the index).
 
-Status: Chapter 1 (Foundations), Phase 1.1.
+Status: Chapter 1 (Foundations), Phases 1.1–1.2 done; next Phase 1.3.
 
 ## Layout
 
