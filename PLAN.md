@@ -96,9 +96,9 @@ Rule for the ObjC boundary: only Foundation/AppKit types and C structs cross it.
 - `NSWindow` with `.fullSizeContentView`, transparent titlebar, hidden title, tabbing disallowed, `isMovableByWindowBackground` only on the sidebar.
 - Content view: `NSVisualEffectView` (behind-window, `.sidebar` material) + a low-alpha gradient layer for the space tint.
 - Left: sidebar (AppKit `NSOutlineView`, view-based rows; drag/drop, inline rename, context menus). Address field is an `NSTextField` subclass in the sidebar header.
-- Right: the **card**: a layer-backed `NSView` with `cornerRadius 12`, `cornerCurve .continuous`, `masksToBounds`, hairline border, shadow on a sibling layer; the engine's `NSView` is its subview. Container background = page `rootBackgroundColor` so live resize never shows the material.
+- Right: the **card**: a layer-backed `NSView` with `cornerRadius 10` (continuous), inset 6pt top/right/bottom (both measured from Dia in Phase 1.3; first guess was 12/8), `masksToBounds`, 1px hairline border, shadow on a sibling layer; the engine's `NSView` is its subview. Container background = page `rootBackgroundColor` so live resize never shows the material.
 - Overlays (in-window views above the card): palette, hover-revealed sidebar, Peek, toasts, MRU switcher. `NSGlassEffectView` for these on macOS 26+.
-- Traffic lights stay where AppKit puts them; the sidebar header lays out around their actual frames (Tahoe moved them; never hard-code).
+- Traffic lights stay where AppKit puts them; the sidebar header lays out around their actual frames (Tahoe moved them; never hard-code). The window carries an empty `.unified` `NSToolbar`: that alone makes AppKit place the buttons where Dia has them (19,19 instead of 9,9 in a bare titlebar), without touching their frames (Phase 1.3).
 - Keyboard: engine sees keys first (reserved set excluded), unhandled keys go once to `NSApp.mainMenu.performKeyEquivalent`.
 
 ### 2.5 Data
