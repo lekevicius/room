@@ -143,11 +143,11 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | Local time (Europe/Vilnius) | Elapsed | Progress / result | Priority / load |
 |---|---|---|---|
 | 2026-10-03 02:28:07 | start | resumed `autoninja -C out/dev chrome`; Siso recalculates remaining total after regeneration | build and Siso nice 0, default jobs; load 20.59 / 45.70 / 49.30 |
+| 2026-10-03 02:46:19 | 18 m 12 s | 5,385 / 51,154 remaining-run graph steps (Siso recalculated total); still compiling V8/media | nice 0; load 440.95 / 443.86 / 348.54; 10 logical CPUs, 68,719,476,736 bytes RAM |
 
 Total clean branded time must add 3,010 s from the earlier partial run to
 this resumed build; do not call the resumed wall time a clean-build total.
 
-| 2026-10-03 02:46:19 | 18 m 12 s | 5,385 / 51,154 remaining-run graph steps (Siso recalculated total); still compiling V8/media | nice 0; load 440.95 / 443.86 / 348.54; 10 logical CPUs, 68,719,476,736 bytes RAM |
 
 The 02:46 sample is progress only, not a finished-build measurement. Default
 jobs remain unchanged as requested despite high load. Next scheduled poll is

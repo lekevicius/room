@@ -92,3 +92,7 @@ from this older base; this is divergence, not edits made by this task. Do not
 rebase while the build reads //room. After compilation, inspect upstream
 changes and rebase safely, preserving Chapter 2, before the final exact-scope
 check requested by the user. No main push or merge is authorized.
+
+Draft PR: https://github.com/lekevicius/room/pull/1 (attached to this chat).
+Update this PR as evidence arrives; do not create a duplicate. Keep it draft
+until the runtime exit gates are met or the final partial scope is explicit.
