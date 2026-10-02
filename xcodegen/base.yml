@@ -71,5 +71,6 @@ schemes:
       targets:
         - package: Engine/EngineTests
         - package: Design/DesignTests
+        - package: Card/CardTests
     archive:
       config: Release
