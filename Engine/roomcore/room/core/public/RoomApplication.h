@@ -23,7 +23,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @end
 
 // The browser process. One per process; the host creates it in main(),
-// initializes it, then hands the main thread to -run.
+// initializes it, then hands the main thread to -run. The host's first
+// RoomCore call must be +sharedApplication, before it touches its
+// RoomCrApplication subclass: Chromium's NSApplication +initialize reads the
+// command line, which +sharedApplication sets up.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @interface RoomApplication : NSObject
 

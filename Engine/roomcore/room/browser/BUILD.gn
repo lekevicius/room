@@ -6,6 +6,8 @@ source_set("browser") {
     "room_browser_window.h",
     "room_browser_window.mm",
     "room_browser_window_stubs.cc",
+    "room_location_bar.cc",
+    "room_location_bar.h",
   ]
   deps = [
     "//base",
@@ -14,6 +16,7 @@ source_set("browser") {
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//components/input",
     "//content/public/browser",
     "//ui/base",

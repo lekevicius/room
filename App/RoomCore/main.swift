@@ -15,8 +15,17 @@ do {
     // different profile format.
     let userData = try AppPaths.ensureDirectory(
         AppPaths.applicationSupport.appending(path: "RoomCore", directoryHint: .isDirectory))
+    // Ad-hoc builds get a new code identity per build, so macOS asks for the
+    // login password before every read of the "Room Safe Storage" item, and
+    // the cookie store (which needs that key) holds every navigation until it
+    // is answered. Team-signed builds keep their identity and use the real
+    // keychain.
+    var arguments = CommandLine.arguments
+    if CodeSignature.teamIdentifier == nil {
+        arguments.append("--use-mock-keychain")
+    }
     try core.initialize(
-        arguments: CommandLine.arguments,
+        arguments: arguments,
         applicationClass: RoomHostApplication.self,
         userDataDirectory: userData
     )

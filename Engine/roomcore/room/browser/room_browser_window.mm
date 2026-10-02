@@ -9,12 +9,14 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_manager_service.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/web_contents.h"
+#include "room/browser/room_location_bar.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 
 namespace room {
@@ -80,6 +82,10 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
       objc_(std::make_unique<ObjCMembers>(ObjCMembers{window})) {}
 
 RoomBrowserWindow::~RoomBrowserWindow() {
+  // What BrowserView and WebUIBrowserWindow do in their destructors: features
+  // that hold on to window-scoped objects (side panel entries, for example)
+  // let go of them before the Browser destroys the features themselves.
+  browser_->GetFeatures().TearDownPreBrowserWindowDestruction();
   if (client_) {
     client_->OnBrowserWindowDestroyed();
   }
@@ -224,6 +230,13 @@ bool RoomBrowserWindow::HandleKeyboardEvent(
 
 BrowserView* RoomBrowserWindow::AsBrowserView() {
   return nullptr;
+}
+
+LocationBar* RoomBrowserWindow::GetLocationBar() const {
+  if (!location_bar_) {
+    location_bar_ = std::make_unique<room::RoomLocationBar>(browser_);
+  }
+  return location_bar_.get();
 }
 
 void RoomBrowserWindow::DeleteBrowserWindow() {

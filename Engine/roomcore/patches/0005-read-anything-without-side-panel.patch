@@ -1,0 +1,17 @@
+diff --git a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
+index cc74f999f4e11..14033c4b25efa 100644
+--- a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
++++ b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
+@@ -293,10 +293,8 @@ void ReadAnythingSidePanelController::TabWillDetach(
+   if (!side_panel_ui) {
+     // TODO(webium): create a SidePanelCoordinator for WebUIBrowser.
+     // This is a temporary solution to avoid a crash.
+-    if (!webui_browser::IsWebUIBrowserEnabled()) {
+-      CHECK_IS_TEST();
+-    }
+-    return;  // IN-TEST
++    // Room: windows of the Room host have no side panel either.
++    return;
+   }
+ 
+   SidePanelEntry::Key read_anything_key(SidePanelEntry::Id::kReadAnything);

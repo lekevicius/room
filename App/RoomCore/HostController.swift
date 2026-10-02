@@ -10,7 +10,9 @@ import UIKitCore
 final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelegate {
     private var windowController: RoomWindowController?
     private var browser: RoomBrowser?
-    private let strip = NavigationStrip()
+    // Lazy: HostController exists before RoomCore creates NSApp, and creating
+    // AppKit controls would create a plain NSApplication first.
+    private lazy var strip = NavigationStrip()
     private var observations: [NSKeyValueObservation] = []
     private var closingFromEngine = false
     private(set) var current: RoomWebContents?

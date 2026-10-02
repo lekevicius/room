@@ -127,11 +127,6 @@ autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
   return nullptr;
 }
 
-LocationBar* RoomBrowserWindow::GetLocationBar() const {
-  RoomStubHit("GetLocationBar");
-  return nullptr;
-}
-
 void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
   RoomStubHit("SetFocusToLocationBar");
 }

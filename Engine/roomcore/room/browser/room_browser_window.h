@@ -23,6 +23,8 @@ class WebContents;
 
 namespace room {
 
+class RoomLocationBar;
+
 // What a RoomBrowserWindow reports back to its RoomBrowser (//room/core).
 class RoomBrowserWindowClient {
  public:
@@ -92,6 +94,7 @@ class RoomBrowserWindow : public BrowserWindow {
       const input::NativeWebKeyboardEvent& event) override;
   bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) override;
   BrowserView* AsBrowserView() override;
+  LocationBar* GetLocationBar() const override;
 
   // Stubs (room_browser_window_stubs.cc).
   ui::mojom::WindowShowState GetRestoredState() const override;
@@ -116,7 +119,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void OnTabDetached(content::WebContents* contents, bool was_active) override;
   void SetContentsSize(const gfx::Size& size) override;
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override;
-  LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool is_user_initiated) override;
   void UpdateReloadStopState(bool is_loading, bool force) override;
   void UpdateToolbar(content::WebContents* contents) override;
@@ -176,6 +178,9 @@ class RoomBrowserWindow : public BrowserWindow {
   // The host NSWindow, held weakly (room_browser_window.mm).
   struct ObjCMembers;
   std::unique_ptr<ObjCMembers> objc_;
+  // Created on first use: the Browser's command controller, which it needs,
+  // may not exist yet while the Browser constructs its window.
+  mutable std::unique_ptr<room::RoomLocationBar> location_bar_;
   bool destroy_posted_ = false;
   base::WeakPtrFactory<RoomBrowserWindow> weak_factory_{this};
 };

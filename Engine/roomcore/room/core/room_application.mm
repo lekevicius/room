@@ -2,6 +2,8 @@
 
 #import "room/core/room_application_internal.h"
 
+#include <crt_externs.h>
+
 #include <string>
 #include <vector>
 
@@ -42,6 +44,17 @@ constexpr const char* kDefaultSwitches[] = {
 }
 
 @synthesize delegate = _delegate;
+
++ (void)initialize {
+  if (self != RoomApplication.class) {
+    return;
+  }
+  // BrowserCrApplication's +initialize reads the command line, and a Swift
+  // host triggers it as soon as it names its RoomCrApplication subclass
+  // (`RoomHostApplication.self`), before -initializeWithArguments: or -run.
+  // -run replaces this with the full argument list.
+  base::CommandLine::Init(*_NSGetArgc(), *_NSGetArgv());
+}
 
 + (RoomApplication*)sharedApplication {
   static RoomApplication* shared = [[RoomApplication alloc] init];
@@ -94,9 +107,10 @@ constexpr const char* kDefaultSwitches[] = {
   const int argc = static_cast<int>(argv.size());
   argv.push_back(nullptr);
 
-  // BrowserCrApplication's +initialize reads the command line, so it must
-  // exist before NSApp does; ChromeMain's own Init() is then a no-op.
-  base::CommandLine::Init(argc, argv.data());
+  // The command line exists since +initialize (BrowserCrApplication's
+  // +initialize reads it); give it the full argument list now. ChromeMain's
+  // own Init() is a no-op.
+  base::CommandLine::ForCurrentProcess()->InitFromArgv(argc, argv.data());
   // NSApp is the host's class. Chromium's RegisterBrowserCrApp() finds it
   // already created and of the right kind.
   [_applicationClass sharedApplication];
