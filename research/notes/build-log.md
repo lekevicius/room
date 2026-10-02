@@ -29,6 +29,7 @@ Measured timings on the dev machine: Apple M1 Max (10 cores), 64 GB RAM, macOS 2
 | 2026-10-01 | Touch `AppDelegate.swift`, rebuild | 3 s | |
 | 2026-10-01 | CI spec (`xcodegen/ci.yml`, no engine), clean build, CEF dist hidden | 18 s | proves the compile-only CI path has no CEF dependency |
 | 2026-10-01 | `scripts/smoke-launch.sh` ×5 (launch, 5 s idle, AppleEvent quit) | quit 0.24 / 0.33 / 0.27 / 0.25 / 0.27 s | exit 0, 0 helpers left, 0 crash reports; 3 helpers while idle (gpu-process, NetworkService, StorageService), all from `Room Helper.app` |
+| 2026-10-02 | `scripts/smoke-launch.sh` ×4 at HEAD, after the Chromium build | quit 1.54 / 1.32 / 0.37 / 0.44 s | exit 0, 0 helpers left, 0 crash reports; slower and noisier than the 0.23–0.33 s of the night before; not investigated (Phase 1.4 shutdown spike measures quit under load) |
 
 ## Chromium checkout (fork base)
 
