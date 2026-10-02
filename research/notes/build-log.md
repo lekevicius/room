@@ -96,3 +96,19 @@ Mac16,10, Apple M4 (4 performance + 6 efficiency cores), 24 GB RAM, internal SSD
 | 2026-10-02 | `xcodegen` | 0.04 s | |
 | 2026-10-02 | Clean Debug build, scheme Room | 23.5 s | M1 Max: 21 s |
 | 2026-10-02 | `scripts/smoke-launch.sh` ×3 | quit 0.18 / 0.18 / 0.19 s | exit 0, 3 helpers while idle, 0 left, 0 crash reports; load 5–6 |
+
+### Chromium checkout (`scripts/chromium-checkout.sh`, tag 154.0.8037.58)
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | `git clone` depot_tools | < 10 s | |
+| 2026-10-02 | `fetch --nohooks chromium` | 3,442 s (57 min) | server announced ~75 GiB (laptop: ~57 GB); started at ~10 MiB/s, ~63 MiB/s after 5 min; 29.6 M objects. Laptop: 52 min |
+| 2026-10-02 | `git checkout tags/154.0.8037.58` | 48 s | laptop 23 s |
+| 2026-10-02 | `gclient sync -D --nohooks` | 129 s | laptop 93 s |
+| 2026-10-02 | `gclient runhooks` | 291 s | laptop 283 s |
+| 2026-10-02 | Checkout size | 113 GB | on the sparse bundle |
+| 2026-10-02 | `scripts/roomcore-apply.sh` (symlink, `room` branch + 4 patches, branding, args) | 123 s | `gn gen out/dev` 17 s of it (34,266 targets from 4,992 files); the rest is the branch checkout and patch commits on the disk image |
+
+### RoomCore clean build (`scripts/roomcore-build.sh`, `out/dev`, target `chrome`)
+
+Started 2026-10-02 19:13:04 from bash with nohup, nice 0, load 4.0.
