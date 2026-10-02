@@ -14,5 +14,13 @@ final class NoEngineApplication: EngineApplication {
         completion(true)
         NSApplication.shared.stop(nil)
     }
+
+    var features: EngineFeatures { EngineFeatures() }
+
+    var profiles: [any Profile] { [] }
+
+    func createProfile(name: String) async throws -> any Profile {
+        throw EngineError.notSupported("NoEngineApplication.createProfile")
+    }
 }
 #endif

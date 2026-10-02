@@ -26,6 +26,8 @@ NS_SWIFT_UI_ACTOR
                                 logFile:(nullable NSURL*)logFile
                                  locale:(nullable NSString*)locale
                         useMockKeychain:(BOOL)useMockKeychain
+                        enabledFeatures:(NSArray<NSString*>*)enabledFeatures
+                       disabledFeatures:(NSArray<NSString*>*)disabledFeatures
                                   error:(NSError**)error;
 
 /// Runs the CEF (Chromium) message loop on top of `-[NSApplication run]`.

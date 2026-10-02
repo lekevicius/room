@@ -12,23 +12,48 @@ public struct EngineConfiguration: Sendable {
     /// login keychain. Ad-hoc signed builds get a new code identity on every
     /// build, so the keychain prompts on each launch; those use an in-memory key.
     public var usesSystemKeychain: Bool
+    /// Chromium feature names (`base::Feature`) forced on or off for this run,
+    /// the equivalent of `--enable-features` / `--disable-features`.
+    public var features: EngineFeatures
 
     public init(
         userDataDirectory: URL,
         logFile: URL? = nil,
         locale: String? = nil,
-        usesSystemKeychain: Bool = true
+        usesSystemKeychain: Bool = true,
+        features: EngineFeatures = EngineFeatures()
     ) {
         self.userDataDirectory = userDataDirectory
         self.logFile = logFile
         self.locale = locale
         self.usesSystemKeychain = usesSystemKeychain
+        self.features = features
     }
 }
 
-/// The browser process: owns the main loop and process-wide state.
-///
-/// Phase 1.1 subset; Phase 1.2 adds profiles and features.
+/// Chromium feature overrides. Chromium fixes its feature list at startup, so
+/// these are set in `EngineConfiguration` and read back from the application;
+/// features not listed keep the engine's default.
+nonisolated public struct EngineFeatures: Sendable, Hashable {
+    public var enabled: Set<String>
+    public var disabled: Set<String>
+
+    public init(enabled: Set<String> = [], disabled: Set<String> = []) {
+        self.enabled = enabled
+        self.disabled = disabled
+    }
+
+    /// `true`/`false` for an overridden feature, `nil` for the engine default.
+    public func isEnabled(_ feature: String) -> Bool? {
+        if disabled.contains(feature) { return false }
+        if enabled.contains(feature) { return true }
+        return nil
+    }
+}
+
+/// The browser process: owns the main loop, process-wide state and the
+/// profile registry.
+@MainActor
 public protocol EngineApplication: AnyObject {
     /// Starts the engine. Must be called once, before `run()`.
     func initialize(_ configuration: EngineConfiguration) throws
@@ -39,4 +64,15 @@ public protocol EngineApplication: AnyObject {
     /// Closes everything the engine owns and leaves the main loop.
     /// `completion(false)` means termination was cancelled (e.g. a beforeunload handler).
     func tryToTerminate(_ completion: @escaping (Bool) -> Void)
+
+    /// Feature overrides in effect for this run.
+    var features: EngineFeatures { get }
+
+    /// Profiles loaded in this run, in creation order.
+    var profiles: [any Profile] { get }
+
+    /// Loads the profile stored under `name`, creating it on disk if needed.
+    /// Returns the already-loaded profile when called twice with one name.
+    /// Valid only while the main loop runs.
+    func createProfile(name: String) async throws -> any Profile
 }

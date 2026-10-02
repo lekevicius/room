@@ -8,6 +8,8 @@ public enum CEFEngineError: Error {
 
 /// `EngineApplication` backed by CEF.
 public final class CEFApplication: EngineApplication {
+    public private(set) var features = EngineFeatures()
+
     /// Creates the shared `NSApplication` as CEF's subclass. Must run before any
     /// other code touches `NSApp`.
     public init() {
@@ -24,8 +26,11 @@ public final class CEFApplication: EngineApplication {
             withUserDataDirectory: configuration.userDataDirectory,
             logFile: configuration.logFile,
             locale: configuration.locale,
-            useMockKeychain: !configuration.usesSystemKeychain
+            useMockKeychain: !configuration.usesSystemKeychain,
+            enabledFeatures: configuration.features.enabled.sorted(),
+            disabledFeatures: configuration.features.disabled.sorted()
         )
+        features = configuration.features
     }
 
     public func run() {
@@ -37,5 +42,12 @@ public final class CEFApplication: EngineApplication {
         // No browsers exist yet (Phase 1.1); Phase 1.4 closes them first.
         RoomCEFRuntime.quitMessageLoop()
         completion(true)
+    }
+
+    // Profiles (CefRequestContext per profile) arrive in Phase 1.4.
+    public var profiles: [any Profile] { [] }
+
+    public func createProfile(name: String) async throws -> any Profile {
+        throw EngineError.notSupported("CEFApplication.createProfile (Phase 1.4)")
     }
 }
