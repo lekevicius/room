@@ -112,3 +112,8 @@ Mac16,10, Apple M4 (4 performance + 6 efficiency cores), 24 GB RAM, internal SSD
 ### RoomCore clean build (`scripts/roomcore-build.sh`, `out/dev`, target `chrome`)
 
 Started 2026-10-02 19:13:04 from bash with nohup, nice 0, load 4.0.
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-02 | Run 1, 10 local jobs (default), stopped by hand | 6,449 s (1 h 47 min) | 33,551 of 63,686 steps (22,311 C++ objects). ~750 steps/min for the first 16 min (load 39), ~370/min to 46 min, ~280/min to 76 min, then **~66/min**: in Blink each clang held 0.7–2.2 GB, siso 2.6 GB, 8.3 GB in the memory compressor, 0.9 GB swap, `kernel_task` at 130% CPU, each clang at ~50% CPU, load 99. Other apps held ~6 GB (OrbStack 1.4 GB, DaisyDisk 1.0 GB, Zen, Codex, Claude). 24 GB is not enough for 10 parallel Blink compiles |
+| 2026-10-02 | Run 2, `ROOM_BUILD_JOBS=6` (`-local_jobs=6`), resumed 21:01:15 | | load at start 55 (decaying from run 1) |

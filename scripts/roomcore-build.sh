@@ -5,6 +5,8 @@
 # wall time for research/notes/build-log.md.
 # Long (clean) builds: start from bash, never zsh `&` (BG_NICE renices it):
 #   bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
+# ROOM_BUILD_JOBS=N limits parallel local jobs (default: one per core). On a
+# 24 GB machine 10 Blink compiles (1–2 GB each) swap; 6 keeps them in memory.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,5 +18,5 @@ OUT="${OUT:-out/dev}"
 cd "$SRC"
 echo "build start $(date '+%F %T') nice=$(ps -o nice= -p $$ | tr -d ' ') load: $(sysctl -n vm.loadavg)"
 t0=$(date +%s)
-autoninja -C "$OUT" chrome
+autoninja -C "$OUT" chrome ${ROOM_BUILD_JOBS:+-j "$ROOM_BUILD_JOBS"}
 echo "build done in $(( $(date +%s) - t0 )) s, load: $(sysctl -n vm.loadavg)"
