@@ -147,7 +147,7 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 
 | Topic | Decision | Why |
 |---|---|---|
-| Engine | Chromium fork → `RoomCore.framework` (ObjC API); CEF only as Phase 1 scaffold | §1 |
+| Engine | Chromium fork → `RoomCore.framework` (ObjC API); CEF only as Phase 1 scaffold. **Confirmed in Phase 1.6:** the RoomCore embryo (5 patches + `//room`) renders and quits cleanly from the Swift host; Chapter 3 continues from it (`research/notes/chapter-1-review.md`) | §1 |
 | Fork base | Vanilla Chromium release tags via depot_tools; borrow ungoogled-chromium-macos toolchain/signing scripts (BSD) as reference; no Helium code (GPL-3) | git history makes rebases `git rebase`-able; keep licensing clean |
 | Patch strategy | Brave-style: all our code in `//room/`; `chromium_src/` shadow headers where needed; raw patches only for factory redirects (`browser_window_factory.cc` → `RoomBrowserWindow`) and tiny hooks | smallest rebase surface |
 | What we replace vs keep | Replace: window, tab strip, sidebar, omnibox view, find bar, status bubble, infobars, permission prompt, downloads UI, extensions container, JS dialogs. Keep Views initially for: autofill popup, print preview, web-modal dialogs, DevTools docking, PDF; anchor Views bubbles by rect; move them native one by one later | the `ShowXxxBubble` long tail is where projects stall |
@@ -166,6 +166,9 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 | Name | "Room" (working name); avoid any "Chrom*" in product/framework names | Google trademark |
 | Identity | Product name **Room**; bundle id prefix **`com.lekevicius.room`** (helpers `com.lekevicius.room.helper`, `.helper.gpu`, `.helper.renderer`, `.helper.plugin`, `.helper.alerts`); engine framework **`RoomCore.framework`** (CEF's `Chromium Embedded Framework.framework` until Chapter 3) | recorded in Phase 1.1; domain owned by the author |
 | Minimum macOS | **26 (Tahoe)**; dev machine runs 27; built with Xcode 27 | `NSGlassEffectView` for overlays requires 26 |
+| Keychain | **Added in Phase 1.6.** RoomCore's OSCrypt item is "Room Safe Storage" (patch 0002). Team-signed builds use the login keychain; ad-hoc builds pass `--use-mock-keychain` (a new code identity per build makes macOS prompt on every read, and the cookie store holds every navigation until the prompt is answered). CEF builds always use the mock keychain (Phase 1.4) | Phase 1.5 finding |
+| Network calls | **Added in Phase 1.6.** No request the user did not ask for (CLAUDE.md). Chromium's launch-time requests (component updater, `accounts.google.com`, `google.com/async`) are audited and disabled in Chapter 3.1, by prefs/switches first and `//room` hooks second; Widevine's CDM download is the one deliberate exception, on first use | Phase 1.5 net-log |
+| Main menu | **Added in Phase 1.6.** Chrome's `AppController` remains `NSApp.delegate` under RoomCore and looks up main-menu items by command tag; Chapter 3.2 decides whether the host's menus carry Chrome's tags or `//room` owns the menu. Until then `RoomCrApplication` adds a hidden Bookmarks item | Phase 1.5 crash |
 
 ---
 
@@ -184,26 +187,28 @@ Development is organized into Chapters (broad arcs) and Phases (units with exit 
 
 ## 6. Next steps
 
-Chapter 1, Phase 1.1 in `ROADMAP.md`: repository skeleton, XcodeGen project with helper targets, CEF bootstrap script, Chromium checkout and first background build.
+Chapter 1 is closed (`research/notes/chapter-1-review.md`). Next: Chapter 2, Phase 2.1 (model and store) in `ROADMAP.md`; open items that belong to no phase are in `docs/backlog.md`.
 
 ## 7. Risks and unknowns (ranked)
 
+Re-ranked at the end of Chapter 1; the reasoning per row is in `research/notes/chapter-1-review.md`.
+
 | # | Risk | Mitigation / spike |
 |---|---|---|
-| 1 | Rounded-corner clipping of Chromium's layer-hosted view fails or is slow | Spike B week 1; fallback is a Chromium-side `SetClipPath`/`RoundedCornersF` in RoomCore (what Electron does) |
-| 2 | `BrowserWindow` replacement is more entangled than the interface suggests (callers using `AsBrowserView()`) | Count call sites on the pinned tag before step 2 of Phase 2; keep Views for secondary UI anchored by rect; implement natively one surface at a time |
-| 3 | Rebase cost at a 2-week Chromium cadence | Keep every line of ours in `//room/` + `chromium_src/`; scripted rebase; Extended Stable fallback; TBC manages weekly bumps for Arc with the same shape |
-| 4 | Build time/iteration speed | Component builds (minutes incremental); keep engine API changes rare; UI iterates in Xcode without rebuilding Chromium |
-| 5 | Widevine CDM does not download or Netflix rejects playback | Verify in Phase 2; manual CDM copy fallback; apply for the license early |
+| 1 | Rebase and build cost at a 2-week cadence (clean build 4+ h; swaps on 24 GB) | Tiny patch set (5 at the end of Chapter 1); scripted rebase (3.8); overnight builds at 6 jobs on 24 GB machines; Extended Stable fallback |
+| 2 | `BrowserWindow` replacement entanglement: Chrome UI code assumes `BrowserView`/Chrome's main menu and CHECKs | Phase 1.5 hit 10 such failures, each small; run real input through a real window early in every Chapter 3 phase; stub-hit logging |
+| 3 | Unrequested network calls from Chrome components | Audit and disable in 3.1 |
+| 4 | Keychain and signing identity (ad-hoc builds stall on prompts; notarization credentials) | Mock keychain for ad-hoc builds; Developer ID signing for keychain work; user stores the notarytool profile |
+| 5 | Widevine CDM does not download or Netflix rejects playback | Verify in Chapter 3; manual CDM copy fallback; apply for the license early |
 | 6 | Chrome Web Store tightens access for non-Chrome brands | Keep unpacked/CRX install path and own management UI |
-| 7 | Hover-reveal overlay / palette z-order over the web view | Spike B; fallback child `NSPanel` |
-| 8 | Traffic-light geometry drift across macOS 26/27 | Derive from `standardWindowButton` frames; one layout manager; six-state test |
-| 9 | Passkey entitlement lead time | Request from Apple in Phase 0 |
-| 10 | Sparkle delta size with a ~330 MB framework | Measure; full-app updates acceptable at first |
-| 11 | Crashpad → Sentry minidump format | One forced renderer crash test in Phase 2 |
-| 12 | Single-maintainer dependencies (CEF) | Only matters during Phase 1; RoomCore removes it |
+| 7 | The card mask costs an extra IOSurface composite (power, not frames: 120 fps measured) | Measure with Instruments in Chapter 5; fallback Chromium-side `RoundedCornersF` in RoomCore |
+| 8 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups or password prompts) | Stated in the Chapter 2 spec; avoid sensitive accounts while dogfooding on CEF |
+| 9 | Passkey entitlement lead time | Request from Apple before Chapter 4 |
+| 10 | Sparkle update size (component bundle 917 MB; static release size unknown) | Measure the static release build in 3.1; full-app updates acceptable at first |
+| 11 | Crashpad → Sentry minidump format | One forced renderer crash test in Chapter 3 |
+| 12 | Single-maintainer dependency (CEF) | Ends at 3.9 |
 
----
+Retired in Chapter 1: rounded-corner clipping (pixel-exact, 120 fps; only the composite-cost question remains, row 7), overlay/palette z-order over the web view (green in Phase 1.4), traffic-light geometry drift (AppKit's own placement, six-state tests).
 
 ## 8. What is in `research/`
 
