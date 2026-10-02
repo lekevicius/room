@@ -10,7 +10,7 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 
 | Path | What |
 |---|---|
-| `room/` | `//room`, symlinked into the checkout as `~/chromium/src/room` |
+| `room/` | `//room`, symlinked into the checkout as `$CHROMIUM_SRC/room` (location per machine: `local.env`) |
 | `room/core/` | the public ObjC API (`public/RoomCore.h` umbrella, `module.modulemap`) and its ObjC++ implementation |
 | `room/browser/` | `RoomBrowserWindow`, Chrome's `BrowserWindow` for a host-owned `NSWindow` |
 | `room/branding/BRANDING` | product name Room, bundle id `com.lekevicius.room` (helpers `.helper*`) |

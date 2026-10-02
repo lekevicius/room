@@ -7,8 +7,9 @@ which need a password, a GUI login or an Apple account.
 ## Requirements
 
 - Apple silicon Mac, macOS 26 or later, Xcode 27 (launched once, license accepted).
-- Disk: ~200 GB free (Chromium checkout 113 GB with full history, `out/dev`
-  ~10 GB, CEF ~1 GB, Room builds a few GB).
+- Disk: ~200 GB free on an APFS volume for Chromium (checkout 113 GB with
+  full history, `out/dev` ~10 GB), plus a few GB for CEF and Room builds.
+  The Chromium location is configurable (below), so it can be another drive.
 - A fast, unmetered connection: the Chromium fetch is ~57 GB.
 
 ## 1. Tools
@@ -44,18 +45,32 @@ scripts/smoke-launch.sh      # launches Room.app on CEF and quits it
 
 ## 4. Chromium checkout and RoomCore (the fork)
 
+Where Chromium goes is per machine: copy `local.env.example` to `local.env`
+(gitignored) and set `CHROMIUM_ROOT` (default `~/chromium`). The volume must
+be APFS: Chromium needs symlinks, Unix permissions and clones, which exFAT
+lacks. If the big drive is exFAT, put an APFS sparse bundle on it and set
+`CHROMIUM_IMAGE`; the scripts attach it when it is not mounted:
+
+```bash
+hdiutil create -type SPARSEBUNDLE -fs APFS -size 350g -volname Chromium /Volumes/<drive>/Chromium.sparsebundle
+hdiutil attach /Volumes/<drive>/Chromium.sparsebundle -nobrowse -owners on
+mdutil -i off /Volumes/Chromium      # no Spotlight indexing of millions of sources
+```
+
+Never unplug the drive while the image is attached.
+
 Long steps: start them from `bash` with `nohup`, never zsh `&` (zsh's
 `BG_NICE` renices background jobs; Phase 1.1 lost hours to it), and log
 timings in `research/notes/build-log.md` under a heading for this machine.
 
 ```bash
-bash -c 'nohup scripts/chromium-checkout.sh > ~/chromium/checkout.log 2>&1 &'
+mkdir -p build && bash -c 'nohup scripts/chromium-checkout.sh > build/chromium-checkout.log 2>&1 &'
 #   fetch (~50 min at 60 MB/s), checkout of tag 154.0.8037.58, gclient sync, runhooks
 scripts/roomcore-apply.sh
-#   symlinks Engine/roomcore/room as ~/chromium/src/room, creates the `room`
+#   symlinks Engine/roomcore/room as $CHROMIUM_SRC/room, creates the `room`
 #   branch with Engine/roomcore/patches applied, branding placeholders,
 #   out/dev/args.gn, gn gen
-bash -c 'nohup scripts/roomcore-build.sh > ~/chromium/build-room.log 2>&1 &'
+bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
 #   clean component build of `chrome` (Room.app + RoomCore.framework): hours
 scripts/roomcore-package.sh   # stage the framework, build the Swift host (scheme "Room (RoomCore)")
 ```

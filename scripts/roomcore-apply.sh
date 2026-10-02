@@ -8,15 +8,16 @@
 # Idempotent: a patch already committed on `room` is skipped, so re-running
 # never touches file mtimes (which would cost a rebuild).
 #
-# Env: CHROMIUM_SRC (default ~/chromium/src), CHROMIUM_TAG, OUT (default out/dev).
+# Env: CHROMIUM_TAG, OUT (default out/dev); checkout location from
+# scripts/lib/chromium-env.sh (local.env).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${CHROMIUM_SRC:-$HOME/chromium/src}"
+source "$(dirname "$0")/lib/chromium-env.sh"
+SRC="$CHROMIUM_SRC"
 TAG="${CHROMIUM_TAG:-154.0.8037.58}"
 OUT="${OUT:-out/dev}"
 ROOMCORE="$REPO/Engine/roomcore"
-export PATH="${DEPOT_TOOLS:-$HOME/depot_tools}:$PATH"
 
 cd "$SRC"
 

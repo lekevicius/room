@@ -10,12 +10,14 @@
 #      staged framework (scripts/embed-roomcore-framework.sh);
 #   3. verify the signature and print where the app is.
 # Usage: scripts/roomcore-package.sh [--stage-only] [--launch]
-# Env: CHROMIUM_SRC (~/chromium/src), OUT (out/dev), CONFIGURATION (Debug).
+# Env: OUT (out/dev), CONFIGURATION (Debug); checkout location from
+# scripts/lib/chromium-env.sh (local.env).
 # Developer ID signing of the result: scripts/sign-and-notarize.sh <app>.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${CHROMIUM_SRC:-$HOME/chromium/src}"
+source "$(dirname "$0")/lib/chromium-env.sh"
+SRC="$CHROMIUM_SRC"
 OUT_DIR="$SRC/${OUT:-out/dev}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 STAGE="$ROOT/build/roomcore"

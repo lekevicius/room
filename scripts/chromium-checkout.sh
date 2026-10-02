@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Fetches Chromium into ~/chromium (outside the repo), checks out the pinned
+# Fetches Chromium into $CHROMIUM_ROOT (default ~/chromium; local.env), checks out the pinned
 # stable tag matching CEF, and syncs DEPS. Idempotent: skips steps already done.
 # Timings are printed as "STEP <name> <seconds>" for research/notes/build-log.md.
 set -euo pipefail
 
 TAG="${CHROMIUM_TAG:-154.0.8037.58}"
-ROOT="${CHROMIUM_ROOT:-$HOME/chromium}"
-DEPOT_TOOLS="${DEPOT_TOOLS:-$HOME/depot_tools}"
-export PATH="$DEPOT_TOOLS:$PATH"
+source "$(dirname "$0")/lib/chromium-env.sh"
+ROOT="$CHROMIUM_ROOT"
 
 step() {
   local name="$1"; shift

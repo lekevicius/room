@@ -4,13 +4,13 @@
 # Room.app bundle with RoomCore.framework, helpers and resources. Prints the
 # wall time for research/notes/build-log.md.
 # Long (clean) builds: start from bash, never zsh `&` (BG_NICE renices it):
-#   bash -c 'nohup scripts/roomcore-build.sh > ~/chromium/build-room.log 2>&1 &'
+#   bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${CHROMIUM_SRC:-$HOME/chromium/src}"
+source "$(dirname "$0")/lib/chromium-env.sh"
+SRC="$CHROMIUM_SRC"
 OUT="${OUT:-out/dev}"
-export PATH="${DEPOT_TOOLS:-$HOME/depot_tools}:$PATH"
 
 "$ROOT/scripts/roomcore-apply.sh"
 cd "$SRC"
