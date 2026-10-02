@@ -33,7 +33,7 @@ Other findings:
 
 Engine: CEF 154.0.32 (Chromium 154.0.8037.58), Alloy-style child browsers, Debug build unless noted. Method: `App/Sources/Debug/SpikeRunner.swift` (`scripts/run-spike.sh <name>`) drives each measurement through the `Engine` protocol (CEF-specific CDP only where noted) and writes `key: value` lines; test pages are in `research/spikes/phase-1.4/`; interactive checks used real keystrokes/pointer events from the computer-use tool. Load average is recorded per run: this machine was never idle (the user's Chrome, Zen, Claude, Spotlight and CloudMounter kept it at 12–233 during the session).
 
-Summary: 13 items, 11 green, 2 amber (each with a fallback), 0 red.
+Summary: 14 items, 11 green, 3 amber (each with a fallback), 0 red.
 
 | Item | Result | Status |
 |---|---|---|
