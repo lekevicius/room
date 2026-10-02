@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Band</title>
+<style>body{font:15px -apple-system;margin:0} .row{height:60px;border-bottom:1px solid #ccc;padding:8px 16px;background:#fff}
+.row:nth-child(odd){background:#ffe9a8}</style>
+<script>
+window.__clicks = [];
+addEventListener('mousedown', e => __clicks.push([Math.round(e.clientX), Math.round(e.clientY)]));
+for (let i = 0; i < 80; i++) document.write(`<div class="row">Row ${i} — click near the top edge to test the toolbar band</div>`);
+</script>

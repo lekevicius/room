@@ -44,6 +44,7 @@ enum SpikeRunner {
         case "open10": await context.openTen()
         case "diaframe": await context.diaFrame()
         case "keys": await context.keys()
+        case "devtools": await context.devTools()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -556,6 +557,37 @@ enum SpikeRunner {
             }
         }
 
+        // MARK: DevTools
+
+        func devTools() async {
+            #if canImport(EngineCEF)
+            guard let page = await open(SpikeRunner.page("popups.html")) as? CEFWebContents else { return }
+            let pagesBefore = session.pages.count
+            // The element under (60, 160) in page coordinates: the <select>.
+            let target = await js(page, "(() => { const e = document.elementFromPoint(60, 160); return e ? e.tagName + '#' + e.id : 'none' })()")
+            let start = ContinuousClock.now
+            session.host.toggleDevTools(inspecting: NSPoint(x: 60, y: 160))
+            let opened = await waitUntil(10) { page.devTools?.isOpen == true }
+            SpikeRunner.record("devtools_open", "\(opened) after \(String(format: "%.0f", ms(since: start)))ms docked=\(session.host.isDevToolsOpen)")
+            guard let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage else {
+                SpikeRunner.record("devtools_frontend", "none")
+                return
+            }
+            var selected = "none"
+            for _ in 0..<50 {
+                selected = await js(frontend, PageScriptsSpike.selectedNode)
+                if selected.uppercased() == target.replacingOccurrences(of: "\"", with: "").uppercased() { break }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            SpikeRunner.record("inspect_element", "page element at point \(target); frontend selected \(selected) after \(String(format: "%.0f", ms(since: start)))ms")
+            _ = await waitUntil(1) { false }
+            session.host.toggleDevTools()
+            let closed = await waitUntil(5) { page.devTools?.isOpen == false }
+            try? await Task.sleep(for: .seconds(1))
+            SpikeRunner.record("devtools_close", "closed=\(closed) pane=\(session.host.isDevToolsOpen) pages \(pagesBefore)→\(session.pages.count) frontendState=\(frontend.state) pageState=\(page.state)")
+            #endif
+        }
+
         // MARK: Dia framing for external captures
 
         /// Dia's reference framing (1244×818 pt, 280 pt sidebar) with a page
@@ -614,6 +646,16 @@ enum PageScriptsSpike {
       (function f() { n++; if (performance.now() - start < 1000) requestAnimationFrame(f); })();
       setTimeout(() => resolve(JSON.stringify({ visibility: document.visibilityState, rafPerSecond: n })), 1100);
     })
+    """
+
+    /// Runs in the DevTools front-end: the node selected in Elements.
+    static let selectedNode = """
+    (async () => {
+      const UI = await import('./ui/legacy/legacy.js');
+      const SDK = await import('./core/sdk/sdk.js');
+      const node = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
+      return node ? node.nodeName() + '#' + (node.getAttribute('id') || '') : 'none';
+    })()
     """
 
     static let oscillator = """

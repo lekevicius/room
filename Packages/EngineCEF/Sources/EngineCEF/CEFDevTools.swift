@@ -10,7 +10,7 @@ import Engine
 /// bundled front-end (`devtools://devtools/bundled/devtools_app.html`)
 /// connected to the page over the 127.0.0.1 remote-debugging port. Without
 /// that port, `open` falls back to CEF's separate DevTools window.
-final class CEFDevTools: DevTools {
+final class CEFDevTools: DevTools, CEFDevToolsInspectable {
     private weak var contents: CEFWebContents?
     private var frontend: CEFWebContents?
     private weak var hostView: NSView?
@@ -25,7 +25,7 @@ final class CEFDevTools: DevTools {
     }
 
     /// The docked front-end's page, for tests and the spike.
-    var frontendContents: CEFWebContents? { frontend }
+    public var frontendPage: CEFWebContents? { frontend }
 
     func open(in hostView: NSView) {
         Task { await show(in: hostView, inspecting: nil) }
@@ -112,4 +112,10 @@ extension PageScripts {
         })()
         """
     }
+}
+
+/// Debug access to the docked DevTools front-end page.
+@MainActor
+public protocol CEFDevToolsInspectable: AnyObject {
+    var frontendPage: CEFWebContents? { get }
 }

@@ -109,7 +109,12 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
 
     // MARK: NSWindowDelegate
 
+    // In fullscreen AppKit moves the toolbar into its own 52 pt window that
+    // slides down with the menu bar; ours is empty (it only positions the
+    // traffic lights), so it is hidden for the duration (Phase 1.4 spike).
+    public func windowWillEnterFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = false }
     public func windowDidEnterFullScreen(_ notification: Notification) { rootView.needsLayout = true }
+    public func windowWillExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
     public func windowDidExitFullScreen(_ notification: Notification) { rootView.needsLayout = true }
 }
 
