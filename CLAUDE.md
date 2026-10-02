@@ -19,6 +19,12 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 - Fork hygiene (Chapter 3+): all our Chromium code lives in `//room/`; `chromium_src/` shadows for renames; raw patches only for factory redirects and tiny hooks. Keep patches trivially rebaseable.
 - No analytics, no network calls the user did not ask for; search suggestions have an off switch.
 
+## Testing
+- Three tiers. **Unit** (CI, blocking): pure logic only: Model rules, Store mutations, shortcut tables, layout maths, engine fakes. No `NSWindow` on screen, no pixel reads, no screen geometry, no sleeps or wall-clock timing (wait on a callback or inject a clock). **Window** (local only): suites that create a window or measure traffic lights carry the `.window` tag and are skipped when the `CI` environment variable is set (GitHub sets it; if it does not reach the test process, set `ROOM_CI` in `xcodegen/ci.yml`); run them before reporting. **Eyes**: screenshots are artifacts for the reviewer under `research/screenshots/`, never assertions on luma, contrast or colour.
+- A test exists only for a rule the spec states or a bug that actually happened. No tests of view structure; the test count is not a deliverable.
+- CI is a compile check plus the unit tier. A red CI means real breakage, never runner geometry, display size or load.
+- In-app verification goes through command-line hooks (`-RoomStateDirectory`, `-RoomSpike`, snapshot directories) and reading files and logs. Sessions do not drive the UI through accessibility or computer-use; anything that needs a click is listed in the report for the user to try.
+
 ## Commands
 - New machine: follow `docs/setup.md` (tools, CEF bootstrap, Chromium checkout, RoomCore build, signing).
 - Generate project: `xcodegen` (project.yml → Room.xcodeproj, gitignored).

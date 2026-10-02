@@ -53,9 +53,13 @@ Working rules:
   that no longer exists), do the closest correct thing and record the
   deviation and reason in the docs/progress.md log. If a decision in PLAN.md
   §4 proves wrong, update PLAN.md and say so in the log.
-- Verify, don't assume: build and launch the app, run the tests, take the
-  screenshots the exit criteria ask for and save them under
-  research/screenshots/ with the phase id in the filename.
+- Verify, don't assume: build and launch the app, run the tests (unit and
+  window tiers), take the screenshots the exit criteria ask for and save
+  them under research/screenshots/ with the phase id in the filename.
+- Tests follow CLAUDE.md "Testing": unit tier for spec rules and real bugs
+  only, window suites tagged `.window` and skipped on CI, no pixel or
+  timing assertions, no driving the app through accessibility or
+  computer-use. Checks that need a click go in the report for the user.
 
 Finish with a short report: what was built, the measured numbers, anything
 that deviated from the spec, and whether each exit criterion is met.

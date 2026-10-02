@@ -158,6 +158,7 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 | UI framework | AppKit for window, sidebar, card, address field, menus, key routing; SwiftUI (`NSHostingView`) for settings, onboarding, palette rows, toasts, downloads rows | TBC's experience; drag/drop/multi-select maturity |
 | State | `@Observable` stores on `MainActor`; custom MVVM, no state-diffing on hot paths (tab list) | TBC's Dia lesson |
 | Persistence | GRDB + FTS5; JSON snapshot backup | Dia ships GRDB; SwiftData still has threading problems in 2026 |
+| Testing | unit tier in CI; window tests local only; screenshots for eyes, not assertions (CLAUDE.md "Testing", 2026-10-03) | three of four red CI runs were runner display size or contrast, none a bug; implementer sessions lost time driving the UI through computer-use |
 | Concurrency | Swift 6, UI packages compiled with MainActor default isolation; engine callbacks wrapped in `MainActor.assumeIsolated` | CEF/Chromium UI thread is the main thread |
 | Distribution | Developer ID, hardened runtime, notarytool, DMG, Sparkle 2 (EdDSA, full-app updates, deltas measured later), Sentry + Crashpad | no App Sandbox possible |
 | Entitlements | Main app: camera, audio-input, location, print, (usb/bluetooth optional), passkeys `web-browser.public-key-credential` (request from Apple early). Renderer/GPU helpers: `com.apple.security.cs.allow-jit` only | ground truth from Chrome's and Dia's plists |
