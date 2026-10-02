@@ -38,6 +38,7 @@ public struct RoomStorage: Sendable {
            (try? database.integrityCheck()) == ["ok"],
            let loaded = try? database.loadState() {
             let unclean = try database.beginSession()
+            refreshSnapshot(loaded.state, generation: loaded.generation)
             return Opened(database: database, state: loaded.state, generation: loaded.generation,
                           uncleanExit: unclean, recovery: nil)
         }
@@ -58,6 +59,20 @@ public struct RoomStorage: Sendable {
         try database.beginSession()
         return Opened(database: database, state: loaded.state, generation: loaded.generation, uncleanExit: true,
                       recovery: .fromSnapshot(generation: snapshot.generation, movedAside: aside))
+    }
+
+    /// The snapshot is written after each commit, so a kill between the two
+    /// leaves it one generation behind; repeated kills could stack that up.
+    /// At open it is brought level with the database (or rewritten if
+    /// unreadable), so it never trails by more than one generation.
+    private func refreshSnapshot(_ state: RoomState, generation: Int64) {
+        guard generation > 0 else { return }
+        if let snapshot = try? StateSnapshot.read(from: snapshotURL), snapshot.generation >= generation { return }
+        do {
+            try StateSnapshot(generation: generation, state: state).encoded().write(to: snapshotURL, options: .atomic)
+        } catch {
+            NSLog("Room: JSON snapshot refresh failed: \(error)")
+        }
     }
 
     /// Moves `Room.sqlite` and its `-wal`/`-shm` into `Corrupt/<timestamp>/`.

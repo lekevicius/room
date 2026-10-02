@@ -239,6 +239,9 @@ struct Failure: Error, CustomStringConvertible {
 
 func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outcome, Failure> {
     let storage = RoomStorage(directory: directory)
+    // Read before opening: `open()` brings a lagging snapshot level.
+    let snapshotExists = FileManager.default.fileExists(atPath: storage.snapshotURL.path)
+    let snapshotRead = snapshotExists ? try? StateSnapshot.read(from: storage.snapshotURL) : nil
     let opened: RoomStorage.Opened
     do { opened = try storage.open() } catch { return .failure(Failure(description: "reopen failed: \(error)")) }
     if let recovery = opened.recovery { return .failure(Failure(description: "needed recovery: \(recovery)")) }
@@ -263,8 +266,8 @@ func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outc
         guard actual == expected else { return .failure(Failure(description: "content of generation \(generation) does not match its begin hash")) }
     }
     var snapshotGeneration: Int64?
-    if FileManager.default.fileExists(atPath: storage.snapshotURL.path) {
-        guard let snapshot = try? StateSnapshot.read(from: storage.snapshotURL) else { return .failure(Failure(description: "snapshot does not decode")) }
+    if snapshotExists {
+        guard let snapshot = snapshotRead else { return .failure(Failure(description: "snapshot does not decode")) }
         guard snapshot.generation == generation || snapshot.generation == generation - 1 else {
             return .failure(Failure(description: "snapshot generation \(snapshot.generation) vs database \(generation)"))
         }

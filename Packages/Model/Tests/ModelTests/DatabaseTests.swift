@@ -263,6 +263,30 @@ struct StorageTests {
         #expect(try reopened.database.integrityCheck() == ["ok"])
     }
 
+    @Test("Opening brings a lagging or broken snapshot level with the database")
+    func snapshotRefresh() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let storage = RoomStorage(directory: directory.url)
+        let state = sampleState()
+        do {
+            let opened = try storage.open()
+            let writer = storage.makeWriter(for: opened)
+            try writer.writeAndWait(state, generation: 1)
+            var newer = state
+            newer.entries[0].customLabel = "newer"
+            try writer.writeAndWait(newer, generation: 2)
+        }
+        // As if killed between commit 2 and its snapshot.
+        try StateSnapshot(generation: 1, state: state).encoded().write(to: storage.snapshotURL)
+        _ = try storage.open()
+        #expect(try StateSnapshot.read(from: storage.snapshotURL).generation == 2)
+        try Data("{".utf8).write(to: storage.snapshotURL)
+        _ = try storage.open()
+        let refreshed = try StateSnapshot.read(from: storage.snapshotURL)
+        #expect(refreshed.generation == 2 && refreshed.state.entries.contains { $0.customLabel == "newer" })
+    }
+
     @Test("A corrupt database without a snapshot starts empty")
     func recoverEmpty() throws {
         let directory = try TemporaryDirectory()
