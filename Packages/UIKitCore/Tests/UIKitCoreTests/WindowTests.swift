@@ -212,7 +212,10 @@ struct WindowStateCallbackTests {
         let controller = RoomWindowController()
         defer { controller.close() }
         let screen = try #require(NSScreen.main).visibleFrame
-        let onScreen = NSRect(x: screen.minX + 20, y: screen.minY + 20, width: 1000, height: 700)
+        // Well inside the visible frame: CI runners have small displays and
+        // AppKit shrinks a frame that does not fit.
+        let onScreen = NSRect(x: screen.minX + 20, y: screen.minY + 20,
+                              width: min(1000, screen.width - 40), height: min(500, screen.height - 40))
         #expect(controller.restoreFrame(onScreen))
         #expect(controller.window?.frame == onScreen)
         #expect(!controller.restoreFrame(NSRect(x: -100_000, y: -100_000, width: 1000, height: 700)))
