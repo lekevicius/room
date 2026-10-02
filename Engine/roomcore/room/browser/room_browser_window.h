@@ -23,6 +23,7 @@ class WebContents;
 
 namespace room {
 
+class RoomExclusiveAccessContext;
 class RoomLocationBar;
 
 // What a RoomBrowserWindow reports back to its RoomBrowser (//room/core).
@@ -95,6 +96,7 @@ class RoomBrowserWindow : public BrowserWindow {
   bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) override;
   BrowserView* AsBrowserView() override;
   LocationBar* GetLocationBar() const override;
+  ExclusiveAccessContext* GetExclusiveAccessContext() override;
 
   // Stubs (room_browser_window_stubs.cc).
   ui::mojom::WindowShowState GetRestoredState() const override;
@@ -152,7 +154,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void MaybeShowProfileSwitchIPH() override;
   void MaybeShowSupervisedUserProfileSignInIPH() override;
   void ShowHatsDialog( const std::string& site_id, const std::optional<std::string>& hats_histogram_name, const std::optional<uint64_t> hats_survey_ukm_id, base::OnceClosure success_callback, base::OnceClosure failure_callback, const SurveyBitsData& product_specific_bits_data, const SurveyStringData& product_specific_string_data) override;
-  ExclusiveAccessContext* GetExclusiveAccessContext() override;
   std::string GetWorkspace() const override;
   bool IsVisibleOnAllWorkspaces() const override;
   void ShowEmojiPanel() override;
@@ -181,6 +182,7 @@ class RoomBrowserWindow : public BrowserWindow {
   // Created on first use: the Browser's command controller, which it needs,
   // may not exist yet while the Browser constructs its window.
   mutable std::unique_ptr<room::RoomLocationBar> location_bar_;
+  std::unique_ptr<room::RoomExclusiveAccessContext> exclusive_access_context_;
   bool destroy_posted_ = false;
   base::WeakPtrFactory<RoomBrowserWindow> weak_factory_{this};
 };

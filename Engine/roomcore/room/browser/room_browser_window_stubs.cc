@@ -271,11 +271,6 @@ void RoomBrowserWindow::ShowHatsDialog( const std::string& site_id, const std::o
   RoomStubHit("ShowHatsDialog");
 }
 
-ExclusiveAccessContext* RoomBrowserWindow::GetExclusiveAccessContext() {
-  RoomStubHit("GetExclusiveAccessContext");
-  return nullptr;
-}
-
 std::string RoomBrowserWindow::GetWorkspace() const {
   RoomStubHit("GetWorkspace");
   return std::string();

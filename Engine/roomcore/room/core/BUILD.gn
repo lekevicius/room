@@ -24,6 +24,7 @@ source_set("core") {
   ]
   deps = [
     "//base",
+    "//chrome/app:command_ids",
     "//chrome/browser",
     "//chrome/browser:chrome_browser_application_mac",
     "//chrome/browser/profiles:profile",

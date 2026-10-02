@@ -21,3 +21,4 @@ GetContentsSize
 UpdateTitleBar
 AsBrowserView
 GetLocationBar
+GetExclusiveAccessContext

@@ -16,6 +16,7 @@
 #include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/web_contents.h"
+#include "room/browser/room_exclusive_access_context.h"
 #include "room/browser/room_location_bar.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 
@@ -79,7 +80,9 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
                                      room::RoomBrowserWindowClient* client)
     : browser_(browser),
       client_(client),
-      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window})) {}
+      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window})),
+      exclusive_access_context_(
+          std::make_unique<room::RoomExclusiveAccessContext>(browser)) {}
 
 RoomBrowserWindow::~RoomBrowserWindow() {
   // What BrowserView and WebUIBrowserWindow do in their destructors: features
@@ -230,6 +233,10 @@ bool RoomBrowserWindow::HandleKeyboardEvent(
 
 BrowserView* RoomBrowserWindow::AsBrowserView() {
   return nullptr;
+}
+
+ExclusiveAccessContext* RoomBrowserWindow::GetExclusiveAccessContext() {
+  return exclusive_access_context_.get();
 }
 
 LocationBar* RoomBrowserWindow::GetLocationBar() const {

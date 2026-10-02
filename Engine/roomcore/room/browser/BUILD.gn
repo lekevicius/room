@@ -6,6 +6,8 @@ source_set("browser") {
     "room_browser_window.h",
     "room_browser_window.mm",
     "room_browser_window_stubs.cc",
+    "room_exclusive_access_context.cc",
+    "room_exclusive_access_context.h",
     "room_location_bar.cc",
     "room_location_bar.h",
   ]
@@ -13,6 +15,7 @@ source_set("browser") {
     "//base",
     "//chrome/browser/ui",
     "//chrome/browser/ui/browser_active_state_manager",
+    "//chrome/browser/ui/exclusive_access",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/tabs:tab_strip",
