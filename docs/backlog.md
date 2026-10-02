@@ -24,3 +24,4 @@ user can make; otherwise any session.
 | ~~B-12~~ | ~~Suggestion defaults~~ — decided 2026-10-03 by the user: search suggestions on by default (off switch in Settings), default engine Google until the first-run choice; ROADMAP 2.4 updated | Phase 1.6 | — | |
 | B-13 | CEF discards lose back/forward history (no navigation-entry serialisation); RoomCore's session service fixes it | Phase 1.6 (2.3 spec) | 3.7 | |
 | B-14 | RoomCore's Crashpad database is `~/Library/Application Support/Chromium/Crashpad` (seen on the signed build's `chrome_crashpad_handler` command line): brand the crash-reporter paths with the rest of the user-data layout | Phase 1.5 follow-up | 3.1 | |
+| B-15 | `SidebarStore.deleteSpace` deletes the space's pinned entries and Today tabs; spec §B moves them to the Archive. When 4.1 adds the Archive, route space deletion through it (and give Delete Space an undo toast until then, 2.5) | Phase 2.1 | 4.1 (toast in 2.5) | |
