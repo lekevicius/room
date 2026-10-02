@@ -56,11 +56,19 @@ if otool -L "$V/RoomCore" | grep -q '@rpath/libchrome_dll.dylib'; then
   # The component build loads ~500 dylibs from the out directory; bring them
   # into the bundle so it runs (and signs) anywhere.
   find "$OUT_DIR" -maxdepth 1 -name '*.dylib' -exec cp -c {} "$V/Libraries/" \;
-  install_name_tool -add_rpath @loader_path/Libraries "$V/RoomCore" 2>/dev/null
+  # The helpers' rpaths already include Libraries/. The framework binary has
+  # no header room for another LC_RPATH (install_name_tool refuses even an
+  # in-place rewrite), so the host executable carries it
+  # (xcodegen/roomcore.yml LD_RUNPATH_SEARCH_PATHS).
 fi
 
 # Ad-hoc signatures, inside-out. Linker signatures of untouched dylibs stay
 # valid; the framework binary changed (rpath) and the bundle gained headers.
+# GN leaves the helper bundles with only the linker's signature of their
+# executable, which does not seal the bundle; codesign --verify rejects that.
+for helper in "$V"/Helpers/*.app; do
+  codesign --force --sign - "$helper"
+done
 codesign --force --sign - "$V/RoomCore"
 codesign --force --sign - "$V"
 t1=$(now)

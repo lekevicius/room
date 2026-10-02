@@ -19,7 +19,16 @@ targets:
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_STRICT_CONCURRENCY: complete
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/build/roomcore"
-        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        # Component build: RoomCore re-exports libchrome_dll and ~500 dylibs
+        # staged in the framework's Libraries/. The framework binary has no
+        # header room for its own rpath, so the host supplies it (dyld also
+        # searches the main executable's rpaths for @rpath loads).
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../Frameworks/RoomCore.framework/Versions/Current/Libraries"
+        # ld does not resolve the re-exported @rpath/libchrome_dll.dylib at
+        # link time, so the component-build host links it directly. A
+        # non-component (release) RoomCore has no libchrome_dll: drop this then.
+        LIBRARY_SEARCH_PATHS: "$(SRCROOT)/build/roomcore/RoomCore.framework/Versions/Current/Libraries"
+        OTHER_LDFLAGS: "$(inherited) -lchrome_dll"
     dependencies:
       - package: Design
       - package: UIKitCore
