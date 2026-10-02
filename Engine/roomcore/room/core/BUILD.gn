@@ -1,0 +1,12 @@
+# The public Objective-C API of RoomCore.framework (headers in public/).
+# Compiled into chrome_dll, the library the framework binary is (or, in the
+# component build, re-exports).
+
+source_set("core") {
+  sources = [ "room_core_version.mm" ]
+  deps = [
+    "//base",
+    "//chrome/common:version_header",
+  ]
+  frameworks = [ "Foundation.framework" ]
+}

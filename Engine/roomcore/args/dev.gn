@@ -1,5 +1,5 @@
 # Dev (component) build of the fork: fast incremental links, no symbols.
-# Used as out/dev/args.gn in ~/chromium/src.
+# Copied to out/dev/args.gn in ~/chromium/src by scripts/roomcore-apply.sh.
 is_component_build = true
 is_debug = false
 symbol_level = 0
@@ -14,3 +14,12 @@ enable_widevine = true
 # (mode 1) and inert: no API key is configured.
 enable_updater = false
 use_siso = true
+
+# Room branding (Engine/roomcore/room/branding): product "Room", bundle ids
+# com.lekevicius.room*, icons from the "room" theme component (placeholders
+# that point at Chromium's icons until Room has its own).
+branding_file_path = "//room/branding/BRANDING"
+branding_path_component = "room"
+
+# Google-specific pieces Room does not want.
+enable_hangout_services_extension = false

@@ -1,0 +1,63 @@
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+index ce7ebbe4f6b68..790bbb541e410 100644
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -28,6 +28,7 @@ import("//services/shape_detection/features.gni")
+ import("//third_party/angle/gni/angle.gni")
+ import("//third_party/blink/public/public_features.gni")
+ import("//third_party/widevine/cdm/widevine.gni")
++import("//room/build/config.gni")  # Room: room_framework_name
+ import("//tools/resources/generate_resource_allowlist.gni")
+ import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
+ import("//ui/gl/features.gni")
+@@ -481,7 +482,7 @@ if (is_win) {
+   }
+ } else if (is_mac) {
+   chrome_helper_name = chrome_product_full_name + " Helper"
+-  chrome_framework_name = chrome_product_full_name + " Framework"
++  chrome_framework_name = room_framework_name  # Room: "RoomCore"
+   chrome_framework_version = chrome_version_full
+ 
+   verify_dynamic_libraries = !is_component_build && !is_asan && !is_ubsan_any
+diff --git a/chrome/app/chrome_exe_main_mac.cc b/chrome/app/chrome_exe_main_mac.cc
+index 1b476471618a7..095660c54df91 100644
+--- a/chrome/app/chrome_exe_main_mac.cc
++++ b/chrome/app/chrome_exe_main_mac.cc
+@@ -182,14 +182,13 @@ __attribute__((visibility("default"))) int main(int argc, char* argv[]) {
+   // The helper lives within the versioned framework directory, so simply
+   // go up to find the main dylib.
+   static constexpr char entry_symbol[] = "ChromeMain";
+-  static constexpr char rel_path[] =
+-      "../../../../" PRODUCT_FULLNAME_STRING " Framework";
++  // Room: the framework binary is RoomCore (//room/build/config.gni).
++  static constexpr char rel_path[] = "../../../../RoomCore";
+ #else                             // defined(HELPER_EXECUTABLE)
+   static constexpr char entry_symbol[] = "ChromeMain";
+   static constexpr char rel_path[] =
+-      "../Frameworks/" PRODUCT_FULLNAME_STRING
+-      " Framework.framework/Versions/" CHROME_VERSION_STRING
+-      "/" PRODUCT_FULLNAME_STRING " Framework";
++      "../Frameworks/RoomCore.framework/Versions/" CHROME_VERSION_STRING
++      "/RoomCore";
+ #endif                            // defined(RENDERER_HELPER_EXECUTABLE)
+ 
+   // Slice off the last part of the main executable path, and append the
+diff --git a/chrome/common/chrome_constants.cc b/chrome/common/chrome_constants.cc
+index 1a6b899b4bc3a..5a5382d69e86a 100644
+--- a/chrome/common/chrome_constants.cc
++++ b/chrome/common/chrome_constants.cc
+@@ -80,10 +80,10 @@ const base::FilePath::CharType kHelperProcessExecutablePath[] = FPL("chrome");
+ #endif  // OS_*
+ 
+ #if BUILDFLAG(IS_MAC)
+-const base::FilePath::CharType kFrameworkName[] =
+-    FPL(PRODUCT_FULLNAME_STRING " Framework.framework");
+-const base::FilePath::CharType kFrameworkExecutableName[] =
+-    FPL(PRODUCT_FULLNAME_STRING " Framework");
++// Room: the framework is RoomCore.framework (room_framework_name in
++// //room/build/config.gni).
++const base::FilePath::CharType kFrameworkName[] = FPL("RoomCore.framework");
++const base::FilePath::CharType kFrameworkExecutableName[] = FPL("RoomCore");
+ const char kMacHelperSuffixAlerts[] = " (Alerts)";
+ #endif  // BUILDFLAG(IS_MAC)
+ 

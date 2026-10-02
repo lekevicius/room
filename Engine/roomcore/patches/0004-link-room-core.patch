@@ -1,0 +1,14 @@
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+index 790bbb541e410..a612f946482bf 100644
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -1333,6 +1333,9 @@ if (is_win) {
+       "//third_party/cld_3/src/src:cld_3",
+     ]
+ 
++    # Room: the public Objective-C API (RoomCore.h) lives in the framework.
++    deps += [ "//room/core" ]
++
+     if (is_chromeos) {
+       deps += [ "//chrome/browser/ash/schedqos" ]
+     }

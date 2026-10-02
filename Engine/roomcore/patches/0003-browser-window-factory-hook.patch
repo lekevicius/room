@@ -1,0 +1,29 @@
+diff --git a/chrome/browser/ui/views/frame/browser_window_factory.cc b/chrome/browser/ui/views/frame/browser_window_factory.cc
+index 6adf503895aed..65dc9802bbe1d 100644
+--- a/chrome/browser/ui/views/frame/browser_window_factory.cc
++++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
+@@ -25,11 +25,24 @@
+ #include "chromeos/components/kiosk/kiosk_utils.h"
+ #endif
+ 
++namespace room {
++// Room: set by //room/browser at startup. Returns a RoomBrowserWindow for
++// Browsers created for a Room host window, nullptr for everything else.
++BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*) =
++    nullptr;
++}  // namespace room
++
+ // static
+ std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
+ BrowserWindow::CreateBrowserWindow(BrowserWindowInterface* browser,
+                                    bool user_gesture,
+                                    bool in_tab_dragging) {
++  if (room::g_create_browser_window_hook) {
++    if (BrowserWindow* window = room::g_create_browser_window_hook(browser)) {
++      return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(window);
++    }
++  }
++
+   if (webui_browser::IsWebUIBrowserEnabled() &&
+       browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+     return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(

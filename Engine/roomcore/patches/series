@@ -1,0 +1,7 @@
+# Applied in order by scripts/roomcore-apply.sh onto the pinned Chromium tag,
+# one commit per patch on the `room` branch. Keep each patch a few lines:
+# everything else lives in //room (Engine/roomcore/room).
+0001-framework-name-roomcore.patch
+0002-keychain-room-safe-storage.patch
+0003-browser-window-factory-hook.patch
+0004-link-room-core.patch

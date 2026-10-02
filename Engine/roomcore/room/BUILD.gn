@@ -1,0 +1,6 @@
+# //room: everything Room adds to Chromium. Linked into RoomCore.framework
+# through //room/core (patches/0004-link-room-core.patch).
+
+group("room") {
+  deps = [ "//room/core" ]
+}
