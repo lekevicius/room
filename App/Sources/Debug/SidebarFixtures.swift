@@ -6,7 +6,9 @@ import Store
 /// `Room -RoomSidebarFixture demo|500` (Debug builds): fills a throwaway
 /// state directory with sidebar entries, for checking the sidebar by hand
 /// and for screenshots. `demo`: essentials, pinned with nested folders,
-/// Today tabs. `500`: 500 entries (scroll check, ROADMAP 2.2 exit).
+/// Today tabs. `500`: 500 entries (scroll check, ROADMAP 2.2 exit). `50`:
+/// 50 entries whose first ten Today tabs are the Phase 1.4 typical sites
+/// (switching and memory, ROADMAP 2.3 exit; `-RoomSpike switch` loads them).
 enum SidebarFixtures {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSidebarFixture") }
 
@@ -16,6 +18,22 @@ enum SidebarFixtures {
         var selected: UUID?
         do {
             switch name {
+            case "50":
+                for index in 0..<4 {
+                    try sidebar.addEntry(.essential, url: "https://essential\(index).example.com", title: "Essential \(index)", space: space.id)
+                }
+                let folder = try sidebar.addFolder(name: "Folder", space: space.id)
+                for index in 0..<14 {
+                    try sidebar.addEntry(.pinned, url: "https://pinned\(index).example.com", title: "Pinned \(index)", space: space.id,
+                                         folder: index < 4 ? folder.id : nil)
+                }
+                for (index, url) in SpikeRunner.Context.typicalSites.enumerated() {
+                    let entry = try sidebar.addEntry(.today, url: url, title: "Site \(index)", space: space.id)
+                    if index == 0 { selected = entry.id }
+                }
+                for index in 0..<22 {
+                    try sidebar.addEntry(.today, url: "https://tab\(index).example.org/article", title: "Today tab \(index)", space: space.id)
+                }
             case "500":
                 var folder: UUID?
                 for index in 0..<100 {

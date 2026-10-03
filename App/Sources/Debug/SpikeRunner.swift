@@ -11,7 +11,8 @@ import EngineCEF
 /// `Room -RoomSpike <name> -RoomSpikeOutput <file>` (Debug builds): runs one
 /// Phase 1.4 measurement against the live engine, appends `key: value` lines
 /// to the output file and, unless `-RoomSpikeKeepRunning YES`, quits.
-/// Spikes: cdp, scroll, resize, memory, audio, popups, hidden, open10.
+/// Spikes: cdp, scroll, resize, memory, audio, popups, hidden, open10,
+/// and Phase 2.3's tabs, switch, relaunch (`TabSpikes.swift`).
 enum SpikeRunner {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSpike") }
 
@@ -32,7 +33,10 @@ enum SpikeRunner {
         record("spike", name)
         record("date", ISO8601DateFormatter().string(from: Date()))
         record("loadavg", loadAverage())
-        await context.activate()
+        // Before the activation attempts below (up to 5 s when macOS refuses them).
+        record("launch_to_spike_s", String(format: "%.2f", Date().timeIntervalSince(Context.processStartDate())))
+        // The relaunch timing must not include the activation attempts.
+        if name != "relaunch" { await context.activate() }
         switch name {
         case "cdp": await context.cdp()
         case "scroll": await context.scroll()
@@ -45,6 +49,10 @@ enum SpikeRunner {
         case "diaframe": await context.diaFrame()
         case "keys": await context.keys()
         case "devtools": await context.devTools()
+        case "tabs": await context.tabsChecks()
+        case "switch": await context.switching()
+        case "relaunch": await context.relaunch()
+        case "capture": await context.captures()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -420,12 +428,13 @@ enum SpikeRunner {
         /// Clicks an element through CDP input events (a real user gesture in the renderer).
         /// `fromRight` clicks that many points left of the element's right edge
         /// (the date input's calendar button) instead of its centre.
-        func click(_ page: CEFWebContents, _ selector: String, fromRight: Double? = nil) async {
+        func click(_ page: CEFWebContents, _ selector: String, fromRight: Double? = nil, modifiers: Int = 0) async {
             let x = fromRight.map { "r.right - \($0)" } ?? "r.x + r.width / 2"
             let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [\(x), r.y + r.height / 2] })()")
             guard let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 else { return }
             for type in ["mousePressed", "mouseReleased"] {
-                _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": type, "x": point[0], "y": point[1], "button": "left", "clickCount": 1])
+                _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": type, "x": point[0], "y": point[1], "button": "left",
+                                                                                     "clickCount": 1, "modifiers": modifiers])
             }
         }
 

@@ -15,12 +15,24 @@ if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then echo "Room is alread
 rm -f "$OUT"
 open -n "$APP" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
 sleep 2
-pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
+# Our instance, by its arguments (an `activate` that lands just after a quit
+# relaunches Room without arguments, on the real state directory).
+pid=$(pgrep -nf "RoomSpikeOutput $OUT" || true)
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
-  if [[ "${ROOM_SPIKE_NO_ACTIVATE:-0}" != 1 ]]; then
+  # Stop activating once the spike has ended: the quit follows.
+  if [[ "${ROOM_SPIKE_NO_ACTIVATE:-0}" != 1 ]] && ! grep -q '^end:' "$OUT" 2>/dev/null; then
     osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
   fi
   grep -q '^end:' "$OUT" 2>/dev/null && [[ "$*" == *KeepRunning* ]] && break
   sleep 1
 done
+# Stop a relaunch without arguments that an activate caused anyway.
+if [[ "$*" != *KeepRunning* ]]; then
+  sleep 2
+  for stray in $(pgrep -f "Room.app/Contents/MacOS/Room$" || true); do
+    echo "stopping stray relaunch $stray" >&2
+    osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || kill -TERM "$stray"
+  done
+  while pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; do sleep 0.5; done
+fi
 cat "$OUT"
