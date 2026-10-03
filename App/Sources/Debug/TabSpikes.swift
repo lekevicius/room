@@ -295,6 +295,21 @@ extension SpikeRunner.Context {
                 SpikeRunner.record("capture_page_\(suffix)", writeComposite(page: pageImage, pageView: page.nativeView,
                                                                            to: directory.appending(path: "phase-2.3-card-page-\(suffix).png")))
             }
+            if !dark {
+                // The ⌃Tab switcher, held: a few entries used first so the list has five.
+                for entry in store.sidebarOrder(space: sidebar.activeSpaceID).prefix(4) {
+                    sidebar.select(entry.id)
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+                sendKey("\t", keyCode: 48, [.control])
+                try? await Task.sleep(for: .milliseconds(500))
+                let switcher = (NSApp.delegate as? AppDelegate)?.switcher
+                SpikeRunner.record("switcher_state", "active=\(switcher?.isActive ?? false) panel=\(switcher?.debugPanelFrame.map(NSStringFromRect) ?? "none")")
+                SpikeRunner.record("capture_switcher", writeComposite(page: nil, pageView: nil, overlay: switcher?.debugPanel,
+                                                                      to: directory.appending(path: "phase-2.3-tab-switcher-light.png")))
+                sendFlags([])
+                try? await Task.sleep(for: .milliseconds(300))
+            }
             sidebar.select(nil)
             try? await Task.sleep(for: .seconds(1))
             SpikeRunner.record("capture_empty_\(suffix)", writeComposite(page: nil, pageView: nil,
@@ -306,7 +321,7 @@ extension SpikeRunner.Context {
     /// captures come back blank while the session is locked), with `page`
     /// drawn over `pageView`'s frame when given. The behind-window material
     /// renders as nothing in-process; a flat underlay stands in for it.
-    private func writeComposite(page: NSImage?, pageView: NSView?, to url: URL) -> String {
+    private func writeComposite(page: NSImage?, pageView: NSView?, overlay: NSView? = nil, to url: URL) -> String {
         guard let content = window.contentView, let layer = content.layer else { return "no layer" }
         let scale = window.backingScaleFactor
         let size = content.bounds.size
@@ -340,10 +355,19 @@ extension SpikeRunner.Context {
             page.draw(in: frame)
             NSGraphicsContext.restoreGraphicsState()
         }
+        if let overlay, let overlayRep = overlay.bitmapImageRepForCachingDisplay(in: overlay.bounds) {
+            // A stand-in for the glass backdrop, then the list drawn by AppKit.
+            overlay.cacheDisplay(in: overlay.bounds, to: overlayRep)
+            let frame = overlay.convert(overlay.bounds, to: nil)
+            NSColor.windowBackgroundColor.withAlphaComponent(0.92).setFill()
+            NSBezierPath(roundedRect: frame, xRadius: Radius.large, yRadius: Radius.large).fill()
+            overlayRep.draw(in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        }
         NSGraphicsContext.restoreGraphicsState()
         guard let png = rep.representation(using: .png, properties: [:]) else { return "encode failed" }
         do { try png.write(to: url) } catch { return "\(error)" }
         return "\(url.lastPathComponent) \(rep.pixelsWide)x\(rep.pixelsHigh) layer render\(page == nil ? "" : ", page composited from CDP")"
+            + (overlay == nil ? "" : ", list drawn by cacheDisplay over a flat stand-in for the glass")
     }
 
     // MARK: Key events

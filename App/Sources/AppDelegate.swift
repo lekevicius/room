@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var sidebar: SidebarController?
     /// The window's pages: entries on the engine (Phase 2.3).
     private(set) var tabs: TabController?
-    private var switcher: TabSwitcher?
+    private(set) var switcher: TabSwitcher?
     private var toastCenter: ToastCenter?
     private var debugPanel: NSPanel?
     #if DEBUG
