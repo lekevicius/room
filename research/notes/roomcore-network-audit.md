@@ -144,3 +144,21 @@ and completed 600 s idle, 610 s whole process, exit 0, no watchdog. Complete
 NetLog 18 events / 603.051 s event span; **0 HTTP, 0 connections, 0 DNS, 0 TLS**.
 The after host/component list is still empty. This binary predates only the
 subsequent tab-editability/extension probe change, not any network policy.
+
+
+## Final current-package idle audit — 2026-10-03 10:20 EEST
+
+Engine 0f87b84 (SadTab containment), host a4f8c25 (loopback diagnostic option),
+Chromium 0811f471258ac, same nine applied patches. Fresh selected profile,
+about:blank, nice 0; 600 seconds requested, 601.491092 seconds between idle
+start and terminate marker, 614 seconds whole process, exit 0. No timeout
+marker; complete NetLog parses. 18 events over 600.419 seconds; HTTP attempts
+0, unique requests 0, connections 0, DNS 0, TLS failures 0. The after-host list
+is empty. Both Crashpad handlers were observed under this selected profile's
+Crashpad directory. Evidence: netlog-idle-sadtab-final. The earlier empty
+netlog-idle-sadtab launch is not a completed audit.
+
+This qualifies the current package separately from the prior engine 2a04498
+measurement. Network policy did not change during the intervening tab,
+activation, renderer-containment and host-fixture work. Original before list
+remains 62 HTTP / 86 connections / 9 DNS. CI e5ad547 passed 75 / 83 s.

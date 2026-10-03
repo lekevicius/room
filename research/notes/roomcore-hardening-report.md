@@ -14,7 +14,7 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | Concurrent repetition | Three-browser exercise reproduced 2 watchdog exits after all ten pages loaded; third fixture rejected. Helper-capture repeat passed at 6.017 / 5.691 s but does not resolve the failure |
 | Surface coverage | Original 18 processes driven without crashes. 17 drives pass; fullscreen deliberately rejects and its driver fails. Added deterministic FedCM passive bubble / active modal probe passes. Native UI acceptance remains partial |
 | Network before | Fresh profile, 600 s idle, 608 s process: 62 HTTP / 86 connections / 9 DNS, 0 TLS errors |
-| Network after demand-CDM and FedCM | Fresh profile, 600 s idle, 610 s process: 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events, clean exit. Fixed app code 2a04498 |
+| Network final current package | Engine 0f87b84 / host a4f8c25: fresh profile, 600 s requested idle, 614 s process; 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events over 600.419 s, exit 0 |
 | On-demand exception | Widevine 4.10.3050.0 installed only after EME request; MediaKeys created in 6.812 s; 3 external updater requests. Installed reuse and unrelated-key probe: 0 external requests. Forced updater DNS failure bounded at 60.163 s. Licensed playback unverified |
 | TLS B-3 | All 88 reproduced laptop failures attributed by host to local DNS sinkholes ([::]:443), TLS alert 80 / BoringSSL 1080. Exact historical mini ~220 still needs its original NetLog |
 | Crashpad B-14 | Both primary and monitor command lines verified at selected-root/Crashpad, prod=Room_Mac |
@@ -89,5 +89,6 @@ stock-window entry on the same component libraries quits 5.107/3.790/4.585 s.
 All leave 0 helpers and 0 new crashes, with no stack sampling. This eliminates
 external-page readiness as a problem in this control but does not reproduce
 or fix the real-site shutdown failure. Different setup/termination paths and
-load prevent a performance ranking. A final current-package 600-second idle
-audit (netlog-idle-sadtab-final) is pending.
+load prevent a performance ranking. The final current-package 600-second idle
+audit (netlog-idle-sadtab-final) passes: 614 s process, 18 events, zero traffic,
+exit 0. CI e5ad547 passes 75/83 s.

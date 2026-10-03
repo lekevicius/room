@@ -547,3 +547,9 @@ is inferred. Restarted once in managed execution session 96817 with a fresh
 netlog-idle-sadtab-final directory; browser PID86910 is nice0, idle-start
 1791012022.020894 (10:20:22 EEST), 600 seconds requested. Both Crashpad handler
 commands again point into this selected profile's Crashpad directory.
+
+10:35 EEST: final current-package idle audit passed. netlog-idle-sadtab-final:
+600 requested idle seconds, 601.491092 s idle-start→terminate, 614 s process,
+18 NetLog events / 600.419 s span, 0 HTTP / connections / DNS / TLS, exit0.
+No compiler/test/helper remains. CI e5ad547 passed75/83s. Engine0f87b84 and
+hosta4f8c25 are now covered by this complete fresh-profile measurement.
