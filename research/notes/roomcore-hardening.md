@@ -199,3 +199,30 @@ because find widgets retain it. Build 26 s; find/next drive exits 0 in 18 s.
 Baseline nav 11.970 s, ten-page quit 2.262 s at load1 15.57, 27 helpers observed,
 0 left, 0 crash reports, exit 0. Keyboard/focus and actual matches remain to
 be measured; this verifies the formerly crashing command path.
+
+### Network policy work in progress
+
+Switch smoke (60 s) still had 12 requests; feature smoke (30 s) still had 9.
+Gaia's AvoidAutoTriggerListAccountsOnStale only moves its initial fetch into
+OnNetworkInitialized, so it is not a suppression. GCM persisted only Chrome
+policy invalidation project IDs 245350905893/585406161706. Model manifest
+component ceofaddefefcbblgcgnibnonglccbfja registers/downloads independently of
+--disable-component-update and the model-execution feature. The supported
+local manifest override accepts an empty JSON catalog and performs no fetch.
+
+Drafted //room policy using existing service factory seams for browser-account
+networking and cloud-policy invalidations. These upstream APIs are named for
+tests but do not require or create a test context. Deviation is explicit;
+no test fake is linked. Patch 0006 is narrowly justified: the default component
+scheduler is constructed directly in BrowserProcessImpl with no factory,
+pref, or switch to disable periodic checks while retaining registration and
+explicit Widevine updates. --disable-component-update skips registration
+(including Widevine), and a huge initial delay would merely conceal traffic.
+The new hook selects an on-demand-only scheduler; the original five patches
+remain byte-for-byte unchanged. This policy is not built/verified yet.
+
+The next build stopped before compilation because roomcore-apply.sh incorrectly
+tried to reapply committed 0006 (Chromium 9fda24ebc9370). Under pipefail,
+grep -q can exit early and make git log fail with SIGPIPE. Consume the full
+history with grep -xF redirected to /dev/null instead. One retry reported
+0 applied, 6 already and completed; no Chromium source failure occurred.
