@@ -1,0 +1,8 @@
+{
+  "room_head": "1f96cd456481344cad8e68ae2ed6f97998e99a36",
+  "chromium_candidate": "920768ef9a67a",
+  "chromium_baseline": "7ac71cfacf83f",
+  "patch_sha256": "13cea9357e17fa7840940b3834bf37f0cc45355dbd3b93e1d27bbc14b0c98e8c",
+  "worktree_diff_sha256": "31435ec15d24d0f1d5d680c27957863e240874ae1429820d0ca51c8fb61e9364",
+  "status": "Deferred, not an accepted shutdown fix; excluded from active UI Goal."
+}

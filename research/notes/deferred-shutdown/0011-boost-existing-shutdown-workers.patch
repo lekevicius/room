@@ -1,0 +1,102 @@
+diff --git a/base/task/thread_pool/worker_thread.h b/base/task/thread_pool/worker_thread.h
+--- a/base/task/thread_pool/worker_thread.h
++++ b/base/task/thread_pool/worker_thread.h
+@@ -199,6 +199,7 @@
+   Delegate* delegate();
+ 
+   // Boosts thread priority for shutdown if shutdown has started.
++  // On Apple, may also be called by the thread pool shutdown coordinator.
+   void MaybeBoostPriorityForShutdown();
+ 
+   // Informs this WorkerThread about periods during which it is not being
+@@ -260,6 +261,11 @@
+ 
+   // Handle for the thread managed by |this|.
+   PlatformThreadHandle thread_handle_ GUARDED_BY(thread_lock_);
++#if BUILDFLAG(IS_APPLE)
++  // Independent of worker-owned nested boost scopes. Ends before OnMainExit.
++  PlatformPriorityOverride shutdown_priority_override_ GUARDED_BY(thread_lock_) = nullptr;
++  bool thread_main_exited_ GUARDED_BY(thread_lock_) = false;
++#endif
+ 
+   // The last time this worker was used by its owner (e.g. to process work or
+   // stand as a required idle thread).
+diff --git a/base/task/thread_pool/worker_thread.cc b/base/task/thread_pool/worker_thread.cc
+--- a/base/task/thread_pool/worker_thread.cc
++++ b/base/task/thread_pool/worker_thread.cc
+@@ -201,6 +201,9 @@
+ 
+ void WorkerThread::Destroy() {
+   CheckedAutoLock auto_lock(thread_lock_);
++#if BUILDFLAG(IS_APPLE)
++  DCHECK(!shutdown_priority_override_);
++#endif
+ 
+   // If |thread_handle_| wasn't joined, detach it.
+   if (!thread_handle_.is_null()) {
+@@ -277,11 +280,23 @@
+ }
+ 
+ void WorkerThread::MaybeBoostPriorityForShutdown() {
++#if BUILDFLAG(IS_APPLE)
++  CheckedAutoLock auto_lock(thread_lock_);
++  // Check exit before touching the tracker, which may no longer be usable.
++  if (thread_main_exited_ || thread_handle_.is_null() ||
++      shutdown_priority_override_ || thread_type_hint_ >= ThreadType::kDefault ||
++      !task_tracker_->HasShutdownStarted()) {
++    return;
++  }
++  shutdown_priority_override_ =
++      SetThreadTypeOverride(thread_handle_, ThreadType::kDefault);
++#else
+   if (priority_boost_.has_value() && !priority_boost_->IsActive() &&
+       task_tracker_->HasShutdownStarted() &&
+       thread_type_hint_ < ThreadType::kDefault) {
+     priority_boost_->BoostPriority(ThreadType::kDefault);
+   }
++#endif
+ }
+ 
+ void WorkerThread::BeginUnusedPeriod() {
+@@ -510,6 +525,15 @@
+ 
+   shutdown_raise_thread_type_lease_.reset();
+   priority_boost_.reset();
++#if BUILDFLAG(IS_APPLE)
++  {
++    CheckedAutoLock auto_lock(thread_lock_);
++    thread_main_exited_ = true;
++    RemoveThreadTypeOverride(PlatformThread::CurrentHandle(),
++                            shutdown_priority_override_, thread_type_hint_);
++    shutdown_priority_override_ = nullptr;
++  }
++#endif
+ 
+   // Important: It is unsafe to access unowned state (e.g. |task_tracker_|)
+   // after invoking OnMainExit().
+diff --git a/base/task/thread_pool/thread_group_impl.cc b/base/task/thread_pool/thread_group_impl.cc
+--- a/base/task/thread_pool/thread_group_impl.cc
++++ b/base/task/thread_pool/thread_group_impl.cc
+@@ -1018,6 +1018,9 @@
+     WorkerDelegate* delegate = static_cast<WorkerDelegate*>(worker->delegate());
+     AnnotateAcquiredLockAlias annotate(lock_, delegate->lock());
+     delegate->OnShutdownStartedLockRequired(&executor);
++#if BUILDFLAG(IS_APPLE)
++    worker->MaybeBoostPriorityForShutdown();
++#endif
+   }
+   EnsureEnoughWorkersLockRequired(&executor);
+ 
+diff --git a/base/task/thread_pool/pooled_single_thread_task_runner_manager.cc b/base/task/thread_pool/pooled_single_thread_task_runner_manager.cc
+--- a/base/task/thread_pool/pooled_single_thread_task_runner_manager.cc
++++ b/base/task/thread_pool/pooled_single_thread_task_runner_manager.cc
+@@ -681,6 +681,9 @@
+   // CanRunPolicy if tasks are posted to it and thus doesn't need a
+   // DidUpdateCanRunPolicy() notification.
+   for (auto& worker : workers_to_update) {
++#if BUILDFLAG(IS_APPLE)
++    worker->MaybeBoostPriorityForShutdown();
++#endif
+     static_cast<WorkerThreadDelegate*>(worker->delegate())
+         ->DidUpdateCanRunPolicy();
+   }
