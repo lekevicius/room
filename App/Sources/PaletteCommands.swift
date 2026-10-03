@@ -5,7 +5,7 @@ import Sidebar
 
 /// The palette's commands (spec §C list, `CommandRegistry`): which can run
 /// now and what each does. Commands of later phases (screenshot, archive,
-/// find, split view, private window, print, routing) are not offered until
+/// split view, private window, routing) are not offered until
 /// their phase gives them something to do.
 extension AppDelegate {
     func paletteCommands() -> [OmniboxCommand] {
@@ -19,6 +19,8 @@ extension AppDelegate {
         add(CommandRegistry.copyURL, .copyURL, when: sidebar.selectedHasURL)
         add(CommandRegistry.copyMarkdown, .copyMarkdown, when: sidebar.selectedHasURL)
         add(CommandRegistry.duplicateTab, .duplicate, when: sidebar.selectedHasURL)
+        add(CommandRegistry.findInPage, .find, when: tabs.current != nil)
+        add(CommandRegistry.print, .print, when: tabs.current != nil)
         add(CommandRegistry.newFolder, .newFolder)
         add(CommandRegistry.pinTab, .pin, title: sidebar.pinCommandTitle, when: sidebar.pinCommandTitle != nil)
         add(CommandRegistry.reload, .reload, when: tabs.current != nil)
@@ -54,6 +56,8 @@ extension AppDelegate {
         case CommandRegistry.copyURL.id: sidebar.copySelectedURL(markdown: false)
         case CommandRegistry.copyMarkdown.id: sidebar.copySelectedURL(markdown: true)
         case CommandRegistry.duplicateTab.id: sidebar.duplicateSelected()
+        case CommandRegistry.findInPage.id: find?.showFindBar()
+        case CommandRegistry.print.id: tabs.current?.print()
         case CommandRegistry.newFolder.id: sidebar.newFolderCommand()
         case CommandRegistry.pinTab.id: sidebar.togglePin()
         case CommandRegistry.reload.id: tabs.current?.reload()

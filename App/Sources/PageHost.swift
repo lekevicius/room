@@ -87,6 +87,8 @@ final class PageContainerView: NSView {
     let devToolsPane = FlippedPaneView()
     /// Shown in place of a page when nothing is selected.
     let emptyState = CardEmptyStateView()
+    /// Over the page, under its prompts: the find bar, the zoom indicator, the status pill (2.6b).
+    let toolLayer = ToolLayerView()
     /// Over the page: its dialog sheet or certificate interstitial (2.6a).
     let promptLayer = PromptLayerView()
     private let separator = NSBox()
@@ -96,7 +98,8 @@ final class PageContainerView: NSView {
             guard pageView !== oldValue else { return }
             oldValue?.removeFromSuperview()
             if let pageView { addSubview(pageView, positioned: .below, relativeTo: nil) }
-            // Prompts stay above the page view whatever was added last.
+            // Tools and prompts stay above the page view whatever was added last.
+            addSubview(toolLayer, positioned: .above, relativeTo: nil)
             addSubview(promptLayer, positioned: .above, relativeTo: nil)
             needsLayout = true
         }
@@ -122,6 +125,7 @@ final class PageContainerView: NSView {
         devToolsPane.setAccessibilityIdentifier("devtools-pane")
         addSubview(devToolsPane)
         addSubview(separator)
+        addSubview(toolLayer)
         addSubview(promptLayer)
     }
 
@@ -136,6 +140,7 @@ final class PageContainerView: NSView {
         let paneHeight = isDevToolsOpen ? (bounds.height * devToolsFraction).rounded() : 0
         pageView?.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - paneHeight)
         promptLayer.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - paneHeight)
+        toolLayer.frame = promptLayer.frame
         devToolsPane.frame = NSRect(x: 0, y: bounds.height - paneHeight, width: bounds.width, height: paneHeight)
         separator.frame = NSRect(x: 0, y: bounds.height - paneHeight - 1, width: bounds.width, height: 1)
     }
@@ -155,5 +160,25 @@ final class PromptLayerView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !subviews.isEmpty else { return nil }
         return super.hitTest(point)
+    }
+}
+
+/// Holds the find bar, the zoom indicator and the status pill over the page;
+/// only they take events, the rest of the page stays clickable.
+final class ToolLayerView: NSView {
+    /// After every layout (the status pill and the indicator re-place themselves).
+    var onLayout: (() -> Void)?
+
+    override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === self ? nil : hit
     }
 }

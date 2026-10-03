@@ -460,6 +460,9 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
         if !isLoading {
             loadProgress = 1
             updateSecurityState()
+            // Chrome keeps zoom per host: a navigation can change it under us.
+            let engineZoom = ZoomConversion.factor(forLevel: browser.zoomLevel)
+            if abs(engineZoom - zoomFactor) > 0.001 { zoomFactor = engineZoom }
         }
     }
 

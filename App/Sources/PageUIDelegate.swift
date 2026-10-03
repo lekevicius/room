@@ -16,8 +16,12 @@ final class PageUIDelegate {
     @ObservationIgnored let chrome = PageChrome()
     /// Element fullscreen (2.6b).
     @ObservationIgnored var fullscreen: PageFullscreen?
-    /// The selected page's status text (link hover), for the debug panel.
+    /// The selected page's status text (link hover).
     var statusText: String?
+    /// The status pill follows it.
+    @ObservationIgnored var onStatusText: ((String?) -> Void)?
+    /// A page closed (the find bar forgets its text).
+    @ObservationIgnored var onPageClosed: ((any WebContents) -> Void)?
     /// Every key the engine reported as reserved or unhandled, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
 
@@ -36,6 +40,7 @@ final class PageUIDelegate {
 extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {
         statusText = text
+        onStatusText?(text)
     }
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
@@ -98,6 +103,7 @@ extension PageUIDelegate: WebContentsUIDelegate {
     func webContentsDidClose(_ webContents: any WebContents) {
         chrome.webContentsDidClose(webContents)
         fullscreen?.exit(webContents)
+        onPageClosed?(webContents)
     }
 
     func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {

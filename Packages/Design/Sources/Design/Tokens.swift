@@ -236,6 +236,15 @@ public enum Timing {
     /// Search suggestions are requested once typing pauses this long (ROADMAP 2.4 task 6;
     /// `macos-ui-stack.md` §5.2: 100–150 ms).
     public static let suggestDebounce: TimeInterval = 0.12
+    /// The zoom indicator stays this long after the last change (chosen).
+    public static let zoomIndicator: TimeInterval = 1.5
+    /// The status pill shows a hovered link after this long (spec §I.14: 600 ms) …
+    public static let statusPillDelay: TimeInterval = 0.6
+    /// … and widens to the full URL after it has shown this long (spec §I.14: 1.5 s).
+    public static let statusPillExpand: TimeInterval = 1.5
+    /// Leaving a link hides the pill after this long, so moving between links
+    /// does not flicker it (chosen).
+    public static let statusPillHideGrace: TimeInterval = 0.1
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).

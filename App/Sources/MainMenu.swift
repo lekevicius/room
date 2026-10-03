@@ -29,6 +29,8 @@ enum MainMenu {
         fileMenu.addItem(withTitle: CommandName.reopenClosedTab, action: #selector(AppDelegate.reopenClosedTab(_:)),
                          keyEquivalent: "T")
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "W")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Print…", action: #selector(AppDelegate.printPage(_:)), keyEquivalent: "p")
         main.addItem(submenu: fileMenu, title: "File")
 
         let editMenu = NSMenu(title: "Edit")
@@ -39,11 +41,28 @@ enum MainMenu {
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(.separator())
+        // Copy URL / as Markdown (spec §G; shifted keys name the shifted character, see the Tab menu).
+        editMenu.addItem(withTitle: CommandName.copyURL, action: #selector(AppDelegate.copyPageURL(_:)), keyEquivalent: "C")
+        let markdown = editMenu.addItem(withTitle: CommandName.copyMarkdown, action: #selector(AppDelegate.copyPageURL(_:)),
+                                        keyEquivalent: "C")
+        markdown.keyEquivalentModifierMask = [.command, .shift, .option]
+        markdown.tag = 1
+        editMenu.addItem(.separator())
+        let findMenu = NSMenu(title: "Find")
+        findMenu.addItem(withTitle: "Find…", action: #selector(AppDelegate.showFindBar(_:)), keyEquivalent: "f")
+        findMenu.addItem(withTitle: "Find Next", action: #selector(AppDelegate.findNext(_:)), keyEquivalent: "g").tag = 1
+        findMenu.addItem(withTitle: "Find Previous", action: #selector(AppDelegate.findNext(_:)), keyEquivalent: "G").tag = -1
+        editMenu.addItem(submenu: findMenu, title: "Find")
         main.addItem(submenu: editMenu, title: "Edit")
 
         let viewMenu = NSMenu(title: "View")
         // Reaches the key window's controller through the responder chain.
         viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: "Actual Size", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "0").tag = 0
+        viewMenu.addItem(withTitle: "Zoom In", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "=").tag = 1
+        viewMenu.addItem(withTitle: "Zoom Out", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "-").tag = -1
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Reload Page", action: #selector(AppDelegate.reloadPage(_:)), keyEquivalent: "r")
         viewMenu.addItem(withTitle: "Back", action: #selector(AppDelegate.goBack(_:)), keyEquivalent: "[")

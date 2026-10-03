@@ -31,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var promptPresenter: PagePromptPresenter?
     /// Downloads across the window's profiles: the footer button and its popover (2.6b).
     private(set) var downloads: DownloadsUI?
+    /// Over the card's page (2.6b): find, the zoom indicator, the status pill.
+    private(set) var find: FindController?
+    private(set) var zoom: ZoomIndicator?
+    private(set) var statusPill: StatusPill?
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -327,10 +331,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         windowController?.onFullscreenChange = { [weak fullscreen] isFullscreen in
             if !isFullscreen { fullscreen?.windowDidExitFullscreen() }
         }
-        pageHost.onShow = { [weak chrome, weak fullscreen] contents in
+        // Find, zoom and the status pill over the page (ROADMAP 2.6 task 3).
+        let tools = pageHost.container.toolLayer
+        let find = FindController(host: tools)
+        find.onClose = { [weak pageHost] in pageHost?.focusPage() }
+        let zoom = ZoomIndicator(host: tools)
+        zoom.topOffset = { [weak find] in
+            FindMetrics.inset + (find?.isVisible == true ? FindMetrics.height + Spacing.xs : 0)
+        }
+        let statusPill = StatusPill(host: tools)
+        tools.onLayout = { [weak statusPill, weak zoom] in
+            statusPill?.layout()
+            zoom?.layout()
+        }
+        pageDelegate.onStatusText = { [weak statusPill] text in statusPill?.setStatus(text) }
+        pageDelegate.onPageClosed = { [weak find] page in find?.pageClosed(page) }
+        self.find = find
+        self.zoom = zoom
+        self.statusPill = statusPill
+        pageHost.onShow = { [weak chrome, weak fullscreen, weak find, weak zoom, weak statusPill] contents in
             chrome?.prompts.setCurrentPage(contents)
             fullscreen?.cardDidShow(contents)
+            find?.setPage(contents)
+            zoom?.setPage(contents)
+            statusPill?.reset()
         }
+        find.setPage(pageHost.contents)
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.performMenuAction = { [weak tabs] action, page in
             switch action {
@@ -455,6 +481,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         downloads?.togglePopover()
     }
 
+    /// ⌘F (spec §C): the find bar at the card's top-right.
+    @objc func showFindBar(_ sender: Any?) { find?.showFindBar() }
+
+    /// ⌘G (tag 1) and ⇧⌘G (tag −1).
+    @objc func findNext(_ sender: Any?) {
+        find?.findNext(forward: (sender as? NSMenuItem)?.tag != -1)
+    }
+
+    /// ⌘= (tag 1), ⌘- (tag −1), ⌘0 (tag 0).
+    @objc func zoomPage(_ sender: Any?) {
+        guard let page = tabs?.current, let item = sender as? NSMenuItem else { return }
+        switch item.tag {
+        case 1: zoom?.zoomIn(page)
+        case -1: zoom?.zoomOut(page)
+        default: zoom?.reset(page)
+        }
+    }
+
+    /// ⌘P: the system print panel (CEF's; ROADMAP 2.6 task 3).
+    @objc func printPage(_ sender: Any?) { tabs?.current?.print() }
+
+    /// ⇧⌘C (tag 0) and ⌥⇧⌘C (tag 1): Copy URL / as Markdown with a toast (spec §F).
+    @objc func copyPageURL(_ sender: Any?) {
+        sidebar?.copySelectedURL(markdown: (sender as? NSMenuItem)?.tag == 1)
+    }
+
     @objc func toggleDevTools(_ sender: Any?) {
         pageHost?.toggleDevTools()
     }
@@ -496,8 +548,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let muted = sidebar?.selectedEntryID.flatMap { tabs?.pageState(for: $0).isMuted } ?? false
             menuItem.title = muted ? CommandName.unmuteTab : CommandName.muteTab
             return sidebar?.selectedHasPage == true
-        case #selector(reloadPage(_:)):
+        case #selector(reloadPage(_:)), #selector(showFindBar(_:)), #selector(findNext(_:)), #selector(printPage(_:)):
             return tabs?.current != nil
+        case #selector(zoomPage(_:)):
+            guard let page = tabs?.current else { return false }
+            switch menuItem.tag {
+            case 1: return page.zoomFactor < ZoomRules.steps.last! - 0.001
+            case -1: return page.zoomFactor > ZoomRules.steps.first! + 0.001
+            default: return !ZoomRules.isDefault(page.zoomFactor)
+            }
+        case #selector(copyPageURL(_:)):
+            return sidebar?.selectedHasURL == true
         case #selector(goBack(_:)):
             return tabs?.current?.canGoBack == true
         case #selector(goForward(_:)):
