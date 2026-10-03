@@ -52,6 +52,8 @@ extension TabController: WebContentsUIDelegate {
     }
 
     public func webContentsDidClose(_ webContents: any WebContents) {
+        // Its prompts are answered (the presentation forgets the page).
+        pageUIDelegate?.webContentsDidClose(webContents)
         if closing.removeValue(forKey: ObjectIdentifier(webContents)) != nil { return }
         guard let id = entryID(for: webContents) else { return }
         // Quitting: the entry stays as it is, unloaded (it restores at the next launch).
@@ -92,7 +94,7 @@ extension TabController: WebContentsUIDelegate {
         }
     }
 
-    // Everything below is presentation, forwarded to `pageUIDelegate` (Phase 2.6 gives it real UI).
+    // Everything below is presentation, forwarded to `pageUIDelegate` (the app's prompts, menus and file choosers, Phase 2.6).
 
     public func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {
         pageUIDelegate?.webContentsDidRequestEnterFullscreen(webContents, origin: origin)

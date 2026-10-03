@@ -37,6 +37,11 @@ class RoomCEFApp : public CefApp {
     if (use_mock_keychain_) {
       command_line->AppendSwitch("use-mock-keychain");
     }
+    // HTTP auth goes to CefRequestHandler::GetAuthCredentials (our sheet):
+    // under the Chrome bootstrap, Chrome's own login prompt answers it
+    // otherwise and the handler is never called (CEF issue #3603; found
+    // driving a 401 page in Phase 2.6a).
+    command_line->AppendSwitch("disable-chrome-login-prompt");
     if (allow_devtools_frontend_) {
       // The docked DevTools front-end connects over the debugging port.
       command_line->AppendSwitchWithValue("remote-allow-origins", "devtools://devtools");

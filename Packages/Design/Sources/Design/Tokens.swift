@@ -273,3 +273,25 @@ public enum PaletteMetrics {
     /// The × that removes a history row (spec §C), on hover or highlight.
     public static let deleteButtonSize: CGFloat = 18
 }
+
+/// The page's prompts in the card (ROADMAP 2.6 task 2): JavaScript dialogs,
+/// `beforeunload` and HTTP auth as a sheet over the page, the certificate
+/// interstitial, the permission popover.
+public enum PromptMetrics {
+    /// The dialog panel (chosen; Chrome's tab-modal dialogs are ~450 pt).
+    public static let dialogWidth: CGFloat = 420
+    /// Below the card's top edge, as Chrome's tab-modal dialogs hang from the toolbar (chosen).
+    public static let dialogTopInset: CGFloat = 32
+    public static let dialogPadding: CGFloat = 20
+    public static let dialogSpacing: CGFloat = 12
+    /// A long message scrolls past this height (chosen).
+    public static let messageMaxHeight: CGFloat = 240
+    /// Over the page while a dialog waits: black at this alpha (light / dark appearance, chosen).
+    public static let dimAlphaLight: CGFloat = 0.18
+    public static let dimAlphaDark: CGFloat = 0.35
+    /// The certificate interstitial's column and icon (chosen).
+    public static let interstitialWidth: CGFloat = 520
+    public static let interstitialIconSize: CGFloat = 44
+    /// The permission popover's content width (chosen).
+    public static let permissionWidth: CGFloat = 360
+}

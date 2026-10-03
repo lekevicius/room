@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Dialogs</title>
+<style>body { font: 15px -apple-system, sans-serif; margin: 40px; } button { font-size: 15px; margin: 4px; }</style>
+<h1>JavaScript dialogs</h1>
+<p>Each button runs one dialog; the answer lands in <code>window.__results</code>.</p>
+<button id="alert" onclick="run('alert')">alert()</button>
+<button id="confirm" onclick="run('confirm')">confirm()</button>
+<button id="prompt" onclick="run('prompt')">prompt()</button>
+<button id="arm" onclick="arm()">Arm beforeunload</button>
+<pre id="log"></pre>
+<script>
+window.__results = [];
+function run(kind) {
+  const value = kind === 'alert' ? (alert('This is an alert from the page.'), 'ok')
+    : kind === 'confirm' ? confirm('Delete the draft “Notes for Tuesday”?')
+    : prompt('What should this tab be called?', 'Reading list');
+  window.__results.push([kind, value]);
+  document.getElementById('log').textContent = JSON.stringify(window.__results);
+}
+function arm() {
+  window.onbeforeunload = (event) => { event.preventDefault(); event.returnValue = 'unsaved'; return 'unsaved'; };
+  document.title = 'Dialogs (armed)';
+}
+</script>

@@ -413,6 +413,18 @@ struct RelatedTabTests {
         #expect(urls.prefix(2) == ["https://a.example", "https://three.example"])
     }
 
+    @Test("Open Link in New Tab from a page's context menu opens below it, behind it (2.6)")
+    func contextMenuLink() throws {
+        let f = try TabsFixture()
+        let a = try f.today("https://a.example"), b = try f.today("https://b.example")
+        f.sidebar.select(a.id)
+        let page = try #require(f.page(a.id))
+        let id = try #require(f.tabs.openLink(URL(string: "https://a.example/menu")!, from: page))
+        #expect(f.todayIDs == [a.id, id, b.id])
+        #expect(f.sidebar.selectedEntryID == a.id)
+        #expect(f.page(id)?.url?.absoluteString == "https://a.example/menu")
+    }
+
     @Test("A link from a pinned entry opens at the top of Today")
     func fromPinned() throws {
         let f = try TabsFixture()

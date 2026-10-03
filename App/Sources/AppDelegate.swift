@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
     private var toastCenter: ToastCenter?
+    private(set) var promptPresenter: PagePromptPresenter?
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -248,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
+        installPagePrompts(pageDelegate, pageHost: pageHost, sidebar: sidebar, tabs: tabs, rootView: rootView)
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
         palette.contentRect = { [weak rootView] in rootView?.currentLayout.card ?? .zero }
         palette.addressFieldRect = { [weak rootView, weak sidebar] in
@@ -294,6 +296,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // The other spaces' lists are built after the first frame, one per turn,
         // so a switch never waits on a list (ROADMAP 2.5 exit).
         DispatchQueue.main.async { [weak sidebar] in sidebar?.prepareSpaces() }
+    }
+
+    /// The page's prompts in the card, the permission popover on the header's
+    /// site button, and Room's context-menu items (ROADMAP 2.6 task 2).
+    private func installPagePrompts(_ pageDelegate: PageUIDelegate, pageHost: PageHost, sidebar: SidebarController, tabs: TabController,
+                                    rootView: BrowserWindowView) {
+        let chrome = pageDelegate.chrome
+        promptPresenter = PagePromptPresenter(
+            prompts: chrome.prompts, host: pageHost.container.promptLayer,
+            permissionAnchor: { [weak rootView, weak sidebar] in
+                // The site button while the sidebar shows it; otherwise the card's corner.
+                guard let rootView, rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil else {
+                    return nil
+                }
+                return (button, button.bounds)
+            },
+            focusPage: { [weak pageHost] in pageHost?.focusPage() })
+        pageHost.onShow = { [weak chrome] contents in chrome?.prompts.setCurrentPage(contents) }
+        chrome.prompts.setCurrentPage(pageHost.contents)
+        chrome.performMenuAction = { [weak tabs] action, page in
+            switch action {
+            case .openLinkInNewTab(let url), .openImageInNewTab(let url):
+                tabs?.openLink(url, from: page)
+            case .openLinkInPeek:
+                break  // Peek is Phase 2.7; the item is disabled until then.
+            case .copyLink(let url), .copyImageAddress(let url):
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(url.absoluteString, forType: .string)
+            }
+        }
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open

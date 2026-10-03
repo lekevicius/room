@@ -14,6 +14,8 @@ final class PageHost: PageDisplay {
     let container = PageContainerView()
     private weak var controller: RoomWindowController?
     private(set) var contents: (any WebContents)?
+    /// The page in the card changed (the page's prompts follow it, 2.6a).
+    var onShow: (((any WebContents)?) -> Void)?
 
     init(controller: RoomWindowController) {
         self.controller = controller
@@ -27,6 +29,27 @@ final class PageHost: PageDisplay {
         self.contents = contents
         container.pageView = contents?.nativeView ?? container.emptyState
         trackBackground()
+        onShow?(contents)
+    }
+
+    /// Puts the keyboard in the page: the first view in its tree that takes
+    /// it (CEF's render view inside our container).
+    func focusPage() {
+        guard let window = container.window else { return }
+        guard let root = contents?.nativeView else {
+            window.makeFirstResponder(nil)
+            return
+        }
+        var queue = [root]
+        while !queue.isEmpty {
+            let view = queue.removeFirst()
+            if view.acceptsFirstResponder {
+                window.makeFirstResponder(view)
+                return
+            }
+            queue += view.subviews
+        }
+        window.makeFirstResponder(root)
     }
 
     var isDevToolsOpen: Bool { container.isDevToolsOpen }
@@ -64,6 +87,8 @@ final class PageContainerView: NSView {
     let devToolsPane = FlippedPaneView()
     /// Shown in place of a page when nothing is selected.
     let emptyState = CardEmptyStateView()
+    /// Over the page: its dialog sheet or certificate interstitial (2.6a).
+    let promptLayer = PromptLayerView()
     private let separator = NSBox()
 
     var pageView: NSView? {
@@ -71,6 +96,8 @@ final class PageContainerView: NSView {
             guard pageView !== oldValue else { return }
             oldValue?.removeFromSuperview()
             if let pageView { addSubview(pageView, positioned: .below, relativeTo: nil) }
+            // Prompts stay above the page view whatever was added last.
+            addSubview(promptLayer, positioned: .above, relativeTo: nil)
             needsLayout = true
         }
     }
@@ -95,6 +122,7 @@ final class PageContainerView: NSView {
         devToolsPane.setAccessibilityIdentifier("devtools-pane")
         addSubview(devToolsPane)
         addSubview(separator)
+        addSubview(promptLayer)
     }
 
     @available(*, unavailable)
@@ -107,6 +135,7 @@ final class PageContainerView: NSView {
         super.layout()
         let paneHeight = isDevToolsOpen ? (bounds.height * devToolsFraction).rounded() : 0
         pageView?.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - paneHeight)
+        promptLayer.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - paneHeight)
         devToolsPane.frame = NSRect(x: 0, y: bounds.height - paneHeight, width: bounds.width, height: paneHeight)
         separator.frame = NSRect(x: 0, y: bounds.height - paneHeight - 1, width: bounds.width, height: 1)
     }
@@ -115,4 +144,16 @@ final class PageContainerView: NSView {
 final class FlippedPaneView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
+}
+
+/// Holds the page's dialog or interstitial over the page view; without one
+/// it lets every event through to the page.
+final class PromptLayerView: NSView {
+    override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !subviews.isEmpty else { return nil }
+        return super.hitTest(point)
+    }
 }

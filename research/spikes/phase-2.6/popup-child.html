@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Popup child</title>
+<style>body { font: 15px -apple-system, sans-serif; margin: 40px; }</style>
+<h1>Popup child</h1>
+<button id="close" onclick="window.close()">Close this window</button>
+<script>
+const via = new URLSearchParams(location.search).get('via');
+if (window.opener) window.opener.postMessage('hello from ' + via, '*');
+document.title = 'Popup child (' + via + (window.opener ? ', has opener' : ', no opener') + ')';
+</script>

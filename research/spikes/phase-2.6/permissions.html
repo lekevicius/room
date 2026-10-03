@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Permissions</title>
+<style>body { font: 15px -apple-system, sans-serif; margin: 40px; } button { font-size: 15px; margin: 4px; }</style>
+<h1>Permissions</h1>
+<button id="geo" onclick="geo()">Location</button>
+<button id="notify" onclick="notify()">Notifications</button>
+<button id="camera" onclick="camera()">Camera and microphone</button>
+<pre id="log"></pre>
+<script>
+window.__results = {};
+function log(key, value) { window.__results[key] = value; document.getElementById('log').textContent = JSON.stringify(window.__results); }
+function geo() {
+  navigator.geolocation.getCurrentPosition(() => log('geo', 'position'), (e) => log('geo', 'error ' + e.code), { timeout: 4000 });
+}
+function notify() { Notification.requestPermission().then((r) => log('notifications', r)); }
+function camera() {
+  navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    .then((s) => { s.getTracks().forEach((t) => t.stop()); log('camera', 'granted'); })
+    .catch((e) => log('camera', e.name));
+}
+async function states() {
+  const out = {};
+  for (const name of ['geolocation', 'notifications']) { out[name] = (await navigator.permissions.query({ name })).state; }
+  return JSON.stringify(out);
+}
+</script>

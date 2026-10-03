@@ -2,6 +2,7 @@
 import AppKit
 import Card
 import Carbon
+import Chrome
 import Engine
 import UIKitCore
 #if canImport(EngineCEF)
@@ -14,7 +15,8 @@ import EngineCEF
 /// Spikes: cdp, scroll, resize, memory, audio, popups, hidden, open10,
 /// Phase 2.3's tabs, switch, relaunch (`TabSpikes.swift`), and Phase 2.4a's
 /// palette, palettemeasure (`PaletteSpikes.swift`), palette2, suggestcheck (`Palette2Spikes.swift`),
-/// and Phase 2.5's spaces, spacecaptures, cookies (`SpaceSpikes.swift`).
+/// Phase 2.5's spaces, spacecaptures, cookies (`SpaceSpikes.swift`), and
+/// Phase 2.6a's chromesurfaces (`ChromeSpikes.swift`).
 enum SpikeRunner {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSpike") }
 
@@ -62,6 +64,7 @@ enum SpikeRunner {
         case "spaces": await context.spacesMeasure()
         case "spacecaptures": await context.spaceCaptures()
         case "cookies": await context.cookiesCheck()
+        case "chromesurfaces": await context.chromeSurfaces()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -422,12 +425,13 @@ enum SpikeRunner {
                 }
             }
 
-            // JavaScript dialogs reach the delegate (PageUIDelegate shows sheets).
+            // JavaScript dialogs reach the delegate (the in-card sheet since 2.6a).
             Task { await self.click(page, "#alert") }
-            let sheet = await waitUntil(5) { self.window.attachedSheet != nil }
+            let prompts = session.pageDelegate.chrome.prompts
+            let sheet = await waitUntil(5) { prompts.visibleDialog != nil }
             SpikeRunner.record("alert_sheet", sheet)
-            if let alert = window.attachedSheet { window.endSheet(alert, returnCode: .alertFirstButtonReturn) }
-            _ = await waitUntil(3) { self.window.attachedSheet == nil }
+            prompts.respond(.accept(text: nil))
+            _ = await waitUntil(3) { prompts.visibleDialog == nil }
             try? await Task.sleep(for: .milliseconds(300))
             SpikeRunner.record("alert_completed", await js(page, "String(window.__alerted === true)"))
             #endif

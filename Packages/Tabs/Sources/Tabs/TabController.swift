@@ -170,7 +170,8 @@ public final class TabController: SidebarHost {
     /// Entries with a page, alive or discarded.
     public var loadedEntryIDs: [UUID] { Array(pages.keys) }
 
-    func entryID(for contents: any WebContents) -> UUID? {
+    /// The entry whose page `contents` is.
+    public func entryID(for contents: any WebContents) -> UUID? {
         pages.first { $0.value.contents === contents }?.key
     }
 
@@ -276,6 +277,25 @@ public final class TabController: SidebarHost {
         pendingTransitions[entry.id] = transition
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
+        return entry.id
+    }
+
+    /// A link opened from Room's own UI for a page (its context menu's Open
+    /// Link in New Tab): a Today tab under the opener, loading behind it as a
+    /// ⌘-click would (spec §A.7). Without a known opener it goes to the end.
+    @discardableResult
+    public func openLink(_ url: URL, from contents: any WebContents) -> UUID? {
+        guard let sidebar, let openerID = entryID(for: contents), let opener = store.sidebar.entry(openerID) else {
+            return openBackgroundTab(url: url.absoluteString, transition: .link)
+        }
+        let space = opener.spaceID ?? sidebar.activeSpaceID
+        let lastRelated = relatedChain?.opener == openerID ? relatedChain?.last : nil
+        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space))
+        guard let entry = try? store.sidebar.addEntry(.today, url: url.absoluteString, space: space, at: index) else { return nil }
+        pendingTransitions[entry.id] = .link
+        loadInBackground(entry)
+        sidebar.pageStateDidChange([entry.id])
+        relatedChain = (openerID, entry.id)
         return entry.id
     }
 

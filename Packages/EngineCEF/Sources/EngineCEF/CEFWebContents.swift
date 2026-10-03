@@ -530,7 +530,10 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
             completion(false)
             return
         }
-        let error = CertificateError(url: pageURL, code: errorCode, description: CertificateErrorNames.name(for: errorCode), certificateChain: derChain, isOverridable: true)
+        // CEF does not say whether the host has HSTS (`strict_enforcement`): the conservative rule.
+        let overridable = CertificateRules.isOverridable(code: errorCode, host: pageURL.host() ?? "", strictTransportSecurity: nil)
+        let error = CertificateError(url: pageURL, code: errorCode, description: CertificateErrorNames.name(for: errorCode),
+                                     certificateChain: derChain, isOverridable: overridable)
         uiDelegate.webContents(self, didFailCertificateCheck: error, completion: completion)
     }
 
@@ -712,6 +715,8 @@ enum CertificateErrorNames {
         case -211: "ERR_CERT_WEAK_KEY"
         case -212: "ERR_CERT_NAME_CONSTRAINT_VIOLATION"
         case -213: "ERR_CERT_VALIDITY_TOO_LONG"
+        case -214: "ERR_CERTIFICATE_TRANSPARENCY_REQUIRED"
+        case -217: "ERR_CERT_KNOWN_INTERCEPTION_BLOCKED"
         default: "net error \(code)"
         }
     }
