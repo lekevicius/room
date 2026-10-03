@@ -132,6 +132,21 @@ enum SidebarSnapshotRunner {
             if let selected { sidebar.select(selected) }
         }
 
+        // The folder preview on a collapsed folder (its popover is a window of its own).
+        if let archive = entry("Archive") {
+            for dark in [false, true] {
+                await shooter.prepare(dark: dark)
+                sidebar.showFolderPreview(archive.id)
+                try? await Task.sleep(for: .milliseconds(700))
+                report.append(shooter.grab("folder-preview-\(dark ? "dark" : "light")"))
+                if let popover = sidebar.debugFolderPreviewWindow {
+                    report.append(shooter.grab("folder-preview-popover-\(dark ? "dark" : "light")", window: popover, crop: false))
+                    popover.orderOut(nil)
+                }
+                sidebar.debugOutline.window?.makeKeyAndOrderFront(nil)
+            }
+        }
+
         // Overflow: a short window scrolled so the selected row is above the list.
         if let scrollView = sidebar.debugOutline.enclosingScrollView {
             let short = NSSize(width: windowSize.width, height: 460)
@@ -297,8 +312,8 @@ private final class Shooter {
     }
 
     /// Captures now, without settling (mid-animation frames).
-    func grab(_ name: String, crop: Bool = true) -> String {
-        guard let window = controller.window, let image = WindowSnapshot.capture(window) else { return "\(name): no image" }
+    func grab(_ name: String, window target: NSWindow? = nil, crop: Bool = true) -> String {
+        guard let window = target ?? controller.window, let image = WindowSnapshot.capture(window) else { return "\(name): no image" }
         var output = image
         if crop {
             let scale = window.backingScaleFactor

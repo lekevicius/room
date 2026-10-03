@@ -49,6 +49,9 @@ public final class SidebarController: NSObject {
     var isClearing = false
     /// Stretches Clear's animation (DEBUG captures of the mid-Clear frame).
     var clearSlowdown: Double = 1
+    /// The folder preview waiting for its 500 ms dwell, and the one showing (spec §A.6).
+    private var pendingFolderPreview: DispatchWorkItem?
+    private weak var folderPreview: NSPopover?
     #if DEBUG
     var debugDragImage: NSView?
     #endif
@@ -471,6 +474,39 @@ public final class SidebarController: NSObject {
         setHover(false, on: hoveredNode)
         hoveredNode = node
         setHover(true, on: node)
+        scheduleFolderPreview(for: node)
+    }
+
+    /// Resting on a collapsed folder for 500 ms opens its preview (spec §A.6).
+    private func scheduleFolderPreview(for node: OutlineNode?) {
+        pendingFolderPreview?.cancel()
+        pendingFolderPreview = nil
+        guard folderPreview == nil, drag == nil, let id = node?.entryID, let folder = sidebar.entry(id), folder.kind == .folder,
+              folder.isCollapsed, !descendants(of: id).isEmpty else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, hoveredNode === node, drag == nil else { return }
+            showFolderPreview(id)
+        }
+        pendingFolderPreview = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + DropRules.holdDelay, execute: work)
+    }
+
+    /// The preview popover beside a folder's row.
+    public func showFolderPreview(_ id: UUID) {
+        guard let folder = sidebar.entry(id), let node = tree.displayedNode(for: id) else { return }
+        let row = outline.row(forItem: node)
+        guard row >= 0 else { return }
+        let items = descendants(of: id).map { entry in
+            FolderPreviewController.Item(id: entry.id, title: EntryLabel.title(entry), url: entry.currentURL,
+                                         domain: EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry))
+        }
+        folderPreview = FolderPreviewController.show(folderName: EntryLabel.title(folder), items: items,
+                                                     relativeTo: SidebarRowView.pillRect(in: outline.rect(ofRow: row)), of: outline) {
+            [weak self] entry in
+            // Opens inside the collapsed folder: the entry peeks under it (Arc).
+            self?.clearMultiSelection()
+            self?.select(entry)
+        }
     }
 
     private func setHover(_ hovering: Bool, on node: OutlineNode?) {
@@ -835,6 +871,9 @@ extension SidebarController {
     public func debugShowEssentialsFull(_ show: Bool) {
         grid.showFullBadge(show ? "\(essentialsCount)/\(EntryRules.essentialsCap)" : nil)
     }
+
+    /// The folder preview's window, if one is showing.
+    public var debugFolderPreviewWindow: NSWindow? { folderPreview?.contentViewController?.view.window }
 
     /// The empty grid's drop slot, as during a drag.
     public func debugShowDropSlot(_ show: Bool) {
