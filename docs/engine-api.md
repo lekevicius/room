@@ -159,8 +159,13 @@ listed in research/notes/spike-results.md.
 RoomCore startup policy suppresses automatic Chrome-account, cloud-policy,
 component-update, Safe Browsing update, model/speech-download, search-preconnect
 and time-query traffic. Ordinary page networking remains active. Component
-registration and explicit update APIs remain available; a fresh-profile Widevine access probe
-currently returns NotSupportedError without provisioning a CDM. See roomcore-network-audit.md under
+registration and explicit update APIs remain available. A page request for
+`com.widevine.alpha` provisions Widevine on demand through a document-scoped
+internal Mojo service; installed CDMs are reused without an update request.
+The service checks the active document, trustworthy origin and encrypted-media
+policy, coalesces requests, and bounds failed provisioning to 60 seconds.
+Fresh-profile MediaKeys creation is verified; licensed playback remains unverified.
+See roomcore-network-audit.md under
 research/notes for switches, hooks, measurements and scope limitations.
 Crashpad uses `<selected user-data directory>/Crashpad`; callers omitting the
 data directory retain Chromium's existing default. The Room host supplies its

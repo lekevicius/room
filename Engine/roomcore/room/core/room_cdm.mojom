@@ -1,0 +1,8 @@
+// Copyright 2026 Jonas Lekevicius. All rights reserved.
+module room.mojom;
+
+// Document-scoped, fixed-component provisioning. Never accepts a component ID
+// or URL from the renderer. Called only for a page's Widevine EME request.
+interface CdmProvisioner {
+  EnsureWidevine() => (bool available);
+};

@@ -203,3 +203,10 @@ ten-page quit 2.591 s, load1 43.40, 26 helpers/0 remaining/0 crash reports.
 Network before/after: 600 s idle each; 62→0 HTTP requests, 86→0 connections,
 9→0 DNS. Final feature regression has 18 clean process exits; fullscreen
 unsupported and native UI acceptance gaps remain (spike-results.md).
+
+Demand-CDM follow-up: //room API adjustments failed before compiling; the
+first link then exposed the missing direct Blink platform/media dependency.
+That dependency fixed the link in 18 s. GN check exposed a private Content
+header; replace it with a public-CdmInfo callback hook instead of weakening
+visibility. Final incremental 27 s / 15 steps, load 30.52 / 27.26 / 26.54;
+GN header check passes. Package 518 dylibs, 918 MB app, valid ad-hoc signature.

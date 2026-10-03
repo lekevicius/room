@@ -3,6 +3,12 @@
 # chrome_dll, the library the framework binary is (or, in the component
 # build, re-exports) via patches/0004-link-room-core.patch.
 
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("cdm_mojom") {
+  sources = [ "room_cdm.mojom" ]
+}
+
 source_set("core") {
   sources = [
     "public/RoomApplication.h",
@@ -17,6 +23,8 @@ source_set("core") {
     "room_network_policy.h",
     "room_application_internal.h",
     "room_browser.mm",
+    "room_cdm_browser.cc",
+    "room_cdm_renderer.cc",
     "room_core_version.mm",
     "room_cr_application.mm",
     "room_profile.mm",
@@ -25,6 +33,11 @@ source_set("core") {
     "room_web_contents_internal.h",
   ]
   deps = [
+    ":cdm_mojom",
+    "//content/public/renderer",
+    "//mojo/public/cpp/bindings",
+    "//services/network/public/cpp",
+    "//third_party/blink/public/platform/media",
     "//base",
     "//chrome/app:command_ids",
     "//chrome/browser",
@@ -37,6 +50,7 @@ source_set("core") {
     "//components/permissions",
     "//components/keyed_service/content",
     "//chrome/browser/ui",
+    "//chrome/browser/ui/login",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/browser_window:create_browser_window",
     "//chrome/browser/ui/tabs:tab_strip",

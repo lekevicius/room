@@ -1,0 +1,96 @@
+diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
+index ae2d77825d359..f4d10489ef490 100644
+--- a/chrome/browser/chrome_browser_interface_binders.cc
++++ b/chrome/browser/chrome_browser_interface_binders.cc
+@@ -454,9 +454,15 @@ void BindCredentialManager(
+ 
+ }  // namespace
+ 
++void (*g_room_populate_frame_binders_hook)(
++    mojo::BinderMapWithContext<content::RenderFrameHost*>*) = nullptr;
++
+ void PopulateChromeFrameBinders(
+     mojo::BinderMapWithContext<content::RenderFrameHost*>* map,
+     content::RenderFrameHost* render_frame_host) {
++  if (g_room_populate_frame_binders_hook) {
++    g_room_populate_frame_binders_hook(map);
++  }
+   map->Add<glic::mojom::WebClientHandler>(&glic::BindGlicWebClientHandler);
+   // Defense in depth: privileged capability interfaces are not even registered
+   // for a frame outside a privileged process, so a non-PWC frame cannot
+diff --git a/content/browser/media/cdm_registry_impl.cc b/content/browser/media/cdm_registry_impl.cc
+index 8db216ff5561d..51e2446e6cbfb 100644
+--- a/content/browser/media/cdm_registry_impl.cc
++++ b/content/browser/media/cdm_registry_impl.cc
+@@ -41,6 +41,10 @@
+ #include "gpu/config/gpu_driver_bug_workaround_type.h"
+ #endif
+ 
++namespace room {
++CONTENT_EXPORT void (*g_cdm_registered_hook)(const content::CdmInfo&) = nullptr;
++}  // namespace room
++
+ namespace content {
+ 
+ namespace {
+@@ -261,6 +265,11 @@ void CdmRegistryImpl::Init() {
+ 
+   // Let embedders register CDMs.
+   GetContentClient()->AddContentDecryptionModules(&cdms_, nullptr);
++  if (room::g_cdm_registered_hook) {
++    for (const auto& info : cdms_) {
++      room::g_cdm_registered_hook(info);
++    }
++  }
+ }
+ 
+ void CdmRegistryImpl::RegisterCdm(const CdmInfo& info) {
+@@ -288,6 +297,9 @@ void CdmRegistryImpl::RegisterCdm(const CdmInfo& info) {
+   if (!key_system_capabilities_update_callbacks_.empty()) {
+     FinalizeKeySystemCapabilities();
+   }
++  if (room::g_cdm_registered_hook) {
++    room::g_cdm_registered_hook(info);
++  }
+ }
+ 
+ void CdmRegistryImpl::SetHardwareSecureCdmStatus(CdmInfo::Status status) {
+diff --git a/content/renderer/media/media_factory.cc b/content/renderer/media/media_factory.cc
+index 28eb77a00955f..6711fa525a366 100644
+--- a/content/renderer/media/media_factory.cc
++++ b/content/renderer/media/media_factory.cc
+@@ -303,6 +303,14 @@ class LocalFrameDelegate
+ 
+ }  // namespace
+ 
++namespace room {
++CONTENT_EXPORT std::unique_ptr<blink::WebEncryptedMediaClientImpl>
++    (*g_create_encrypted_media_client_hook)(
++        content::RenderFrame*, media::KeySystems*, media::CdmFactory*,
++        media::MediaPermission*,
++        std::unique_ptr<blink::KeySystemConfigSelector::WebLocalFrameDelegate>) = nullptr;
++}  // namespace room
++
+ namespace content {
+ 
+ MediaFactory::MediaFactory(
+@@ -500,11 +508,14 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
+ 
+ blink::WebEncryptedMediaClient* MediaFactory::EncryptedMediaClient() {
+   if (!web_encrypted_media_client_) {
+-    web_encrypted_media_client_ =
+-        std::make_unique<blink::WebEncryptedMediaClientImpl>(
+-            GetKeySystems(), GetCdmFactory(),
+-            render_frame_->GetMediaPermission(),
+-            std::make_unique<LocalFrameDelegate>(render_frame_->GetWebFrame()));
++    auto delegate = std::make_unique<LocalFrameDelegate>(render_frame_->GetWebFrame());
++    web_encrypted_media_client_ = room::g_create_encrypted_media_client_hook
++        ? room::g_create_encrypted_media_client_hook(
++              render_frame_, GetKeySystems(), GetCdmFactory(),
++              render_frame_->GetMediaPermission(), std::move(delegate))
++        : std::make_unique<blink::WebEncryptedMediaClientImpl>(
++              GetKeySystems(), GetCdmFactory(),
++              render_frame_->GetMediaPermission(), std::move(delegate));
+   }
+   return web_encrypted_media_client_.get();
+ }

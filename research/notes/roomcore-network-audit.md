@@ -91,7 +91,7 @@ Network-policy build 16 s (2 steps), ad-hoc package passed. Post-change nav
 23.598 s; ten loaded pages, quit 4.240 s at load1 38.39, 26 helpers observed,
 0 left after unchanged 5 s grace, 0 new crash reports, exit 0.
 
-### Widevine first-use probe — incomplete behavior
+### Initial Widevine first-use probe — gap reproduced
 
 Auxiliary -RoomSpike widevine requests com.widevine.alpha with cenc and H.264
 video capability on a trusted loopback page, fresh profile. It returns
@@ -99,6 +99,42 @@ NotSupportedError (supported=false); 37 s process, exit 0. NetLog has only the
 2 loopback page/favicon requests, 4 connections, no external request or CDM
 fetch. Before-policy profile contains WidevineCdm/4.10.3112.0, so the original
 automatic updater did provision it. Registration is preserved but is not a
-first-use trigger. **Fresh-profile Widevine provisioning remains unfinished.**
-Next: a narrowly scoped request-driven CDM update hook, followed by repeat
-EME access and a fresh 600 s no-page audit. Do not restore startup downloading.
+first-use trigger. **This initial run demonstrated missing demand provisioning.**
+The follow-up below adds a request-driven CDM hook and verifies the result.
+
+### Demand-only Widevine provisioning — verified 2026-10-03
+
+Patch 0007 adds three tiny hooks: Content's EME client factory, Chrome's frame
+interface binder, and CDM registration notification with public CdmInfo.
+Existing capability observers do not report the requested key-system name;
+using them as the demand signal would fetch Widevine for unrelated keys.
+Content directly constructs the EME client and keeps CdmRegistryImpl private.
+The notification hook avoids importing that private header or weakening GN
+visibility. All policy, request coalescing, timeout and implementation live in
+//room. Original patches 0001–0006 and public ObjC headers are unchanged.
+
+The document-scoped service accepts no URL/component ID, checks active frame,
+trustworthy origin and encrypted-media permission policy, and only provisions
+Widevine. It waits for normal registration, uses public MaybeThrottle with
+Chromium cooldown, and observes actual CDM registration before allowing Blink
+to retry its ordinary capability checks. Failed provisioning is bounded to
+60 s with a 1-minute retry cooldown. No startup task is scheduled.
+
+| Final build probe | Evidence |
+|---|---|
+| Fresh Widevine request | EME access and MediaKeys creation true in 6.812202 s; Widevine 4.10.3050.0; process 44 s, exit 0 |
+| Request-triggered traffic | update.googleapis.com 2, edgedl.me.gvt1.com 1; all update_client; first external request 0.001 s after EME request, download +0.197 s, completion ping +4.093 s; 2 loopback requests; 0 TLS errors |
+| Already installed, next launch | MediaKeys created in 2.098724 s; process 31.122 s, exit 0; 4 loopback requests (including restored prior fixture URL), **0 external requests** |
+| Unrelated key com.room.unsupported | NotSupportedError in 0.002342 s; process 30 s, exit 0; 2 loopback requests, **0 external requests**, no CDM installation |
+| Forced updater DNS failure, fresh profile | NotSupportedError after 60.162963 s, process 65.524 s, exit 0; positive-CDM assertion deliberately fails; bounded failure, not a playback success |
+
+Evidence directories: feature-widevine-final, feature-cdm-installed-final,
+feature-cdm-negative-final, feature-cdm-offline-final. NetLogs retained locally.
+Receipts identify parent 2ea76e8; these tests exercise the pending 0007/room_cdm
+working-tree change. Provisioning and CDM instantiation are verified; a licensed
+stream and user-facing DRM error/permission UI remain Chapter 3 acceptance.
+
+Final callback-refined build idle audit: netlog-idle-cdm-final, fresh profile,
+about:blank, requested and completed 600 s idle, exit 0, no watchdog. The
+flushed log has **0 HTTP requests, 0 connections, 0 DNS, 0 TLS errors**.
+The after host/component request list remains empty with demand-CDM enabled.

@@ -392,3 +392,38 @@ pages loaded. Earlier concurrent sample quit 1.910 s but retained 9 helpers
 past the unchanged 5 s grace; helpers later exited. Do not include either
 rejected sample in successful quit statistics. HTTP-auth concurrent teardown
 watchdog is a known unresolved load-sensitive failure despite serial passes.
+
+### Regression after demand-CDM hook
+
+2026-10-03, feature-cdm-final-*; final patch 0007 / registration callback
+build. All 18 processes exit 0 without a timeout. The first 17 drives pass;
+fullscreen again rejects with TypeError: not granted, so its driver correctly
+returns failure. This is unsupported behavior, not a functional pass.
+Native UI gaps remain.
+
+| Feature | Process seconds |
+|---|---:|
+| popups | 9 |
+| dialogs | 9 |
+| keys | 8 |
+| audio | 10 |
+| scroll | 11 |
+| transparent | 8 |
+| corners | 8 |
+| band | 9 |
+| form | 10 |
+| extension | 11 |
+| downloads | 8 |
+| permissions | 10 |
+| auth | 10 |
+| certificate | 10 |
+| find | 9 |
+| zoom | 12 |
+| print | 10 |
+| fullscreen | 5 |
+
+Post-change baseline: nav 12.058 s; ten loaded pages, quit 0.354 s at
+load1 15.50, 26 helpers, 0 left, 0 new crash reports, exit 0.
+Widevine fresh installation and MediaKeys creation now pass; negative-key,
+installed-profile reuse and bounded offline behavior are recorded in the
+network audit. Licensed playback is not established by MediaKeys creation.

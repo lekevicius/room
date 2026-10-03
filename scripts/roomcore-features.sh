@@ -38,6 +38,7 @@ if [[ "$FEATURE" == extension ]]; then
 fi
 if [[ "$FEATURE" == widevine ]]; then
   extra+=("--log-net-log=$DEST/netlog.json" "--net-log-capture-mode=Default")
+  [[ -z "${ROOM_SPIKE_KEY_SYSTEM:-}" ]] || extra+=("-RoomSpikeKeySystem" "$ROOM_SPIKE_KEY_SYSTEM")
 fi
 start=$(date +%s)
 "$APP/Contents/MacOS/Room" -RoomSpike "$FEATURE" -RoomSpikeOutput "$DEST/spike.txt" \
@@ -46,7 +47,9 @@ start=$(date +%s)
   --remote-debugging-port="$port" --remote-debugging-address=127.0.0.1 \
   ${extra[@]+"${extra[@]}"} > "$DEST/host.log" 2>&1 &
 pid=$!
-python3 -c 'import os,signal,sys,time; from pathlib import Path; time.sleep(90); Path(sys.argv[2]).write_text("watchdog fired\n"); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$DEST/timeout.txt" &
+watchdog_seconds=90
+[[ "$FEATURE" != widevine ]] || watchdog_seconds=120
+python3 -c 'import os,signal,sys,time; from pathlib import Path; time.sleep(int(sys.argv[3])); Path(sys.argv[2]).write_text("watchdog fired\n"); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$DEST/timeout.txt" "$watchdog_seconds" &
 watchdog=$!
 status=0
 wait "$pid" || status=$?

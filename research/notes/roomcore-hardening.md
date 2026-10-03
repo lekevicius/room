@@ -303,3 +303,86 @@ complete. No compiler is running. Keep public headers and first five patches
 unchanged; preserve the original 600 s zero-network result and rerun it after
 any demand-update change. Private completion probes and native acceptance
 gaps are recorded in spike-results.md; PR remains draft/partial.
+
+### Demand-only CDM implementation in progress — 07:58 EEST
+
+There is no existing per-key-system provisioning hook. Content's EME factory
+constructs Blink's client directly; the browser key-system observer receives
+all-key capability subscriptions without the requested key name. Downloading
+there would also fire for unrelated key systems. Draft patch 0007 adds only
+an encrypted-media-client factory pointer and a frame-interface binder hook.
+The renderer wrapper and document-scoped Mojo service live entirely in //room;
+no public ObjC header changes. Helpers install the factory when the framework
+loads because they enter ChromeMain directly.
+
+Only an explicit com.widevine.alpha request invokes the browser service. The
+browser checks active document, trustworthy origin and encrypted-media policy;
+its interface accepts no component ID or URL. It coalesces callers, waits for
+normal registration, uses public ComponentUpdateService::MaybeThrottle (with
+Chromium's update cooldown), and waits for actual CdmRegistryImpl registration.
+Installed CDMs return without network; failure is bounded and stays Blink's
+ordinary unsupported result. No startup provisioning task is scheduled.
+
+First //room compile failures: moved permission-policy namespace/header and
+reference-valued interface broker; then private OnDemandUpdater API and lack
+of GetComponent on the public service. Replaced those with public MaybeThrottle
+and GetComponentIDs; rebuilding. Chromium patch 0007 applied as 0147142699fbc,
+original six patches untouched. Runtime verification is still pending.
+
+Link step then failed for three Blink EME implementation symbols referenced
+only by new //room code (23 steps done). The implementation lives in the
+separate blink_platform_media component, exposed through the public
+platform/media GN target. Add that direct dependency and retry once; this is
+not an unrelated Chromium source failure. No CHECK/visibility rule is removed.
+
+Demand-CDM build now passes (18 s final link after direct Blink media dependency).
+Fresh profile feature-widevine-demand: com.widevine.alpha supported=true,
+MediaKeys created=true, Widevine 4.10.3050.0 installed, process 43 s, exit 0.
+NetLog: 2 loopback fixture/favicon requests plus exactly 3 external updater
+requests (update.googleapis.com 2, edgedl.me.gvt1.com 1); 0 TLS failures.
+Latest engine baseline nav 13.512 s; ten loaded pages, quit 0.540 s at load1
+14.19, 26 helpers, 0 left, 0 crash reports, exit 0. Fresh-profile 600 s idle
+audit started 08:03 EEST from a fixed app copy; negative key-system probe and
+final network result remain pending. Receipts name parent commit 2ea76e8;
+these measurements test the uncommitted 0007/room_cdm working-tree change.
+
+### CDM registration hook refinement — 08:14 EEST
+
+GN check correctly rejected a private CdmRegistryImpl include even though the
+first build linked. Do not relax visibility. Patch 0007 now adds a third tiny
+callback at CDM initialization/registration, passing public CdmInfo to //room.
+The Room service observes enabled software-secure Widevine registration there.
+Chromium patch commit 3095c582bfba9; original six patches unchanged. The final
+incremental took 27 s / 15 steps; GN header dependency check passes. Also add
+the direct login-handler GN dependency required by the prior auth probe.
+Ad-hoc package remains valid, 518 dylibs, 918 MB host.
+
+Final fresh-profile feature-widevine-final: EME and MediaKeys creation pass
+in 6.812202 s; 44 s process, exit 0. Five requests total: page/favicon loopback
+2, update.googleapis.com 2 and edgedl.me.gvt1.com 1, all external traffic
+annotated update_client; 0 TLS failures. This proves provisioning and CDM
+instantiation, not licensed playback. A separate final 600 s idle audit is
+running against immutable build/roomcore/audit-cdm-final/Room.app. The earlier
+implementation's 600 s audit completed in 606 s with 0 requests/connections/
+DNS/TLS, exit 0, but is kept distinct from the final callback refinement.
+
+Final CDM engine serial baseline: nav 12.058 s, ten-page quit 0.354 s,
+load1 15.50, 26 helpers, 0 left, 0 crash reports, exit 0. All 18 feature
+processes survive the repeat; first 17 drives pass and fullscreen remains an
+explicit unsupported rejection (its driver correctly fails). Unrelated EME
+key rejects in 2.342 ms without external requests; installed-profile reuse
+creates MediaKeys in 2.099 s without external requests. Forced updater DNS
+failure gives bounded NotSupportedError after 60.163 s, clean process exit.
+
+The concurrent teardown investigation found a new, separate FedCM bubble
+parent DCHECK during open10, before readiness. Auth itself passed in 11 s.
+This does not invalidate the recorded serial sample, but baseline reliability
+is not complete. See roomcore-shutdown-investigation.md for exact call sites
+and the older IO-thread watchdog stack; neither failure is dismissed.
+
+08:24 EEST checkpoint: final demand-CDM 600 s audit completed, exit 0, no
+watchdog, 0 HTTP requests/connections/DNS/TLS. Eight net-log parser tests,
+GN dependency check and shell syntax pass. Apply reports 0 applied, 7 already.
+Main/origin-main remain 3c7fafc; protected diff is only App/RoomCore, original
+five patches and public ObjC headers unchanged. Saving the demand-CDM fix
+separately before the new FedCM parent fix; the latter remains open.

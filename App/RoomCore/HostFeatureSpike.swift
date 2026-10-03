@@ -192,11 +192,22 @@ enum HostFeatureSpike {
                     try host.runSpikeCommand(37003)
                 }
             case "widevine":
+                cdp.commandTimeoutSeconds = 75
                 // Auxiliary audit: request the real web API on a fresh profile.
-                // A rejected key-system request is recorded, never a DRM pass.
-                HostSpike.record("widevine-access", try await cdp.evaluate("navigator.requestMediaKeySystemAccess('com.widevine.alpha',[{initDataTypes:['cenc'],videoCapabilities:[{contentType:'video/mp4; codecs=\"avc1.42E01E\"'}]}]).then(x=>({supported:true,keySystem:x.keySystem})).catch(e=>({supported:false,name:e.name,message:e.message}))"))
+                let key = defaults.string(forKey: "RoomSpikeKeySystem") ?? "com.widevine.alpha"
+                let quotedKey = String(decoding: try JSONSerialization.data(withJSONObject: key, options: .fragmentsAllowed), as: UTF8.self)
+                HostSpike.record("key-system", key)
+                HostSpike.record("key-system-request-time", Date().timeIntervalSince1970)
+                let access = try await cdp.evaluate("navigator.requestMediaKeySystemAccess(\(quotedKey),[{initDataTypes:['cenc'],videoCapabilities:[{contentType:'video/mp4; codecs=\"avc1.42E01E\"'}]}]).then(async x=>({supported:true,keySystem:x.keySystem,keysCreated:!!(await x.createMediaKeys())})).catch(e=>({supported:false,name:e.name,message:e.message}))")
+                HostSpike.record("widevine-access", access)
+                HostSpike.record("key-system-result-time", Date().timeIntervalSince1970)
+                if key == "com.widevine.alpha" {
+                    guard let result = access as? [String: Any], result["keysCreated"] as? Bool == true else {
+                        throw HostCDP.Failure("Widevine MediaKeys creation failed")
+                    }
+                }
                 try await Task.sleep(for: .seconds(20))
-                HostSpike.record("review-required", "inspect NetLog for demand-only CDM update; access alone is not playback")
+                HostSpike.record("review-required", "inspect NetLog for demand-only CDM update; MediaKeys creation is not licensed playback")
             case "fullscreen":
                 try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)
                 HostSpike.record("fullscreen", try await cdp.evaluate("!!document.fullscreenElement"))

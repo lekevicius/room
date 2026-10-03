@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class HostCDP {
     private let socket: URLSessionWebSocketTask
+    var commandTimeoutSeconds = 20
     private var nextID = 0
     private(set) var events: [[String: Any]] = []
 
@@ -49,7 +50,7 @@ final class HostCDP {
         let id = nextID
         let data = try JSONSerialization.data(withJSONObject: ["id": id, "method": method, "params": params])
         let timeout = Task { @MainActor in
-            try await Task.sleep(for: .seconds(20))
+            try await Task.sleep(for: .seconds(self.commandTimeoutSeconds))
             self.close()
         }
         defer { timeout.cancel() }
