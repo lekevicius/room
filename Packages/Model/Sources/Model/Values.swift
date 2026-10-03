@@ -305,11 +305,15 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Where downloads are saved, a folder path; `nil` is the user's
     /// Downloads folder (spec §F, ROADMAP 2.6 task 1).
     public var downloadDirectory: String?
+    /// View ▸ Show Toolbar: the 36 pt bar with Back, Forward, Reload and the
+    /// full URL across the card's top (spec §E); off by default.
+    public var showsToolbar: Bool = false
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
+        case showsToolbar
     }
 
     public init(from decoder: any Decoder) throws {
@@ -325,6 +329,7 @@ public struct Settings: Hashable, Sendable, Codable {
         crossProfileMoveWarned = (try? container.decodeIfPresent(Bool.self, forKey: .crossProfileMoveWarned)).flatMap { $0 }
             ?? defaults.crossProfileMoveWarned
         downloadDirectory = (try? container.decodeIfPresent(String.self, forKey: .downloadDirectory)).flatMap { $0 }
+        showsToolbar = (try? container.decodeIfPresent(Bool.self, forKey: .showsToolbar)).flatMap { $0 } ?? defaults.showsToolbar
     }
 }
 

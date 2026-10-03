@@ -49,7 +49,7 @@ public final class SidebarOverlayView: NSView {
     public override func mouseDown(with event: NSEvent) {}
 }
 
-private final class OverlayBackingView: NSView {
+final class OverlayBackingView: NSView {
     override var wantsUpdateLayer: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     override func updateLayer() {

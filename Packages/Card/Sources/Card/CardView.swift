@@ -26,6 +26,12 @@ public final class CardView: NSView {
         set { container.contentView = newValue }
     }
 
+    /// A bar across the card's top above the page (the optional toolbar, spec §E).
+    public var topAccessory: NSView? {
+        get { container.topAccessory }
+        set { container.topAccessory = newValue }
+    }
+
     /// Card fill, visible wherever the page has not painted (live resize,
     /// loading). Phase 1.4 binds it to the page's `rootBackgroundColor`.
     public var backgroundColor: NSColor {
@@ -69,11 +75,41 @@ public final class CardContainerView: NSView {
             guard contentView !== oldValue else { return }
             oldValue?.removeFromSuperview()
             if let contentView {
-                contentView.frame = bounds
+                contentView.frame = contentFrame
                 contentView.autoresizingMask = [.width, .height]
-                addSubview(contentView)
+                addSubview(contentView, positioned: .below, relativeTo: topAccessory)
             }
         }
+    }
+
+    /// Over the page at the card's top, its fitting height tall; the page fills the rest.
+    var topAccessory: NSView? {
+        didSet {
+            guard topAccessory !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let topAccessory { addSubview(topAccessory) }
+            needsLayout = true
+        }
+    }
+
+    private var accessoryHeight: CGFloat { topAccessory.map { $0.fittingSize.height } ?? 0 }
+
+    private var contentFrame: NSRect {
+        let top = accessoryHeight
+        // Flipped or not, the page sits below the bar.
+        return NSRect(x: 0, y: isFlipped ? top : 0, width: bounds.width, height: max(0, bounds.height - top))
+    }
+
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        needsLayout = true
+    }
+
+    public override func layout() {
+        super.layout()
+        let height = accessoryHeight
+        topAccessory?.frame = NSRect(x: 0, y: isFlipped ? 0 : bounds.height - height, width: bounds.width, height: height)
+        contentView?.frame = contentFrame
     }
 
     public override init(frame: NSRect) {

@@ -63,6 +63,7 @@ enum MainMenu {
         let pin = viewMenu.addItem(withTitle: "Keep Sidebar Open", action: #selector(RoomWindowController.toggleSidebarOverlayPin(_:)),
                                    keyEquivalent: "s")
         pin.keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(withTitle: "Show Toolbar", action: #selector(AppDelegate.toggleToolbar(_:)), keyEquivalent: "")
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Actual Size", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "0").tag = 0
         viewMenu.addItem(withTitle: "Zoom In", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "=").tag = 1

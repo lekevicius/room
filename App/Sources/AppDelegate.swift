@@ -297,6 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         self.palette = palette
         hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
+        installToolbar(controller, tabs: tabs, settings: store.settings)
         trackFocusedPage(tabs)
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
@@ -381,6 +382,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    /// View ▸ Show Toolbar (spec §E): Back, Forward, Reload and the full URL; a click on it is ⌘L.
+    private func installToolbar(_ controller: RoomWindowController, tabs: TabController, settings: SettingsStore) {
+        let toolbar = controller.rootView.toolbarView
+        toolbar.navigation.onBack = { [weak tabs] in tabs?.focusedPage?.goBack() }
+        toolbar.navigation.onForward = { [weak tabs] in tabs?.focusedPage?.goForward() }
+        toolbar.navigation.onReload = { [weak tabs] in
+            guard let page = tabs?.focusedPage else { return }
+            page.isLoading ? page.stop() : page.reload()
+        }
+        toolbar.onURLClick = { [weak tabs] in tabs?.openLocation() }
+        controller.showsToolbar = settings.settings.showsToolbar
+    }
+
+    /// View ▸ Show Toolbar.
+    @objc func toggleToolbar(_ sender: Any?) {
+        guard let controller = windowController, let settings = store?.settings else { return }
+        controller.showsToolbar.toggle()
+        let shows = controller.showsToolbar
+        settings.update { $0.showsToolbar = shows }
+    }
+
     /// Back/Forward/Reload in the overlay's header (and the toolbar) follow the focused page.
     private func trackFocusedPage(_ tabs: TabController) {
         let page = withObservationTracking {
@@ -394,6 +416,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         hiddenSidebar?.update(page)
+        if let toolbar = windowController?.rootView.toolbarView {
+            toolbar.navigation.update(canGoBack: page?.canGoBack ?? false, canGoForward: page?.canGoForward ?? false,
+                                      isLoading: page?.isLoading ?? false, hasPage: page != nil)
+            toolbar.setURL(page?.url?.absoluteString)
+        }
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open
@@ -611,6 +638,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             case -1: return page.zoomFactor > ZoomRules.steps.first! + 0.001
             default: return !ZoomRules.isDefault(page.zoomFactor)
             }
+        case #selector(toggleToolbar(_:)):
+            menuItem.state = windowController?.showsToolbar == true ? .on : .off
+            return windowController != nil
         case #selector(copyPageURL(_:)):
             return sidebar?.selectedHasURL == true
         case #selector(goBack(_:)):

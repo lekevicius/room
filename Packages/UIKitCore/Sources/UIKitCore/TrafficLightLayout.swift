@@ -1,4 +1,5 @@
 import AppKit
+import Design
 
 /// Where the traffic lights are, measured from the content view's top-left
 /// corner. Never used to move them: layout flows around these frames.
@@ -54,21 +55,48 @@ public final class TrafficLightLayout {
         tokens.forEach(NotificationCenter.default.removeObserver)
     }
 
+    /// The floating cluster faded the buttons out (spec §E): they keep their
+    /// frames and still count as present; hidden, they take no clicks.
+    public private(set) var areButtonsHidden = false
+
+    public func setButtonsHidden(_ hidden: Bool) {
+        guard hidden != areButtonsHidden, let window else { return }
+        areButtonsHidden = hidden
+        let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap(window.standardWindowButton)
+        if hidden {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = Motion.standard
+                buttons.forEach { $0.animator().alphaValue = 0 }
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    guard self?.areButtonsHidden == true else { return }
+                    buttons.forEach { $0.isHidden = true }
+                }
+            })
+        } else {
+            buttons.forEach { $0.isHidden = false }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.fast
+                buttons.forEach { $0.animator().alphaValue = 1 }
+            }
+        }
+    }
+
     /// Re-measures; calls `onChange` if the geometry moved.
     public func update() {
-        let new = Self.measure(window)
+        let new = Self.measure(window, includingHidden: areButtonsHidden)
         guard new != geometry else { return }
         geometry = new
         onChange?(new)
     }
 
-    public static func measure(_ window: NSWindow?) -> TrafficLightGeometry {
+    public static func measure(_ window: NSWindow?, includingHidden: Bool = false) -> TrafficLightGeometry {
         guard let window, let content = window.contentView, !window.styleMask.contains(.fullScreen) else {
             return .none
         }
         var union: CGRect?
         for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            guard let button = window.standardWindowButton(type), !button.isHidden,
+            guard let button = window.standardWindowButton(type), includingHidden || !button.isHidden,
                   button.window === window, let superview = button.superview else { continue }
             let inContent = content.convert(superview.convert(button.frame, to: nil), from: nil)
             let fromTop = CGRect(

@@ -188,7 +188,7 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 
 ### Phase 2.7 — Hide/reveal, split view, Peek
 - [x] 2.7a: Hide/reveal (§E)
-- [ ] 2.7a: Floating traffic-light cluster as the drag region; optional toolbar
+- [x] 2.7a: Floating traffic-light cluster as the drag region; optional toolbar
 - [ ] 2.7a: Peek (§A.4, §I.6), Split button disabled
 - [ ] 2.7b: Split view (§D) and Peek's Split button
 - [ ] Exit: §D, §E, §I.6 on CEF; snapshot tests for hidden/split; overlay passes no events to the page

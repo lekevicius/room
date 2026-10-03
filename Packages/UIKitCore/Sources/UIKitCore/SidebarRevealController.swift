@@ -14,6 +14,8 @@ public final class SidebarRevealController {
     public var keepOpen: [() -> Bool] = []
     /// The overlay appeared or went (the floating cluster, toasts, spikes).
     public var onChange: ((Bool) -> Void)?
+    /// Every pointer position it sees while the sidebar is hidden (the cluster's fade).
+    var onPointer: ((CGPoint) -> Void)?
     /// The clock (`ProcessInfo.systemUptime`, the clock of `NSEvent.timestamp`).
     public var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
@@ -118,6 +120,7 @@ public final class SidebarRevealController {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.lastPointer = self.convertFromScreen(screenPoint)
+                self.onPointer?(self.lastPointer)
                 self.evaluate()
             }
         }
@@ -136,6 +139,7 @@ public final class SidebarRevealController {
         } else if let other = event.window {
             lastPointer = convertFromScreen(other.convertPoint(toScreen: event.locationInWindow))
         }
+        onPointer?(lastPointer)
         switch event.type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             // A click in the window outside the overlay (the page): it goes, pinned or not (spec §E).

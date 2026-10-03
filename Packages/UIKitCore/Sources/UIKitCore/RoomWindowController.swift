@@ -17,6 +17,9 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     public let activity: WindowActivity
     /// The hidden sidebar's hover reveal (spec §E).
     public private(set) var reveal: SidebarRevealController!
+    private var contentDrag: ContentDragMonitor!
+    private var clusterFade = ClusterFade()
+    private var clusterTimer: Timer?
 
     public init(contentSize: NSSize = RoomWindow.defaultContentSize) {
         let window = RoomWindow(contentRect: NSRect(origin: .zero, size: contentSize))
@@ -39,8 +42,58 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         rootView.splitterView.onEnd = { [weak self] in self?.splitterDragEnded() }
 
         reveal = SidebarRevealController(rootView: rootView)
-        rootView.onAvailabilityChange = { [weak self] in self?.reveal.availabilityChanged() }
+        contentDrag = ContentDragMonitor(rootView: rootView)
+        rootView.onAvailabilityChange = { [weak self] in
+            self?.reveal.availabilityChanged()
+            self?.hiddenChromeChanged()
+        }
+        rootView.onOverlayChange = { [weak self] in self?.hiddenChromeChanged() }
+        reveal.onPointer = { [weak self] point in self?.pointerMoved(to: point) }
         reveal.availabilityChanged()
+        hiddenChromeChanged()
+    }
+
+    // MARK: The floating cluster and the drag regions (spec §E)
+
+    /// View ▸ Show Toolbar.
+    public var showsToolbar: Bool {
+        get { rootView.showsToolbar }
+        set { rootView.showsToolbar = newValue }
+    }
+
+    /// The sidebar, the overlay, the toolbar or fullscreen changed: the cluster
+    /// starts its 2 s again, the top of the card drags the window while the cluster is up.
+    private func hiddenChromeChanged() {
+        let shows = rootView.showsCluster
+        contentDrag.isActive = shows
+        if shows {
+            clusterFade.reset(now: ProcessInfo.processInfo.systemUptime)
+        }
+        applyClusterFade()
+    }
+
+    private func pointerMoved(to point: CGPoint) {
+        guard rootView.showsCluster else { return }
+        clusterFade.pointerMoved(near: ClusterGeometry.isNear(point, pill: rootView.clusterView.frame), now: ProcessInfo.processInfo.systemUptime)
+        applyClusterFade()
+    }
+
+    /// The cluster and the window's own buttons fade together; they stay
+    /// where AppKit put them, only hidden (a hidden button takes no clicks).
+    private func applyClusterFade() {
+        clusterTimer?.invalidate()
+        clusterTimer = nil
+        let now = ProcessInfo.processInfo.systemUptime
+        let faded = rootView.showsCluster && !clusterFade.isVisible(now: now)
+        rootView.isClusterFaded = faded
+        trafficLights.setButtonsHidden(faded)
+        if rootView.showsCluster, !faded, let deadline = clusterFade.deadline {
+            let timer = Timer(timeInterval: max(0.01, deadline - now), repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applyClusterFade() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            clusterTimer = timer
+        }
     }
 
     @available(*, unavailable)
@@ -200,7 +253,37 @@ public final class BrowserWindowView: NSView {
     let splitterView = SidebarSplitterView()
     /// The hidden sidebar's floating glass overlay (spec §E).
     public let overlayView = SidebarOverlayView()
+    /// The pill behind the traffic lights while the sidebar is hidden, and the window's drag handle (spec §E).
+    public let clusterView = TrafficLightClusterView()
+    /// View ▸ Show Toolbar (spec §E), across the card's top.
+    public let toolbarView = PageToolbarView()
     weak var trafficLights: TrafficLightLayout?
+
+    /// The optional toolbar shows (not while a page is fullscreen).
+    public var showsToolbar = false {
+        didSet {
+            guard showsToolbar != oldValue else { return }
+            updateToolbar()
+            onAvailabilityChange?()
+        }
+    }
+
+    /// The cluster applies: the sidebar hidden without its overlay, no toolbar, no fullscreen page, buttons in the window.
+    public var showsCluster: Bool {
+        !isSidebarOpen && !isPageFullscreen && !showsToolbar && !isOverlayShown && !isOverlayAnimating
+            && trafficLights?.geometry.buttonsRect != nil
+    }
+
+    /// The cluster faded (2 s without the pointer near it); the buttons hide with it.
+    var isClusterFaded = false {
+        didSet {
+            guard isClusterFaded != oldValue else { return }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.standard
+                clusterView.animator().alphaValue = isClusterFaded ? 0 : 1
+            }
+        }
+    }
 
     public var sidebarWidth: CGFloat = SidebarMetrics.defaultWidth {
         didSet { if sidebarWidth != oldValue { needsLayout = true } }
@@ -223,6 +306,7 @@ public final class BrowserWindowView: NSView {
         didSet {
             guard isPageFullscreen != oldValue else { return }
             cardView.isEdgeToEdge = isPageFullscreen
+            updateToolbar()
             if isPageFullscreen, isOverlayShown || isOverlayAnimating { finishOverlay(shown: false) }
             needsLayout = true
             layoutSubtreeIfNeeded()
@@ -238,8 +322,10 @@ public final class BrowserWindowView: NSView {
 
     /// Called after every layout pass (overlays such as toasts re-anchor).
     public var onLayout: (() -> Void)?
-    /// The sidebar was hidden or docked, or a page entered or left fullscreen.
+    /// The sidebar was hidden or docked, a page entered or left fullscreen, the toolbar came or went.
     var onAvailabilityChange: (() -> Void)?
+    /// The overlay started or finished sliding in or out (the cluster goes before it and comes back after it).
+    var onOverlayChange: (() -> Void)?
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -251,6 +337,8 @@ public final class BrowserWindowView: NSView {
         addSubview(sidebarView)
         addSubview(cardView)
         addSubview(splitterView)
+        clusterView.isHidden = true
+        addSubview(clusterView)
         // Above the card and everything the window adds over it later stays above (palette, toasts).
         addSubview(overlayView)
     }
@@ -297,10 +385,28 @@ public final class BrowserWindowView: NSView {
             }
         }
         cardView.frame = layout.card
+        clusterView.isHidden = !showsCluster
+        if let buttons = geometry.buttonsRect { clusterView.frame = ClusterGeometry.pill(around: buttons) }
+        if showsToolbar {
+            // Hidden sidebar: the traffic lights sit in the bar's leading end.
+            if !isSidebarOpen, let buttons = geometry.buttonsRect {
+                toolbarView.leadingInset = buttons.maxX + SidebarMetrics.headerLeadingGap - layout.card.minX
+                toolbarView.contentCenterY = buttons.midY - layout.card.minY
+            } else {
+                toolbarView.leadingInset = ToolbarMetrics.padding
+                toolbarView.contentCenterY = nil
+            }
+        }
         splitterView.isHidden = layout.splitter == nil
         splitterView.frame = layout.splitter ?? .zero
         splitterView.currentWidth = layout.sidebar.width
         onLayout?()
+    }
+
+    private func updateToolbar() {
+        let shown = showsToolbar && !isPageFullscreen
+        if (cardView.topAccessory != nil) != shown { cardView.topAccessory = shown ? toolbarView : nil }
+        needsLayout = true
     }
 
     private func placeSidebar() {
@@ -327,6 +433,7 @@ public final class BrowserWindowView: NSView {
         guard shown != isOverlayShown else { return }
         if shown, isSidebarOpen || isPageFullscreen { return }
         isOverlayShown = shown
+        onOverlayChange?()
         overlayGeneration += 1
         let generation = overlayGeneration
         let frame = overlayFrame
@@ -363,6 +470,7 @@ public final class BrowserWindowView: NSView {
         overlayGeneration += 1
         isOverlayAnimating = false
         isOverlayShown = shown && !isSidebarOpen && !isPageFullscreen
+        onOverlayChange?()
         overlayView.alphaValue = 1
         overlayView.isHidden = !isOverlayShown
         if isOverlayShown { overlayView.frame = overlayFrame }
