@@ -123,6 +123,14 @@ extension SidebarController {
     /// ⇧⌘K and the separator's "Clear".
     public func clearTodayTabs() { clearToday(nil) }
 
+    /// ⌘W (wired by the tab controller, 2.3): closes the multi-selection,
+    /// or the selected entry, per `permanentCloseBehavior` (spec §A.3, §A.9).
+    public func closeCommandTargets() {
+        let ids = commandTargets().filter { sidebar.entry($0).map { $0.kind != .folder } ?? false }
+        clearMultiSelection()
+        for id in ids { close(id) }
+    }
+
     private func run(_ body: () throws(SidebarError) -> Void) {
         do throws(SidebarError) { try body() } catch { showRefusal(error) }
         retainMultiSelection()
