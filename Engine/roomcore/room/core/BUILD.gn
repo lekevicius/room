@@ -68,3 +68,10 @@ source_set("core") {
     "Foundation.framework",
   ]
 }
+
+# Explicitly built diagnostic; not linked into RoomCore or the host.
+executable("room_worker_shutdown_probe") {
+  testonly = true
+  sources = [ "../diagnostics/worker_shutdown_probe.cc" ]
+  deps = [ "//base" ]
+}

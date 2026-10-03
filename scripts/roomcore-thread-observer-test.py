@@ -73,6 +73,10 @@ def main():
         while any(t['name'] == name for t in snapshot()):
             assert time.monotonic() < deadline, 'joined fixture thread retained'
             time.sleep(0.001)
+    for scope in ('browser', 'both'):
+        observer.scope = scope
+        snapshot()
+        assert json.loads(output.getvalue().splitlines()[-1])['role'] == 'browser'
     print(json.dumps({'threads_created_and_exited': len(handles),
                       'distinct_thread_handles': len(set(handles)),
                       'snapshots': observer.snapshots,

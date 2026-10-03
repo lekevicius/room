@@ -1,4 +1,4 @@
-"""Read-only macOS network-thread snapshots; never suspend the target.
+"""Read-only macOS browser/network thread snapshots; never suspend the target.
 
 The public PROC_PIDLISTTHREADS API returns thread handles, not unique kernel
 thread IDs. Handles may be reused even within a process. These are raw samples,
@@ -18,7 +18,8 @@ class ThreadInfo(ctypes.Structure):
 
 
 class ThreadObserver:
-    def __init__(self, process_observer, output):
+    def __init__(self, process_observer, output, scope="network"):
+        self.scope = scope
         self.processes = process_observer
         self.output = output
         self.next_snapshot = 0.0
@@ -32,8 +33,12 @@ class ThreadObserver:
         self.next_snapshot = now + 0.25
         started = time.monotonic()
         # proc_pidinfo returns bytes; PROC_PIDLISTTHREADS yields thread handles.
-        for pid, command in helpers.items():
-            if 'network.mojom.NetworkService' not in command or not self.processes.is_same_process(pid):
+        targets = {pid: 'network' for pid, command in helpers.items()
+                   if 'network.mojom.NetworkService' in command and self.scope != 'browser'}
+        if self.scope in ('browser', 'both'):
+            targets[self.processes.root_pid] = 'browser'
+        for pid, role in targets.items():
+            if not self.processes.is_same_process(pid):
                 continue
             capacity = 64
             while True:
@@ -72,7 +77,7 @@ class ThreadObserver:
                 threads.append(row)
             if not self.processes.is_same_process(pid):
                 continue
-            self.output.write(json.dumps({'time': time.time(), 'pid': pid,
+            self.output.write(json.dumps({'time': time.time(), 'pid': pid, 'role': role,
                                           'process_start': self.processes.identities[pid],
                                           'identity_kind': 'reusable_thread_handle',
                                           'zero_handles_omitted': zero_handles,

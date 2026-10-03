@@ -439,3 +439,40 @@ for the policy-loader file operation versus runnable worker delay. Existing
 network-only captures and one final stack cannot justify a priority workaround,
 skipping policy work, or changing the watchdog. Preserve failed samples and
 avoid another unqualified stress loop.
+
+## Both-process observation and isolated worker-start probe
+
+One bounded both-process thread-state run (baseline-shutdown-both-states)
+completed all ten pages in three hosts; quits3.202/4.201/2.486s, no helpers or
+new crashes, exit0. Total62.534s. Thread queries332/339/309 cost1.652614/
+1.211062/1.185976s. Low-priority named workers with little/no exported CPU
+advance also occur in these successful teardowns. That signature alone cannot
+identify the watchdog cause. --thread-states network/browser/both supersedes
+the network-only flag (retained as an alias). The lifecycle fixture validates
+both new scopes;16 threads/one reused handle,44 snapshots/0.001392s query time.
+
+Source history supplies a narrower testable issue: upstream e3881c8a6367b
+replaced GetDesiredThreadType in WorkerThread::Start with thread_type_hint_.
+It preserves priority elevation before GetWork but no longer accounts for
+already-started shutdown at OS thread creation. Its existing unit test covers
+an alive worker receiving shutdown; it does not cover creation after shutdown.
+The class documents that actual thread type depends on shutdown state. There
+is no factory/pref/Room callback at PlatformThread::CreateWithType in this path.
+
+New explicit target //room/core:room_worker_shutdown_probe uses the existing
+libbase in out/dev, keeps TaskTracker shutdown pending with a registered task
+source and records type/QoS at OnMainEntry and GetWork. It starts no browser,
+posts no file tasks, and is not linked into RoomCore. Unmodified library result:
+before shutdown: entry_background=true,entry_qos=9,get_work_background=true;
+after shutdown: entry_background=true,entry_qos=9,get_work_background=false.
+Exit2 is the diagnostic's failed startup-priority invariant, not a hang.
+
+Probe build initially failed inside //room on SDK pthread_get_qos_class_np
+arity and Sequence's newer constructor; fixed only the diagnostic. Final build
+6.74s/2steps succeeds. First detached launcher left an empty log/no compiler;
+managed bash/nohup execution succeeded. No production behavior changed yet.
+A minimal proposed correction is to clamp only the initial type of workers
+created after shutdown begins to at least kDefault, preserving normal startup
+and higher priorities. This addresses the demonstrated entry mismatch, not
+existing blocked workers or all B-16 failures; validate probe and browser
+baseline before deciding whether it can be retained.
