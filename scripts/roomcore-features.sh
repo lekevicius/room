@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -19,7 +19,7 @@ mkdir "$DEST/profile"
 python3 - "$ROOT" "$APP" "$DEST" <<'PY_IDENTITY'
 import hashlib, json, subprocess, sys
 from pathlib import Path
-root, app, dest = map(Path, sys.argv[1:])
+root, app, dest = (Path(p).resolve() for p in sys.argv[1:])
 version = (app / 'Contents/Frameworks/RoomCore.framework/Versions/Current').resolve()
 files = [app / 'Contents/MacOS/Room', app / 'Contents/MacOS/Room.debug.dylib',
          version / 'RoomCore', version / 'Libraries/libchrome_dll.dylib',
@@ -54,6 +54,9 @@ read -r http https < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]
 # port; a collision fails visibly instead of attaching to another profile.
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
 extra=()
+case "$FEATURE" in
+  ui-camera|ui-microphone|ui-capture) extra+=("--use-fake-device-for-media-stream") ;;
+esac
 if [[ "$FEATURE" == extension ]]; then
   extra+=("--load-extension=$ROOT/research/spikes/phase-1.4/extension")
 fi

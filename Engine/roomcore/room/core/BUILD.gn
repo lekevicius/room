@@ -51,6 +51,7 @@ source_set("core") {
     "//components/keyed_service/content",
     "//chrome/browser/ui",
     "//chrome/browser/devtools",
+    "//chrome/browser/media/webrtc",
     "//chrome/browser/printing",
     "//chrome/browser/ui/webui/print_preview",
     "//printing",

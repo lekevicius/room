@@ -278,3 +278,18 @@ two rendered one-page previews, both cancel/reopen,49,366-byte one-page A4
 PDF1.4 output from real preview pipeline. DevTools9s/exit0,window exists
 but no docking controller; concrete Chapter3 blocker. Results/identities
 in roomcore-ui-compatibility-results.md and embedded-checkpoint.json.
+
+
+## 2026-10-03 — synthetic media UI checkpoint
+
+Private diagnostic changes only; public API, original patches and production
+media/network policy unchanged. Build34s/2steps,load56.72/50.34/44.80; GN and
+stand-in Swift typecheck pass, strict ad-hoc package valid (host14.2s).
+Camera deny18s, mic deny8s, combined fake capture/indicator/stop12s, screen
+picker cancel14s, all exit0. Generated VP8/WebM3,951bytes, initial4frames and
+verified8frames; video PiP590×332 in12s/exit0. Document PiP320×180 opens/closes
+and owning-tab closure removes its identified target in9s/exit0. Initial
+size-after-close and ambiguous CDP target-count observations are retained as
+probe limitations/failures, with bounded source-backed host corrections.
+Muted WebAudio48kHz/0.405333s has engine muted+audible state3. No real camera,
+mic or screen captured. Existing baseline/audit identities are not relabeled.

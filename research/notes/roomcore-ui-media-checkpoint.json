@@ -1,0 +1,314 @@
+{
+  "source_parent": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+  "chromium_head": "2f06f6d7533a515a94386027cc8020775f3aec9e",
+  "runs": {
+    "camera-initial": {
+      "receipt": {
+        "feature": "ui-camera",
+        "exit_status": "0",
+        "elapsed_seconds": "18",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "microphone-initial": {
+      "receipt": {
+        "feature": "ui-microphone",
+        "exit_status": "0",
+        "elapsed_seconds": "8",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "capture-initial": {
+      "receipt": {
+        "feature": "ui-capture",
+        "exit_status": "0",
+        "elapsed_seconds": "12",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "screen-share-initial": {
+      "receipt": {
+        "feature": "ui-screen-share",
+        "exit_status": "0",
+        "elapsed_seconds": "14",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "video-initial": {
+      "receipt": {
+        "feature": "ui-video",
+        "exit_status": "0",
+        "elapsed_seconds": "15",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "video-verification1": {
+      "receipt": {
+        "feature": "ui-video",
+        "exit_status": "0",
+        "elapsed_seconds": "12",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "d03e9abd2338ae4dbac88fb7c63b5292aed7fc84d2db3992e5682848d182ece7",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "2118671562575795d4170828f2dfd48a7f5063ab0756681c251765cb460a80c1",
+          "Contents/MacOS/Room.debug.dylib": "c5363eac8e670c00ee46a03d1357def1f5c9e91721678fe93e55c681ea64be7e",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "f40c78062d1cc19a47bc14bb6d6a7e7a1b29bc0ec5f46bc016bd8578b01994bd",
+          "App/RoomCore/HostMediaUISpike.swift": "b30cccca2586cfe8e4d66b17520fb3e840698345cbfd05e18a63a11270ee100e",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "document-pip-initial": {
+      "receipt": {
+        "feature": "ui-document-pip",
+        "exit_status": "0",
+        "elapsed_seconds": "11",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "a36ffd61ea6dcc473471198ae0b21dac45d684b720fa9def6d54f714dae00389",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "b04d58ab8378704a254ae6cb6a3c0a280f0a11d2aa6bfb18e68d0355f466f020",
+          "Contents/MacOS/Room.debug.dylib": "bb5531fb7729329375e3628bef359fd1f2a548974a0ab0533ed045d208019095",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "3813b6e5324fb66b0283b7573cc9aae3feab06a02760178ead67c4667c7a71fb",
+          "App/RoomCore/HostMediaUISpike.swift": "5fce599df77bac10e03919f417b8174b1f248b07ed58e842ab5bed4378956f4c",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    },
+    "document-pip-verification1": {
+      "receipt": {
+        "feature": "ui-document-pip",
+        "exit_status": "0",
+        "elapsed_seconds": "8",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "d03e9abd2338ae4dbac88fb7c63b5292aed7fc84d2db3992e5682848d182ece7",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "2118671562575795d4170828f2dfd48a7f5063ab0756681c251765cb460a80c1",
+          "Contents/MacOS/Room.debug.dylib": "c5363eac8e670c00ee46a03d1357def1f5c9e91721678fe93e55c681ea64be7e",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "f40c78062d1cc19a47bc14bb6d6a7e7a1b29bc0ec5f46bc016bd8578b01994bd",
+          "App/RoomCore/HostMediaUISpike.swift": "b30cccca2586cfe8e4d66b17520fb3e840698345cbfd05e18a63a11270ee100e",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": [
+        "error: ui-document-pip: could not identify owned PiP target"
+      ]
+    },
+    "document-pip-verification2": {
+      "receipt": {
+        "feature": "ui-document-pip",
+        "exit_status": "0",
+        "elapsed_seconds": "9",
+        "source_commit": "2f36864cb6d2c4293b8476dc73409c8f90895141"
+      },
+      "identity": {
+        "source_head": "2f36864cb6d2c4293b8476dc73409c8f90895141",
+        "tracked_diff_sha256": "edd8b3d85a2a27f2572837f9c2d8ee39c53ae8dac27e6051b6f2d307fdfb1d45",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "49a0c9e4f89293a51ffa46cc0bb1ff5da60c4234236621efe04d3f662911275d",
+          "Contents/MacOS/Room.debug.dylib": "372bdcf4aa821781bd03ec2aba03d738de58bc27969e2d22949229b119fa6f31",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "92e1a68fc8bd5b482f3c15f7f78de4e08104b5aee1c5f9c4adf95c15f77dd89a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "7873bbfa7113a9b47966052cb1c8597e0d226f19d8f0989933e14016f1e1d56d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+          "App/RoomCore/HostFeatureSpike.swift": "f40c78062d1cc19a47bc14bb6d6a7e7a1b29bc0ec5f46bc016bd8578b01994bd",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "driver_errors": []
+    }
+  }
+}

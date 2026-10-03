@@ -16,7 +16,7 @@ origin/main2239107; checkpoint cdcb7a1 contains the preserved candidate.
 No Chapter2 implementation was changed. New UI patch0011 is a different patch,
 `0011-browser-window-lookup-hook.patch`; it is not the deferred scheduler patch.
 
-Current autofill candidate: Room cdcb7a1 plus pending UI diff; Chromium
+Autofill tested before commit: Room cdcb7a1 plus UI diff, accepted after rebase as9b08d74; Chromium
 2f06f6d7533a515a94386027cc8020775f3aec9e. The update/device package hashes are in feature-ui-autofill-build/identity-update.json.
 Save repair2 completed before the host-only update-fixture rebuild; its engine
 hashes match, but the old host binary hash was not captured (identity gap). Original public headers and patches0001–0005 stay
@@ -77,8 +77,8 @@ address into the user's profile.
 |---|---|
 | Device choosers/connections | Web USB/HID/Serial/Bluetooth chooser cancellation passes (table below). Empty filters/fake Bluetooth; cancel only, never select hardware. Extension-origin and local-network gates remain separate. |
 | Print preview / DevTools | Real print preview/pages/cancel/reopen/PDF passes; docking has verified missing-controller blocker (below). Native print-panel/focus remains reviewer acceptance. |
-| Extension action UI | Verified missing-toolbar/container prerequisite; concrete popup ownership and consent/site-access/side-panel source map below. Product hosting deferred to Chapter3. |
-| Media/capture | Generated playback, synthetic capture and cancellation probes pending; no real camera/mic/screen capture authorized by this pass. |
+| Extension action UI | action.openPopup has a verified toolbar/container blocker. Source map below; direct Chrome ExtensionPopup hosting through the existing Room anchor remains a useful private probe before closing this package. |
+| Media/capture | Denial, synthetic capture/stop, generated playback, screen-picker cancel and video PiP measured below. Document PiP also closes with its owner; native activity UI remains a concrete Chapter3 contract. |
 | Downloads/file dialogs | Existing bytes/cancel evidence retained; pending-download close decision and picker cancellation/lifetime still to investigate. |
 
 The Goal remains active. Rows marked pending are unfinished, not architectural
@@ -119,7 +119,7 @@ feature-ui-embedded-build/identity.json. No production behavior change.
 
 | Subfeature | Evidence | Status / Chapter3 contract |
 |---|---|---|
-| Real print frontend/pages | feature-ui-print-preview-initial: chrome://print target; app READY1, page count1, preview display-preview.29s,exit0 but driver fails after Cancel destroys the target/socket before replying. | Preview generation demonstrated; cancel/reopen verification is being corrected to inspect target lifetime. No Page.printToPDF substitution. |
+| Real print frontend/pages | feature-ui-print-preview-initial: chrome://print target; app READY1, page count1, preview display-preview.29s,exit0 but driver fails after Cancel destroys the target/socket before replying. | Corrected verification passes both rendered previews, cancel/reopen and PDF output (final result below). Initial transport failure retained; no Page.printToPDF substitution. |
 | Docked DevTools | feature-ui-devtools-initial: actual devtools_app.html target and DevToolsWindow/native window; bitmask10 = window exists + native parent, no controller/no docking.9s,exit0. | **Blocked by verified ownership prerequisite.** DevToolsWindow::Create checks DevtoolsUIController::From(browser), which is null for Room, and sets can_dock=false before creating frontend. No dock/resize/redock/focus pass claimed. Frontend was only interactive/bodyChildren0 when sampled; this is not functional undocked-frontend acceptance. |
 
 Chapter3 must supply an actual inspected-tab/DevTools content host. Chrome's
@@ -148,8 +148,11 @@ container remain unchanged.
 | Side panel | Source-map only: SidePanelCoordinator constructor CHECKs GetSidePanel(); lookup uses BrowserElementsViews kSidePanelElementId. Room has no SidePanel host. | Register and own side-panel content/entry lifecycle, geometry, tab/profile association and close/focus. An extension service worker alone cannot provide the content host. |
 
 These are concrete product ownership boundaries, not failures to be bypassed
-with more stubs. Runtime action blocking completes this investigation row;
-actual popup behavior awaits Chapter3. Consent/site-access/side-panel items
+with more stubs. The action API blocker is verified. Direct ExtensionViewHostFactory::CreatePopupHost
+and ExtensionPopup::ShowPopup accept a BrowserWindowInterface and bubble anchor;
+a private direct-hosting probe remains before calling this package complete.
+That probe would test actual popup content/lifetime without claiming a working
+action toolbar or bypassing the product API gate. Consent/site-access/side-panel items
 are explicitly source-map scope, not runtime support claims.
 
 ### Print preview final bounded result
@@ -177,3 +180,61 @@ Each new feature run now captures actual host/framework/component SHA256
 identities before launch. Committed roomcore-ui-embedded-checkpoint.json
 retains both probe identities and outcomes; raw PDF/profile/logs remain in
 the ignored feature directory.
+
+## Package 5 — synthetic media and capture
+
+Source parent 2f36864 plus private diagnostic hooks, Chromium 2f06f6d7533a5.
+Each raw feature directory includes exact prelaunch binary/source hashes.
+The capture acceptance/stop hooks require a loopback page, -RoomSpike and
+--use-fake-device-for-media-stream; accept additionally rejects every request
+type except camera/microphone. Chromium's macOS system permission wrapper
+explicitly treats fake devices as allowed, so no real camera/mic consent or
+capture is involved. No production media policy or public API changes.
+
+| Required subfeature | Measured evidence | Status / ownership contract |
+|---|---|---|
+| Camera denial | feature-ui-camera-initial: one real PermissionRequestManager::Deny; NotAllowedError/Permission denied; 18 s, exit 0 | Works in synthetic spike. Real macOS privacy and camera selection remain hardware/native acceptance. |
+| Microphone denial | feature-ui-microphone-initial: one Deny; NotAllowedError/Permission denied; 8 s, exit 0 | Same browser decision path; real mic/output hardware unverified. |
+| Capture start, indicator state, stop | feature-ui-capture-initial: one Chrome Accept for combined fake devices; live Fake Default Audio Input + fake_device_0 tracks. Indicator bitmask 3 (audio+video), actual StopMediaCapturing(kUserMedia), both tracks ended and indicator 0. 12 s, exit 0. | Engine state/callbacks work. This is not a persistent recording UI pass. |
+| Screen-share cancel | feature-ui-screen-share-initial: DesktopMediaPickerDialogView actually opened; two CancelDialog invocations before asynchronous close, one settled getDisplayMedia rejection (NotAllowedError, Permission denied by user). 14 s, exit 0. | Cancel path works; no source selected and no screen captured. Sharing start/stop indicator and OS screen-recording consent require deliberately authorized native capture. |
+| Generated video | feature-ui-video-initial: local canvas → VP8/WebM, 3,951 bytes, 4 decoded frames, playback time 0.252212 s; 15 s, exit 0. | Playback works; generated media only. Does not qualify arbitrary codecs, protected playback or audible hardware. |
+| Tab mute / audible state | Same video run: Web Audio runs at 48 kHz, clock 0.410667 s; engine state 3 = muted and currently audible. Stop/close AudioContext follows. | Muting and pre-mute audible state coexist as expected. Room needs observable audible/mute state and per-tab controls; current public embryo exposes neither. |
+| Video PiP | Initial entry/exit succeeds; initial reported size 0×0 was sampled after exit. Blink PictureInPictureWindow::OnClose explicitly zeros size. | feature-ui-video-verification1 reads dimensions before exit:590×332, entered/closed true;12s,exit0. Generated VP8 decodes8frames at0.252223s; muted Web Audio48kHz/0.405333s,engine state3. Works in spike. Native focus/return-to-tab controls remain unverified. |
+| Document PiP | feature-ui-document-pip-initial: 320×180 window opens and closes; 11 s, exit 0. | First lifetime verification failed its observer setup (8s,exit0,driver failure): three new CDP targets appeared, so a target-count delta did not identify the PiP page. Final verification2 identifies the unique PiP fixture target; pageClosed=true and targetGone=true after owner close (9s,exit0). Native adoption/focus remains separate. Room adoption/focus remains Chapter3. |
+| Fullscreen | Existing recorded rejection retained; RoomExclusiveAccessContext::CanUserEnterFullscreen=false and EnterFullscreen is empty. Unchanged by this batch. | Explicit unsupported boundary, not a successful video fullscreen feature. Chapter3 needs origin/escape UI and restoration. |
+| Output selection | Actual media-capabilities: selectAudioOutput is undefined, setSinkId is a function. Blink SelectAudioOutput IDL is runtime gated; pinned runtime feature default status is test. | Disabled-feature boundary in this build. If supported later, SelectAudioOutputPickerViews uses CreateMediaPickerDialogWidget with native parent/content view; its dialog returns selection or kUserCancelled exactly once. No actual output device selected. |
+| Media keys / OS controls | Source-map: content MediaKeysListenerManagerImpl creates browser singleton SystemMediaControls; ActiveMediaSessionController routes commands and SystemMediaControlsNotifier exports metadata. | Retain Chrome routing with correct active session/tab/profile. Physical keys and macOS Now Playing need native acceptance; setting page metadata alone is not proof. |
+| Widevine | Existing on-demand provisioning evidence retained; no repeated download/license test. | Licensed playback remains explicitly outside this pass. |
+
+### Persistent capture UI is a real missing Room contract
+
+MediaStreamCaptureIndicator::UpdateNotificationUserInterface skips ordinary
+web tabs on desktop when building its tray icon: Chrome expects their tab
+icons to show capture status. Room's host has no capture observer/indicator
+and its public embryo has no capture-state/stop API. The private diagnostic
+proved the underlying state and stop callbacks, not a visible user control.
+Chapter3 must subscribe to capture changes for the correct tab/profile,
+retain an indicator when a tab is hidden, expose a reachable stop action,
+and clear it on stream end/navigation/owner loss. Screen-sharing sessions
+add source identity and OS permission, separately from camera/mic grants.
+
+No native permission was auto-approved, no real device was connected, and no
+physical printer or capture source was selected. Native/hardware limitations
+remain acceptance work, not reasons to implement additional test stubs.
+
+### Media checkpoint qualification
+
+Media diagnostic build34s/2steps, load56.72/50.34/44.80; GN dependency check,
+stand-in Swift typecheck, shell syntax and strict ad-hoc packaging pass.
+No production engine fix or upstream patch in this batch, so no new serial
+baseline or zero-idle audit is claimed. Initial video PiP size sampling was
+a probe error (dimensions read after close resets them); one host correction
+measured590×332 before closing. Document PiP owner-lifetime verification
+needed two bounded observer rounds: global target-count delta was ambiguous,
+then unique content matching proved owned-target destruction. Failed observer
+receipt remains retained; no engine repair was made for either probe issue.
+Exact identities/outcomes are in roomcore-ui-media-checkpoint.json.
+
+Next work remains address suggestions/password/card boundaries, extension
+device chooser and local-network/lifetime checks, direct MV3 popup hosting,
+and download-close/file-dialog decisions. The Goal is still in progress.

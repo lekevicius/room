@@ -6,6 +6,10 @@
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
+#include "base/command_line.h"
+#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+#include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
+#include "components/permissions/permission_request.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
@@ -350,6 +354,45 @@ class Client : public room::RoomBrowserWindowClient {
         metadata, {},
         base::BindOnce([](content::IdentityRequestDialogController::DismissReason) {}),
         base::BindRepeating([](const GURL&, GURL) {})));
+  }
+  if ([action isEqualToString:@"capture-state"]) {
+    auto indicator = MediaCaptureDevicesDispatcher::GetInstance()->GetMediaStreamCaptureIndicator();
+    return @((indicator->IsCapturingAudio(contents) ? 1 : 0) |
+             (indicator->IsCapturingVideo(contents) ? 2 : 0) |
+             (indicator->IsCapturingDisplay(contents) ? 4 : 0));
+  }
+  if ([action isEqualToString:@"stop-fake-capture"]) {
+    if (!base::CommandLine::ForCurrentProcess()->HasSwitch("use-fake-device-for-media-stream")) {
+      return @(-1);
+    }
+    MediaCaptureDevicesDispatcher::GetInstance()->GetMediaStreamCaptureIndicator()
+        ->StopMediaCapturing(contents, MediaStreamCaptureIndicator::kUserMedia);
+    return @1;
+  }
+  if ([action isEqualToString:@"accept-fake-capture"]) {
+    if (!base::CommandLine::ForCurrentProcess()->HasSwitch("use-fake-device-for-media-stream")) {
+      return @(-1);
+    }
+    auto* manager = permissions::PermissionRequestManager::FromWebContents(contents);
+    if (!manager || !manager->IsRequestInProgress() || manager->Requests().empty()) {
+      return @0;
+    }
+    for (const auto& request : manager->Requests()) {
+      if (request->request_type() != permissions::RequestType::kCameraStream &&
+          request->request_type() != permissions::RequestType::kMicStream) {
+        return @(-1);
+      }
+    }
+    manager->Accept(std::monostate{});
+    return @1;
+  }
+  if ([action isEqualToString:@"media-mute"]) {
+    contents->SetAudioMuted(true);
+    return @(contents->IsAudioMuted());
+  }
+  if ([action isEqualToString:@"media-state"]) {
+    return @((contents->IsAudioMuted() ? 1 : 0) |
+             (contents->IsCurrentlyAudible() ? 2 : 0));
   }
   if ([action isEqualToString:@"deny-permission"]) {
     auto* manager = permissions::PermissionRequestManager::FromWebContents(contents);
