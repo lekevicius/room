@@ -15,8 +15,9 @@ import UIKitCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let engine: any EngineApplication
-    private var store: RoomStore?
-    private var windowController: RoomWindowController?
+    private(set) var store: RoomStore?
+    private(set) var windowController: RoomWindowController?
+    private var settingsWindow: SettingsWindowController?
     private var pageHost: PageHost?
     private(set) var pageDelegate: PageUIDelegate?
     private(set) var overlays: OverlaySpike?
@@ -229,6 +230,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let state = tabs?.pageState(for: id)
             return (state?.favicon, state?.isLoaded ?? false)
         }
+        palette.siteFavicon = { [weak tabs] url in tabs?.favicon(forURL: url) }
+        palette.commands = { [weak self] in self?.paletteCommands() ?? [] }
+        palette.onCommand = { [weak self] id in self?.runPaletteCommand(id) }
+        let settings = store.settings
+        palette.searchEngine = { [weak settings] in SearchEngine.named(settings?.settings.searchEngine) }
+        palette.suggestionsEnabled = { [weak settings] in settings?.settings.searchSuggestions ?? false }
+        var proxy: String?
+        #if DEBUG
+        // The no-network check routes suggestion requests through a logging proxy (spike-results 2.4b).
+        proxy = UserDefaults.standard.string(forKey: "RoomSuggestProxy")
+        #endif
+        palette.suggest = SuggestClient(transport: URLSessionSuggestTransport(proxy: proxy), debounce: .seconds(Timing.suggestDebounce))
+        observeSuggestionsSwitch(settings, palette: palette)
         tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
         tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
         rootView.onLayout = { [weak toasts, weak palette] in
@@ -250,6 +264,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.showSelection()
     }
 
+    /// The Settings switch holds at once (CLAUDE.md): turned off, the open
+    /// palette drops its suggestions and the client sends nothing more.
+    private func observeSuggestionsSwitch(_ settings: SettingsStore, palette: PaletteController) {
+        withObservationTracking {
+            _ = settings.settings.searchSuggestions
+        } onChange: { [weak self, weak settings, weak palette] in
+            Task { @MainActor in
+                guard let self, let settings, let palette else { return }
+                palette.suggestionsSettingChanged()
+                self.observeSuggestionsSwitch(settings, palette: palette)
+            }
+        }
+    }
+
     /// Final state write; called at quit (both termination paths).
     func shutdown() {
         store?.close()
@@ -269,6 +297,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌘L: the palette on the current URL (spec §C); again closes it.
     @objc func openLocation(_ sender: Any?) {
         tabs?.openLocation()
+    }
+
+    /// ⌘Y: the palette on recent history (shortcuts.md, until Chapter 3).
+    @objc func showHistory(_ sender: Any?) {
+        palette?.toggleHistory()
+    }
+
+    /// ⌘,: Settings (Search only until 2.8).
+    @objc func showSettings(_ sender: Any?) {
+        guard let store else { return }
+        if settingsWindow == nil { settingsWindow = SettingsWindowController(settings: store.settings) }
+        settingsWindow?.showWindow(nil)
+        settingsWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
     /// ⌘W: the multi-selection or the selected entry, per spec §A.3.
