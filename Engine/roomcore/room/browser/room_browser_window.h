@@ -189,6 +189,7 @@ class RoomBrowserWindow : public BrowserWindow {
   mutable std::unique_ptr<room::RoomLocationBar> location_bar_;
   std::unique_ptr<room::RoomExclusiveAccessContext> exclusive_access_context_;
   bool destroy_posted_ = false;
+  bool tab_strip_editing_disabled_ = false;
   base::WeakPtrFactory<RoomBrowserWindow> weak_factory_{this};
 };
 

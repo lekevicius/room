@@ -217,3 +217,8 @@ load 14.91 / 15.50 / 19.78. Direct GN dependency declaration recheck took
 12 s / 0 actions. GN check for all //room targets passes. Passive bubble and
 active loading modal probe 18 s, exit 0. Post-change nav 12.447 s, ten-page
 quit 0.635 s, load1 28.40, 27 helpers / 0 remaining / 0 new crashes, exit 0.
+
+Tab-editability fix: 22 s / 6 steps at load 14.85 / 16.81 / 19.68; GN check
+all //room targets passes. Extension tabs count 1→2→1 and popup create/remove
+pass (24 s process, exit 0). Post-change nav 11.570 s; ten-page quit 0.534 s,
+load1 12.39, 24 helpers / 0 left / 0 new crash reports, exit 0.

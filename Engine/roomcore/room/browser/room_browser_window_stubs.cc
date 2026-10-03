@@ -172,14 +172,6 @@ void RoomBrowserWindow::FocusAppMenu() {
   RoomStubHit("FocusAppMenu");
 }
 
-bool RoomBrowserWindow::IsTabStripEditable() const {
-  RoomStubHit("IsTabStripEditable");
-  return false;
-}
-
-void RoomBrowserWindow::DisableTabStripEditingForTesting() {
-  RoomStubHit("DisableTabStripEditingForTesting");
-}
 
 bool RoomBrowserWindow::IsToolbarVisible() const {
   RoomStubHit("IsToolbarVisible");

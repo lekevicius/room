@@ -424,3 +424,15 @@ std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
   }
   return std::make_unique<FindBarHost>(objc_->find_owner.get());
 }
+
+// The Cocoa host does not run Chrome's TabDragController. Its live TabStripModel
+// can accept extension edits unless closing or explicitly disabled by a test.
+bool RoomBrowserWindow::IsTabStripEditable() const {
+  RoomStubHit("IsTabStripEditable");
+  return !tab_strip_editing_disabled_ && !browser_->GetTabStripModel()->closing_all();
+}
+
+void RoomBrowserWindow::DisableTabStripEditingForTesting() {
+  RoomStubHit("DisableTabStripEditingForTesting");
+  tab_strip_editing_disabled_ = true;
+}

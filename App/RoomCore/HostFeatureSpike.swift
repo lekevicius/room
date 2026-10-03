@@ -119,7 +119,32 @@ enum HostFeatureSpike {
                 let marker = try await cdp.evaluate("document.documentElement.dataset.roomSpikeExtension || 'missing'")
                 HostSpike.record("content-script", marker)
                 guard marker as? String == "content-script-ran" else { throw HostCDP.Failure("extension content script did not run") }
-                HostSpike.record("review-required", "extension worker, chrome.tabs, action popup and chrome://extensions")
+                let worker = try await HostCDP.connect(port: defaults.integer(forKey: "RoomSpikeCDPPort"), pageURL: "/worker.js", targetType: "service_worker", suffixMatch: true)
+                defer { worker.close() }
+                let operations = try await worker.evaluate("""
+                (async()=>{
+                    const before=await chrome.tabs.query({});
+                    const tab=await chrome.tabs.create({url:'about:blank',active:false});
+                    const afterCreate=await chrome.tabs.query({});
+                    await chrome.tabs.remove(tab.id);
+                    const afterRemove=await chrome.tabs.query({});
+                    const window=await chrome.windows.create({url:'about:blank',type:'popup',focused:false});
+                    await chrome.windows.remove(window.id);
+                    let action;
+                    try { await chrome.windows.update(before[0].windowId,{focused:true}); await chrome.action.openPopup({windowId:before[0].windowId}); action='opened'; }
+                    catch(e) { action=String(e); }
+                    return {before:before.length,afterCreate:afterCreate.length,afterRemove:afterRemove.length,windowCreated:!!window.id,action};
+                })()
+                """, userGesture: true)
+                HostSpike.record("extension-operations", operations)
+                guard let result = operations as? [String: Any],
+                      let before = result["before"] as? Int,
+                      result["afterCreate"] as? Int == before + 1,
+                      result["afterRemove"] as? Int == before,
+                      result["windowCreated"] as? Bool == true else {
+                    throw HostCDP.Failure("extension tabs/windows lifecycle did not complete")
+                }
+                HostSpike.record("review-required", "native extension action UI and popup ownership remain; action API outcome recorded")
             case "downloads":
                 guard let output = defaults.string(forKey: "RoomSpikeOutput") else {
                     throw HostCDP.Failure("download evidence path missing")

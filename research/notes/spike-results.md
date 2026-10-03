@@ -445,3 +445,56 @@ and token exchange remain unverified; this spike does not sign into a service.
 Post-FedCM baseline: nav 12.447 s; ten loaded pages, quit 0.635 s at load1
 28.40, 27 helpers / 0 left / 0 new crash reports, exit 0. The earlier failed
 open10 sample remains rejected and separate from the old shutdown watchdog.
+
+### Full repeat on committed FedCM engine 2a04498
+
+All 18 original processes plus FedCM exit 0 without a watchdog; 18 drivers
+pass and fullscreen remains the explicit unsupported driver failure.
+
+| Feature | Process seconds | Driver exit |
+|---|---:|---:|
+| popups | 8 | 0 |
+| dialogs | 8 | 0 |
+| keys | 9 | 0 |
+| audio | 10 | 0 |
+| scroll | 11 | 0 |
+| transparent | 8 | 0 |
+| corners | 8 | 0 |
+| band | 9 | 0 |
+| form | 8 | 0 |
+| extension | 10 | 0 |
+| downloads | 8 | 0 |
+| permissions | 8 | 0 |
+| auth | 10 | 0 |
+| certificate | 10 | 0 |
+| find | 10 | 0 |
+| zoom | 13 | 0 |
+| print | 9 | 0 |
+| fullscreen | 4 | 1 |
+| fedcm | 10 | 0 |
+
+Raw evidence: feature-complete-*; receipts identify 2a04498.
+
+### Extension tabs/windows lifecycle
+
+The stronger worker probe reached real chrome.tabs.create and initially got
+"Tabs cannot be edited right now (user may be dragging a tab)." The generated
+IsTabStripEditable stub always returned false. //room now permits edits while
+the TabStripModel is not closing and the explicit test-disable flag is unset.
+No patch/public API change; first-hit logging remains enabled.
+
+First post-fix run: content script marker present, service worker connected,
+tab count 1 → 2 → 1 across create/remove, popup window created then removed,
+process 24 s, exit 0. action.openPopup could not find an active browser window;
+this is an explicit UI gap, not a popup acceptance pass. A focused-window
+probe follows. Host tab/popup ownership and drag-state integration remain
+Chapter 3 requirements.
+
+Focused-window repeat still reports "Cannot show popup for an inactive
+window" after awaiting chrome.windows.update({focused:true}) with the explicit
+original window ID. Tab/window lifecycle assertions still pass. The action
+popup is therefore unverified; native activation and toolbar ownership are
+remaining Room/Chapter 3 work, not hidden by a passing process exit.
+
+Post-tab-edit baseline: nav 11.570 s; ten loaded pages, quit 0.534 s at load1
+12.39, 24 helpers / 0 left / 0 new crashes, exit 0.

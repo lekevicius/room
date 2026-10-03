@@ -29,12 +29,15 @@ final class HostCDP {
         try await cdp.call("Browser.close")
     }
 
-    static func connect(port: Int, pageURL: String) async throws -> HostCDP {
+    static func connect(port: Int, pageURL: String, targetType: String = "page", suffixMatch: Bool = false) async throws -> HostCDP {
         let endpoint = URL(string: "http://127.0.0.1:\(port)/json/list")!
         for _ in 0..<100 {
             if let (data, _) = try? await URLSession.shared.data(from: endpoint),
                let targets = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               let target = targets.first(where: { ($0["type"] as? String) == "page" && ($0["url"] as? String) == pageURL }),
+               let target = targets.first(where: {
+                   guard ($0["type"] as? String) == targetType, let address = $0["url"] as? String else { return false }
+                   return suffixMatch ? address.hasSuffix(pageURL) : address == pageURL
+               }),
                let address = target["webSocketDebuggerUrl"] as? String,
                let url = URL(string: address) {
                 return HostCDP(url: url)

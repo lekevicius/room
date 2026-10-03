@@ -53,3 +53,16 @@ quit-failure. It occurred at 08:20:32 EEST while real websites loaded. This
 reveals an additional FedCM surface beyond the original 18-feature matrix.
 Next work is a real FedCM anchor/parent bridge, followed by a dedicated probe
 and baseline; do not conflate it with the earlier IO-thread watchdog.
+
+The FedCM crash chain is now fixed separately (2a04498), including the primary
+Views context needed after the parent exists. Post-fix concurrent direct
+open10/auth pair: auth 20 s, exit 0; ten loaded pages, quit 1.881 s, load1 22.12,
+26 helpers / 0 left / 0 new crashes, exit 0. This pair did not reproduce the
+old watchdog. Baseline script still keeps the original 5 s helper grace.
+
+08:36 EEST machine snapshot (current, not the failed run): 64 GiB physical;
+61 GiB used, 19 GiB compressor, 1751 MiB unused; encrypted swap 2461.69 MiB
+used / 4096 MiB total. memory_pressure -Q reports 58% system-wide free
+(reclaimability differs from unused pages). Load 28.33 / 27.73 / 24.23,
+CPU 60.62% idle, 1192 processes / 9160 threads. These describe the test
+machine but cannot retrospectively prove pressure caused the earlier timeout.

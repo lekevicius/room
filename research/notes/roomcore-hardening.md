@@ -417,3 +417,34 @@ exit 0. Shared dialog/permission/find regression passes in 8/8/10 s. Saving
 this as a separate fix. Another 600 s fresh-profile audit is running from a
 fixed copy with the final FedCM engine (netlog-idle-fedcm); the demand-CDM
 checkpoint's completed audit remains the current proven zero-network result.
+
+### Extension lifecycle probe — 08:42 EEST
+
+Extended the existing worker/content-marker probe with real chrome.tabs.query,
+create/remove, chrome.windows.create/remove and action.openPopup calls. The
+first attempt failed cleanly: "Tabs cannot be edited right now (user may be
+dragging a tab)." Chrome's ExtensionTabUtil checks IsTabStripEditable across
+browser windows; Room's generated stub always returned false. Move that
+method into the implementation: allow edits on a non-closing TabStripModel,
+while honoring DisableTabStripEditingForTesting. The Cocoa host does not run
+Chrome's TabDragController; Chapter 3 host drag suppression remains a future
+contract. No new patch or public ObjC API. Build/probe in progress.
+
+08:43 EEST: the post-FedCM full audit completed: 600 s idle / 610 s process,
+18 events / 603.051 s event span, 0 HTTP/connections/DNS/TLS, exit 0 and no
+watchdog. The fixed copy's engine code is 2a04498, preceding only the tab-edit
+correction now building. Network policy is unchanged. The full original 18
+plus FedCM regression on 2a04498 completed without process crashes; fullscreen
+remains unsupported (driver failure), all other drivers passed.
+
+Tab editing correction verified: extension count 1→2→1, popup create/remove,
+exit 0 in 24 s. Action popup initially could not find an active browser window;
+focused-window probe is pending. Build 22 s / 6 steps; GN all //room passes.
+Post-change nav 11.570 s; ten-page quit 0.534 s, load1 12.39, 24 helpers / 0
+left / 0 new crashes, exit 0. Network policy and patches are unchanged.
+
+Focused-window extension action repeat: lifecycle still passes; action popup
+returns an inactive-window error even after awaiting windows.update(focused).
+Do not call the action UI verified. Next independent work can inspect the
+native activation/BrowserActiveStateManager handoff, then download cancellation
+and certificate-leave callbacks; retain the old teardown failure separately.

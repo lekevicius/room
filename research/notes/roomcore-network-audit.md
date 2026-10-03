@@ -138,3 +138,9 @@ Final callback-refined build idle audit: netlog-idle-cdm-final, fresh profile,
 about:blank, requested and completed 600 s idle, exit 0, no watchdog. The
 flushed log has **0 HTTP requests, 0 connections, 0 DNS, 0 TLS errors**.
 The after host/component request list remains empty with demand-CDM enabled.
+
+Post-FedCM complete audit (fixed app code 2a04498, netlog-idle-fedcm): requested
+and completed 600 s idle, 610 s whole process, exit 0, no watchdog. Complete
+NetLog 18 events / 603.051 s event span; **0 HTTP, 0 connections, 0 DNS, 0 TLS**.
+The after host/component list is still empty. This binary predates only the
+subsequent tab-editability/extension probe change, not any network policy.
