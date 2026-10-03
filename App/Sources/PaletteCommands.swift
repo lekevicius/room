@@ -70,7 +70,7 @@ extension AppDelegate {
         case CommandRegistry.autoAppearance.id: NSApp.appearance = nil
         case CommandRegistry.toggleSidebar.id: windowController?.toggleSidebar(nil)
         case CommandRegistry.unloadTab.id: sidebar.unloadSelected()
-        case CommandRegistry.newSpace.id: sidebar.newSpace()
+        case CommandRegistry.newSpace.id: newSpace(nil)
         case CommandRegistry.nextSpace.id: sidebar.showAdjacentSpace(1)
         case CommandRegistry.previousSpace.id: sidebar.showAdjacentSpace(-1)
         default: NSLog("Room: palette command \(id) has no action")

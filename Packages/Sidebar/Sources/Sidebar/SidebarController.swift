@@ -45,6 +45,8 @@ public final class SidebarController: NSObject {
     public var confirmations: ((_ message: String) -> Bool)?
     /// The space form while it is on screen (`SidebarSpaces`).
     var spaceForm: SpaceFormState?
+    /// A space was created from the form (a toast tells about it while the sidebar is hidden, spec §E).
+    public var onSpaceCreated: ((Space) -> Void)?
     /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
     var swipe = SpaceSwipe()
     var wheel = SpaceWheel()
@@ -1202,6 +1204,13 @@ public final class SidebarBodyView: NSView {
         overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: hit)
         overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - hit, width: bounds.width, height: hit)
         onScroll?()
+    }
+
+    /// The hidden sidebar showed again (its overlay): the overflow lines are measured again.
+    public override func viewDidUnhide() {
+        super.viewDidUnhide()
+        // After the pass that shows it, when every ancestor has its frame.
+        DispatchQueue.main.async { [weak self] in self?.onScroll?() }
     }
 
     /// Makes a hidden list's visible rows and draws them once, transparent

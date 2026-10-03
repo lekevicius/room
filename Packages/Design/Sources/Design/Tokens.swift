@@ -245,6 +245,18 @@ public enum Timing {
     /// Leaving a link hides the pill after this long, so moving between links
     /// does not flicker it (chosen).
     public static let statusPillHideGrace: TimeInterval = 0.1
+    /// The pointer rests this long in the edge band before the hidden sidebar
+    /// slides in (spec §E: 150 ms).
+    public static let revealDwell: TimeInterval = 0.15
+    /// The revealed sidebar hides this long after the pointer left it (spec §E,
+    /// Zen `sidebar-keep-hover.duration`: 150 ms).
+    public static let revealGrace: TimeInterval = 0.15
+    /// The floating traffic-light cluster fades after this long without the
+    /// pointer moving near it (spec §E: 2 s).
+    public static let clusterFade: TimeInterval = 2
+    /// `window.location` set by a page this soon after a user gesture
+    /// navigates in place, never into Peek (spec §A.4: 2 s).
+    public static let peekGestureWindow: TimeInterval = 2
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).
@@ -303,6 +315,81 @@ public enum PromptMetrics {
     public static let interstitialIconSize: CGFloat = 44
     /// The permission popover's content width (chosen).
     public static let permissionWidth: CGFloat = 360
+}
+
+/// The hidden sidebar and its hover-revealed overlay (spec §E, Phase 2.7a).
+public enum RevealMetrics {
+    /// The band at the window's leading edge that reveals the sidebar (spec §E: 4 px).
+    public static let edgeBand: CGFloat = 4
+    /// The revealed overlay floats this far from the window's top, leading
+    /// and bottom edges (spec §E: Zen `--zen-compact-float`, 10 px).
+    public static let overlayInset: CGFloat = 10
+    /// A grey wash inside the overlay's glass, like the docked sidebar's
+    /// material (white 0.88 light, 0.16 dark) at this alpha, so rows and the
+    /// white selection pill read over any page (chosen: untinted glass let
+    /// page text show through; the glass's own tint rendered near white and hid the pill).
+    public static let overlayTintAlpha: CGFloat = 0.75
+    public static let overlayTintWhiteLight: CGFloat = 0.88
+    public static let overlayTintWhiteDark: CGFloat = 0.16
+    /// The overlay's corner (chosen: the overlays' `Radius.large`).
+    public static let overlayCornerRadius: CGFloat = Radius.large
+    /// With the pointer outside the window, the overlay stays while the
+    /// pointer is this close to it (spec §E: Zen `outside-window-edge-offset`, 200 × 100 px).
+    public static let outsideToleranceX: CGFloat = 200
+    public static let outsideToleranceY: CGFloat = 100
+    /// The overlay's header holds Back, Forward and Reload beside the traffic
+    /// lights (spec §E); the address field moves to a row below it (chosen).
+    public static let navigationButtonSize: CGFloat = 28
+    public static let addressRowGap: CGFloat = 4
+}
+
+/// The floating traffic-light cluster while the sidebar is hidden (spec §E).
+public enum ClusterMetrics {
+    /// The glass pill behind the window's own buttons (spec §E: 38 px).
+    public static let height: CGFloat = 38
+    /// Pill padding beside the outer buttons (chosen: as the pill's vertical
+    /// room around the 14 pt buttons, 12 pt).
+    public static let horizontalPadding: CGFloat = 12
+    /// The pointer counts as near the cluster within this distance of the
+    /// pill (chosen).
+    public static let nearDistance: CGFloat = 60
+    /// The top of the card that drags the window while the sidebar is hidden
+    /// (spec §E: Zen `drag-window-from-content`, the top 5%).
+    public static let contentDragFraction: CGFloat = 0.05
+    /// A press there drags the window once it moves this far (AppKit's drag
+    /// threshold, as `SidebarMetrics.dragThreshold`); a click still reaches the page.
+    public static let contentDragThreshold: CGFloat = 3
+}
+
+/// The optional toolbar (View ▸ Show Toolbar; spec §E: 36 px with Back,
+/// Forward, Reload and the full URL).
+public enum ToolbarMetrics {
+    public static let height: CGFloat = 36
+    public static let buttonSize: CGFloat = 28
+    /// Before the first button and after the URL (chosen).
+    public static let padding: CGFloat = 6
+    public static let urlHeight: CGFloat = 26
+}
+
+/// Peek: off-site links from permanent entries in an overlay card (spec §A.4, §I.6).
+public enum PeekMetrics {
+    /// The card's share of the content area's width and height (spec §I.6: 86%).
+    public static let sizeFraction: CGFloat = 0.86
+    /// The card's corner (spec §I.6: 24 px).
+    public static let cornerRadius: CGFloat = 24
+    /// The content under the card is dimmed with black at this alpha (spec §I.6: 30%).
+    public static let dimAlpha: CGFloat = 0.30
+    /// The header with the domain, Open as Tab, Split and × (chosen).
+    public static let headerHeight: CGFloat = 40
+    public static let headerButtonSize: CGFloat = 28
+    public static let headerPadding: CGFloat = 10
+    /// The card floats higher than the page card (chosen).
+    public static let shadowRadius: CGFloat = 24
+    public static let shadowOpacityLight: Float = 0.25
+    public static let shadowOpacityDark: Float = 0.5
+    /// The open animation starts at this scale around the click point (spec
+    /// §I.1: "scale from the link's rect"; CEF reports no link rect, chosen).
+    public static let openStartScale: CGFloat = 0.1
 }
 
 /// The docked DevTools pane under the page (Phase 1.4; resizable in 2.6b).

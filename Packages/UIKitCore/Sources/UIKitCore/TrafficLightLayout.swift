@@ -20,6 +20,12 @@ public struct TrafficLightGeometry: Equatable, Sendable {
         buttonsRect.map { $0.maxX + gap } ?? edgeInset
     }
 
+    /// The same buttons seen from a view whose origin is at `origin` in the
+    /// content view (the hover-revealed overlay).
+    public func relative(to origin: CGPoint) -> TrafficLightGeometry {
+        TrafficLightGeometry(buttonsRect: buttonsRect?.offsetBy(dx: -origin.x, dy: -origin.y))
+    }
+
     /// Distance from the top of the content view to the buttons' centre line,
     /// or `fallback` when there are no buttons.
     public func centerY(fallback: CGFloat) -> CGFloat {

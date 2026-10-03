@@ -37,6 +37,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public var commands: () -> [OmniboxCommand] = { [] }
     /// Runs a command by identifier after the palette closed.
     public var onCommand: ((String) -> Void)?
+    /// The palette closed (the hidden sidebar's overlay it kept open may go, spec §E).
+    public var onClose: (() -> Void)?
     /// The default engine (Settings ▸ Search).
     public var searchEngine: () -> SearchEngine = { .google }
     /// The suggestions switch (Settings ▸ Search), read on every use so it holds at once.
@@ -247,6 +249,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         result = OmniboxResult()
         highlightedIndex = nil
         self.overlay = nil
+        defer { onClose?() }
         let window = overlay.window
         if Motion.reduceMotion || window == nil {
             hideIfClosed(overlay)

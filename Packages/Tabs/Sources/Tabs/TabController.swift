@@ -59,6 +59,9 @@ public final class TabController: SidebarHost {
     /// ⌘L (`docked` false) and a click on the header's address field
     /// (`docked` true: the palette edits in place, spec §C).
     @ObservationIgnored public var onEditAddress: ((_ docked: Bool) -> Void)?
+    /// A tab opened behind the current one (⌥Enter, Open Link in New Tab, a
+    /// background `target=_blank`): a toast says so while the sidebar is hidden (spec §E).
+    @ObservationIgnored public var onBackgroundTabOpened: ((UUID) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.
     @ObservationIgnored public weak var engine: (any EngineApplication)?
     /// The idle clock (tests inject one).
@@ -124,6 +127,9 @@ public final class TabController: SidebarHost {
 
     /// The page in the card.
     public private(set) var current: (any WebContents)?
+    /// The page that has the keyboard and the page commands (reload, find,
+    /// zoom, back/forward): the card's page.
+    public var focusedPage: (any WebContents)? { current }
     /// The entry whose page the card shows (or would, while it loads).
     public private(set) var currentEntryID: UUID?
 
@@ -290,6 +296,7 @@ public final class TabController: SidebarHost {
         pendingTransitions[entry.id] = transition
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
+        onBackgroundTabOpened?(entry.id)
         return entry.id
     }
 
@@ -309,6 +316,7 @@ public final class TabController: SidebarHost {
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
         relatedChain = (openerID, entry.id)
+        onBackgroundTabOpened?(entry.id)
         return entry.id
     }
 
@@ -401,6 +409,7 @@ public final class TabController: SidebarHost {
             sidebar.select(entry.id)
         } else {
             sidebar.pageStateDidChange([entry.id])
+            onBackgroundTabOpened?(entry.id)
         }
         relatedChain = (openerID, entry.id)
     }

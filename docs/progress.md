@@ -187,7 +187,7 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 **Phase 2.6 done (2026-10-03).** Review: every CEF delegate callback now has Room's own UI: dialogs, auth, the certificate interstitial, permissions, menus and file choosers (2.6a); downloads with the footer ring and popover, find, zoom, print, the status pill, Copy URL, the site panel, the crashed-page view, element fullscreen and a resizable DevTools pane (2.6b). One spike run drives all 26 members on CEF through recording proxies. Running the pages found five CEF behaviours the API docs do not spell out (find's first request only counts, an alert blocks a navigation's commit on Alloy, answered permission prompts are "dismissed" too, download updates lose the name, content settings answer with defaults) and each now has a workaround in `EngineCEF` and a row in `engine-api.md`. Open: camera and microphone prompts still need a machine with devices (B-26), and the try-list below needs a person.
 
 ### Phase 2.7 — Hide/reveal, split view, Peek
-- [ ] 2.7a: Hide/reveal (§E)
+- [x] 2.7a: Hide/reveal (§E)
 - [ ] 2.7a: Floating traffic-light cluster as the drag region; optional toolbar
 - [ ] 2.7a: Peek (§A.4, §I.6), Split button disabled
 - [ ] 2.7b: Split view (§D) and Peek's Split button

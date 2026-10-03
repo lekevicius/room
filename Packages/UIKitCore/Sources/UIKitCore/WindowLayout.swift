@@ -36,6 +36,14 @@ public struct WindowLayout: Equatable, Sendable {
         return WindowLayout(sidebar: sidebar, splitter: splitter, card: card)
     }
 
+    /// The hover-revealed overlay's frame (spec §E): the sidebar's width,
+    /// floating `RevealMetrics.overlayInset` from the top, leading and bottom edges.
+    public static func overlayFrame(bounds: CGRect, sidebarWidth: CGFloat) -> CGRect {
+        let inset = RevealMetrics.overlayInset
+        let width = effectiveSidebarWidth(sidebarWidth, availableWidth: bounds.width - inset)
+        return CGRect(x: bounds.minX + inset, y: bounds.minY + inset, width: width, height: max(0, bounds.height - 2 * inset))
+    }
+
     /// The stored width, limited so the card keeps `minimumCardWidth`.
     public static func effectiveSidebarWidth(_ width: CGFloat, availableWidth: CGFloat) -> CGFloat {
         let roomForSidebar = max(SidebarMetrics.minWidth, availableWidth - minimumCardWidth)

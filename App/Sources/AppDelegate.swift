@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var statusPill: StatusPill?
     /// The site panel on the header's site button (2.6b).
     let sitePanel = SitePanel()
+    /// The hidden sidebar's overlay header, keep-open checks and toasts (2.7a).
+    private(set) var hiddenSidebar: HiddenSidebar?
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -294,6 +296,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             palette?.layout()
         }
         self.palette = palette
+        hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
+        trackFocusedPage(tabs)
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
         if let window = controller.window {
@@ -377,6 +381,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    /// Back/Forward/Reload in the overlay's header (and the toolbar) follow the focused page.
+    private func trackFocusedPage(_ tabs: TabController) {
+        let page = withObservationTracking {
+            let page = tabs.focusedPage
+            _ = (page?.canGoBack, page?.canGoForward, page?.isLoading, page?.url)
+            return page
+        } onChange: { [weak self, weak tabs] in
+            Task { @MainActor in
+                guard let self, let tabs else { return }
+                self.trackFocusedPage(tabs)
+            }
+        }
+        hiddenSidebar?.update(page)
+    }
+
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open
     /// palette drops its suggestions and the client sends nothing more.
     private func observeSuggestionsSwitch(_ settings: SettingsStore, palette: PaletteController) {
@@ -458,8 +477,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar?.showAdjacentSpace(item.tag)
     }
 
-    /// File ▸ New Space (the form in the sidebar).
-    @objc func newSpace(_ sender: Any?) { sidebar?.newSpace() }
+    /// File ▸ New Space (the form in the sidebar; with the sidebar hidden, in its pinned overlay).
+    @objc func newSpace(_ sender: Any?) {
+        hiddenSidebar?.revealForSpaceForm()
+        sidebar?.newSpace()
+    }
 
     /// ⌘D: pin / unpin the selected entry or the multi-selection.
     @objc func togglePin(_ sender: Any?) { sidebar?.togglePin() }

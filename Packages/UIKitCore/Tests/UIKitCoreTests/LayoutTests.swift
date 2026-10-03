@@ -37,6 +37,15 @@ struct WindowLayoutTests {
         #expect(tiny.sidebar.width == SidebarMetrics.minWidth)
     }
 
+    @Test("The revealed overlay floats 10 pt from the top, leading and bottom edges at the sidebar's width (spec §E)")
+    func overlayFrame() {
+        let frame = WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: 280)
+        #expect(frame == CGRect(x: 10, y: 10, width: 280, height: 780))
+        // A narrow window keeps the card's minimum beside it, as the docked sidebar does.
+        let narrow = WindowLayout.overlayFrame(bounds: CGRect(x: 0, y: 0, width: 600, height: 400), sidebarWidth: 500)
+        #expect(narrow.width == 600 - RevealMetrics.overlayInset - WindowLayout.minimumCardWidth)
+    }
+
     @Test("Splitter outcomes: clamp to 180–500, snap closed under 120",
           arguments: [(600.0, SidebarResize.open(width: 500)), (320.4, .open(width: 320)), (150, .open(width: 180)),
                       (120, .open(width: 180)), (119.9, .closed), (20, .closed), (-40, .closed)])

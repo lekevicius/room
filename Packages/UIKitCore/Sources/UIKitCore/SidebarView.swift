@@ -24,6 +24,28 @@ public final class SidebarView: NSView {
         }
     }
 
+    /// Back, Forward, Reload: shown beside the traffic lights while the sidebar
+    /// floats as the hover-revealed overlay (spec §E); the header view then
+    /// moves to a row of its own below them.
+    public var navigationView: NSView? {
+        didSet {
+            guard navigationView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let navigationView { contentView.addSubview(navigationView) }
+            navigationView?.isHidden = !showsNavigationRow
+            needsLayout = true
+        }
+    }
+
+    /// The overlay layout: navigation beside the traffic lights, the header view below.
+    public var showsNavigationRow = false {
+        didSet {
+            guard showsNavigationRow != oldValue else { return }
+            navigationView?.isHidden = !showsNavigationRow
+            needsLayout = true
+        }
+    }
+
     /// Fills the sidebar below the header row.
     public var bodyView: NSView? {
         didSet {
@@ -88,15 +110,30 @@ public final class SidebarView: NSView {
         let width = max(0, bounds.width - leading - SidebarMetrics.edgeInset)
         let frame = NSRect(x: leading, y: centerY - size.height / 2, width: min(size.width, width), height: size.height)
         titleField.frame = backingAlignedRect(frame, options: [.alignMinXNearest, .alignMinYNearest, .alignWidthOutward, .alignHeightOutward])
-        if let headerView {
+        var bodyTop = SidebarMetrics.headerHeight
+        if showsNavigationRow, let navigationView {
+            let size = navigationView.fittingSize
+            navigationView.frame = backingAlignedRect(NSRect(x: leading, y: centerY - size.height / 2, width: size.width, height: size.height),
+                                                      options: .alignAllEdgesNearest)
+            // The header view gets a row of its own under the traffic lights.
+            let rowTop = max(centerY * 2, navigationView.frame.maxY) + RevealMetrics.addressRowGap
+            if let headerView {
+                let height = max(headerView.fittingSize.height, 1)
+                let inset = SidebarMetrics.rowHorizontalInset
+                headerView.frame = backingAlignedRect(NSRect(x: inset, y: rowTop, width: max(0, bounds.width - 2 * inset), height: height),
+                                                      options: .alignAllEdgesNearest)
+                bodyTop = headerView.frame.maxY + RevealMetrics.addressRowGap
+            } else {
+                bodyTop = rowTop
+            }
+        } else if let headerView {
             let height = max(headerView.fittingSize.height, 1)
             // Ends where the rows' pill ends, so the domain gets every point there is (2.2a review).
             let headerWidth = max(0, bounds.width - leading - SidebarMetrics.headerTrailingInset)
             let header = NSRect(x: leading, y: centerY - height / 2, width: headerWidth, height: height)
             headerView.frame = backingAlignedRect(header, options: .alignAllEdgesNearest)
         }
-        bodyView?.frame = NSRect(x: 0, y: SidebarMetrics.headerHeight, width: bounds.width,
-                                 height: max(0, bounds.height - SidebarMetrics.headerHeight))
+        bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
     }
 
     private func applyActivity() {

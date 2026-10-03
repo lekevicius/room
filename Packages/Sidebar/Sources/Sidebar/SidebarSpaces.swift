@@ -162,6 +162,7 @@ extension SidebarController {
             closeSpaceForm()
             bodyView.show(target.scrollView, direction: .forward, animated: false)
             switchPane(to: target, space: space, direction: .forward, animated: true, slides: false)
+            onSpaceCreated?(space)
         case .edit(let id):
             try? sidebar.updateSpace(id) {
                 $0.name = name

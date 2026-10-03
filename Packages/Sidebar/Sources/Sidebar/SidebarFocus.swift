@@ -253,7 +253,9 @@ extension SidebarController {
     /// A line at the top or bottom edge of the list while the selected row is scrolled out of view.
     func updateOverflow() {
         var above = false, below = false
-        if let id = selectedEntryID, let node = tree.displayedNode(for: id) {
+        // A hidden list has an empty visible rect (the hidden sidebar): no lines; it is
+        // measured again when it shows (`viewDidUnhide`).
+        if !outline.isHiddenOrHasHiddenAncestor, let id = selectedEntryID, let node = tree.displayedNode(for: id) {
             let row = outline.row(forItem: node)
             if row >= 0 {
                 let rect = outline.rect(ofRow: row)

@@ -59,6 +59,10 @@ enum MainMenu {
         let viewMenu = NSMenu(title: "View")
         // Reaches the key window's controller through the responder chain.
         viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        // Pins the hidden sidebar's overlay open (spec §E; docs/shortcuts.md "Pin overlay sidebar open").
+        let pin = viewMenu.addItem(withTitle: "Keep Sidebar Open", action: #selector(RoomWindowController.toggleSidebarOverlayPin(_:)),
+                                   keyEquivalent: "s")
+        pin.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Actual Size", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "0").tag = 0
         viewMenu.addItem(withTitle: "Zoom In", action: #selector(AppDelegate.zoomPage(_:)), keyEquivalent: "=").tag = 1
