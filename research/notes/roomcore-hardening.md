@@ -597,3 +597,13 @@ rules. Whole-branch whitespace checking flags only required blank context lines
 inside the added patch files; source/docs/scripts checks exclude patch payloads.
 Pre-rebase checkpoint aaa31f9 corresponds to rebased56f1595; earlier measurement
 commit IDs remain historical artifact identities, not the new branch ancestry.
+
+Worker-start checkpoint: patch0010 restores the startup priority clamp for
+threads created after TaskTracker shutdown has begun; direct base construction
+has no Room hook. Isolated probe changes post-shutdown entry from QoS9 to25,
+normal entry stays9; probe exit2→0. Chrome build30.66s/15steps, GNcheck and
+strict package signature pass. Serial nav20.447s,ten-loaded-pagequit3.083s,
+26helpers/0left/0crashes; concurrent same-observer quits2.766/2.453/2.090s all
+ready/clean. B-16 remains open: these fix and validate one startup invariant,
+not the existing policy-loader or renderer teardown stalls. Original five
+patches/public headers/Chapter2 remain untouched; apply0applied10already.

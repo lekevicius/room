@@ -476,3 +476,38 @@ created after shutdown begins to at least kDefault, preserving normal startup
 and higher priorities. This addresses the demonstrated entry mismatch, not
 existing blocked workers or all B-16 failures; validate probe and browser
 baseline before deciding whether it can be retained.
+
+### Startup correction and required serial baseline
+
+Patch0010 changes only WorkerThread::Start: when TaskTracker says shutdown has
+already begun, initial_thread_type=max(thread_type_hint,kDefault). The normal
+hint and any higher priority remain intact; existing workers, task execution,
+flushes and deadlines are unchanged. This restores the startup clamp removed
+by upstream e3881c8a6367b. A Room browser callback cannot intercept this direct
+base-library thread creation, including network/renderer process workers;
+adding a cross-layer callback would be larger than this seven-line correction.
+This is a documented exception to factory-only patches for a demonstrated
+base startup invariant, not a general background-QoS workaround.
+
+Chromium7ac71cfacf83f,30.66s/15steps, build succeeded. The same isolated probe
+now exits0: normal entry remains background/QoS9; post-shutdown entry is not
+background/QoS25 and GetWork is not background. GN header check passes.
+Packaging stage4.4s/host13s; strict ad-hoc signature valid,518dylibs,918MBapp.
+The first GN check used the Room cwd and could not locate .gn; rerunning from
+the Chromium source root passes. Raw probe/build logs: feature-worker-start.
+
+Required serial baseline baseline-shutdown-worker-start: nav20.447s with all
+assertions; ten loaded pages quit3.083s, load1=29.759,26helpers/0left/0newcrashes,
+exit0. Original default ps observer and five-second grace were used. The
+standalone probe proves the narrow startup mismatch is corrected; it does not
+prove that the previously captured late workers started after shutdown, nor
+that all browser watchdogs are resolved. B-16 remains open pending broader
+evidence; existing policy-loader and renderer teardown leads remain relevant.
+
+One same-observer concurrent comparison after patch0010 also passes:
+baseline-shutdown-worker-start-concurrent,53.362s total, three ten-page-ready
+hosts quit2.766/2.453/2.090s,24/26/25helpers observed,0left/0newcrashes/exit0.
+Network waits2061/567/1385ms. Thread queries260/277/254 cost0.548947/2.259341/
+0.862808s. Before comparison was also clean; live sites/load differ. Thus
+these runs support non-regression, not proof of a latency improvement or
+resolution of every B-16 path. Apply is idempotent:0applied/10already.

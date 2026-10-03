@@ -236,3 +236,15 @@ host build). Intentional crash/reload probe 39 s, exit 0. Post-fix nav 21.170 s;
 ten loaded pages quit 0.554 s at load1 18.00, 26 helpers / 0 left / 0 new
 crash reports, exit 0. No diagnostic sampling. Evidence: baseline-sadtab-build,
 feature-renderer-crash, baseline-sadtab and TMPDIR roomcore-quit-_y_gjafd.
+
+## Shutdown worker startup correction — 2026-10-03, laptop
+
+Explicit standalone room_worker_shutdown_probe: initial Room-only compile
+failure (SDK/constructor mismatch), corrected6.74s/2steps. It uses existing
+out/dev component libraries. Patch0010 Chrome+probe rebuild30.66s/15steps,
+Chromium7ac71cfacf83f. Packaging stage4.4s + host13s, strict signature valid.
+Probe: entry after shutdown background/QoS9 → default/QoS25; normal entry9
+unchanged, probe exit2 →0. No browser hang is asserted by this diagnostic.
+Required real-site serial baseline: nav20.447s; ten loaded pages quit3.083s,
+load29.759,26helpers/0left/0crashes,exit0. Details: shutdown investigation and
+baseline-shutdown-worker-start. Concurrent B-16 remains a separate open gate.

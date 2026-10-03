@@ -10,15 +10,15 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | Laptop build | Complete: M1 Max 64 GB, nice 0, default 10 jobs, existing out/dev. Resumed 11,610 s; cumulative with prior partial 14,620 s. Original build retry 0. Final load 404.72 / 462.97 / 478.30 |
 | Package | Ad-hoc strict signature valid; 518 component dylibs, 916 MB framework, latest host 918 MB; mock keychain |
 | Initial baseline | nav 14.209 s; open10 ready 15 s; valid ten-page quits 0.493 / 0.471 s, 0 helpers left / 0 new crashes |
-| Latest serial baseline | After renderer-containment fix: nav 21.170 s; ten loaded pages, quit 0.554 s, load1 18.00, 26 helpers / 0 left / 0 new crashes, exit 0 |
+| Latest serial baseline | After shutdown-worker-start correction: nav 20.447 s; ten loaded pages, quit 3.083 s, load1 29.759, 26 helpers / 0 left / 0 new crashes, exit 0 |
 | Concurrent repetition | Three-browser exercise reproduced 2 watchdog exits after all ten pages loaded; third fixture rejected. Helper-capture repeat passed at 6.017 / 5.691 s but does not resolve the failure |
 | Surface coverage | Original 18 processes driven without crashes. 17 drives pass; fullscreen deliberately rejects and its driver fails. Added deterministic FedCM passive bubble / active modal probe passes. Native UI acceptance remains partial |
 | Network before | Fresh profile, 600 s idle, 608 s process: 62 HTTP / 86 connections / 9 DNS, 0 TLS errors |
-| Network final current package | Engine 0f87b84 / host a4f8c25: fresh profile, 600 s requested idle, 614 s process; 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events over 600.419 s, exit 0 |
+| Network last fully audited package | Engine 0f87b84 / host a4f8c25: fresh profile, 600 s requested idle, 614 s process; 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events over 600.419 s, exit 0 |
 | On-demand exception | Widevine 4.10.3050.0 installed only after EME request; MediaKeys created in 6.812 s; 3 external updater requests. Installed reuse and unrelated-key probe: 0 external requests. Forced updater DNS failure bounded at 60.163 s. Licensed playback unverified |
 | TLS B-3 | All 88 reproduced laptop failures attributed by host to local DNS sinkholes ([::]:443), TLS alert 80 / BoringSSL 1080. Exact historical mini ~220 still needs its original NetLog |
 | Crashpad B-14 | Both primary and monitor command lines verified at selected-root/Crashpad, prod=Room_Mac |
-| Patch/API scope | Original 0001–0005/public ObjC headers unchanged. New 0006 scheduler, 0007 demand-CDM, 0008 FedCM anchor and 0009 SadTab factory hooks each justified; implementation remains in //room |
+| Patch/API scope | Original 0001–0005/public ObjC headers unchanged. New 0006 scheduler, 0007 demand-CDM, 0008 FedCM anchor and 0009 SadTab factory hooks, plus 0010 shutdown-worker-start correction, each justified; implementation remains in //room |
 | Chapter 2 scope | Protected diff contains only App/RoomCore. No Packages, other App, ROADMAP edits; no main push or merge |
 
 Before request list: accounts.google.com 1 (Gaia), android.clients.google.com
@@ -124,3 +124,15 @@ spike-note sections are preserved. Engine/roomcore and App/RoomCore tree hashes
 are unchanged by rebase; original measured package IDs above remain valid
 historical artifact identities. Protected-path diff again contains only
 App/RoomCore. Original five patches and public ObjC headers remain unchanged.
+
+Patch0010 corrects a separately demonstrated startup invariant: workers created
+after shutdown begins now enter at least default priority (probe QoS9 to25),
+while normal worker startup remains atQoS9. Build30.66s/15steps and required
+serial baseline pass. Existing blocked workers and all teardown deadlines are
+unchanged. B-16 is not claimed resolved. The fully audited idle package above
+predates this base-library correction; network policy source is unchanged.
+
+Concurrent follow-up on patch0010: all ten pages ready in each of three hosts;
+quits2.766/2.453/2.090s, zero helpers left/crash reports, exit0. Same observer as
+the preceding clean control; changing site/load conditions prevent performance
+or root-cause claims. Apply0applied/10already, Chromium7ac71cfacf83f.

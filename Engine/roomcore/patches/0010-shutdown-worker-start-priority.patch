@@ -1,0 +1,19 @@
+diff --git a/base/task/thread_pool/worker_thread.cc b/base/task/thread_pool/worker_thread.cc
+--- a/base/task/thread_pool/worker_thread.cc
++++ b/base/task/thread_pool/worker_thread.cc
+@@ -182,8 +182,14 @@
+   self_ = this;
+ 
+   constexpr size_t kDefaultStackSize = 0;
++  // A worker created during shutdown must not enter at background priority
++  // before it can reach the priority update in RunWorker().
++  const ThreadType initial_thread_type =
++      task_tracker_->HasShutdownStarted()
++          ? std::max(thread_type_hint_, ThreadType::kDefault)
++          : thread_type_hint_;
+   PlatformThread::CreateWithType(kDefaultStackSize, this, &thread_handle_,
+-                                 thread_type_hint_);
++                                initial_thread_type);
+ 
+   if (thread_handle_.is_null()) {
+     self_ = nullptr;

@@ -39,6 +39,7 @@ factory/anchor hooks keep their implementations in `//room`:
 | `0007-demand-cdm-factory-hooks` | observe an actual EME request and CDM registration without public ObjC API changes |
 | `0008-fedcm-anchor-hook` | supply native bubble/modal parents without pretending Cocoa content is a Views WebView |
 | `0009-sad-tab-factory-hook` | contain renderer loss in a Cocoa fallback; SadTab::Create otherwise directly constructs a BrowserView-dependent controller |
+| `0010-shutdown-worker-start-priority` | workers created after shutdown starts enter at least default priority; the direct base thread creation has no Room hook, and an isolated probe demonstrates the lost startup clamp |
 
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's

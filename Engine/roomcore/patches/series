@@ -10,3 +10,4 @@
 0007-demand-cdm-factory-hooks.patch
 0008-fedcm-anchor-hook.patch
 0009-sad-tab-factory-hook.patch
+0010-shutdown-worker-start-priority.patch
