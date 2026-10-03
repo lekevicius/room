@@ -9,6 +9,7 @@ contain private URLs: only host names and Chromium source paths are printed.
 import argparse
 from collections import Counter, defaultdict, deque
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
@@ -74,6 +75,13 @@ def summarize(data, annotation_map):
             parsed = host(params.get(field))
             if parsed:
                 source_hosts[source].add(parsed)
+        # Socket pool retries/preconnects may have no request dependency.
+        # GroupId::ToString serializes optional policy prefixes, destination,
+        # then a space and the partition key. Only destination names the peer.
+        group = params.get('group_id', '').split(' ', 1)[0]
+        destination = re.search(r'(?:https?|wss?)://[^\s]+', group)
+        if destination and (parsed := host(destination.group())):
+            source_hosts[source].add(parsed)
         if kind == 'URL_REQUEST_START_JOB' and phase == 'PHASE_BEGIN':
             url = params.get('url', '')
             if urlsplit(url).scheme in ('http', 'https', 'ws', 'wss', 'ftp'):

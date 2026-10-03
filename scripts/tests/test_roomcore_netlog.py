@@ -54,6 +54,14 @@ class NetLogTests(unittest.TestCase):
         self.assertFalse(report['observed_zero_network'])
         self.assertEqual(report['dns_requests'], [{'host': 'dns.test', 'count': 1}])
 
+    def test_tls_retry_group_uses_destination_not_partition(self):
+        report = run([event('SOCKET_POOL_BOUND_TO_CONNECT_JOB', 2, {
+            'group_id': 'disable_cert_network_fetches/https://ads.test <https://page.test same_site>'}),
+            event('TCP_CONNECT', 3, {'source_dependency': {'id': 2}}),
+            event('SSL_CONNECT', 3, {'net_error': -107}, phase=2)])
+        self.assertEqual(report['tls_failures'], [
+            {'hosts': ['ads.test'], 'net_error': -107, 'count': 1}])
+
     def test_non_network_url_not_counted(self):
         report = run([event('URL_REQUEST_START_JOB', 1, {'url': 'data:text/html,hello'})])
         self.assertEqual(report['request_attempts'], 0)
