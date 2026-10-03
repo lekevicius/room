@@ -21,9 +21,11 @@ source_set("browser") {
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//components/input",
+    "//components/web_modal",
     "//content/public/browser",
     "//ui/base",
     "//ui/gfx",
+    "//ui/views",
   ]
   frameworks = [ "AppKit.framework" ]
 }

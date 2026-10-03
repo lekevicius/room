@@ -4,8 +4,12 @@
 
 #import <AppKit/AppKit.h>
 
+#include <algorithm>
+
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/observer_list.h"
+#include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_manager_service.h"
@@ -19,6 +23,7 @@
 #include "room/browser/room_exclusive_access_context.h"
 #include "room/browser/room_location_bar.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
+#include "ui/views/widget/widget.h"
 
 namespace room {
 // Defined in chrome/browser/ui/views/frame/browser_window_factory.cc
@@ -27,6 +32,82 @@ extern BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*);
 }  // namespace room
 
 namespace {
+
+// Views-backed web dialogs still need a native parent and an explicit host
+// lifetime even though Room does not own a BrowserView.
+class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
+ public:
+  explicit RoomModalDialogHost(NSWindow* window) : window_(window) {
+    // NativeWidgetMac's child-modal path needs a Views NSWindow host, not
+    // merely an arbitrary NSView. A transparent, noninteractive child widget
+    // supplies that bridge without replacing the Swift-owned browser window.
+    widget_ = std::make_unique<views::Widget>();
+    views::Widget::InitParams params(
+        views::Widget::InitParams::CLIENT_OWNS_WIDGET,
+        views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
+    params.name = "RoomModalAnchor";
+    params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
+    params.accept_events = false;
+    params.activatable = views::Widget::InitParams::Activatable::kNo;
+    widget_->Init(std::move(params));
+    widget_->SetVisibilityChangedAnimationsEnabled(false);
+    widget_->SetOpacity(0);
+    UpdateBounds();
+    [window addChildWindow:widget_->GetNativeWindow().GetNativeNSWindow()
+                  ordered:NSWindowBelow];
+    widget_->ShowInactive();
+    resize_observer_ = [NSNotificationCenter.defaultCenter
+        addObserverForName:NSWindowDidResizeNotification object:window queue:nil
+        usingBlock:^(NSNotification*) { NotifyPositionRequiresUpdate(); }];
+    move_observer_ = [NSNotificationCenter.defaultCenter
+        addObserverForName:NSWindowDidMoveNotification object:window queue:nil
+        usingBlock:^(NSNotification*) { NotifyPositionRequiresUpdate(); }];
+  }
+  ~RoomModalDialogHost() override {
+    [NSNotificationCenter.defaultCenter removeObserver:resize_observer_];
+    [NSNotificationCenter.defaultCenter removeObserver:move_observer_];
+    for (auto& observer : observers_) {
+      observer.OnHostDestroying();
+    }
+    [window_ removeChildWindow:widget_->GetNativeWindow().GetNativeNSWindow()];
+    widget_->CloseNow();
+  }
+  gfx::NativeView GetHostView() const override {
+    return widget_->GetNativeView();
+  }
+  gfx::Point GetDialogPosition(const gfx::Size& size) override {
+    const gfx::Size bounds = GetMaximumDialogSize();
+    return gfx::Point(std::max(0, (bounds.width() - size.width()) / 2),
+                      std::max(0, (bounds.height() - size.height()) / 2));
+  }
+  gfx::Size GetMaximumDialogSize() override {
+    const NSSize size = window_.contentView.bounds.size;
+    return gfx::Size(size.width, size.height);
+  }
+  void AddObserver(web_modal::ModalDialogHostObserver* observer) override {
+    observers_.AddObserver(observer);
+  }
+  void RemoveObserver(web_modal::ModalDialogHostObserver* observer) override {
+    observers_.RemoveObserver(observer);
+  }
+  void NotifyPositionRequiresUpdate() override {
+    UpdateBounds();
+    for (auto& observer : observers_) {
+      observer.OnPositionRequiresUpdate();
+    }
+  }
+ private:
+  void UpdateBounds() {
+    NSRect content = [window_.contentView convertRect:window_.contentView.bounds
+                                               toView:nil];
+    widget_->SetBounds(gfx::ScreenRectFromNSRect([window_ convertRectToScreen:content]));
+  }
+  NSWindow* __weak window_;
+  id resize_observer_;
+  id move_observer_;
+  std::unique_ptr<views::Widget> widget_;
+  base::ObserverList<web_modal::ModalDialogHostObserver> observers_;
+};
 
 struct PendingHostWindow {
   NSWindow* __weak window = nil;
@@ -73,6 +154,7 @@ ScopedPendingHostWindow::~ScopedPendingHostWindow() {
 
 struct RoomBrowserWindow::ObjCMembers {
   NSWindow* __weak window;
+  std::unique_ptr<RoomModalDialogHost> modal_host;
 };
 
 RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
@@ -80,7 +162,7 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
                                      room::RoomBrowserWindowClient* client)
     : browser_(browser),
       client_(client),
-      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window})),
+      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr})),
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser)) {}
 
@@ -162,6 +244,9 @@ void RoomBrowserWindow::Close() {
     return;
   }
   destroy_posted_ = true;
+  // Close the auxiliary Views window before closing the host NSWindow and
+  // stopping the native run loop, while its AppKit parent is still valid.
+  objc_->modal_host.reset();
   if (client_) {
     client_->OnBrowserWindowWillClose();
   }
@@ -248,4 +333,19 @@ LocationBar* RoomBrowserWindow::GetLocationBar() const {
 
 void RoomBrowserWindow::DeleteBrowserWindow() {
   delete this;
+}
+
+web_modal::WebContentsModalDialogHost*
+RoomBrowserWindow::GetWebContentsModalDialogHost() {
+  RoomStubHit("GetWebContentsModalDialogHost");
+  if (!objc_->modal_host) {
+    objc_->modal_host = std::make_unique<RoomModalDialogHost>(objc_->window);
+  }
+  return objc_->modal_host.get();
+}
+
+web_modal::WebContentsModalDialogHost*
+RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents*) {
+  RoomStubHit("GetWebContentsModalDialogHostFor");
+  return GetWebContentsModalDialogHost();
 }

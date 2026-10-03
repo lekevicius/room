@@ -182,3 +182,7 @@ is explicitly retained as a rejected sample. Added per-page diagnostics and
 explicit warning-level stderr logging to subsequent spikes: the first-hit
 stub logger was compiled in, but Chromium's default stderr configuration did
 not print its WARNING messages in the initial captures.
+
+Post-modal-fix laptop baseline: nav 11.935 s; ten loaded pages, quit 0.442 s
+at load1 32.85, 28 helpers observed, 0 left, no new crash reports, exit 0.
+Raw evidence: `baseline-modal-final` and `roomcore-quit-auqwxlkm` in TMPDIR.

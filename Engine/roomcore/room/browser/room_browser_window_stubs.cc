@@ -245,16 +245,6 @@ std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
   return nullptr;
 }
 
-web_modal::WebContentsModalDialogHost* RoomBrowserWindow::GetWebContentsModalDialogHost() {
-  RoomStubHit("GetWebContentsModalDialogHost");
-  return nullptr;
-}
-
-web_modal::WebContentsModalDialogHost* RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents* web_contents) {
-  RoomStubHit("GetWebContentsModalDialogHostFor");
-  return nullptr;
-}
-
 void RoomBrowserWindow::ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) {
   RoomStubHit("ShowAvatarBubbleFromAvatarButton");
 }

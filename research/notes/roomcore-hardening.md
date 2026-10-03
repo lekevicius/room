@@ -119,3 +119,51 @@ TLS alert 80 and BoringSSL reason 1080 (TLSV1_ALERT_INTERNAL_ERROR). This is
 local/sinkholed endpoint behavior, not a Chromium certificate-validation
 failure. Known hosts are page advertising/measurement resources. Sixteen
 connections still need hostname attribution; do not close B-3 yet.
+
+### Runtime findings after checkpoint 3
+
+Rebased onto main `3c7fafc` after all compiler processes exited. Exact protected
+path diff now contains App/RoomCore only. The newer AGENTS.md directs sessions
+to command-line hooks/logs rather than accessibility/computer-use; remaining
+native click/visual checks will be listed for review. No Chapter 2 edits.
+
+A logging-enabled ten-loaded-page quit passed at 8.939 s (load1 44.52), with
+28 helpers observed, 0 left, no crash report. This slower result is retained;
+clean quit is verified, subsecond latency is not universal.
+
+Harness fixes from first runtime contact: system Bash 3 needs guarded empty
+array expansion; Chromium CDP requires text WebSocket messages, not binary
+frames. Watchdogs now sleep in a single Python process so cancelling a
+watchdog does not leave an orphan sleep. Host typecheck/package passed.
+
+First engine crash: `dialogs`, exit 134. Chrome
+`components/constrained_window/constrained_window_views.cc:295` CHECKs
+`dialog_host` while creating `JavaScriptTabModalDialogViewViews`;
+`GetWebContentsModalDialogHostFor` returned null. Fix in progress: provide an
+NSWindow-backed WebContentsModalDialogHost with bounds, observer lifetime and
+resize notifications, keeping Views dialogs per PLAN §4. No raw patch needed.
+
+The first modal-host implementation compiled in 24 s but exposed a second
+fatal DCHECK at `ui/views/widget/native_widget_mac.mm:589`: a child-modal
+Views widget requires a `NativeWidgetMacNSWindowHost` parent; an ordinary
+AppKit NSView is insufficient. The current fix adds a transparent,
+noninteractive Views child-widget anchor scoped to the Room window, with
+explicit resize/move positioning and destruction notifications. Both checks
+remain enabled. The component build's non-official default sets
+`dcheck_always_on=true`, despite `is_debug=false`; corrected the plan's earlier
+assumption. Runtime verification of the bridge is in progress.
+
+The post-CDP shutdown stall was a harness issue: Chromium
+`ChromeDevToolsManagerDelegate` deliberately holds REMOTE_DEBUGGING when
+`--no-startup-window` and remote debugging are enabled, releasing it through
+`Browser.close` (covered upstream by KeepsAliveUntilBrowserClose). A keys-only
+control also stalled; its sampled main thread was idle in NSApplication.run.
+Feature drives now close via the browser CDP endpoint. The ordinary nav,
+open10 and idle/network runs still quit through NSApp.terminate. Watchdog
+intervention is explicitly rejected even if SIGTERM leads to exit status 0.
+Corrected keys and dialogs drives both exited 0 without the 90 s watchdog.
+
+Modal-host fix verified: three dialog open/close events, page survives, exit 0
+without watchdog. Post-fix baseline nav 11.935 s; ten-loaded-page quit 0.442 s
+at load1 32.85, 28 helpers observed, 0 left, 0 new crash reports. No patches or
+public API changes. Native focus/appearance review remains open.

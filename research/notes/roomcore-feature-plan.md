@@ -41,8 +41,9 @@ have no CDP port, HTTP fixture, extension, or externally loaded start page.
 
 `review-required` and `prompt-observation` are deliberately unresolved
 results, not functional passes. CDP dialog cancellation also does not prove
-native dialog UI. The component build has `is_debug=false`: CHECK paths are
-active but disabled DCHECKs cannot be claimed tested. Record that distinction.
+native dialog UI. The component build has `is_debug=false`, but DCHECKs are active in this
+non-official build: the modal-host drive hit a fatal NativeWidgetMac DCHECK.
+Preserve checks; do not disable them to make a feature pass.
 
 ## Surface result format
 

@@ -257,3 +257,20 @@ Behaviour on CEF (`scripts/run-spike.sh palette -RoomSidebarFixture demo`, key e
 | Smoke quit | 0.18 s, exit 0, no helpers left, no crash report |
 
 Captures (`research/screenshots/phase-2.4a/`, 1244 × 818 window at 2×): empty, results ("ar"), ⌘L edit and docked, light and dark; in-process layer renders with the page composited from a CDP screenshot and the glass replaced by a flat stand-in (it draws nothing in-process). The dark captures found row titles drawn in light-mode black: SwiftUI's `.primary` in the reused overlay kept the light appearance; rows now use dynamic `NSColor`s.
+## RoomCore background hardening — laptop M1 Max (2026-10-03)
+
+Component build with active DCHECKs, five original patches unchanged. Each
+feature uses an isolated profile and warning-level first-hit stub logging.
+Native visual/click checks remain explicit reviewer tasks under AGENTS.md.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| dialogs | JavaScriptTabModalDialogManagerDelegateDesktop → JavaScriptTabModalDialogViewViews → constrained_window_views.cc:295; NativeWidgetMac::InitNativeWidget at native_widget_mac.mm:589 | GetWebContentsModalDialogHostFor, GetWebContentsModalDialogHost; native Views parent | Previous null host CHECK (exit 134), then arbitrary NSView parent DCHECK (exit 134). //room supplies a lazy WebContentsModalDialogHost and transparent noninteractive Views child anchor tied to the Swift NSWindow; host observers follow resize/move and teardown. Three dialogs opened/closed, cancelled results undefined/false/null, page alive, exit 0; no watchdog. Native appearance/focus still needs review. |
+| keys | CDP Input.dispatchKeyEvent → RenderWidgetHost input | common activation/toolbar stubs only in this page-event drive | Page recorded a/KeyA, exit 0, no watchdog. Native reserved shortcuts and alternate layouts unverified. |
+
+Evidence: `feature-dialogs-cdp-close`, `feature-keys-cdp-close` (local ignored
+raw logs). Modal rebuilds: 24 s initial, 20 s final teardown version; final
+package stage 3.5 s + host 8.1 s, signature valid. Post-fix baseline
+`baseline-modal-final`: nav **11.935 s**, assertions passed; ten loaded pages,
+quit **0.442 s**, load1 **32.85**, 28 helpers observed, **0 left**, **0 new
+crash reports**, exit **0**. Private API headers and patch files unchanged.
