@@ -317,8 +317,9 @@ public final class TabController: SidebarHost {
             if stored.liveURL != live || stored.liveTitle != liveTitle {
                 try? store.sidebar.setLivePage(entry, url: live, title: liveTitle)
             }
-            // The title arrives after the commit that recorded the visit.
-            if let title, !title.isEmpty, page.historyTitle?.url != url || page.historyTitle?.title != title {
+            // The title arrives after the commit that recorded the visit; written
+            // once loading ends, so a page's previous title never lands on its new URL.
+            if !contents.isLoading, let title, !title.isEmpty, page.historyTitle?.url != url || page.historyTitle?.title != title {
                 page.historyTitle = (url, title)
                 store.history.setTitle(title, for: live)
             }
@@ -331,6 +332,14 @@ public final class TabController: SidebarHost {
             }
         }
         sidebar?.pageStateDidChange([entry])
+    }
+
+    /// Writes the page's title for its URL if it is not loading (after a commit's visit).
+    func refreshHistoryTitle(_ page: Page) {
+        let contents = page.contents
+        guard !contents.isLoading, let url = contents.url, let title = contents.title, !title.isEmpty else { return }
+        page.historyTitle = (url, title)
+        store.history.setTitle(title, for: url.absoluteString)
     }
 
     // MARK: Favicon cache (spec §I.2)

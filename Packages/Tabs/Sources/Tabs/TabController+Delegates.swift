@@ -15,8 +15,11 @@ extension TabController: NavigationDelegate {
     /// Every committed main-frame navigation of an entry's page is a history
     /// visit (ROADMAP 2.4 task 4); the title follows when the page reports it.
     public func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
-        guard entryID(for: webContents) != nil else { return }
+        guard let id = entryID(for: webContents) else { return }
         store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition))
+        // The title is written again after this visit (same-document commits keep the page's title).
+        pages[id]?.historyTitle = nil
+        if let page = pages[id] { refreshHistoryTitle(page) }
     }
 }
 
