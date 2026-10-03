@@ -124,9 +124,9 @@ final class PeekPresenter: PeekDisplay {
     private func trackHeader(_ contents: any WebContents) {
         let (url, title, background) = withObservationTracking {
             (contents.url, contents.title, contents.rootBackgroundColor)
-        } onChange: { [weak self, id = ObjectIdentifier(contents)] in
+        } onChange: { [weakSelf = MainActorWeak(self), id = ObjectIdentifier(contents)] in
             Task { @MainActor in
-                guard let self, let current = self.contents, ObjectIdentifier(current) == id else { return }
+                guard let self = weakSelf.value, let current = self.contents, ObjectIdentifier(current) == id else { return }
                 self.trackHeader(current)
             }
         }

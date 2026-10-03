@@ -144,10 +144,10 @@ final class PageHost: PageDisplay {
     private func trackBackground() {
         let color = withObservationTracking {
             contents?.rootBackgroundColor
-        } onChange: { [weak self, id = contents.map(ObjectIdentifier.init)] in
+        } onChange: { [weakSelf = MainActorWeak(self), id = contents.map(ObjectIdentifier.init)] in
             // Fires before the new value is stored; read it on the next turn.
             Task { @MainActor in
-                guard let self, self.contents.map(ObjectIdentifier.init) == id else { return }
+                guard let self = weakSelf.value, self.contents.map(ObjectIdentifier.init) == id else { return }
                 self.trackBackground()
             }
         }

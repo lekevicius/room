@@ -279,9 +279,9 @@ final class SplitPaneView: NSView {
     private func trackPage() {
         let (background, url) = withObservationTracking {
             (contents?.rootBackgroundColor, contents?.url)
-        } onChange: { [weak self, id = contents.map(ObjectIdentifier.init)] in
+        } onChange: { [weakSelf = MainActorWeak(self), id = contents.map(ObjectIdentifier.init)] in
             Task { @MainActor in
-                guard let self, self.contents.map(ObjectIdentifier.init) == id else { return }
+                guard let self = weakSelf.value, self.contents.map(ObjectIdentifier.init) == id else { return }
                 self.trackPage()
             }
         }
