@@ -408,6 +408,32 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
+/// The content-setting types the site panel reads and writes
+/// (`cef_content_setting_types_t`).
+typedef NS_ENUM(NSInteger, RoomCEFContentSettingType) {
+  RoomCEFContentSettingTypeGeolocation,
+  RoomCEFContentSettingTypeCamera,
+  RoomCEFContentSettingTypeMicrophone,
+  RoomCEFContentSettingTypeNotifications,
+  RoomCEFContentSettingTypeClipboard,
+  RoomCEFContentSettingTypeSensors,
+  RoomCEFContentSettingTypeMidiSysex,
+  RoomCEFContentSettingTypePopups,
+  RoomCEFContentSettingTypeSound,
+  RoomCEFContentSettingTypeAutomaticDownloads,
+  RoomCEFContentSettingTypeJavaScript,
+  RoomCEFContentSettingTypeImages,
+};
+
+/// `cef_content_setting_values_t` (Default = nothing stored for the site).
+typedef NS_ENUM(NSInteger, RoomCEFContentSettingValue) {
+  RoomCEFContentSettingValueDefault,
+  RoomCEFContentSettingValueAllow,
+  RoomCEFContentSettingValueBlock,
+  RoomCEFContentSettingValueAsk,
+  RoomCEFContentSettingValueSessionOnly,
+};
+
 /// One profile: a `CefRequestContext` with its own cache path.
 NS_SWIFT_UI_ACTOR
 @interface RoomCEFRequestContext : NSObject
@@ -429,6 +455,11 @@ NS_SWIFT_UI_ACTOR
 - (void)clearHTTPCacheWithCompletion:(void (^)(void))completion;
 - (void)clearHTTPAuthCredentialsWithCompletion:(void (^)(void))completion;
 - (void)clearCertificateExceptionsWithCompletion:(void (^)(void))completion;
+
+/// `GetContentSetting(url, url, type)`: the value stored for the site, or Default.
+- (RoomCEFContentSettingValue)contentSettingForURL:(NSString*)url type:(RoomCEFContentSettingType)type;
+/// `SetContentSetting(url, url, type, value)`; Default removes the site's value.
+- (void)setContentSetting:(RoomCEFContentSettingValue)value forURL:(NSString*)url type:(RoomCEFContentSettingType)type;
 
 @end
 

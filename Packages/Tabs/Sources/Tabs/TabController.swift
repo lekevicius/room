@@ -170,6 +170,13 @@ public final class TabController: SidebarHost {
     /// The page of `entry`, if it has one (alive or discarded).
     public func contents(for entry: UUID) -> (any WebContents)? { pages[entry]?.contents }
 
+    /// The engine profile (cookie jar, permissions) a page lives in: the site
+    /// panel acts on it (ROADMAP 2.6).
+    public func engineProfile(for contents: any WebContents) -> (any Engine.Profile)? {
+        guard let id = entryID(for: contents), let page = pages[id] else { return nil }
+        return engineProfiles[page.profileID]
+    }
+
     /// Entries with a page, alive or discarded.
     public var loadedEntryIDs: [UUID] { Array(pages.keys) }
 

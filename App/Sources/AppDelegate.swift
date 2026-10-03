@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var find: FindController?
     private(set) var zoom: ZoomIndicator?
     private(set) var statusPill: StatusPill?
+    /// The site panel on the header's site button (2.6b).
+    let sitePanel = SitePanel()
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -357,6 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             statusPill?.reset()
         }
         find.setPage(pageHost.contents)
+        sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.performMenuAction = { [weak tabs] action, page in
             switch action {
@@ -496,6 +499,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case 1: zoom?.zoomIn(page)
         case -1: zoom?.zoomOut(page)
         default: zoom?.reset(page)
+        }
+    }
+
+    /// The site panel for the page in the card: its origin's permissions and
+    /// site data in the page's own profile (ROADMAP 2.6 task 3).
+    func showSitePanel() {
+        if sitePanel.isShown { return sitePanel.close() }
+        guard let tabs, let page = tabs.current, let origin = SitePanelRules.origin(of: page.url),
+              let profile = tabs.engineProfile(for: page), let rootView = windowController?.rootView else { return }
+        let model = SitePanelModel(origin: origin, security: page.securityState, profile: profile) { [weak page] in page?.reload() }
+        if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {
+            sitePanel.show(model, relativeTo: button.bounds, of: button, preferredEdge: .maxY)
+        } else {
+            // No header (hidden sidebar): the card's top-left corner, as the permission popover.
+            let card = rootView.currentLayout.card
+            sitePanel.show(model, relativeTo: NSRect(x: card.minX + 12, y: card.minY, width: 24, height: 1), of: rootView, preferredEdge: .maxY)
         }
     }
 

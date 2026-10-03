@@ -97,9 +97,50 @@ public final class CEFProfile: Profile {
         }
     }
 
+    // MARK: Site permissions (content settings)
+
+    public func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting? {
+        switch context.contentSetting(forURL: origin.absoluteString, type: RoomCEFContentSettingType(permission)) {
+        case .allow, .sessionOnly: .allow
+        case .block: .block
+        case .ask: .ask
+        case .default: nil
+        @unknown default: nil
+        }
+    }
+
+    public func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL) {
+        let value: RoomCEFContentSettingValue = switch setting {
+        case .allow?: .allow
+        case .block?: .block
+        case .ask?: .ask
+        case nil: .default
+        }
+        context.setContentSetting(value, forURL: origin.absoluteString, type: RoomCEFContentSettingType(permission))
+    }
+
     // Chrome-only capabilities: not available on CEF.
     public var history: (any ProfileHistory)? { nil }
     public var bookmarks: (any ProfileBookmarks)? { nil }
     public var extensions: (any ProfileExtensions)? { nil }
     public func makeAutocompleteController() -> (any AutocompleteController)? { nil }
+}
+
+extension RoomCEFContentSettingType {
+    init(_ permission: SitePermission) {
+        self = switch permission {
+        case .geolocation: .geolocation
+        case .camera: .camera
+        case .microphone: .microphone
+        case .notifications: .notifications
+        case .clipboard: .clipboard
+        case .sensors: .sensors
+        case .midiSysex: .midiSysex
+        case .popups: .popups
+        case .sound: .sound
+        case .automaticDownloads: .automaticDownloads
+        case .javascript: .javaScript
+        case .images: .images
+        }
+    }
 }

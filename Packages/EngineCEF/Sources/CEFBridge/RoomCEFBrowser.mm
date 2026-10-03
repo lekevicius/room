@@ -1371,4 +1371,43 @@ class Completion : public CefCompletionCallback, public CefDeleteCookiesCallback
   _context->ClearCertificateExceptions(new Completion(completion));
 }
 
+static cef_content_setting_types_t ToCefContentType(RoomCEFContentSettingType type) {
+  switch (type) {
+    case RoomCEFContentSettingTypeGeolocation: return CEF_CONTENT_SETTING_TYPE_GEOLOCATION;
+    case RoomCEFContentSettingTypeCamera: return CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_CAMERA;
+    case RoomCEFContentSettingTypeMicrophone: return CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_MIC;
+    case RoomCEFContentSettingTypeNotifications: return CEF_CONTENT_SETTING_TYPE_NOTIFICATIONS;
+    case RoomCEFContentSettingTypeClipboard: return CEF_CONTENT_SETTING_TYPE_CLIPBOARD_READ_WRITE;
+    case RoomCEFContentSettingTypeSensors: return CEF_CONTENT_SETTING_TYPE_SENSORS;
+    case RoomCEFContentSettingTypeMidiSysex: return CEF_CONTENT_SETTING_TYPE_MIDI_SYSEX;
+    case RoomCEFContentSettingTypePopups: return CEF_CONTENT_SETTING_TYPE_POPUPS;
+    case RoomCEFContentSettingTypeSound: return CEF_CONTENT_SETTING_TYPE_SOUND;
+    case RoomCEFContentSettingTypeAutomaticDownloads: return CEF_CONTENT_SETTING_TYPE_AUTOMATIC_DOWNLOADS;
+    case RoomCEFContentSettingTypeJavaScript: return CEF_CONTENT_SETTING_TYPE_JAVASCRIPT;
+    case RoomCEFContentSettingTypeImages: return CEF_CONTENT_SETTING_TYPE_IMAGES;
+  }
+}
+
+- (RoomCEFContentSettingValue)contentSettingForURL:(NSString*)url type:(RoomCEFContentSettingType)type {
+  switch (_context->GetContentSetting(ToCef(url), ToCef(url), ToCefContentType(type))) {
+    case CEF_CONTENT_SETTING_VALUE_ALLOW: return RoomCEFContentSettingValueAllow;
+    case CEF_CONTENT_SETTING_VALUE_BLOCK: return RoomCEFContentSettingValueBlock;
+    case CEF_CONTENT_SETTING_VALUE_ASK: return RoomCEFContentSettingValueAsk;
+    case CEF_CONTENT_SETTING_VALUE_SESSION_ONLY: return RoomCEFContentSettingValueSessionOnly;
+    default: return RoomCEFContentSettingValueDefault;
+  }
+}
+
+- (void)setContentSetting:(RoomCEFContentSettingValue)value forURL:(NSString*)url type:(RoomCEFContentSettingType)type {
+  cef_content_setting_values_t cefValue = CEF_CONTENT_SETTING_VALUE_DEFAULT;
+  switch (value) {
+    case RoomCEFContentSettingValueDefault: cefValue = CEF_CONTENT_SETTING_VALUE_DEFAULT; break;
+    case RoomCEFContentSettingValueAllow: cefValue = CEF_CONTENT_SETTING_VALUE_ALLOW; break;
+    case RoomCEFContentSettingValueBlock: cefValue = CEF_CONTENT_SETTING_VALUE_BLOCK; break;
+    case RoomCEFContentSettingValueAsk: cefValue = CEF_CONTENT_SETTING_VALUE_ASK; break;
+    case RoomCEFContentSettingValueSessionOnly: cefValue = CEF_CONTENT_SETTING_VALUE_SESSION_ONLY; break;
+  }
+  _context->SetContentSetting(ToCef(url), ToCef(url), ToCefContentType(type), cefValue);
+}
+
 @end

@@ -9,7 +9,8 @@ import Model
 public final class AddressFieldView: NSView {
     var onActivate: (() -> Void)?
     var onCopy: (() -> Void)?
-    var onSiteButton: (() -> Void)?
+    /// The site button: the site panel (2.6b).
+    public var onSiteButton: (() -> Void)?
 
     private let siteButton = NSButton()
     private let domainField = NSTextField(labelWithString: "")

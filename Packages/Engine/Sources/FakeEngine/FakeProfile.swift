@@ -136,6 +136,21 @@ public final class FakeProfile: Profile {
         clearedSiteData.append((types, origin))
     }
 
+    /// Stored site permissions, keyed by origin (`scheme://host[:port]`).
+    public private(set) var permissionSettings: [String: [SitePermission: PermissionSetting]] = [:]
+
+    public func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting? {
+        permissionSettings[Self.originKey(origin)]?[permission]
+    }
+
+    public func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL) {
+        permissionSettings[Self.originKey(origin), default: [:]][permission] = setting
+    }
+
+    static func originKey(_ url: URL) -> String {
+        "\(url.scheme ?? "")://\(url.host() ?? "")" + (url.port.map { ":\($0)" } ?? "")
+    }
+
     // MARK: Capabilities the fake does not provide
 
     public var history: (any ProfileHistory)? { nil }

@@ -24,6 +24,12 @@ public protocol Profile: AnyObject {
     /// Deletes site data of the given kinds, for one origin or (`nil`) all.
     func clearSiteData(_ types: SiteDataTypes, for origin: URL?) async throws
 
+    /// The setting stored for `permission` on `origin`, or `nil` when the
+    /// site has none (the permission's default applies).
+    func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting?
+    /// Stores `setting` for `origin`; `nil` removes the site's setting.
+    func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL)
+
     // Optional capabilities: `nil` when the engine does not provide them
     // (CEF provides none). Their members are specified in Chapter 3.
 
