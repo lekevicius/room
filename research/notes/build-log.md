@@ -147,6 +147,7 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-03 03:09:20 | 41 m 13 s | 11,755 / 47,624 graph steps; compiling Blink core/platform, no failure/completion marker | nice 0; load 504.45 / 476.79 / 436.47 |
 | 2026-10-03 03:28:06 | 59 m 58.68 s | hourly sample recovered from log: 14,381 / 47,505 graph steps, Blink CSS | load not sampled at exactly one hour |
 | 2026-10-03 03:34:28 | 1 h 6 m 20.83 s | 14,904 / 47,504 graph steps, Blink SVG/style; no failure/completion marker | build/Siso nice 0; load 505.28 / 499.28 / 484.07 |
+| 2026-10-03 03:59:22 | 1 h 31 m 15.27 s | 17,002 / 47,361 graph steps, Blink bindings/payments; no failure/completion marker | build/Siso nice 0; load 426.61 / 458.57 / 474.10 |
 
 Total clean branded time must add 3,010 s from the earlier partial run to
 this resumed build; do not call the resumed wall time a clean-build total.
