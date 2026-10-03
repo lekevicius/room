@@ -177,3 +177,16 @@ repeat: 0.431 s at load1 50.53, 10 loaded pages, 28 helpers observed, 0 left,
 0 crash reports, exit 0. The rejected cleanup sample remains recorded.
 TLS source attribution is now complete for all 88 laptop failures; see
 roomcore-tls-audit.md. The historical mini count is not reconstructed.
+
+Permission drive initially exited 139: PermissionPromptBaseView →
+GetPermissionPromptBubbleAnchorConfiguration →
+bubble_anchor_util::GetPageInfoAnchorConfiguration dereferenced a null
+BrowserView. Existing LocationBar::GetChipAnchor is an earlier supported
+hook, so no raw patch is needed: return a real Views anchor in the auxiliary
+window. An internal forward-declaration compile error was corrected; build
+19 s. Permission drive then exited 0 in 16 s; native interaction review still
+pending. Idle-before audit began 06:40:58 EEST from a fixed cloned app copy,
+so incremental packaging does not mutate the measured executable.
+
+Permission-anchor baseline passed: nav 13.694 s, ten-loaded-page quit 0.647 s
+at load1 18.40, 28 helpers observed, 0 left, 0 new crash reports, exit 0.

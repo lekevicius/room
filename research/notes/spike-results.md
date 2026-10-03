@@ -274,3 +274,12 @@ package stage 3.5 s + host 8.1 s, signature valid. Post-fix baseline
 `baseline-modal-final`: nav **11.935 s**, assertions passed; ten loaded pages,
 quit **0.442 s**, load1 **32.85**, 28 helpers observed, **0 left**, **0 new
 crash reports**, exit **0**. Private API headers and patch files unchanged.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| permissions | PermissionPromptBaseView::AnchorToPageInfoOrChip → bubble_anchor_util_views.cc GetPageInfoAnchorConfiguration | GetLocationBar → GetChipAnchor; Views native parent | Null BrowserView fallback caused SIGSEGV (exit 139). Return a 1×1 Views anchor via the existing LocationBar hook. Notification/geolocation trigger survives, exit 0 in 16 s. Native prompt completion/layout is still unverified. |
+
+Permission-anchor baseline: nav **13.694 s**, ten-loaded-page quit **0.647 s**
+at load1 **18.40**; 28 helpers observed, **0 left**, **0 new crash reports**,
+exit **0**. Evidence `feature-permissions-anchor`, `baseline-permissions`,
+TMPDIR `roomcore-quit-7h1b5zin`. No raw patch or public header changes.

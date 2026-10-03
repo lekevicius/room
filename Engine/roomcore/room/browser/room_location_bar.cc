@@ -7,6 +7,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
+#include "room/browser/room_browser_window.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -52,7 +53,13 @@ LocationBarModel* RoomLocationBar::GetLocationBarModel() {
 
 std::optional<bubble_anchor_util::AnchorConfiguration>
 RoomLocationBar::GetChipAnchor() {
-  return std::nullopt;
+  // This existing LocationBar hook precedes Chrome's BrowserView-only
+  // fallback. Supply a real Views anchor, without impersonating BrowserView.
+  auto* window = static_cast<RoomBrowserWindow*>(
+      BrowserWindow::FromBrowser(browser_));
+  return bubble_anchor_util::AnchorConfiguration{
+      views::BubbleAnchor(window->GetBubbleAnchor()), std::nullopt,
+      views::BubbleBorder::TOP_LEFT};
 }
 
 ChipController* RoomLocationBar::GetChipController() {

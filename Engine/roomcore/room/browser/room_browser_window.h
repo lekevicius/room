@@ -20,6 +20,9 @@ class NSWindow;
 namespace content {
 class WebContents;
 }
+namespace views {
+class View;
+}
 
 namespace room {
 
@@ -68,6 +71,8 @@ class RoomBrowserWindow : public BrowserWindow {
   ~RoomBrowserWindow() override;
 
   BrowserWindowInterface* browser() const { return browser_; }
+  // Internal Views bridge for Chrome bubbles; the host owns the address UI.
+  views::View* GetBubbleAnchor();
 
   // ui::BaseWindow and BrowserWindow members with real implementations
   // (room_browser_window.mm).

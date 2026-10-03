@@ -50,6 +50,9 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
     params.accept_events = false;
     params.activatable = views::Widget::InitParams::Activatable::kNo;
     widget_->Init(std::move(params));
+    auto* contents = widget_->SetContentsView(std::make_unique<views::View>());
+    bubble_anchor_ = contents->AddChildView(std::make_unique<views::View>());
+    bubble_anchor_->SetBounds(16, 16, 1, 1);
     widget_->SetVisibilityChangedAnimationsEnabled(false);
     widget_->SetOpacity(0);
     UpdateBounds();
@@ -75,6 +78,7 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   gfx::NativeView GetHostView() const override {
     return widget_->GetNativeView();
   }
+  views::View* GetBubbleAnchor() { return bubble_anchor_; }
   gfx::Point GetDialogPosition(const gfx::Size& size) override {
     const gfx::Size bounds = GetMaximumDialogSize();
     return gfx::Point(std::max(0, (bounds.width() - size.width()) / 2),
@@ -106,6 +110,7 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   id resize_observer_;
   id move_observer_;
   std::unique_ptr<views::Widget> widget_;
+  raw_ptr<views::View> bubble_anchor_ = nullptr;
   base::ObserverList<web_modal::ModalDialogHostObserver> observers_;
 };
 
@@ -348,4 +353,9 @@ web_modal::WebContentsModalDialogHost*
 RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents*) {
   RoomStubHit("GetWebContentsModalDialogHostFor");
   return GetWebContentsModalDialogHost();
+}
+
+views::View* RoomBrowserWindow::GetBubbleAnchor() {
+  GetWebContentsModalDialogHost();
+  return objc_->modal_host->GetBubbleAnchor();
 }
