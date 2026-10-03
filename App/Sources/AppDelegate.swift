@@ -5,6 +5,8 @@ import Engine
 import FakeEngine
 import Infra
 import Model
+import Omnibox
+import Palette
 import Sidebar
 import Store
 import SwiftUI
@@ -22,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The window's pages: entries on the engine (Phase 2.3).
     private(set) var tabs: TabController?
     private(set) var switcher: TabSwitcher?
+    /// ⌘T / ⌘L (Phase 2.4).
+    private(set) var palette: PaletteController?
     private var toastCenter: ToastCenter?
     private var debugPanel: NSPanel?
     #if DEBUG
@@ -59,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             self.overlays = overlays
             installDebugPanel(DebugToolbar(tabs: tabs, pageHost: pageHost, pageDelegate: pageDelegate, overlays: overlays))
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
-                tabs.openNewTab(url: URLPrompt.url(from: start))
+                tabs.openNewTab(url: URLFixup.url(from: start) ?? URLFixup.searchURL(for: start))
             }
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
@@ -221,20 +225,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.display = pageHost
         tabs.sidebar = sidebar
         tabs.pageUIDelegate = pageDelegate
-        tabs.onNewTab = { [weak tabs] in
-            guard let text = URLPrompt.run(title: "New Tab", message: "Search or enter a URL (the palette arrives in Phase 2.4).", text: "")
-            else { return }
-            tabs?.openNewTab(url: URLPrompt.url(from: text))
-        }
-        tabs.onEditAddress = { [weak tabs, weak store] in
-            guard let tabs, let id = tabs.currentEntryID, let entry = store?.sidebar.entry(id) else {
-                tabs?.newTab()
-                return
-            }
-            guard let text = URLPrompt.run(title: "Open Location", message: "Navigate the selected tab (the palette arrives in Phase 2.4).",
-                                           text: entry.currentURL ?? "") else { return }
-            tabs.navigateSelected(to: URLPrompt.url(from: text))
-        }
         #if DEBUG
         if SidebarFixtures.requested != nil, SnapshotRunner.directory != nil {
             do {
@@ -263,8 +253,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return ToastCenter.Anchor(rect: CGRect(x: layout.card.minX, y: 0, width: SidebarMetrics.defaultWidth,
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
-        rootView.onLayout = { [weak toasts] in toasts?.updateAnchor() }
         sidebar.toasts = toasts
+        let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
+        palette.contentRect = { [weak rootView] in rootView?.currentLayout.card ?? .zero }
+        palette.addressFieldRect = { [weak rootView, weak sidebar] in
+            // Docked on the header field only while the sidebar shows it (spec §C).
+            guard let rootView, rootView.isSidebarOpen, let field = sidebar?.addressField, field.window != nil else { return nil }
+            return field.convert(field.bounds, to: rootView)
+        }
+        palette.favicon = { [weak tabs] id in
+            let state = tabs?.pageState(for: id)
+            return (state?.favicon, state?.isLoaded ?? false)
+        }
+        tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
+        tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
+        rootView.onLayout = { [weak toasts, weak palette] in
+            toasts?.updateAnchor()
+            palette?.layout()
+        }
+        self.palette = palette
         if let window = controller.window {
             switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
         }
@@ -288,14 +295,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: Menu actions (end of the responder chain)
 
-    /// ⌘T: a new Today tab (a URL prompt until the palette, Phase 2.4).
+    /// ⌘T: the palette, empty (spec §C); again closes it.
     @objc func newPage(_ sender: Any?) {
         tabs?.newTab()
     }
 
-    /// ⌘L: navigate the selected tab (a URL prompt until the palette, Phase 2.4).
+    /// ⌘L: the palette on the current URL (spec §C); again closes it.
     @objc func openLocation(_ sender: Any?) {
-        tabs?.editAddress()
+        tabs?.openLocation()
     }
 
     /// ⌘W: the multi-selection or the selected entry, per spec §A.3.

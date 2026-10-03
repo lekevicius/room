@@ -202,6 +202,11 @@ extension SpikeRunner.Context {
     /// and the whole turn, including layout, display and the Core Animation
     /// commit, which run in those observers (ours is last).
     func timedSelect(_ id: UUID) async -> (sync: Double, beforeDisplay: Double, turn: Double) {
+        await timedTurn { sidebar.select(id) }
+    }
+
+    /// Main-thread time of `body` and the run-loop turn it runs in (see `timedSelect`).
+    func timedTurn(_ body: () -> Void) async -> (sync: Double, beforeDisplay: Double, turn: Double) {
         let start = ContinuousClock.now
         return await withCheckedContinuation { continuation in
             var sync = 0.0, beforeDisplay = 0.0
@@ -218,7 +223,7 @@ extension SpikeRunner.Context {
             }
             CFRunLoopAddObserver(CFRunLoopGetMain(), first, .commonModes)
             CFRunLoopAddObserver(CFRunLoopGetMain(), last, .commonModes)
-            sidebar.select(id)
+            body()
             sync = ms(since: start)
         }
     }
@@ -321,7 +326,7 @@ extension SpikeRunner.Context {
     /// captures come back blank while the session is locked), with `page`
     /// drawn over `pageView`'s frame when given. The behind-window material
     /// renders as nothing in-process; a flat underlay stands in for it.
-    private func writeComposite(page: NSImage?, pageView: NSView?, overlay: NSView? = nil, to url: URL) -> String {
+    func writeComposite(page: NSImage?, pageView: NSView?, overlay: NSView? = nil, to url: URL) -> String {
         guard let content = window.contentView, let layer = content.layer else { return "no layer" }
         let scale = window.backingScaleFactor
         let size = content.bounds.size

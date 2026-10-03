@@ -47,6 +47,8 @@ packages:
     path: Packages/Tabs
   Omnibox:
     path: Packages/Omnibox
+  Palette:
+    path: Packages/Palette
 targets:
   Room:
     type: application
@@ -76,6 +78,7 @@ targets:
       - package: Chrome
       - package: Tabs
       - package: Omnibox
+      - package: Palette
       # DEBUG sidebar captures run the tab controller on FakeEngine pages.
       - package: Engine
         product: FakeEngine
@@ -100,5 +103,6 @@ schemes:
         - package: Chrome/ChromeTests
         - package: Tabs/TabsTests
         - package: Omnibox/OmniboxTests
+        - package: Palette/PaletteTests
     archive:
       config: Release

@@ -29,7 +29,7 @@ final class SpikeSession {
         self.profile = profile
         self.pageDelegate = pageDelegate
         tabs.onNewTab = { [weak self] in self?.newTabRequests += 1 }
-        tabs.onEditAddress = { [weak self] in self?.addressFocusRequest += 1 }
+        tabs.onEditAddress = { [weak self] _ in self?.addressFocusRequest += 1 }
     }
 
     var store: SidebarStore { sidebar.store.sidebar }

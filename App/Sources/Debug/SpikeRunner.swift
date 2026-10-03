@@ -12,7 +12,8 @@ import EngineCEF
 /// Phase 1.4 measurement against the live engine, appends `key: value` lines
 /// to the output file and, unless `-RoomSpikeKeepRunning YES`, quits.
 /// Spikes: cdp, scroll, resize, memory, audio, popups, hidden, open10,
-/// and Phase 2.3's tabs, switch, relaunch (`TabSpikes.swift`).
+/// Phase 2.3's tabs, switch, relaunch (`TabSpikes.swift`), and Phase 2.4a's
+/// palette, palettemeasure (`PaletteSpikes.swift`).
 enum SpikeRunner {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSpike") }
 
@@ -53,6 +54,8 @@ enum SpikeRunner {
         case "switch": await context.switching()
         case "relaunch": await context.relaunch()
         case "capture": await context.captures()
+        case "palette": await context.paletteChecks()
+        case "palettemeasure": await context.paletteMeasure()
         default: record("error", "unknown spike")
         }
         record("end", name)
