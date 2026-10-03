@@ -188,4 +188,5 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `PaletteMetrics.deleteButtonSize` | 18 | chosen: the × on a history row (spec §C "hover shows an × on the right"), shown on hover or highlight |
 | History frecency | half-life 30 days; visit weights typed 2, bookmark 1.5, link/other 1, generated/keyword/form 0.3, reload 0 | Firefox frecency (exponential decay, visit-type bonuses scaled to link = 1), `macos-ui-stack.md` §5.2 |
 | Inline completion | a host or URL typed before, or visited 3 times | chosen, after Chromium's HistoryURL provider (inlines typed URLs) |
+| `Symbol.appearance` | `circle.lefthalf.filled` | palette: Switch to Light/Dark/Auto Appearance |
 | Commands outside `>` | 3 letters or more starting a word of the title, relevance 400–700 (always the last group) | chosen; spec §C group 6 |

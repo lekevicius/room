@@ -257,3 +257,58 @@ Behaviour on CEF (`scripts/run-spike.sh palette -RoomSidebarFixture demo`, key e
 | Smoke quit | 0.18 s, exit 0, no helpers left, no crash report |
 
 Captures (`research/screenshots/phase-2.4a/`, 1244 × 818 window at 2×): empty, results ("ar"), ⌘L edit and docked, light and dark; in-process layer renders with the page composited from a CDP screenshot and the glass replaced by a flat stand-in (it draws nothing in-process). The dark captures found row titles drawn in light-mode black: SwiftUI's `.primary` in the reused overlay kept the light appearance; rows now use dynamic `NSColor`s.
+
+## Phase 2.4b — history, commands, site search, suggest; palette cost (2026-10-03, Mac mini M4, 24 GB, CEF)
+
+Conditions for every number below: the screen was unlocked and Room frontmost (`window_main: true`), but **screen sharing was active the whole session** (`avconferenced` + the video encoder, `mediaanalysisd` at up to 190% CPU; load average 5–21, stated per run) and the display ran at **60 Hz** (the running display link reported a 16.67 ms frame interval on every run). WindowServer-side timings are noisier than on an idle machine; our own code's timings are not affected much.
+
+### The 50k-row measurement (`scripts/run-spike.sh palettemeasure -RoomSidebarFixture 500 -RoomHistoryRows 50000`)
+
+Fixture: the 500-entry sidebar plus 50,000 synthetic history URLs (`App/Sources/Debug/HistoryFixture.swift`: deterministic, 2,500 hosts on a steep power law, word-salad paths and titles, 1–30 visits each over a year, 10% typed, 10% search pages; import ~10 s at launch). 14 queries typed as key events into the field editor, 120 keystrokes: sidebar words, hosts (`github`, `news`, `wiki`, `app`), multi-word (`swift docs`, `rust kernel`), a path (`developer.apple.com/sw`), common trigrams (`com`, `the`), a miss (`zzz`). History rows shown per keystroke 0–7 (mean 4.7); 62 of 120 keystrokes completed inline. Final runs on the committed code:
+
+| Measure (ms) | Debug run 1 (load 17) | Debug run 2 (load 12) | `-O` build (load 10) |
+|---|---|---|---|
+| **Local results: providers + scorer + rows model, all keys** (median / p95) | 3.18 / **9.85** | 3.76 / **9.93** | 2.40 / **5.93** |
+| … first key of a query (includes the sidebar snapshot, 2.9 ms Debug / 1.2 ms `-O`) | 9.85 / 16.88 | 9.93 / 13.43 | 5.50 / 7.89 |
+| Keystroke turn to rows on screen, later keys (n = 106) | 7.12 / **13.65** | 7.40 / **14.22** | 5.44 / **12.13** |
+| Keystroke turn, first key of a query (n = 14) | 23.89 / 28.29 | 24.71 / 30.63 | 22.22 / 31.99 |
+| Keystroke turn, all keys (n = 120) | 7.74 / 24.26 | 7.74 / 26.23 | 5.70 / 24.81 |
+
+The local-results pipeline is under 16 ms at p95 with 50k rows (9.9 ms Debug, 5.9 ms optimised), and so is every keystroke's whole turn after a query's first. The first keystroke of a query is not: ~10 ms of ours (snapshot, a one-letter query, ranking) plus ~12 ms of SwiftUI drawing eight rows of new text and ~5–7 ms of Core Animation commit as the glass panel grows from the field to the list (Time Profiler, below). With 14 first keys in 120, the all-keys p95 is a first key.
+
+Where the time went before the fixes (Time Profiler on `palettemeasure`, 1 ms samples, main thread): per keystroke, history 47% of the query (trigram search 32%, the `GROUP BY host` for inline completion 14%), entry matching 25%, the scorer 21% (re-normalising URLs for dedupe, `URLComponents` per comparison); outside the query SwiftUI rebuilt and re-measured all row views (~8 ms/keystroke). Fixes: `history_host` aggregate table (inline lookup is a range scan over hosts), dedupe key computed once per match, entries rejected by a `memmem` over a precomputed UTF-8 haystack and one-letter queries by word initials, history fetch 12 → 8 rows; row slots identified by position at a fixed height and never emptied (the panel clips them), one `Text` per row. Effect on later keys: turn p95 22.6 → 13.7–14.2 ms (Debug); query p95 10.8 → 9.9 ms.
+
+### Opening (⌘T to the next frame)
+
+| Measure (ms, median / p95) | 2.4a code, same probe, same machine (2 runs) | 2.4b, Debug (2 runs) | 2.4b, `-O` |
+|---|---|---|---|
+| Open call (our code) | 6.85–7.28 / 8.62–8.65 | 2.31–2.39 / 3.51–4.36 | 2.29 / 3.96 |
+| Open turn (incl. AppKit layout, display, commit) | 17.31–17.60 / 20.42–24.12 | 2.90–3.01 / 4.12–5.13 | 2.87 / 4.74 |
+| **Open to next frame** | 17.41–17.68 / 31.28–33.28 | **6.23–6.29 / 14.97–15.06** | **6.07 / 14.92** |
+
+Target (ROADMAP 2.4 carry-over a): ≤ 8.3 ms our code and ≤ 16.7 ms to the frame, median. Met: 2.3 ms of our code, 6.2 ms to the next frame. On this 60 Hz display "one 120 Hz frame" cannot be observed; the p95 (15 ms) is one 60 Hz frame. The probe changed: 2.4a created a `CADisplayLink` after each open and timed its first callback, which includes the link's own start-up (on the current code the old probe read 29.3 ms with a 7.5 ms turn); 2.4b keeps one link running through the measurement and takes the first frame that starts after the open's turn. The 2.4a column is the 2.4a commit (8522d6f) built with only the new probe patched in, run alternately with the current build.
+
+What the open cost (profile): the field becoming first responder made AppKit's password AutoFill heuristics (`NSAutoFillHeuristicController _showPasswordAutoFillIfNecessaryForView:`) ask the field for its previous and next valid key views, which walked every view in the window (500 sidebar rows, NSButton alignment insets, symbol images: ~6–7 ms), and build a one-time-code AutoFill window (`SPRoundedWindow`) on every open; adding and removing the overlay moved the rows' `NSHostingView` into and out of the window each time (~4 ms); clearing the rows at open re-rendered the list. Fixes: `contentType = .URL` on the field (it holds URLs; AutoFill stops guessing), `previousValidKeyView`/`nextValidKeyView` nil on the field and its own field editor, the overlay kept in the window hidden between opens, rows never emptied.
+
+### History recording on CEF (`scripts/run-spike.sh palette2 -RoomSidebarFixture demo`)
+
+| Navigation | Recorded |
+|---|---|
+| ⌘T "example.com" Enter | `https://example.com/` visits `[typed]`, title "Example Domain" (CEF's TT_EXPLICIT replaced by the requested `.typed`) |
+| `location.href = 'https://example.org/'` (script) | visits `[link]`, title "Example Domain" |
+| `history.pushState({}, '', '/pushed')` (same document) | visits `[link]`, title "Example Domain" — first run: not recorded (CEF reports `isLoading` true around `pushState`; rule changed to "an address no `OnLoadStart` claims in the same turn"); second run: no title (written before the deferred commit; titles now follow the visit once loading ends) |
+| Reload | no visit (reload transition) |
+| ⌘L "https://nonexistent.invalid/" (DNS error page) | not recorded (`OnLoadError` for the URL drops the commit) |
+| ⌘T "room browser palette" Enter | the Google results page, 1 visit (`generated`) |
+| Then ⌘T "exa" | inline `mple.com` (typed host); first run found none: the more frecent example.org (links only) was the only host fetched — fixed, test added |
+
+### Search suggest and the no-network check
+
+- `scripts/run-spike.sh suggestcheck -RoomSidebarFixture demo` on the real network, suggestions on (Google): three queries typed at ~16 keys/s with a 1.2 s pause after each; 5 suggestions arrived and showed for each ("swift concurrency" → "swift concurrency skill", "… interview questions", "… tutorial", …).
+- Through a logging proxy (`-RoomSuggestProxy 127.0.0.1:port`, a small Python listener that records each request line and answers 502), suggestions **on**: exactly 3 requests, `CONNECT suggestqueries.google.com:443` at the three pauses, none between keystrokes (the 120 ms debounce).
+- Same, suggestions **off** (`-RoomSuggestionsOff YES`), after the selected page finished loading and 3 s of quiet: **0 proxy requests** over 7.5 s of typing (3 queries, 47 keystrokes, 3 pauses), and in CEF's net-log (`--log-net-log … --net-log-capture-mode=Everything`) **0** `URL_REQUEST_START_JOB` / `HOST_RESOLVER_MANAGER_REQUEST` / `TCP_CONNECT` / `SSL_CONNECT` / `HTTP_STREAM_JOB` events between the first and last keystroke (263 before, from the page load). The 120-keystroke `palettemeasure` run with suggestions off: 0 proxy requests, 0 net-log request events in its 4.2 s typing window.
+- Outside the typing window the engine itself talks to Google: at launch `accounts.google.com/ListAccounts`, `www.google.com/async/folae`, `update.googleapis.com/service/update2/json` (as found on RoomCore in Phase 1.5, now also seen on CEF), and at quit a speculative DNS resolve plus a QUIC session job to `www.google.com:443` (aborted, `net_error -3`). A control run with no palette use (launch, 15 s, quit) shows the same quit-time job: engine behaviour, Chapter 3.1's audit (backlog B-19).
+
+Captures (`research/screenshots/phase-2.4b/`, 1244 × 818 window at 2×, light and dark, in-process renders as in 2.4a, glass replaced by a flat stand-in, suggestions off so no live third-party text): `history-inline` ("gi": github.com completed inline and merged with the open GitHub essential, "Switch to Tab"; four GitHub history rows; the search row), `commands` (⇥ from empty: `>` and the first eight commands A–Z), `commands-filtered` (`>re`), `site-search` (`yt` ⇥ `lofi`: the YouTube chip, "Search YouTube", two YouTube history rows).
+
+Tests: Room scheme 301 tests (unit and window tier) pass locally; the no-engine CI spec builds and passes with window suites skipped. Smoke quit 0.21 s, exit 0, no helpers left, no new crash reports.
