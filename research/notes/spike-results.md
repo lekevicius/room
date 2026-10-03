@@ -427,3 +427,21 @@ load1 15.50, 26 helpers, 0 left, 0 new crash reports, exit 0.
 Widevine fresh installation and MediaKeys creation now pass; negative-key,
 installed-profile reuse and bounded offline behavior are recorded in the
 network audit. Licensed playback is not established by MediaKeys creation.
+
+### Additional surface found by live open10: FedCM
+
+| Feature | Chrome path | Window members it needs | Fixed how / evidence |
+|---|---|---|---|
+| Federated sign-in bubble / modal | FedCmAccountSelectionView::CreateDialogWidget / GetAnchorView → BubbleDialogDelegate; then TabDialogManager::ShowDialog | Views anchor/native parent and initialized BrowserElements primary widget | Patch 0008 anchor hook returns the existing Room modal bridge only for Room windows; initialize BrowserElementsViewsImpl through Init(view). Private -RoomSpike fedcm opens and destroys a real passive failure bubble and active loading modal; both return true, 18 s process, exit 0 |
+
+Original live open10 aborted at bubble_dialog_delegate_view.cc:207 because
+kActiveContentsWebViewRetrievalId returned null. First probe after providing
+an anchor exposed a second null-primary-widget crash in TabDialogManager
+(line 360). That second dependency is supplied through the existing context
+initialization API, without another patch. The opaque Swift page view is not
+registered as a fake views::WebView. Native focus, account selection, IdP popup
+and token exchange remain unverified; this spike does not sign into a service.
+
+Post-FedCM baseline: nav 12.447 s; ten loaded pages, quit 0.635 s at load1
+28.40, 27 helpers / 0 left / 0 new crash reports, exit 0. The earlier failed
+open10 sample remains rejected and separate from the old shutdown watchdog.

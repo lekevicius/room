@@ -8,7 +8,7 @@ import RoomCore
 enum HostFeatureSpike {
     static let names = ["popups", "dialogs", "keys", "audio", "scroll", "transparent",
                         "corners", "band", "form", "extension", "downloads", "permissions",
-                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine"]
+                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
         guard names.contains(name) else { HostSpike.record("error", "unknown spike \(name)"); return }
@@ -191,6 +191,15 @@ enum HostFeatureSpike {
                     try host.runSpikeCommand(37001)
                     try host.runSpikeCommand(37003)
                 }
+            case "fedcm":
+                for action in ["fedcm-passive", "fedcm-active"] {
+                    let shown = try host.runSpikeAction(action)
+                    HostSpike.record(action, shown)
+                    guard shown == 1 else { throw HostCDP.Failure("FedCM dialog did not show") }
+                    try await Task.sleep(for: .seconds(1))
+                    _ = try host.runSpikeAction("fedcm-close")
+                }
+                HostSpike.record("review-required", "real Chrome failure bubble and loading modal shown and destroyed; identity exchange and native focus remain unverified")
             case "widevine":
                 cdp.commandTimeoutSeconds = 75
                 // Auxiliary audit: request the real web API on a fresh profile.

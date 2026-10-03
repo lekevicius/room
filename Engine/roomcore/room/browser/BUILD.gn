@@ -14,6 +14,7 @@ source_set("browser") {
   deps = [
     "//base",
     "//chrome/browser/ui",
+    "//chrome/browser/ui/location_bar",
     "//chrome/browser/ui/browser_active_state_manager",
     "//chrome/browser/ui/exclusive_access",
     "//chrome/browser/ui/browser_window",
@@ -21,6 +22,7 @@ source_set("browser") {
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//chrome/browser/ui/views:find_bar_owner",
+    "//chrome/browser/ui/views/interaction:impl",
     "//components/input",
     "//components/web_modal",
     "//content/public/browser",

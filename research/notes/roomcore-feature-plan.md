@@ -89,3 +89,13 @@ on-demand-only Widevine CDM path.
 6. Five patch hashes match baseline or each change is justified.
 7. `git diff main -- Packages App ROADMAP.md` contains App/RoomCore only;
    no merge/main push. Finish with a PR and an honest gate-by-gate report.
+
+## Added after live-site evidence
+
+`-RoomSpike fedcm` calls the real Chrome IdentityDialogController through the
+existing private loopback-only host action hook. It opens/closes a passive
+failure bubble and an active loading modal. This deterministically drives
+the parent/context failures first discovered during the real open10 baseline.
+It does not perform IdP credential entry or token exchange; native focus and
+sign-in UI are Chapter 3 acceptance. Run with scripts/roomcore-features.sh
+fedcm <new-directory>.

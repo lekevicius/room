@@ -6,6 +6,9 @@
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
+#include "base/functional/bind.h"
+#include "chrome/browser/ui/webid/identity_dialog_controller.h"
+#include "third_party/blink/public/mojom/webid/federated_request.mojom.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -49,6 +52,7 @@ class Client : public room::RoomBrowserWindowClient {
   NSWindow* __weak _window;
   raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
+  std::unique_ptr<IdentityDialogController> _spike_identity_controller;
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
@@ -139,6 +143,7 @@ class Client : public room::RoomBrowserWindowClient {
 }
 
 - (void)room_windowWillClose {
+  _spike_identity_controller.reset();
   id<RoomBrowserDelegate> delegate = self.delegate;
   if ([delegate respondsToSelector:@selector(browserWillClose:)]) {
     [delegate browserWillClose:self];
@@ -190,6 +195,29 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action isEqualToString:@"fedcm-close"]) {
+    _spike_identity_controller.reset();
+    return @1;
+  }
+  if ([action isEqualToString:@"fedcm-passive"] ||
+      [action isEqualToString:@"fedcm-active"]) {
+    _spike_identity_controller = std::make_unique<IdentityDialogController>(contents);
+    content::IdentityProviderMetadata metadata;
+    metadata.idp_login_url = contents->GetVisibleURL();
+    if ([action isEqualToString:@"fedcm-active"]) {
+      return @(_spike_identity_controller->ShowLoadingDialog(
+          content::RelyingPartyData(u"RoomCore fixture", u""), "Local IdP",
+          blink::mojom::RpContext::kSignIn, blink::mojom::RpMode::kActive,
+          base::BindOnce([](content::IdentityRequestDialogController::DismissReason) {})));
+    }
+    return @(_spike_identity_controller->ShowFailureDialog(
+        content::RelyingPartyData(u"RoomCore fixture", u""), "Local IdP",
+        blink::mojom::RpContext::kSignIn,
+        blink::mojom::RpMode::kPassive,
+        metadata, {},
+        base::BindOnce([](content::IdentityRequestDialogController::DismissReason) {}),
+        base::BindRepeating([](const GURL&, GURL) {})));
   }
   if ([action isEqualToString:@"deny-permission"]) {
     auto* manager = permissions::PermissionRequestManager::FromWebContents(contents);

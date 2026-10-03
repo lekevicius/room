@@ -210,3 +210,10 @@ That dependency fixed the link in 18 s. GN check exposed a private Content
 header; replace it with a public-CdmInfo callback hook instead of weakening
 visibility. Final incremental 27 s / 15 steps, load 30.52 / 27.26 / 26.54;
 GN header check passes. Package 518 dylibs, 918 MB app, valid ad-hoc signature.
+
+FedCM follow-up: anchor/probe build 24 s / 4 steps; after exposing the separate
+primary-widget dependency, context initialization build 28 s / 3 steps at
+load 14.91 / 15.50 / 19.78. Direct GN dependency declaration recheck took
+12 s / 0 actions. GN check for all //room targets passes. Passive bubble and
+active loading modal probe 18 s, exit 0. Post-change nav 12.447 s, ten-page
+quit 0.635 s, load1 28.40, 27 helpers / 0 remaining / 0 new crashes, exit 0.

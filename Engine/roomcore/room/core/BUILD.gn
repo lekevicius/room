@@ -51,6 +51,7 @@ source_set("core") {
     "//components/keyed_service/content",
     "//chrome/browser/ui",
     "//chrome/browser/ui/login",
+    "//chrome/browser/ui/webid",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/browser_window:create_browser_window",
     "//chrome/browser/ui/tabs:tab_strip",

@@ -5,6 +5,9 @@
 #import <AppKit/AppKit.h>
 
 #include <algorithm>
+#include <map>
+
+#include "base/no_destructor.h"
 
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -18,6 +21,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/views/find_bar_host.h"
+#include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
 #include "chrome/browser/ui/views/find_bar_owner.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
@@ -32,9 +36,15 @@ namespace room {
 // Defined in chrome/browser/ui/views/frame/browser_window_factory.cc
 // (patches/0003-browser-window-factory-hook.patch).
 extern BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*);
+extern views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*);
 }  // namespace room
 
 namespace {
+
+auto& RoomWindows() {
+  static base::NoDestructor<std::map<BrowserWindowInterface*, RoomBrowserWindow*>> windows;
+  return *windows;
+}
 
 // Views-backed web dialogs still need a native parent and an explicit host
 // lifetime even though Room does not own a BrowserView.
@@ -174,6 +184,14 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  g_fedcm_anchor_hook = +[](BrowserWindowInterface* browser) -> views::View* {
+    const auto found = RoomWindows().find(browser);
+    if (found == RoomWindows().end()) {
+      return nullptr;
+    }
+    RoomStubHit("GetFedCmAnchor");
+    return found->second->GetBubbleAnchor();
+  };
 }
 
 ScopedPendingHostWindow::ScopedPendingHostWindow(
@@ -204,9 +222,12 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
       client_(client),
       objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr, nullptr})),
       exclusive_access_context_(
-          std::make_unique<room::RoomExclusiveAccessContext>(browser)) {}
+          std::make_unique<room::RoomExclusiveAccessContext>(browser)) {
+  RoomWindows().emplace(browser, this);
+}
 
 RoomBrowserWindow::~RoomBrowserWindow() {
+  RoomWindows().erase(browser_);
   // What BrowserView and WebUIBrowserWindow do in their destructors: features
   // that hold on to window-scoped objects (side panel entries, for example)
   // let go of them before the Browser destroys the features themselves.
@@ -377,6 +398,10 @@ RoomBrowserWindow::GetWebContentsModalDialogHost() {
   RoomStubHit("GetWebContentsModalDialogHost");
   if (!objc_->modal_host) {
     objc_->modal_host = std::make_unique<RoomModalDialogHost>(objc_->window);
+    // TabDialogManager needs a primary Views widget as well as the native
+    // modal parent. This context does not claim to own the page's WebView.
+    BrowserElements::From(browser_)->AsA<BrowserElementsViewsImpl>()->Init(
+        objc_->modal_host->GetBubbleAnchor());
   }
   return objc_->modal_host.get();
 }

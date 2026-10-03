@@ -386,3 +386,34 @@ GN dependency check and shell syntax pass. Apply reports 0 applied, 7 already.
 Main/origin-main remain 3c7fafc; protected diff is only App/RoomCore, original
 five patches and public ObjC headers unchanged. Saving the demand-CDM fix
 separately before the new FedCM parent fix; the latter remains open.
+
+### FedCM failure from live open10 — fix in progress, 08:31 EEST
+
+The original 18-drive matrix missed federated sign-in. A concurrent auth /
+baseline repeat reached webid::FedCmAccountSelectionView::CreateDialogWidget
+with no bubble anchor and aborted at bubble_dialog_delegate_view.cc:207.
+The existing retrieval seam is typed as views::WebView; Room owns a Cocoa page
+view, and registering an empty fake WebView would mislead other consumers.
+Patch 0008 adds a single anchor hook used for the passive bubble and active
+modal native parent. //room returns its existing Views anchor only for tracked
+RoomBrowserWindow instances; fallback Chrome windows retain their default.
+Original seven patches/public headers unchanged. Chromium 1d6a6abe5bcd2.
+
+First build: 24 s / 4 steps, package valid. New private -RoomSpike fedcm probe
+reaches the real IdentityDialogController and reproduced a second crash:
+TabDialogManager::ShowDialog dereferences a null GetHostWidget (line 360).
+Room never initialized BrowserElementsViewsImpl with its Views context.
+Initialize through the existing Init(view) seam when the modal bridge is
+created, keeping its normal teardown ordering. No extra patch for this.
+The probe separately opens/closes a passive failure bubble and an active
+loading modal (active failure UI itself falls back to a bubble upstream).
+GN check also found missing direct LocationBar and identity-controller
+dependencies; adding them rather than weakening header checks. Rebuilding.
+
+FedCM fix verified: passive failure bubble and active loading modal both return
+true, close and exit 0 (18 s). Full //room GN header check passes. Baseline nav
+12.447 s; ten-page quit 0.635 s, load1 28.40, 27 helpers / 0 left / 0 crashes,
+exit 0. Shared dialog/permission/find regression passes in 8/8/10 s. Saving
+this as a separate fix. Another 600 s fresh-profile audit is running from a
+fixed copy with the final FedCM engine (netlog-idle-fedcm); the demand-CDM
+checkpoint's completed audit remains the current proven zero-network result.

@@ -1,0 +1,44 @@
+diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+index f287a1043ca09..690897600b864 100644
+--- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
++++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+@@ -51,6 +51,10 @@
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/window/dialog_delegate.h"
+ 
++namespace room {
++views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ // We could have a situation where the WebContents with an actor task opens a
+@@ -1147,10 +1151,14 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
+         web_contents()->GetTopLevelNativeWindow();
+     views::Widget* top_level_widget =
+         views::Widget::GetWidgetForNativeWindow(top_level_native_window);
++    views::View* embedder_anchor = room::g_fedcm_anchor_hook
++        ? room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface()) : nullptr;
+     dialog_widget = base::WrapUnique(views::DialogDelegate::CreateDialogWidget(
+         widget_delegate_.get()->AsDialogDelegate(),
+         /*context=*/gfx::NativeWindow(),
+-        /*parent=*/top_level_widget->GetNativeView()));
++        /*parent=*/embedder_anchor
++            ? embedder_anchor->GetWidget()->GetNativeView()
++            : top_level_widget->GetNativeView()));
+   }
+ 
+   extensions::SecurityDialogTracker::GetInstance()->AddSecurityDialog(
+@@ -1205,6 +1213,12 @@ FedCmAccountSelectionView::GetURLLoaderFactory() {
+ }
+ 
+ views::View* FedCmAccountSelectionView::GetAnchorView() {
++  if (room::g_fedcm_anchor_hook) {
++    if (auto* anchor =
++            room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface())) {
++      return anchor;
++    }
++  }
+   return BrowserElementsViews::From(tab_->GetBrowserWindowInterface())
+       ->RetrieveView(kActiveContentsWebViewRetrievalId);
+ }
