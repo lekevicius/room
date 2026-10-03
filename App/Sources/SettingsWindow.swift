@@ -1,4 +1,5 @@
 import AppKit
+import Chrome
 import Omnibox
 import Store
 import SwiftUI
@@ -9,7 +10,7 @@ import SwiftUI
 /// adds the rest and 4.4 the full window.
 final class SettingsWindowController: NSWindowController {
     init(settings: SettingsStore) {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 160), styleMask: [.titled, .closable],
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 220), styleMask: [.titled, .closable],
                               backing: .buffered, defer: true)
         window.title = "Settings"
         window.isReleasedWhenClosed = false
@@ -25,6 +26,28 @@ final class SettingsWindowController: NSWindowController {
 private struct SettingsView: View {
     let settings: SettingsStore
 
+    /// The download folder (spec §F, ROADMAP 2.6 task 1); `nil` in Settings is ~/Downloads.
+    private var folder: URL {
+        DownloadRules.folder(setting: settings.settings.downloadDirectory,
+                             downloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0])
+    }
+
+    private var folderName: String {
+        FileManager.default.displayName(atPath: folder.path)
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = folder
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        settings.update { $0.downloadDirectory = url.standardizedFileURL == downloads.standardizedFileURL ? nil : url.path }
+    }
+
     var body: some View {
         Form {
             Section("Search") {
@@ -38,6 +61,14 @@ private struct SettingsView: View {
                     set: { on in settings.update { $0.searchSuggestions = on } })) {
                     Text("Show search suggestions")
                     Text("Sends what you type in the palette to the search engine. Off: nothing leaves Room while you type.")
+                }
+            }
+            Section("Downloads") {
+                LabeledContent("Save downloads to") {
+                    HStack {
+                        Text(folderName).foregroundStyle(.secondary)
+                        Button("Change…") { chooseFolder() }
+                    }
                 }
             }
         }

@@ -15,6 +15,8 @@ public final class SidebarController: NSObject {
     public let bodyView = SidebarBodyView()
     /// Goes into `SidebarView.headerView`.
     public let addressField = AddressFieldView()
+    /// The footer's downloads button (spec §F); the app drives its ring, badge and popover.
+    public var downloadsButton: DownloadsButton { footer.downloadsButton }
     let grid = EssentialsGridView()
     let footer = SidebarFooterView()
     /// One list per space of the window, built ahead of a switch; `pane` is

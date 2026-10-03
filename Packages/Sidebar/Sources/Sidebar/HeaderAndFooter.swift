@@ -1,4 +1,5 @@
 import AppKit
+import Chrome
 import Design
 import Model
 
@@ -139,12 +140,12 @@ protocol SpaceIconDropEvents: AnyObject {
     func spaceIconDrop(_ info: any NSDraggingInfo, space: UUID) -> Bool
 }
 
-/// The bottom bar (spec §F): the downloads button (disabled until 2.6),
+/// The bottom bar (spec §F): the downloads button (Chrome's, 2.6b),
 /// the space icons centred (spec §B: hidden with one space; the active one
 /// 1.15× over a highlight that slides between icons; the hovered or active
 /// space's name beside the row while the pointer is on it) and the "+" menu.
 final class SidebarFooterView: NSView {
-    let downloadsButton = NSButton()
+    let downloadsButton = DownloadsButton()
     let plusButton = NSButton()
     private let iconRow = FlippedRow()
     private let indicator = NSView()
@@ -171,13 +172,6 @@ final class SidebarFooterView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        downloadsButton.image = Symbol.downloads.image(pointSize: 14, accessibilityDescription: "Downloads")
-        downloadsButton.isBordered = false
-        downloadsButton.imagePosition = .imageOnly
-        downloadsButton.contentTintColor = .secondaryLabelColor
-        downloadsButton.isEnabled = false
-        downloadsButton.toolTip = "Downloads (Phase 2.6)"
-        downloadsButton.setAccessibilityIdentifier("downloads")
         plusButton.image = Symbol.newTab.image(pointSize: 14, accessibilityDescription: "New")
         plusButton.isBordered = false
         plusButton.imagePosition = .imageOnly

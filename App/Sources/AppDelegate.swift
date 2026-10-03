@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var palette: PaletteController?
     private var toastCenter: ToastCenter?
     private(set) var promptPresenter: PagePromptPresenter?
+    /// Downloads across the window's profiles: the footer button and its popover (2.6b).
+    private(set) var downloads: DownloadsUI?
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -61,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where tabs.engineProfiles[model.id] == nil {
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
-                profile.downloadsDelegate = pageDelegate
+                profile.downloadsDelegate = downloads?.list
                 if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
             }
             // The Phase 1.4 overlay spikes (DEBUG `SpikeRunner`).
@@ -197,12 +199,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.engine = engine
         let pageDelegate = PageUIDelegate(host: pageHost)
         // A profile made after launch (a new space's "New Profile…") gets its engine profile on first use.
-        tabs.requestEngineProfile = { [weak self, weak tabs, weak pageDelegate] model in
+        tabs.requestEngineProfile = { [weak self, weak tabs] model in
             Task { @MainActor in
                 guard let self, let tabs else { return }
                 do {
                     let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
-                    profile.downloadsDelegate = pageDelegate
+                    profile.downloadsDelegate = self.downloads?.list
                     tabs.setEngineProfile(profile, for: model.id)
                 } catch {
                     NSLog("Room: no engine profile for \(model.name): \(error)")
@@ -249,6 +251,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
+        let downloads = DownloadsUI(button: sidebar.downloadsButton, rootView: rootView, toasts: toasts, settings: store.settings)
+        downloads.pageFavicon = { [weak tabs] in tabs?.current?.favicon }
+        self.downloads = downloads
         installPagePrompts(pageDelegate, pageHost: pageHost, sidebar: sidebar, tabs: tabs, rootView: rootView)
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
         palette.contentRect = { [weak rootView] in rootView?.currentLayout.card ?? .zero }
@@ -443,6 +448,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func goForward(_ sender: Any?) {
         tabs?.current?.goForward()
+    }
+
+    /// ⇧⌘J: the downloads popover (spec §G).
+    @objc func showDownloads(_ sender: Any?) {
+        downloads?.togglePopover()
     }
 
     @objc func toggleDevTools(_ sender: Any?) {

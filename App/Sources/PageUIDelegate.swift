@@ -6,8 +6,8 @@ import UIKitCore
 
 /// The page presentation the tab controller hands on: the page's prompts,
 /// context menus and file choosers through `chrome` (Chrome package, Phase
-/// 2.6a), the reserved-key routing, the status text and the profile's
-/// downloads (their UI is 2.6b).
+/// 2.6a), the reserved-key routing, the status text, element fullscreen and
+/// the crashed-page view (2.6b). Downloads go to `DownloadsUI.list`.
 @Observable
 final class PageUIDelegate {
     @ObservationIgnored let host: PageHost
@@ -20,7 +20,6 @@ final class PageUIDelegate {
     var statusText: String?
     /// Every key the engine reported as reserved or unhandled, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
-    @ObservationIgnored private(set) var downloads: [DownloadItem.ID: DownloadItem] = [:]
 
     init(host: PageHost) {
         self.host = host
@@ -112,27 +111,5 @@ extension PageUIDelegate: WebContentsUIDelegate {
 
     func webContentsDidRequestExitFullscreen(_ webContents: any WebContents) {
         fullscreen?.exit(webContents)
-    }
-}
-
-// MARK: - Downloads
-
-extension PageUIDelegate: DownloadsDelegate {
-    func profile(_ profile: any Profile, willBeginDownload item: DownloadItem, completion: @escaping (URL?) -> Void) {
-        let folder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-        var destination = folder.appending(path: item.suggestedFilename)
-        var counter = 1
-        while FileManager.default.fileExists(atPath: destination.path) {
-            let base = (item.suggestedFilename as NSString).deletingPathExtension
-            let ext = (item.suggestedFilename as NSString).pathExtension
-            destination = folder.appending(path: "\(base) \(counter)" + (ext.isEmpty ? "" : ".\(ext)"))
-            counter += 1
-        }
-        completion(destination)
-    }
-
-    func profile(_ profile: any Profile, didUpdateDownload item: DownloadItem) {
-        downloads[item.id] = item
-        statusText = "\(item.suggestedFilename): \(item.state) \(item.receivedBytes)/\(item.totalBytes.map(String.init) ?? "?")"
     }
 }

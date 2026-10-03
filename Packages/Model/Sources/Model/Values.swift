@@ -302,11 +302,14 @@ public struct Settings: Hashable, Sendable, Codable {
     /// The one-time "Logins and cookies won't carry over" warning was
     /// confirmed (moving a tab to a space of another profile, spec §B).
     public var crossProfileMoveWarned: Bool = false
+    /// Where downloads are saved, a folder path; `nil` is the user's
+    /// Downloads folder (spec §F, ROADMAP 2.6 task 1).
+    public var downloadDirectory: String?
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned
+        case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
     }
 
     public init(from decoder: any Decoder) throws {
@@ -321,6 +324,7 @@ public struct Settings: Hashable, Sendable, Codable {
         searchEngine = (try? container.decodeIfPresent(String.self, forKey: .searchEngine)).flatMap { $0 } ?? defaults.searchEngine
         crossProfileMoveWarned = (try? container.decodeIfPresent(Bool.self, forKey: .crossProfileMoveWarned)).flatMap { $0 }
             ?? defaults.crossProfileMoveWarned
+        downloadDirectory = (try? container.decodeIfPresent(String.self, forKey: .downloadDirectory)).flatMap { $0 }
     }
 }
 
