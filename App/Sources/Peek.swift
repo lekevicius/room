@@ -117,9 +117,10 @@ final class PeekPresenter: PeekDisplay {
         layer.add(fade, forKey: "peek-open-fade")
     }
 
+    /// The header's domain and the card's fill follow the page.
     private func trackHeader(_ contents: any WebContents) {
-        let (url, title) = withObservationTracking {
-            (contents.url, contents.title)
+        let (url, title, background) = withObservationTracking {
+            (contents.url, contents.title, contents.rootBackgroundColor)
         } onChange: { [weak self, id = ObjectIdentifier(contents)] in
             Task { @MainActor in
                 guard let self, let current = self.contents, ObjectIdentifier(current) == id else { return }
@@ -127,6 +128,10 @@ final class PeekPresenter: PeekDisplay {
             }
         }
         overlay.header.set(host: url?.host() ?? url?.absoluteString ?? "", title: title)
+        // As the page card: the fill (and the header on it) follows the page's root background.
+        overlay.card.backgroundColor = background ?? Palette.cardBackground
+        // Its text and buttons read on that fill, whatever the window's appearance.
+        overlay.header.appearance = NSAppearance.reading(on: background)
     }
 }
 

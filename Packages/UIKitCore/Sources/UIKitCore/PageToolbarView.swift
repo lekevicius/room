@@ -41,6 +41,12 @@ public final class PageToolbarView: NSView {
     public override var fittingSize: NSSize { NSSize(width: bounds.width, height: ToolbarMetrics.height) }
     public override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: ToolbarMetrics.height) }
 
+    /// The card's fill under the bar (the page's root background): the bar's
+    /// text and buttons take the appearance that reads on it.
+    public var pageBackground: NSColor? {
+        didSet { appearance = NSAppearance.reading(on: pageBackground) }
+    }
+
     /// The page's full URL (`nil`: a placeholder).
     public func setURL(_ url: String?) {
         urlField.setURL(url)
@@ -116,4 +122,14 @@ private final class ToolbarURLView: NSView {
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false }
     override func mouseDown(with event: NSEvent) { onClick?() }
+}
+
+public extension NSAppearance {
+    /// Aqua on a light fill, Dark Aqua on a dark one (relative luminance over 0.5);
+    /// `nil` (the window's own) without a fill.
+    static func reading(on background: NSColor?) -> NSAppearance? {
+        guard let rgb = background?.usingColorSpace(.sRGB) else { return nil }
+        let luminance = 0.2126 * rgb.redComponent + 0.7152 * rgb.greenComponent + 0.0722 * rgb.blueComponent
+        return NSAppearance(named: luminance > 0.5 ? .aqua : .darkAqua)
+    }
 }

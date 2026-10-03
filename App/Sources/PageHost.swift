@@ -92,6 +92,8 @@ final class PageHost: PageDisplay {
             Task { @MainActor in self?.trackBackground() }
         }
         controller?.cardView.backgroundColor = color ?? Palette.cardBackground
+        // The optional toolbar sits on that fill (2.7a).
+        controller?.rootView.toolbarView.pageBackground = color
     }
 }
 
