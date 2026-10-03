@@ -109,6 +109,19 @@ final class SidebarOutlineView: NSOutlineView {
         return resigned
     }
 
+    // The focus ring follows the window's key state.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didBecomeKeyNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        guard let window else { return }
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(keyStateChanged), name: name, object: window)
+        }
+    }
+
+    @objc private func keyStateChanged() { events?.outlineFocusChanged(window?.firstResponder === self) }
+
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
         super.draggingExited(sender)
         events?.outlineDragExited()
@@ -153,9 +166,14 @@ final class SidebarOutlineView: NSOutlineView {
         hoveredRow = row >= 0 ? row : nil
     }
 
+    /// The one tracking area also tells the hovered row's cell whether the
+    /// pointer is on its icon (a tracking area per cell cost every scrolled-in row).
     private func updateHover(_ event: NSEvent) {
         let row = row(at: convert(event.locationInWindow, from: nil))
         hoveredRow = row >= 0 ? row : nil
+        if row >= 0, let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? EntryCellView {
+            cell.pointerMoved(to: cell.convert(event.locationInWindow, from: nil))
+        }
     }
 }
 
@@ -163,6 +181,8 @@ final class SidebarOutlineView: NSOutlineView {
 /// multi-selection tint (§A.9); the drop-onto highlight (§A.6); the
 /// keyboard focus ring (§I.13).
 final class SidebarRowView: NSTableRowView {
+    static let identifier = NSUserInterfaceItemIdentifier("sidebar-row")
+
     var isHovered = false { didSet { if isHovered != oldValue { needsDisplay = true } } }
     /// Rows that never show a hover fill (space title, separator).
     var showsHover = true

@@ -67,9 +67,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     var isHovered = false { didSet { if isHovered != oldValue { updateHoverState() } } }
     /// ⌘ is held (sublabel "Separate from pinned tab").
     var isCommandHeld = false { didSet { if isCommandHeld != oldValue { updateHoverState() } } }
-    private var isHoveringIcon = false { didSet { if isHoveringIcon != oldValue { updateHoverState() } } }
+    var isHoveringIcon = false { didSet { if isHoveringIcon != oldValue { updateHoverState() } } }
     private(set) var isRenaming = false
-    private var iconTracking: NSTrackingArea?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -145,6 +144,14 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         needsLayout = true
     }
 
+    /// Before the row animates away as a whole (Clear): the trailing audio
+    /// indicator's layer does not follow the row layer's transform and
+    /// opacity (seen in the 2.2b mid-Clear capture), so it goes first.
+    func prepareForSlideOut() {
+        audioButton.removeAllSymbolEffects()
+        audioButton.isHidden = true
+    }
+
     // MARK: Hover
 
     private func updateHoverState() {
@@ -167,17 +174,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         needsLayout = true
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let iconTracking { removeTrackingArea(iconTracking) }
-        let area = NSTrackingArea(rect: iconRect.insetBy(dx: -4, dy: -4),
-                                  options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
-        addTrackingArea(area)
-        iconTracking = area
+    /// The pointer moved over the row (from the outline's tracking area).
+    func pointerMoved(to point: NSPoint) {
+        isHoveringIcon = iconRect.insetBy(dx: -4, dy: -4).contains(point)
     }
-
-    override func mouseEntered(with event: NSEvent) { isHoveringIcon = true }
-    override func mouseExited(with event: NSEvent) { isHoveringIcon = false }
 
     // MARK: Layout
 

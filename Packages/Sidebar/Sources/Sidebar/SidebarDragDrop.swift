@@ -88,7 +88,7 @@ extension SidebarController {
     }
 
     /// Rows being dragged stay in place, dimmed, until the drop.
-    private func setDragging(_ ids: [UUID], dimmed: Bool) {
+    func setDragging(_ ids: [UUID], dimmed: Bool) {
         let alpha = dimmed ? SidebarMetrics.draggedRowAlpha : 1
         for id in ids {
             if let node = tree.displayedNode(for: id) {
@@ -286,7 +286,7 @@ extension SidebarController {
 
     // MARK: Feedback
 
-    private func showFeedback(for target: DropRules.Target) {
+    func showFeedback(for target: DropRules.Target) {
         switch target {
         case .insert(_, _, let line):
             setDropTargetRow(nil)

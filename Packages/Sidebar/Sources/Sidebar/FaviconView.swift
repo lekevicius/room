@@ -63,10 +63,32 @@ final class FaviconView: NSView {
     }
 
     static func drawLetterTile(_ domain: String, in rect: NSRect) {
-        let path = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.25, yRadius: rect.height * 0.25)
-        Palette.letterTileColor(for: domain).setFill()
-        path.fill()
+        letterTile(domain, size: rect.size).draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true,
+                                                  hints: nil)
+    }
+
+    /// Letter tiles by letter, colour and size: rendering the glyph on every
+    /// draw was a visible share of each scrolled-in row (2.2b profile).
+    private static var letterTiles: [String: NSImage] = [:]
+
+    private static func letterTile(_ domain: String, size: NSSize) -> NSImage {
         let letter = domain.first.map { String($0).uppercased() } ?? "•"
+        let color = Palette.letterTileColor(for: domain)
+        let key = "\(letter)|\(color.hash)|\(size.width)x\(size.height)|\(NSAppearance.currentDrawing().isDark)"
+        if let image = letterTiles[key] { return image }
+        let image = NSImage(size: size, flipped: true) { rect in
+            renderLetterTile(letter, color: color, in: rect)
+            return true
+        }
+        if letterTiles.count > 512 { letterTiles.removeAll() }
+        letterTiles[key] = image
+        return image
+    }
+
+    private static func renderLetterTile(_ letter: String, color: NSColor, in rect: NSRect) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.25, yRadius: rect.height * 0.25)
+        color.setFill()
+        path.fill()
         let font = NSFont.systemFont(ofSize: rect.height * 0.62, weight: .semibold)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
         let size = (letter as NSString).size(withAttributes: attributes)

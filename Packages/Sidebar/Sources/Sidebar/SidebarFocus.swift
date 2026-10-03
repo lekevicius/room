@@ -165,7 +165,7 @@ extension SidebarController {
 
     func updateFocusRing() {
         let focusedRow = focusedNode.map { outline.row(forItem: $0) } ?? -1
-        let show = focusRingVisible && outline.window?.firstResponder === outline
+        let show = focusRingVisible && outline.window?.firstResponder === outline && outline.window?.isKeyWindow == true
         outline.enumerateAvailableRowViews { rowView, row in
             (rowView as? SidebarRowView)?.showsFocusRing = show && row == focusedRow
         }
@@ -305,6 +305,7 @@ extension SidebarController {
         let step = reduce ? 0 : min(Motion.clearStagger, Motion.clearStaggerMax / Double(max(1, rows.count - 1))) * clearSlowdown
         let start = CACurrentMediaTime()
         for (index, rowView) in rows.enumerated() {
+            (rowView.view(atColumn: 0) as? EntryCellView)?.prepareForSlideOut()
             rowView.wantsLayer = true
             guard let layer = rowView.layer else { continue }
             let fade = CABasicAnimation(keyPath: "opacity")

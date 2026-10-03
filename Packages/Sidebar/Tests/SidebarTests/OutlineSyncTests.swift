@@ -292,3 +292,4 @@ final class RecordingToasts: ToastPresenting {
     var shown: [Toast] = []
     func show(_ toast: Toast) { shown.append(toast) }
 }
+

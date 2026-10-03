@@ -49,6 +49,9 @@ public final class SidebarController: NSObject {
     var isClearing = false
     /// Stretches Clear's animation (DEBUG captures of the mid-Clear frame).
     var clearSlowdown: Double = 1
+    #if DEBUG
+    var debugDragImage: NSView?
+    #endif
 
     var sidebar: SidebarStore { store.sidebar }
 
@@ -479,6 +482,7 @@ public final class SidebarController: NSObject {
         case let cell as EntryCellView:
             cell.isCommandHeld = hovering && isCommandHeld
             cell.isHovered = hovering
+            if !hovering { cell.isHoveringIcon = false }
         case let cell as SpaceTitleCellView:
             cell.isHovered = hovering
         default:
@@ -554,7 +558,9 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
     }
 
     public func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-        let rowView = SidebarRowView()
+        // Reused: allocating and attaching a row view per scrolled-in row was a third of its cost (2.2b profile).
+        let rowView = outlineView.makeView(withIdentifier: SidebarRowView.identifier, owner: self) as? SidebarRowView ?? SidebarRowView()
+        rowView.identifier = SidebarRowView.identifier
         switch (item as? OutlineNode)?.kind {
         case .spaceTitle, .separator: rowView.showsHover = false
         default: rowView.showsHover = true
@@ -568,6 +574,7 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
         rowView.isHovered = node === hoveredNode
         rowView.isMultiSelected = node.entryID.map(multiSelection.contains) ?? false
         rowView.showsFocusRing = focusRingVisible && node === focusedNode && outline.window?.firstResponder === outline
+            && outline.window?.isKeyWindow == true
         rowView.isDropTarget = false
         rowView.alphaValue = node.entryID.map { drag?.ids.contains($0) == true } == true ? SidebarMetrics.draggedRowAlpha : 1
     }
@@ -685,6 +692,9 @@ public final class SidebarBodyView: NSView {
         self.grid = grid
         self.footer = footer
         scrollView.documentView = outline
+        // Height comes from `tile()` in `layout()`: with height autoresizing a
+        // shorter window shrank the outline below its rows (2.2b), cutting off the last ones.
+        outline.autoresizingMask = [.width]
         scrollView.drawsBackground = false
         scrollView.contentView.drawsBackground = false
         scrollView.hasVerticalScroller = true
@@ -729,7 +739,10 @@ public final class SidebarBodyView: NSView {
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         scrollView.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - footerHeight - top))
-        (scrollView.documentView as? NSOutlineView)?.sizeLastColumnToFit()
+        if let outline = scrollView.documentView as? NSOutlineView {
+            outline.sizeLastColumnToFit()
+            outline.tile()
+        }
         let hit = SidebarMetrics.overflowHitHeight
         overflowTop.frame = NSRect(x: 0, y: scrollView.frame.minY, width: bounds.width, height: hit)
         overflowBottom.frame = NSRect(x: 0, y: scrollView.frame.maxY - hit, width: bounds.width, height: hit)
@@ -740,14 +753,94 @@ public final class SidebarBodyView: NSView {
 #if DEBUG
 /// Hooks for the app's DEBUG snapshot runner (no UI driving in sessions).
 extension SidebarController {
-    /// Shows the hover state of an entry's row or tile as if the pointer were on it.
-    public func debugHover(_ id: UUID?) {
+    /// Shows the hover state of an entry's row or tile as if the pointer were on it
+    /// (`onIcon`: over the favicon / reset icon; `command`: ⌘ held).
+    public func debugHover(_ id: UUID?, onIcon: Bool = false, command: Bool = false) {
         setHoveredForDebug(id.flatMap { tree.displayedNode(for: $0) })
+        isCommandHeld = command
+        if let id, let node = tree.displayedNode(for: id) {
+            let row = outline.row(forItem: node)
+            if row >= 0, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? EntryCellView {
+                cell.isHoveringIcon = onIcon
+                cell.isCommandHeld = command
+            }
+        }
     }
 
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
 
     public var debugOutline: NSOutlineView { outline }
+
+    /// ⌘-click on an entry (multi-selection).
+    public func debugToggleSelection(_ id: UUID) { toggleSelection(id) }
+
+    public func debugClearMultiSelection() { clearMultiSelection() }
+
+    /// Keyboard focus with its ring, as after ↑/↓.
+    public func debugFocus(_ id: UUID?) {
+        outline.window?.makeFirstResponder(outline)
+        setFocus(id.flatMap { tree.displayedNode(for: $0) }, ring: id != nil)
+    }
+
+    /// The feedback of a drag of `ids` with the pointer over `id`'s row at
+    /// `fraction` of its height (`held`: after the 500 ms hold): the dimmed
+    /// source rows, the insertion line or drop-onto highlight, and the
+    /// lifted image at the pointer (drawn in the outline; a real drag draws
+    /// it in its own window). `nil` ends it.
+    public func debugShowDrag(_ ids: [UUID]?, over id: UUID? = nil, fraction: CGFloat = 0.1, held: Bool = false) {
+        debugDragImage?.removeFromSuperview()
+        debugDragImage = nil
+        guard let ids, let id, let node = tree.displayedNode(for: id) else {
+            if let dragged = drag?.ids { setDragging(dragged, dimmed: false) }
+            drag = nil
+            hideDropFeedback()
+            return
+        }
+        drag = DragState(ids: ids)
+        setDragging(ids, dimmed: true)
+        let row = outline.row(forItem: node)
+        let rowRect = outline.rect(ofRow: row)
+        let single = ids.count == 1 && sidebar.entry(ids[0])?.kind != .folder
+        let target = DropRules.target(debugDropRow(row), at: row, rowCount: outline.numberOfRows, fraction: fraction, held: held,
+                                      space: tree.spaceID, single: single)
+        showFeedback(for: target)
+        guard let first = ids.first, let entry = sidebar.entry(first) else { return }
+        let pill = SidebarRowView.pillRect(in: rowRect)
+        let image = DragImage.row(entry, page: pageState(first), size: pill.size, appearance: outline.effectiveAppearance)
+        var frame = DragImage.frame(for: image, around: pill)
+        // Under the pointer, grabbed near its top edge (the line above stays visible).
+        frame.origin.x += 8
+        frame.origin.y = rowRect.minY + rowRect.height * fraction - DragImage.margin + 6
+        let view = NSImageView(frame: frame)
+        view.image = image
+        view.imageScaling = .scaleNone
+        outline.addSubview(view)
+        debugDragImage = view
+    }
+
+    private func debugDropRow(_ row: Int) -> DropRules.Row? {
+        guard let node = outline.item(atRow: row) as? OutlineNode, let id = node.entryID, let entry = sidebar.entry(id) else {
+            return nil
+        }
+        let depth = entry.kind == .today ? 0 : max(0, outline.level(forRow: row) - 1)
+        return .entry(id: id, kind: entry.kind, container: entry.container, index: entry.position, depth: depth,
+                      showsChildren: entry.kind == .folder && !tree.children(of: node).isEmpty)
+    }
+
+    /// Clear's animation runs `factor` times slower (for a mid-Clear capture).
+    public func debugSetClearSlowdown(_ factor: Double) { clearSlowdown = factor }
+
+    /// The grid's "12/12" badge, as over a full grid during a drag.
+    public func debugShowEssentialsFull(_ show: Bool) {
+        grid.showFullBadge(show ? "\(essentialsCount)/\(EntryRules.essentialsCap)" : nil)
+    }
+
+    /// The empty grid's drop slot, as during a drag.
+    public func debugShowDropSlot(_ show: Bool) {
+        grid.showsDropSlot = show
+        bodyView.needsLayout = true
+        bodyView.layoutSubtreeIfNeeded()
+    }
 }
 #endif
