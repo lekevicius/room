@@ -7,6 +7,11 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/command_line.h"
+#include "chrome/browser/extensions/extension_view_host_factory.h"
+#include "chrome/browser/extensions/extension_view_host.h"
+#include "chrome/browser/ui/views/extensions/extension_popup.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "components/permissions/permission_request.h"
@@ -212,6 +217,52 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action hasPrefix:@"extension-popup-"]) {
+    if (!base::CommandLine::ForCurrentProcess()->HasSwitch("load-extension")) {
+      return @(-1);
+    }
+    if ([action isEqualToString:@"extension-popup-open"]) {
+      auto* registry = extensions::ExtensionRegistry::Get(_profile.room_profile);
+      for (const auto& extension : registry->enabled_extensions()) {
+        if (extension->name() != "Room spike extension") {
+          continue;
+        }
+        auto host = extensions::ExtensionViewHostFactory::CreatePopupHost(
+            *extension, extension->GetResourceURL("popup.html"), _browser);
+        if (!host) {
+          return @(-1);
+        }
+        auto* window = static_cast<RoomBrowserWindow*>(BrowserWindow::FromBrowser(_browser));
+        ExtensionPopup::ShowPopup(
+            _browser, std::move(host), views::BubbleAnchor(window->GetBubbleAnchor()),
+            views::BubbleBorder::TOP_LEFT, PopupShowAction::kShow,
+            base::BindOnce([](extensions::ExtensionHost* shown) {
+              LOG(WARNING) << "Room UI probe extension popup callback shown=" << (shown != nullptr);
+            }));
+        return @1;
+      }
+      return @0;
+    }
+    auto* popup = ExtensionPopup::last_popup_for_testing();
+    if (!popup || !popup->host() || popup->host()->extension()->name() != "Room spike extension") {
+      return @0;
+    }
+    auto* widget = popup->GetWidget();
+    if ([action isEqualToString:@"extension-popup-close"]) {
+      popup->CloseDeferredIfNecessary();
+      return @1;
+    }
+    if ([action isEqualToString:@"extension-popup-size"]) {
+      auto size = widget->GetClientAreaBoundsInScreen().size();
+      return @(size.width() * 10000 + size.height());
+    }
+    NSWindow* native = widget->GetNativeWindow().GetNativeNSWindow();
+    const bool owned = native.parentWindow == _window || native.parentWindow.parentWindow == _window;
+    LOG(WARNING) << "Room UI probe extension popup visible=" << widget->IsVisible()
+                 << " room_owned=" << owned << " active=" << widget->IsActive();
+    return @(1 | (widget->IsVisible() ? 2 : 0) | (owned ? 4 : 0) |
+             (widget->IsActive() ? 8 : 0));
   }
   if ([action isEqualToString:@"print-preview-pdf"]) {
     auto* dialogs = printing::PrintPreviewDialogController::GetInstance();

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-extension-popup|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -57,7 +57,7 @@ extra=()
 case "$FEATURE" in
   ui-camera|ui-microphone|ui-capture) extra+=("--use-fake-device-for-media-stream") ;;
 esac
-if [[ "$FEATURE" == extension ]]; then
+if [[ "$FEATURE" == extension || "$FEATURE" == ui-extension-popup ]]; then
   extra+=("--load-extension=$ROOT/research/spikes/phase-1.4/extension")
 fi
 if [[ "$FEATURE" == widevine ]]; then

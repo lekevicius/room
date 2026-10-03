@@ -293,3 +293,8 @@ size-after-close and ambiguous CDP target-count observations are retained as
 probe limitations/failures, with bounded source-backed host corrections.
 Muted WebAudio48kHz/0.405333s has engine muted+audible state3. No real camera,
 mic or screen captured. Existing baseline/audit identities are not relabeled.
+
+
+## 2026-10-03 — direct MV3 popup diagnostic
+
+Existing out/dev, default jobs, private CLI probe only:33s/13steps, load55.25/40.12/42.55. GN dependency check passes. Package stage4.4s/host18.7s, strict signature valid. Real popup lifecycle drive18s/exit0, details in roomcore-ui-compatibility-results.md. No production behavior or network-policy change.

@@ -141,7 +141,7 @@ container remain unchanged.
 
 | Subfeature | Evidence / exact boundary | Chapter3 requirement |
 |---|---|---|
-| Action popup open, ownership, resize, close, focus | feature-extension-activation/spike.txt (receipt source parent7974cd0 plus activation change later committed as eb55062;18s/exit0): active/key/main/visible window, then real action.openPopup rejects "Browser window has no toolbar." Current Room IsToolbarVisible still returns false. extension_action_api.cc OpenPopupInBrowser checks this before ExtensionsContainer::ShowToolbarActionPopupForAPICall. **Blocked**, no actual popup content/focus/resize pass. | Implement real ExtensionsContainer/ExtensionsToolbarViewModel delegate and per-action view model; own ExtensionViewHost, anchor, shown/closed callbacks and focus. Turning the toolbar boolean true cannot supply these contracts. |
+| Action popup open, ownership, resize, close, focus | feature-extension-activation/spike.txt (receipt source parent7974cd0 plus activation change later committed as eb55062;18s/exit0): active/key/main/visible window, then real action.openPopup rejects "Browser window has no toolbar." Current Room IsToolbarVisible still returns false. extension_action_api.cc OpenPopupInBrowser checks this before ExtensionsContainer::ShowToolbarActionPopupForAPICall. **Product API blocked**; separate direct-host probe below establishes popup content, ownership, focus state, resize and close. | Implement real ExtensionsContainer/ExtensionsToolbarViewModel delegate and per-action view model; own ExtensionViewHost, anchor, shown/closed callbacks and focus. Turning the toolbar boolean true cannot supply these contracts. |
 | Popup content sizing/lifetime | Source-map: ExtensionPopup owns ExtensionViewHost, observes widget/extension registry/tab strip/WebContents, delays showing until load; min25×25,max800×600. | Reuse Chrome view host or supply Room container that preserves extension identity, resize limits, close on unload/tab change, and DevTools inspection lifetime. Native anchor/focus needs reviewer acceptance after hosting exists. |
 | Install/update consent | Source-map only: ExtensionInstallPrompt::ShowConfirmation obtains the permission set and icon, checks WasParentDestroyed and completes ABORTED, otherwise invokes ShowDialogCallback with a once completion. | Retain requesting extension/permissions and parent lifetime; expose approve/cancel/abort exactly once. No installation or real permission grant was performed by this audit. |
 | Site access / requests | Source-map only: ExtensionsToolbarViewModel::GrantSiteAccess and PermissionsManager observers; PermissionsManager::UpdateUserSiteSetting/GetUserSiteSetting operate on origin settings. | Present extension + current origin + scope, explicit grant/revoke, pending request and navigation changes; keep Chromium permission storage authoritative. No fake global toolbar provider or blanket permission enable. |
@@ -150,9 +150,8 @@ container remain unchanged.
 These are concrete product ownership boundaries, not failures to be bypassed
 with more stubs. The action API blocker is verified. Direct ExtensionViewHostFactory::CreatePopupHost
 and ExtensionPopup::ShowPopup accept a BrowserWindowInterface and bubble anchor;
-a private direct-hosting probe remains before calling this package complete.
-That probe would test actual popup content/lifetime without claiming a working
-action toolbar or bypassing the product API gate. Consent/site-access/side-panel items
+the private direct-hosting probe below now passes actual popup content/lifetime.
+It does not claim a working action toolbar or bypass the product API gate. Consent/site-access/side-panel items
 are explicitly source-map scope, not runtime support claims.
 
 ### Print preview final bounded result
@@ -238,3 +237,39 @@ Exact identities/outcomes are in roomcore-ui-media-checkpoint.json.
 Next work remains address suggestions/password/card boundaries, extension
 device chooser and local-network/lifetime checks, direct MV3 popup hosting,
 and download-close/file-dialog decisions. The Goal is still in progress.
+
+
+### Package 4 direct popup — completed bounded probe
+
+`feature-ui-extension-popup-initial`:18s,exit0. Private loopback-only CLI hook
+uses the loaded fixture MV3 extension with Chrome's real
+ExtensionViewHostFactory::CreatePopupHost and ExtensionPopup::ShowPopup.
+The existing Room Views anchor owns its native window. State15 means present,
+visible, Room-owned and active; document.hasFocus=true and the actual content
+is “Room spike popup.” Changing content size from the fixture default to
+360×240 resized the widget client area from66×80 to374×266 (includes Chrome's
+popup framing). Explicit close destroyed the target. Reopen created a distinct
+target; closing the owner tab destroyed that target too, with another blank
+tab retained. Both show callbacks reported shown=1. No repair round needed.
+
+This proves reusable Chrome popup hosting independently of the verified
+missing-toolbar action API boundary. Native placement/focus restoration and
+keyboard interaction remain reviewer acceptance. Chapter3 still needs real
+extension action/container ownership, action identity, origin/site access,
+anchor geometry and menu/toolbar routing; a true IsToolbarVisible return alone
+is insufficient. No production UI policy or patch changed.
+
+Probe build33s/13steps; GN dependency check and stand-in Swift typecheck pass.
+Ad-hoc packaging stage4.4s/host18.7s, strict signature valid. Exact tested
+source/binary hashes and receipt are in roomcore-ui-extension-checkpoint.json.
+No new serial baseline or idle-audit claim: these are disabled-by-default
+private diagnostics, with the existing production fix baseline preserved.
+
+### Main reconciliation at this checkpoint
+
+Rebased onto origin/main8522d6f. The only conflict was independent appended
+spike-results.md sections; retained both main's complete Phase2.4a measurements
+and RoomCore's modal findings. Engine/roomcore and App/RoomCore were byte-for-byte
+unchanged by the rebase against former checkpoint bfbd7c0. Direct-main scope
+for Packages, App and ROADMAP contains only App/RoomCore. Historical measurement
+source hashes above intentionally retain their pre-rebase identities.

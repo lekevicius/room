@@ -9,9 +9,9 @@ enum HostEmbeddedUISpike {
         return try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
     }
 
-    static func frontend(prefix: String) async throws -> (HostCDP, String) {
+    static func frontend(prefix: String, suffix: String = "") async throws -> (HostCDP, String) {
         for _ in 0..<150 {
-            if let target = try await targets().first(where: { ($0["url"] as? String)?.hasPrefix(prefix) == true }),
+            if let target = try await targets().first(where: { ($0["url"] as? String)?.hasPrefix(prefix) == true && ($0["url"] as? String)?.hasSuffix(suffix) == true }),
                let socket = target["webSocketDebuggerUrl"] as? String, let url = URL(string: socket),
                let id = target["id"] as? String {
                 HostSpike.record("frontend-target", ["url": target["url"] ?? "", "type": target["type"] ?? "", "id": id])

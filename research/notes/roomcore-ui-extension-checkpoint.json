@@ -1,0 +1,36 @@
+{
+  "chromium_head": "2f06f6d7533a515a94386027cc8020775f3aec9e",
+  "receipt": {
+    "feature": "ui-extension-popup",
+    "exit_status": "0",
+    "elapsed_seconds": "18",
+    "source_commit": "ac08f782b9485682cf5dd4e12d714d1f00f33794"
+  },
+  "identity": {
+    "source_head": "ac08f782b9485682cf5dd4e12d714d1f00f33794",
+    "tracked_diff_sha256": "d18f0ff2d0396f93e1e4840dc50822b90070af4877ee8bded439f0f7523f92c5",
+    "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+    "binaries_sha256": {
+      "Contents/MacOS/Room": "88e033192e50e1f705b14c2eb2b862756f135b4a5de76c274d1864da550e5827",
+      "Contents/MacOS/Room.debug.dylib": "cf4e1348509e6d2112376178764c2a3439319a1b7bfaeeb7ffc01350c8bb1341",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "0c91bc6e341fba0b9426ff96f6a505c56007279585d9924688260ebbc1237b58",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "2803f5f00103f18342b1fcb47076fe8589c9b760bebc0b8ea91068eb81301b52",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+    },
+    "host_sources_sha256": {
+      "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+      "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+      "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+      "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+      "App/RoomCore/HostExtensionUISpike.swift": "b3492e5d38bb74d771d4c6d92d19f26221dde27f37581971884c49973d8cde66",
+      "App/RoomCore/HostFeatureSpike.swift": "dabb5fdc8715d7799164c84942a172d005295267e8f8d2c357914d48e2292e32",
+      "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+      "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+      "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+      "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+      "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+    }
+  },
+  "markers": "spike: ui-extension-popup\nloadavg: 36.3 32.3 37.7\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\nfrontend-target: [\"id\": \"5CB0A59367DAADA1C0933179B99E0EE4\", \"url\": chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij/popup.html, \"type\": page]\nextension-popup-state: 15\nextension-popup-content: {\n    focus = 1;\n    text = \"Room spike popup\";\n    url = \"chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij/popup.html\";\n}\nextension-popup-resize: before=66x80 after=374x266\nextension-popup-close: true\nfrontend-target: [\"type\": page, \"url\": chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij/popup.html, \"id\": \"5DCB1E2F3AC1DB562C24103F6D55051A\"]\nextension-popup-state: 15\nextension-popup-owner-close: pageClosed=true targetGone=true\nboundary: Direct Chrome popup host only. action.openPopup still requires the real Room extension container/toolbar; native focus/appearance remains reviewer acceptance.\ndrive-complete: ui-extension-popup\npage-state: url=http://127.0.0.1:52099/features title=RoomCore features closed=true\nend: ui-extension-popup\nterminate-request-time: 1791035697.33967\n"
+}
