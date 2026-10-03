@@ -90,4 +90,4 @@ All leave 0 helpers and 0 new crashes, with no stack sampling. This eliminates
 external-page readiness as a problem in this control but does not reproduce
 or fix the real-site shutdown failure. Different setup/termination paths and
 load prevent a performance ranking. A final current-package 600-second idle
-audit (netlog-idle-sadtab) is pending.
+audit (netlog-idle-sadtab-final) is pending.

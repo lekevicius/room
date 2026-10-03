@@ -539,4 +539,11 @@ are controls, not the required real-site baseline. No engine or network
 policy change, no new hook. Test-only host rebuild 8.6 s, signature valid;
 Python/Node checks pass. CI0f87b84 passed78/81s. B-16 remains open. A final
 600-second fresh-profile idle audit on the current package is started under
-netlog-idle-sadtab; its result is pending, not counted as passed.
+netlog-idle-sadtab-final; its result is pending, not counted as passed.
+
+Audit launch correction: detached launcher 86596 ended before an app or idle
+marker appeared (only an empty netlog-idle-sadtab directory). No audit result
+is inferred. Restarted once in managed execution session 96817 with a fresh
+netlog-idle-sadtab-final directory; browser PID86910 is nice0, idle-start
+1791012022.020894 (10:20:22 EEST), 600 seconds requested. Both Crashpad handler
+commands again point into this selected profile's Crashpad directory.
