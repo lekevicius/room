@@ -145,6 +145,37 @@ Not available on CEF, with the CEF engine's behavior:
 
 RoomCore-side open points: certificate errors (interstitial vs. delegate), DevTools hosting (`DevToolsWindow` is Views-docked), main-world `executeJavaScript`, and attaching tab helpers (`TabHelpers::AttachTabHelpers` is friend-gated) need `//room` code beyond plain delegates.
 
+## Phase 2.6 exit checklist: every delegate member, its UI, exercised on CEF
+
+Counts are from one run of `scripts/chrome-surfaces.sh --session 2.6b` (light; the dark run's are identical), through recording proxies in front of the tab controller (`DelegateRecorder`, `App/Sources/Debug/ChromeSpikes2.swift`); test pages in `research/spikes/phase-2.6/`.
+
+| Member | UI | Exercised on CEF |
+|---|---|---|
+| `didCreate(_:targetURL:disposition:)` | a Today tab under the opener, selected unless background (`TabController.adoptOpenedPage`) | popups.html: `window.open` and `target=_blank` (2 calls); `window.close()` closes the entry |
+| `webContentsDidRequestEnterFullscreen` / `…ExitFullscreen` | element fullscreen: the card edge to edge, sidebar hidden, the window fullscreen (`PageFullscreen`) | fullscreen.html: the canvas video's `requestFullscreen()` (1), then `exitFullscreen()` (1); window and traffic lights restored |
+| `didChangeStatusText(_:)` | the status pill (600 ms, full URL after 1.5 s, dodges the pointer) | status.html: CDP hovers over three links (32 calls in the run) |
+| `willShowContextMenu(_:for:)` | `NSMenu` with Room's items first (`ContextMenu`, 2.6a) | menu.html: a link (Open Link in New Tab chosen) and an image (cancelled) (2) |
+| `runJavaScriptAlert` / `Confirm` / `Prompt` | the dialog sheet over the dimmed page (2.6a) | dialogs.html: confirm ×2, prompt, alert ×2 (the second withdrawn by a navigation) |
+| `runBeforeUnloadDialogForReload(_:completion:)` | the Leave/Stay sheet, shown at once (2.6a) | dialogs.html armed, ⌘W twice: Stay, Leave (2) |
+| `webContentsDidDismissJavaScriptDialogs(_:)` | the sheet goes without an answer | an alert open, then a navigation Room starts (2.6b: `CEFWebContents` dismisses and reports it); plus CEF's `OnResetDialogState` on navigations (8) |
+| `willAskForPermission(_:quietReason:completion:)` | the permission popover on the site button (2.6a) | permissions.html: location (Allow), notifications (Don't Allow), location again (3; camera/microphone: no devices, B-26) |
+| `webContentsDidDismissPermissionPrompt(_:)` | the popover closes without an answer | a location prompt open, then a navigation (1); answered prompts are not reported (2.6b fix) |
+| `didReceiveAuthChallenge(_:completion:)` | the sign-in sheet (2.6a) | /auth, room / secret (1) |
+| `didFailCertificateCheck(_:completion:)` | Room's interstitial; the row reads the host; Go Back with no history leaves the empty state (B-25) | https://127.0.0.1:8767/secure.html: Go Back, then Visit … Anyway (2) |
+| `runFileChooser(_:completion:)` | the open panel as a sheet, filtered by `accept` (2.6a) | files.html: image, CSV+PDF multiple, folder (3, cancelled) |
+| `isReservedKeyEvent(_:)` | the reserved set reaches the menu, never the page | ⌘L from the page reaches the app; ⌘W etc. in the run (11) |
+| `handleUnhandledKeyEvent(_:)` | the main menu once | ⌘= / ⌘- / ⌘0 from the page → zoom; ⇧⌘C / ⌥⇧⌘C → Copy URL (9) |
+| `didConsumeKey(_:)` | — | **CEF: not available**, never called (0) |
+| `didChangeAudible(_:)` | the row's audio indicator (2.2–2.3) | audio.html: a 1.5 s tone (2: start, end) |
+| `didChangeMuted(_:)` | the row's muted indicator | `isMuted` on and off (2) |
+| `didChangeSecurityState(_:)` | the header's site icon (2.3) | every load (24) |
+| `processGone(_:)` | the crashed-page view with Reload (`PageCrashes`) | `chrome://crash` (1, `.crashed`); Return reloads |
+| `webContentsDidClose(_:)` | the entry closes (`window.close()`), prompts answered | popups.html close, ⌘W (3) |
+| **NavigationDelegate** `decidePolicy(for:)` | navigations proceed as asked (Peek and routing later) | every navigation (33) |
+| `didCommitNavigation(url:transition:)` | history visits (2.4b) | every commit (26) |
+| **DownloadsDelegate** `willBeginDownload` | `DownloadList` picks the file (Settings' folder, "(1)" numbering), the fly-in | downloads.html: five downloads (5) |
+| `didUpdateDownload` | the footer ring, bounce and badge; the popover's rows | 52 updates; pause, resume and cancel through `Profile` |
+
 ## Review
 
 2026-10-02: every row checked against the CEF 154 headers/libcef source, the Chromium 154.0.8037.58 checkout and the ArcCore headers (a separate review pass, ~83 rows). 19 corrections applied (signatures, enum names, M154 renames such as `chrome_security_state::GetSecurityLevel`, and four CEF "not available" claims that turned out emulatable or partial). Not verified by reading code: runtime claims marked *emulated* (Phase 1.4 measures them) and DevTools hosting through `DevToolsUIBindings` (Chapter 3 design).
@@ -152,3 +183,5 @@ RoomCore-side open points: certificate errors (interstitial vs. delegate), DevTo
 2026-10-02 (Phase 1.4, implementation): five rows corrected from running code — `createProfile` cache path (must be a direct child of the root), `nativeView` (an owned host view), DevTools (no `SetAsChild`; docked front-end over the debugging port), `executeJavaScript` (message ids), `close()` (`DoClose` must return `true`). Also found: Alloy loads ⌘-click links in the current browser unless `OnOpenURLFromTab` cancels (the CEF engine opens new contents itself); `tryToTerminate` waits for every `OnBeforeClose` (including un-adopted popups, via `RoomCEFBrowser.didCloseNotification`).
 
 2026-10-03 (Phase 2.6a, UI): the page's prompts are real UI (`Chrome.PageChrome`): JavaScript dialogs, `beforeunload` and HTTP auth as in-card sheets, the certificate interstitial, the permission popover on the header's site button, context menus with Room's items, the file chooser. Two CEF rows corrected from running code: HTTP auth needs `--disable-chrome-login-prompt`, and certificate errors carry no HSTS state.
+
+2026-10-03 (Phase 2.6b): the exit checklist above. Rows corrected from running code: `find` (CEF's first request only counts), `webContentsDidDismissPermissionPrompt` (also follows answered prompts), JavaScript dialogs under a navigation (Alloy has no tab-modal manager: `CEFWebContents` dismisses them when Room navigates); new rows `exitFullscreen`, `permissionSetting`/`setPermissionSetting` (CEF answers with the effective value, defaults included), `DevTools.isDockable`/`open(in:tool:)`.
