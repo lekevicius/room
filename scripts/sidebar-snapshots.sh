@@ -8,7 +8,7 @@
 set -euo pipefail
 
 FIXTURE="${1:-demo}"
-OUT_ARG="${2:-research/screenshots/phase-2.2a}"
+OUT_ARG="${2:-research/screenshots/phase-2.2b}"
 mkdir -p "$(dirname "$OUT_ARG")"
 OUT="$(cd "$(dirname "$OUT_ARG")" && pwd)/$(basename "$OUT_ARG")"
 APP="${3:-build/DerivedData/Build/Products/Debug/Room.app}"
