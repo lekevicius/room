@@ -382,6 +382,8 @@ NS_SWIFT_UI_ACTOR
 
 - (void)setFocus:(BOOL)focus;
 - (void)printPage;
+/// `ExitFullscreen(true)`: leaves element fullscreen.
+- (void)exitFullscreen;
 - (nullable RoomCEFSecurityStatus*)visibleSecurityStatus;
 
 /// CEF's own DevTools window: a separate Chrome-style top-level window. CEF

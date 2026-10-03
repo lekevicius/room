@@ -569,20 +569,31 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
     /// The view and rect the permission popover points at (the site button), or `nil` for the card's top-left.
     private let permissionAnchor: () -> (view: NSView, rect: NSRect)?
     private let focusPage: () -> Void
+    private let crashes: PageCrashes?
+    /// The current page's host, for the crashed-page view.
+    private let pageHost: (ObjectIdentifier) -> String?
+    private var shownCrash: (page: ObjectIdentifier, view: CrashedPageView)?
     private var shownDialog: (id: Int, view: PromptOverlayView)?
     private var shownPermission: (id: Int, popover: NSPopover)?
     /// Set while Room closes the popover itself (a tab switch): not an answer.
     private var closingPopover = false
 
-    public init(prompts: PagePrompts, host: NSView, permissionAnchor: @escaping () -> (view: NSView, rect: NSRect)?,
-                focusPage: @escaping () -> Void) {
+    public init(prompts: PagePrompts, crashes: PageCrashes? = nil, host: NSView,
+                permissionAnchor: @escaping () -> (view: NSView, rect: NSRect)?,
+                pageHost: @escaping (ObjectIdentifier) -> String? = { _ in nil }, focusPage: @escaping () -> Void) {
         self.prompts = prompts
+        self.crashes = crashes
         self.host = host
         self.permissionAnchor = permissionAnchor
+        self.pageHost = pageHost
         self.focusPage = focusPage
         super.init()
         prompts.onChange = { [weak self] in self?.update() }
+        crashes?.onChange = { [weak self] in self?.update() }
     }
+
+    /// The crashed-page view on screen (DEBUG captures, spikes).
+    public var crashView: NSView? { shownCrash?.view }
 
     /// The dialog view on screen (DEBUG captures, spikes).
     public var dialogView: NSView? { shownDialog?.view }
@@ -590,8 +601,28 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
     public var permissionView: NSView? { shownPermission?.popover.contentViewController?.view }
 
     public func update() {
+        updateCrash()
         updateDialog()
         updatePermission()
+    }
+
+    /// The crashed-page view under any dialog, while the page in the card is crashed.
+    private func updateCrash() {
+        let page = prompts.currentPage
+        let status = crashes?.status(of: page)
+        if let shown = shownCrash, shown.page != page || status == nil {
+            let hadFocus = Self.contains(shown.view, responder: shown.view.window?.firstResponder)
+            shown.view.removeFromSuperview()
+            shownCrash = nil
+            if hadFocus, status == nil { focusPage() }
+        }
+        guard shownCrash == nil, let page, let status, let host else { return }
+        let view = CrashedPageView(status: status, host: pageHost(page)) { [weak crashes] in crashes?.reload(page) }
+        view.frame = host.bounds
+        view.autoresizingMask = [.width, .height]
+        host.addSubview(view, positioned: .below, relativeTo: nil)
+        shownCrash = (page, view)
+        if shownDialog == nil { view.window?.makeFirstResponder(view) }
     }
 
     private func updateDialog() {

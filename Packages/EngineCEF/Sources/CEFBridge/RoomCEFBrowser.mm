@@ -1187,6 +1187,10 @@ NSMutableArray<RoomCEFBrowser*>* LiveBrowsers() {
   if (_browser) _browser->GetHost()->Print();
 }
 
+- (void)exitFullscreen {
+  if (_browser && _browser->GetHost()->IsFullscreen()) _browser->GetHost()->ExitFullscreen(true);
+}
+
 - (RoomCEFSecurityStatus*)visibleSecurityStatus {
   if (!_browser) return nil;
   CefRefPtr<CefNavigationEntry> entry = _browser->GetHost()->GetVisibleNavigationEntry();

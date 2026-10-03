@@ -304,7 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                     rootView: BrowserWindowView) {
         let chrome = pageDelegate.chrome
         promptPresenter = PagePromptPresenter(
-            prompts: chrome.prompts, host: pageHost.container.promptLayer,
+            prompts: chrome.prompts, crashes: chrome.crashes, host: pageHost.container.promptLayer,
             permissionAnchor: { [weak rootView, weak sidebar] in
                 // The site button while the sidebar shows it; otherwise the card's corner.
                 guard let rootView, rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil else {
@@ -312,8 +312,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
                 return (button, button.bounds)
             },
+            pageHost: { [weak pageHost] id in
+                guard let contents = pageHost?.contents, ObjectIdentifier(contents) == id else { return nil }
+                return contents.url?.host()
+            },
             focusPage: { [weak pageHost] in pageHost?.focusPage() })
-        pageHost.onShow = { [weak chrome] contents in chrome?.prompts.setCurrentPage(contents) }
+        let fullscreen = windowController.map(PageFullscreen.init)
+        pageDelegate.fullscreen = fullscreen
+        windowController?.onFullscreenChange = { [weak fullscreen] isFullscreen in
+            if !isFullscreen { fullscreen?.windowDidExitFullscreen() }
+        }
+        pageHost.onShow = { [weak chrome, weak fullscreen] contents in
+            chrome?.prompts.setCurrentPage(contents)
+            fullscreen?.cardDidShow(contents)
+        }
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.performMenuAction = { [weak tabs] action, page in
             switch action {

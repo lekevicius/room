@@ -220,6 +220,8 @@ public final class CEFWebContents: NSObject, WebContents {
 
     public func print() { browser?.printPage() }
 
+    public func exitFullscreen() { browser?.exitFullscreen() }
+
     /// Sends a DevTools protocol command over CEF's in-process channel and
     /// returns the decoded result object.
     public func devToolsMethod(_ method: String, params: [String: Any] = [:]) async throws -> [String: Any] {

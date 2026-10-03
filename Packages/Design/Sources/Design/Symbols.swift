@@ -105,6 +105,13 @@ public enum Symbol: CaseIterable, Sendable {
     case undo
     case info
 
+    // The page's state and tools in the card (Phase 2.6b)
+    case pageCrashed
+    case findPrevious
+    case findNext
+    case dismiss
+    case file
+
     /// The SF Symbols name.
     public var name: String {
         switch self {
@@ -187,6 +194,11 @@ public enum Symbol: CaseIterable, Sendable {
         case .success: "checkmark.circle.fill"
         case .undo: "arrow.uturn.backward.circle"
         case .info: "info.circle"
+        case .pageCrashed: "exclamationmark.octagon"
+        case .findPrevious: "chevron.up"
+        case .findNext: "chevron.down"
+        case .dismiss: "xmark.circle.fill"
+        case .file: "doc"
         }
     }
 

@@ -35,6 +35,15 @@ public final class CardView: NSView {
 
     public override var mouseDownCanMoveWindow: Bool { false }
 
+    /// Square, borderless and shadowless: a page in element fullscreen.
+    public var isEdgeToEdge = false {
+        didSet {
+            guard isEdgeToEdge != oldValue else { return }
+            container.isEdgeToEdge = isEdgeToEdge
+            shadowView.isHidden = isEdgeToEdge
+        }
+    }
+
     public override func layout() {
         super.layout()
         shadowView.frame = bounds
@@ -46,6 +55,13 @@ public final class CardView: NSView {
 public final class CardContainerView: NSView {
     public var backgroundColor: NSColor = Palette.cardBackground {
         didSet { needsDisplay = true }
+    }
+
+    var isEdgeToEdge = false {
+        didSet {
+            layer?.cornerRadius = isEdgeToEdge ? 0 : CardMetrics.cornerRadius
+            needsDisplay = true
+        }
     }
 
     public var contentView: NSView? {
@@ -83,7 +99,7 @@ public final class CardContainerView: NSView {
         // The border draws above the layer's sublayers (CALayer composites
         // borders over contents and sublayers), so the page cannot cover it.
         layer.borderColor = Palette.cardBorder.cgColor
-        layer.borderWidth = CardMetrics.borderWidth / (window?.backingScaleFactor ?? 2)
+        layer.borderWidth = isEdgeToEdge ? 0 : CardMetrics.borderWidth / (window?.backingScaleFactor ?? 2)
     }
 
     public override func viewDidChangeBackingProperties() {

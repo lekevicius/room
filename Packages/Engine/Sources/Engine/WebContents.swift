@@ -75,6 +75,9 @@ public protocol WebContents: AnyObject, Observable {
     func executeJavaScript(_ script: String) async throws -> String
     /// Opens the print dialog (or print preview, where the engine has it).
     func print()
+    /// Leaves element fullscreen (`requestFullscreen()`); the UI delegate
+    /// then hears `webContentsDidRequestExitFullscreen`. No-op otherwise.
+    func exitFullscreen()
 }
 
 public extension WebContents {

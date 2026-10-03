@@ -12,7 +12,12 @@ public struct WindowLayout: Equatable, Sendable {
     /// The card never gets narrower than this; the sidebar gives way first.
     public static let minimumCardWidth: CGFloat = 320
 
-    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool) -> WindowLayout {
+    /// `pageFullscreen`: a page's element fullscreen (a video, `requestFullscreen()`)
+    /// takes the whole window, sidebar hidden and no inset.
+    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool, pageFullscreen: Bool = false) -> WindowLayout {
+        if pageFullscreen {
+            return WindowLayout(sidebar: CGRect(x: bounds.minX, y: bounds.minY, width: 0, height: bounds.height), splitter: nil, card: bounds)
+        }
         let inset = CardMetrics.inset
         let width = isSidebarOpen ? effectiveSidebarWidth(sidebarWidth, availableWidth: bounds.width) : 0
         let leading = isSidebarOpen ? CardMetrics.sidebarSideInset : inset

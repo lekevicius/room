@@ -11,8 +11,11 @@ import UIKitCore
 @Observable
 final class PageUIDelegate {
     @ObservationIgnored let host: PageHost
-    /// Dialogs, permission prompts, auth, certificate errors, context menus, file choosers.
+    /// Dialogs, permission prompts, auth, certificate errors, context menus,
+    /// file choosers, the crashed-page view.
     @ObservationIgnored let chrome = PageChrome()
+    /// Element fullscreen (2.6b).
+    @ObservationIgnored var fullscreen: PageFullscreen?
     /// The selected page's status text (link hover), for the debug panel.
     var statusText: String?
     /// Every key the engine reported as reserved or unhandled, for the keyboard spike.
@@ -95,6 +98,20 @@ extension PageUIDelegate: WebContentsUIDelegate {
 
     func webContentsDidClose(_ webContents: any WebContents) {
         chrome.webContentsDidClose(webContents)
+        fullscreen?.exit(webContents)
+    }
+
+    func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {
+        chrome.webContents(webContents, processGone: status)
+        fullscreen?.exit(webContents)
+    }
+
+    func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {
+        fullscreen?.enter(webContents, shown: host.contents)
+    }
+
+    func webContentsDidRequestExitFullscreen(_ webContents: any WebContents) {
+        fullscreen?.exit(webContents)
     }
 }
 

@@ -73,6 +73,9 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// The window is about to close.
     public var onWillClose: (() -> Void)?
 
+    /// The window entered (`true`) or left window fullscreen.
+    public var onFullscreenChange: ((Bool) -> Void)?
+
     @objc public func toggleSidebar(_ sender: Any?) {
         isSidebarOpen.toggle()
         onSidebarStateChange?(sidebarWidth, isSidebarOpen)
@@ -132,9 +135,15 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     // slides down with the menu bar; ours is empty (it only positions the
     // traffic lights), so it is hidden for the duration (Phase 1.4 spike).
     public func windowWillEnterFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = false }
-    public func windowDidEnterFullScreen(_ notification: Notification) { rootView.needsLayout = true }
+    public func windowDidEnterFullScreen(_ notification: Notification) {
+        rootView.needsLayout = true
+        onFullscreenChange?(true)
+    }
     public func windowWillExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
-    public func windowDidExitFullScreen(_ notification: Notification) { rootView.needsLayout = true }
+    public func windowDidExitFullScreen(_ notification: Notification) {
+        rootView.needsLayout = true
+        onFullscreenChange?(false)
+    }
 
     public func windowDidMove(_ notification: Notification) { reportFrame() }
     public func windowDidEndLiveResize(_ notification: Notification) { reportFrame() }
@@ -176,6 +185,16 @@ public final class BrowserWindowView: NSView {
         didSet { if isSidebarOpen != oldValue { needsLayout = true; layoutSubtreeIfNeeded() } }
     }
 
+    /// A page in element fullscreen: the card fills the window edge to edge.
+    public var isPageFullscreen = false {
+        didSet {
+            guard isPageFullscreen != oldValue else { return }
+            cardView.isEdgeToEdge = isPageFullscreen
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        }
+    }
+
     /// Called after every layout pass (overlays such as toasts re-anchor).
     public var onLayout: (() -> Void)?
 
@@ -196,14 +215,14 @@ public final class BrowserWindowView: NSView {
     public override var isFlipped: Bool { true }
 
     public var currentLayout: WindowLayout {
-        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen)
+        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen)
     }
 
     public override func layout() {
         super.layout()
         trafficLights?.update()
         let layout = currentLayout
-        sidebarView.isHidden = !isSidebarOpen
+        sidebarView.isHidden = !isSidebarOpen || isPageFullscreen
         sidebarView.frame = layout.sidebar
         cardView.frame = layout.card
         splitterView.isHidden = layout.splitter == nil

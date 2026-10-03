@@ -132,6 +132,7 @@ public extension FakeWebContents {
     }
 
     func simulateFullscreenRequest(enter: Bool) {
+        isFullscreen = enter
         if enter {
             effectiveUIDelegate.webContentsDidRequestEnterFullscreen(self, origin: origin)
         } else {

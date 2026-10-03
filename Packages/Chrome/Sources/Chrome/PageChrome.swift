@@ -8,6 +8,8 @@ import Engine
 /// pages without a window.
 public final class PageChrome: WebContentsUIDelegate {
     public let prompts = PagePrompts()
+    /// Pages whose renderer went away (the crashed-page view, 2.6b).
+    public let crashes = PageCrashes()
     /// Shows a context menu at a point of the page's view (default: `NSMenu` pop-up on the next turn).
     public var presentMenu: (ContextMenu, NSPoint, NSView) -> Void = { menu, point, view in
         // Outside the engine's callback: the pop-up runs its own event loop.
@@ -106,5 +108,12 @@ public final class PageChrome: WebContentsUIDelegate {
 
     public func webContentsDidClose(_ webContents: any WebContents) {
         prompts.pageClosed(webContents)
+        crashes.pageClosed(webContents)
+    }
+
+    // MARK: The renderer
+
+    public func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {
+        crashes.crashed(webContents, status: status)
     }
 }

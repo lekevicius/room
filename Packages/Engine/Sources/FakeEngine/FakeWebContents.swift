@@ -35,6 +35,8 @@ public final class FakeWebContents: WebContents {
     /// Set by `simulateCrash`; cleared by the next reload or navigation.
     public private(set) var isCrashed = false
     public private(set) var printCount = 0
+    /// Element fullscreen, entered by `simulateFullscreenRequest(enter:)`.
+    public internal(set) var isFullscreen = false
 
     /// Committed history and the index of the current entry.
     public private(set) var backForwardList: [URL] = []
@@ -307,6 +309,12 @@ public final class FakeWebContents: WebContents {
             }
             return try javaScriptHandler(script)
         }
+    }
+
+    public func exitFullscreen() {
+        guard isFullscreen else { return }
+        isFullscreen = false
+        effectiveUIDelegate.webContentsDidRequestExitFullscreen(self)
     }
 
     public func print() {
