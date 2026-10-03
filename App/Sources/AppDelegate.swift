@@ -82,24 +82,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// The Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes)
     /// moved out of the sidebar into a utility panel (Debug ▸ Show Debug
-    /// Toolbar) when the sidebar tree arrived in Phase 2.2.
+    /// Toolbar) when the sidebar tree arrived in Phase 2.2. Its SwiftUI view
+    /// exists only while the panel is open: hidden, it still re-rendered on
+    /// every tab switch (~3 ms each, 2.3 profile).
     private func installDebugPanel(_ toolbar: some View) {
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 520),
                             styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: true)
         panel.title = "Debug Toolbar"
         panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = true
         panel.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: toolbar.padding(.top, 12))
-        panel.contentView = hosting
+        makeDebugToolbar = {
+            let view = NSHostingView(rootView: toolbar.padding(.top, 12))
+            view.identifier = Self.debugToolbarID
+            return view
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: panel, queue: .main) { _ in
+            MainActor.assumeIsolated { panel.contentView = nil }
+        }
         debugPanel = panel
     }
+
+    private var makeDebugToolbar: (() -> NSView)?
+    private static let debugToolbarID = NSUserInterfaceItemIdentifier("debug-toolbar")
 
     @objc func showDebugToolbar(_ sender: Any?) {
         guard let panel = debugPanel else { return }
         if !panel.isVisible, let frame = windowController?.window?.frame {
             panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX + 8, y: frame.maxY))
         }
+        if panel.contentView?.identifier != Self.debugToolbarID, let view = makeDebugToolbar?() { panel.contentView = view }
         panel.makeKeyAndOrderFront(nil)
     }
 
