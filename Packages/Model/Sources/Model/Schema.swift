@@ -4,10 +4,39 @@ import GRDB
 public enum Schema {
     public static let v1 = "v1"
 
+    /// Phase 2.4b: history's host key and frecency (`History`, `Frecency`).
+    public static let v2 = "v2-history-frecency"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
+        migrator.registerMigration(v2, migrate: createV2)
         return migrator
+    }
+
+    /// `history_url.host` (lowercased, without "www.") for inline host
+    /// completion and `frecency` (the decayed-visit logarithm) for ordering;
+    /// rows already present are backfilled from their visits.
+    static func createV2(_ db: Database) throws {
+        try db.alter(table: "history_url") { t in
+            t.add(column: "host", .text).notNull().defaults(to: "")
+            t.add(column: "frecency", .double).notNull().defaults(to: Frecency.none)
+        }
+        try db.create(index: "history_url_frecency", on: "history_url", columns: ["frecency"])
+        try db.create(index: "history_url_host", on: "history_url", columns: ["host", "frecency"])
+        let rows = try Row.fetchAll(db, sql: "SELECT id, url FROM history_url")
+        for row in rows {
+            let id: Int64 = row["id"]
+            var frecency = Frecency.none
+            let visits = try Row.fetchAll(db, sql: "SELECT visitedAt, transition FROM history_visit WHERE urlID = ?", arguments: [id])
+            for visit in visits {
+                let time: Timestamp = visit["visitedAt"]
+                let transition = HistoryTransition(rawValue: visit["transition"]) ?? .other
+                frecency = Frecency.adding(transition.weight, at: time.date, to: frecency)
+            }
+            try db.execute(sql: "UPDATE history_url SET host = ?, frecency = ? WHERE id = ?",
+                           arguments: [History.hostKey(for: row["url"]) ?? "", frecency, id])
+        }
     }
 
     /// Foreign keys are deferred: the writer applies a whole-state diff in one

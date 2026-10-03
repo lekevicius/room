@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 creates every table and is the only migration")
+    @Test("v1 creates every table; v2 (history frecency) is the only other migration")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
@@ -14,7 +14,7 @@ struct SchemaTests {
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1])
+        #expect(applied == [Schema.v1, Schema.v2])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }

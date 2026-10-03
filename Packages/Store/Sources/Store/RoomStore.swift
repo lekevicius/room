@@ -8,6 +8,8 @@ public final class RoomStore {
     public let settings: SettingsStore
     /// Favicons by host (outside the state pipeline).
     public let favicons: FaviconStore
+    /// Browsing history for the palette (outside the state pipeline; Phase 2.4b).
+    public let history: History
     public let persistence: Persistence
     public let storage: RoomStorage
     /// The previous session ended without `close()` (crash, kill, power loss).
@@ -36,6 +38,7 @@ public final class RoomStore {
         windows = WindowStore(state: state)
         settings = SettingsStore(settings: state.settings)
         favicons = FaviconStore(database: writer.database)
+        history = History(database: writer.database)
         var provider: () -> RoomState = { RoomState() }
         persistence = Persistence(writer: writer, generation: opened.generation, debounce: debounce) { provider() }
         provider = { [unowned self] in currentState() }
