@@ -18,7 +18,7 @@ enum MainMenu {
         main.addItem(submenu: appMenu, title: "Room")
 
         let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(withTitle: "New Page", action: #selector(AppDelegate.newPage(_:)), keyEquivalent: "t")
+        fileMenu.addItem(withTitle: "New Tab", action: #selector(AppDelegate.newPage(_:)), keyEquivalent: "t")
         fileMenu.addItem(withTitle: "Open Location…", action: #selector(AppDelegate.openLocation(_:)), keyEquivalent: "l")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Page", action: #selector(AppDelegate.closePage(_:)), keyEquivalent: "w")
@@ -47,6 +47,17 @@ enum MainMenu {
         let devTools = viewMenu.addItem(withTitle: "Developer Tools", action: #selector(AppDelegate.toggleDevTools(_:)), keyEquivalent: "i")
         devTools.keyEquivalentModifierMask = [.command, .option]
         main.addItem(submenu: viewMenu, title: "View")
+
+        #if DEBUG
+        // Phase 2.2: drives the FakeEngine pages behind the sidebar, and the
+        // Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes).
+        let debugMenu = NSMenu(title: "Debug")
+        debugMenu.addItem(withTitle: "Show Debug Toolbar", action: #selector(AppDelegate.showDebugToolbar(_:)), keyEquivalent: "")
+        debugMenu.addItem(.separator())
+        debugMenu.addItem(withTitle: "Navigate Selected Page", action: #selector(AppDelegate.navigateSelectedPage(_:)), keyEquivalent: "")
+        debugMenu.addItem(withTitle: "Toggle Audio in Selected Page", action: #selector(AppDelegate.toggleAudioInSelectedPage(_:)), keyEquivalent: "")
+        main.addItem(submenu: debugMenu, title: "Debug")
+        #endif
 
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

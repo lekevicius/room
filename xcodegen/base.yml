@@ -39,6 +39,10 @@ packages:
     path: Packages/Model
   Store:
     path: Packages/Store
+  Sidebar:
+    path: Packages/Sidebar
+  Chrome:
+    path: Packages/Chrome
 targets:
   Room:
     type: application
@@ -64,6 +68,11 @@ targets:
       - package: Infra
       - package: Model
       - package: Store
+      - package: Sidebar
+      - package: Chrome
+      # Pages behind the sidebar until Phase 2.3 (FakeEngine).
+      - package: Engine
+        product: FakeEngine
 schemes:
   Room:
     build:
@@ -81,5 +90,7 @@ schemes:
         - package: UIKitCore/UIKitCoreTests
         - package: Model/ModelTests
         - package: Store/StoreTests
+        - package: Sidebar/SidebarTests
+        - package: Chrome/ChromeTests
     archive:
       config: Release

@@ -11,13 +11,15 @@ enum SnapshotRunner {
         UserDefaults.standard.string(forKey: "RoomSnapshotDirectory").map { URL(fileURLWithPath: $0, isDirectory: true) }
     }
 
-    private struct State {
+    struct State {
         var name: String
         var dark: Bool
         var sidebarOpen: Bool
         var contentSize = RoomWindow.defaultContentSize
         var sidebarWidth = 240.0
         var tint: NSColor?
+        /// File name prefix; default from the name (phase-1.3 / phase-1.4).
+        var prefix: String?
     }
 
     /// `-RoomSnapshotPageURL <url>`: also capture the page-in-card states (Phase 1.4).
@@ -89,7 +91,7 @@ enum SnapshotRunner {
     /// may refuse self-activation (scripts/window-snapshots.sh also activates
     /// it from outside), and other apps can take focus mid-capture: retry
     /// until the window stays main throughout.
-    private static func captureActive(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
+    static func captureActive(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
         var line = ""
         for _ in 0..<40 {
             for _ in 0..<50 where !isFrontmost(controller) {
@@ -108,7 +110,7 @@ enum SnapshotRunner {
         NSApp.isActive && controller.window?.isMainWindow == true
     }
 
-    private static func capture(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
+    static func capture(_ state: State, _ controller: RoomWindowController, _ directory: URL, settle: Duration = .milliseconds(800)) async -> String {
         guard let window = controller.window else { return "\(state.name): no window" }
         NSApp.appearance = NSAppearance(named: state.dark ? .darkAqua : .aqua)
         window.setContentSize(state.contentSize)
@@ -118,7 +120,7 @@ enum SnapshotRunner {
         window.layoutIfNeeded()
         window.displayIfNeeded()
         try? await Task.sleep(for: settle)
-        let phase = state.name.contains("page") ? "phase-1.4" : "phase-1.3"
+        let phase = state.prefix ?? (state.name.contains("page") ? "phase-1.4" : "phase-1.3")
         let url = directory.appending(path: "\(phase)-\(state.name).png")
         let image = try? WindowSnapshot.writePNG(window, to: url)
         let lights = controller.trafficLights.geometry.buttonsRect.map { NSStringFromRect($0) } ?? "none"

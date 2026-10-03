@@ -1,8 +1,11 @@
 import AppKit
+import Chrome
 import Design
 import Engine
+import FakeEngine
 import Infra
 import Model
+import Sidebar
 import Store
 import SwiftUI
 import UIKitCore
@@ -14,12 +17,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pageHost: PageHost?
     private(set) var session: DebugSession?
     private(set) var overlays: OverlaySpike?
+    private(set) var sidebar: SidebarController?
+    private(set) var sidebarPages: SidebarPages?
+    private var toastCenter: ToastCenter?
+    /// Pages behind the sidebar until Phase 2.3 puts entries on CEF.
+    private let fakeEngine = FakeApplication()
+    private var debugPanel: NSPanel?
 
     init(engine: any EngineApplication) {
         self.engine = engine
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The address field's full-URL tooltip appears after 600 ms (spec §C).
+        UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
         NSApp.mainMenu = MainMenu.make()
         store = Self.openStore()
         if Self.quitRequested {
@@ -40,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let overlays = OverlaySpike(rootView: controller.rootView)
             self.session = session
             self.overlays = overlays
-            installToolbar(DebugToolbar(session: session, overlays: overlays), in: controller)
+            installDebugPanel(DebugToolbar(session: session, overlays: overlays))
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
                 session.newPage(DebugSession.url(from: start))
             }
@@ -49,7 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #if DEBUG
         if let directory = SnapshotRunner.directory {
-            await SnapshotRunner.run(controller, session: session, into: directory)
+            if SidebarFixtures.requested != nil, let sidebar, let sidebarPages {
+                await SidebarSnapshotRunner.run(controller, sidebar: sidebar, pages: sidebarPages, into: directory)
+            } else {
+                await SnapshotRunner.run(controller, session: session, into: directory)
+            }
             NSApp.terminate(nil)
         } else if let session, let spike = SpikeRunner.requested {
             await SpikeRunner.run(spike, session: session, controller: controller, overlays: overlays)
@@ -57,12 +72,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
-    private func installToolbar(_ toolbar: some View, in controller: RoomWindowController) {
-        let hosting = NSHostingView(rootView: toolbar)
-        let content = controller.sidebarView.contentView
-        hosting.frame = NSRect(x: 0, y: 52, width: content.bounds.width, height: max(0, content.bounds.height - 52))
-        hosting.autoresizingMask = [.width, .height]
-        content.addSubview(hosting)
+    /// The Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes)
+    /// moved out of the sidebar into a utility panel (Debug ▸ Show Debug
+    /// Toolbar) when the sidebar tree arrived in Phase 2.2.
+    private func installDebugPanel(_ toolbar: some View) {
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 520),
+                            styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: true)
+        panel.title = "Debug Toolbar"
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = true
+        panel.isReleasedWhenClosed = false
+        let hosting = NSHostingView(rootView: toolbar.padding(.top, 12))
+        panel.contentView = hosting
+        debugPanel = panel
+    }
+
+    @objc func showDebugToolbar(_ sender: Any?) {
+        guard let panel = debugPanel else { return }
+        if !panel.isVisible, let frame = windowController?.window?.frame {
+            panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX + 8, y: frame.maxY))
+        }
+        panel.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -77,9 +107,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showWindow() {
         if windowController == nil {
             let controller = RoomWindowController()
-            if let store { bind(controller, to: store) }
             windowController = controller
-            pageHost = PageHost(controller: controller)
+            let pageHost = PageHost(controller: controller)
+            self.pageHost = pageHost
+            if let store {
+                let windowID = bind(controller, to: store)
+                installSidebar(in: controller, store: store, windowID: windowID, pageHost: pageHost)
+            }
         }
         windowController?.showWindow(nil)
     }
@@ -95,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             directory = URL(fileURLWithPath: override, isDirectory: true)
         }
         #if DEBUG
-        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil {
+        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
             directory = FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
         }
         #endif
@@ -134,7 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Restores the window's saved sidebar width/visibility and frame and
     /// keeps the store up to date as the user changes them.
-    private func bind(_ controller: RoomWindowController, to store: RoomStore) {
+    @discardableResult
+    private func bind(_ controller: RoomWindowController, to store: RoomStore) -> UUID {
         let firstSpace = store.sidebar.spaces.first
         let record = store.windows.restoreOrCreateWindow(defaultSidebarWidth: Double(SidebarMetrics.defaultWidth),
                                                          space: firstSpace?.id)
@@ -149,6 +184,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         controller.onFrameChange = { [weak store] frame in store?.windows.setFrame(frame, window: windowID) }
         controller.onWillClose = { [weak store] in store?.flush() }
+        return windowID
+    }
+
+    /// The sidebar tree (Phase 2.2) with FakeEngine pages behind it, and toasts.
+    private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
+        #if DEBUG
+        if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
+        #endif
+        let sidebar = SidebarController(store: store, windowID: windowID)
+        do {
+            try fakeEngine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+        } catch {
+            NSLog("Room: FakeEngine: \(error)")
+        }
+        guard let profile = try? fakeEngine.profile(named: "Default") else { return }
+        let pages = SidebarPages(profile: profile, pageHost: pageHost, store: store)
+        pages.sidebar = sidebar
+        sidebar.host = pages
+        controller.sidebarView.headerView = sidebar.addressField
+        controller.sidebarView.bodyView = sidebar.bodyView
+        sidebar.onSpaceChange = { [weak controller] space in controller?.spaceTitle = space.name }
+        let rootView = controller.rootView
+        let toasts = ToastCenter(hostView: rootView) { [weak rootView] in
+            guard let rootView else { return ToastCenter.Anchor(rect: .zero, alignment: .center) }
+            let layout = rootView.currentLayout
+            if rootView.isSidebarOpen {
+                // Bottom-centre of the sidebar, above its footer.
+                var rect = layout.sidebar
+                rect.size.height -= SidebarMetrics.footerHeight
+                return ToastCenter.Anchor(rect: rect, alignment: .center)
+            }
+            // Bottom-left of the window.
+            return ToastCenter.Anchor(rect: CGRect(x: layout.card.minX, y: 0, width: SidebarMetrics.defaultWidth,
+                                                   height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
+        }
+        rootView.onLayout = { [weak toasts] in toasts?.updateAnchor() }
+        sidebar.toasts = toasts
+        self.sidebar = sidebar
+        sidebarPages = pages
+        toastCenter = toasts
+        if let id = sidebar.selectedEntryID, let entry = store.sidebar.entry(id) { pages.activate(entry) }
     }
 
     /// Final state write; called at quit (both termination paths).
@@ -162,13 +238,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Menu actions (end of the responder chain)
 
+    /// ⌘T: a new Today tab (a URL prompt until the palette, Phase 2.4).
     @objc func newPage(_ sender: Any?) {
-        session?.newPage(nil)
-        session?.addressFocusRequest += 1
+        sidebarPages?.newTab()
     }
 
+    /// ⌘L: navigate the selected tab (a URL prompt until the palette, Phase 2.4).
     @objc func openLocation(_ sender: Any?) {
-        session?.addressFocusRequest += 1
+        sidebarPages?.editAddress()
+    }
+
+    @objc func navigateSelectedPage(_ sender: Any?) {
+        sidebarPages?.navigateSelected()
+    }
+
+    @objc func toggleAudioInSelectedPage(_ sender: Any?) {
+        sidebarPages?.toggleAudioInSelected()
     }
 
     @objc func closePage(_ sender: Any?) {
@@ -176,15 +261,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func reloadPage(_ sender: Any?) {
-        session?.current?.reload()
+        pageHost?.contents?.reload()
     }
 
     @objc func goBack(_ sender: Any?) {
-        session?.current?.goBack()
+        pageHost?.contents?.goBack()
     }
 
     @objc func goForward(_ sender: Any?) {
-        session?.current?.goForward()
+        pageHost?.contents?.goForward()
     }
 
     @objc func toggleDevTools(_ sender: Any?) {
