@@ -11,6 +11,7 @@ public final class CEFProfile: Profile {
     let context: RoomCEFRequestContext
     private let liveContents = NSHashTable<CEFWebContents>.weakObjects()
     private var downloadControls: [DownloadItem.ID: RoomCEFDownloadControl] = [:]
+    private var suggestedNames: [DownloadItem.ID: String] = [:]
 
     init(name: String, context: RoomCEFRequestContext) {
         self.name = name
@@ -39,13 +40,19 @@ public final class CEFProfile: Profile {
             completion(nil)
             return
         }
+        suggestedNames[item.id] = item.suggestedFilename
         downloadsDelegate.profile(self, willBeginDownload: item, completion: completion)
     }
 
     func didUpdateDownload(_ item: DownloadItem, control: RoomCEFDownloadControl) {
+        var item = item
+        // CEF's updates carry an empty suggested name (2.6b): the one from OnBeforeDownload stands.
+        if item.suggestedFilename.isEmpty, let name = suggestedNames[item.id] { item.suggestedFilename = name }
         switch item.state {
         case .inProgress, .interrupted: downloadControls[item.id] = control
-        case .complete, .cancelled: downloadControls[item.id] = nil
+        case .complete, .cancelled:
+            downloadControls[item.id] = nil
+            suggestedNames[item.id] = nil
         }
         downloadsDelegate?.profile(self, didUpdateDownload: item)
     }

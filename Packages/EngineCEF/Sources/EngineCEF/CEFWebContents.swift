@@ -57,6 +57,11 @@ public final class CEFWebContents: NSObject, WebContents {
     @ObservationIgnored private var discarding = false
     @ObservationIgnored private var closeRequested = false
     @ObservationIgnored private var lastFindText: String?
+    /// JavaScript dialogs waiting for the UI, by our own id.
+    @ObservationIgnored private var pendingDialogs: [Int: (Bool, String?) -> Void] = [:]
+    @ObservationIgnored private var nextDialogID = 1
+    /// Permission prompts the UI delegate answered (their dismissal is not a withdrawal).
+    @ObservationIgnored private var answeredPrompts: Set<UInt64> = []
     @ObservationIgnored private var faviconURL: String?
     /// What the last `load` asked for: CEF commits every browser-initiated
     /// load as TYPED, so the requested transition stands in for it.
@@ -115,6 +120,7 @@ public final class CEFWebContents: NSObject, WebContents {
     public func load(_ url: URL, transition: PageTransition, fromAddressBar: Bool) {
         // CEF always loads with TYPED | FROM_ADDRESS_BAR; `transition` is
         // remembered and reported at the commit instead.
+        dismissDialogsForNavigation()
         if state == .discarded { revive() }
         self.url = url
         requestedTransition = transition
@@ -122,10 +128,31 @@ public final class CEFWebContents: NSObject, WebContents {
         browser?.loadURL(url.absoluteString)
     }
 
-    public func goBack() { browser?.goBack() }
-    public func goForward() { browser?.goForward() }
+    public func goBack() {
+        dismissDialogsForNavigation()
+        browser?.goBack()
+    }
+
+    public func goForward() {
+        dismissDialogsForNavigation()
+        browser?.goForward()
+    }
+
+    /// Chrome's tab-modal dialog manager closes a page's JavaScript dialogs
+    /// when a navigation starts; Alloy has none, and a same-site navigation
+    /// cannot commit while the renderer waits in `alert()` (measured in
+    /// 2.6b: the request went out, the page never changed). So a navigation
+    /// Room starts answers them with Cancel and tells the UI delegate they are gone.
+    private func dismissDialogsForNavigation() {
+        guard !pendingDialogs.isEmpty else { return }
+        let dialogs = pendingDialogs
+        pendingDialogs = [:]
+        for completion in dialogs.values { completion(false, nil) }
+        uiDelegate?.webContentsDidDismissJavaScriptDialogs(self)
+    }
 
     public func reload() {
+        dismissDialogsForNavigation()
         if state == .discarded, let url {
             // A discarded page coming back is a reload, not a visit.
             load(url, transition: .reload, fromAddressBar: false)
@@ -135,6 +162,7 @@ public final class CEFWebContents: NSObject, WebContents {
     }
 
     public func reloadIgnoringCache() {
+        dismissDialogsForNavigation()
         if state == .discarded, let url {
             load(url, transition: .reload, fromAddressBar: false)
         } else {
@@ -150,6 +178,10 @@ public final class CEFWebContents: NSObject, WebContents {
         let findNext = text == lastFindText
         lastFindText = text
         browser?.find(text, forward: forward, matchCase: matchCase, findNext: findNext)
+        // CEF's first request for a text only counts matches (active match 0,
+        // measured in 2.6b); the follow-up selects the first one, as Chrome's
+        // find bar does while typing.
+        if !findNext { browser?.find(text, forward: forward, matchCase: matchCase, findNext: true) }
     }
 
     public func stopFind(clearSelection: Bool) {
@@ -553,12 +585,16 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
             completion(.dismiss)
             return
         }
-        uiDelegate.webContents(self, willAskForPermission: requests, quietReason: nil) { response in
+        uiDelegate.webContents(self, willAskForPermission: requests, quietReason: nil) { [weak self] response in
+            self?.answeredPrompts.insert(promptID)
             completion(RoomCEFPermissionResult(response))
         }
     }
 
+    /// CEF reports every prompt's end here, answered ones included: only a
+    /// prompt nobody answered was withdrawn by the engine (`cef_permission_handler.h`).
     public func browser(_ browser: RoomCEFBrowser, dismissPermissionPrompt promptID: UInt64) {
+        if answeredPrompts.remove(promptID) != nil { return }
         uiDelegate?.webContentsDidDismissPermissionPrompt(self)
     }
 
@@ -574,11 +610,19 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
         }
     }
 
-    public func browser(_ browser: RoomCEFBrowser, runJSDialog type: RoomCEFJSDialogType, message: String, defaultText: String, origin: String?, completion: @escaping (Bool, String?) -> Void) {
+    public func browser(_ browser: RoomCEFBrowser, runJSDialog type: RoomCEFJSDialogType, message: String, defaultText: String, origin: String?, completion engineCompletion: @escaping (Bool, String?) -> Void) {
         let originURL = origin.flatMap(URL.init(string:))
         guard let uiDelegate else {
-            completion(false, nil)
+            engineCompletion(false, nil)
             return
+        }
+        // Answered once: by the UI, or with Cancel when a navigation dismisses it.
+        let id = nextDialogID
+        nextDialogID += 1
+        pendingDialogs[id] = engineCompletion
+        let completion: (Bool, String?) -> Void = { [weak self] success, text in
+            guard let self, let pending = self.pendingDialogs.removeValue(forKey: id) else { return }
+            pending(success, text)
         }
         switch type {
         case .alert:
@@ -610,6 +654,8 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
     }
 
     public func browserDidResetDialogState(_ browser: RoomCEFBrowser) {
+        // Whatever was pending is gone with the engine's state.
+        pendingDialogs = [:]
         uiDelegate?.webContentsDidDismissJavaScriptDialogs(self)
     }
 
