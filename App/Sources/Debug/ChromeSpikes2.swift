@@ -248,13 +248,20 @@ extension SpikeRunner.Context {
                 let pillFrame = pill.pillView?.frame ?? .zero
                 let host = pill.pillView?.superview
                 let before = pill.state.side
+                var dodged = before
+                var dodgedFrame: String?
                 if let host {
                     let point = host.convert(NSPoint(x: pillFrame.midX, y: pillFrame.midY), to: nil)
                     postMouseMoved(at: point)
-                    _ = await waitUntil(2) { pill.state.side == .trailing }
+                    // Polled tightly: the page also sees the move and clears its status
+                    // text, so the pill leaves (back to the leading side) soon after it moved.
+                    let deadline = Date().addingTimeInterval(1)
+                    while pill.state.side != .trailing, Date() < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+                    dodgedFrame = pill.pillView.map { NSStringFromRect($0.frame) }
+                    dodged = pill.state.side
                 }
                 try? await Task.sleep(for: .milliseconds(150))
-                SpikeRunner.record("status_pill_dodge", "\(before) → \(pill.state.side) frame=\(pill.pillView.map { NSStringFromRect($0.frame) } ?? "nil")")
+                SpikeRunner.record("status_pill_dodge", "\(before) → \(dodged) frame=\(dodgedFrame ?? "nil")")
                 await captureB("status-pill-dodged")
             }
         }

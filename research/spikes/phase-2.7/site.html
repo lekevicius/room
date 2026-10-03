@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room Test Site</title>
+<style>
+  body { font: 15px -apple-system, system-ui; margin: 0; background: #f6f3ee; color: #222; }
+  header { background: #2b4c7e; color: white; padding: 14px 24px; font-weight: 600; }
+  main { padding: 20px 24px; display: grid; gap: 10px; max-width: 760px; }
+  a, button { font: inherit; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  code { color: #666; font-size: 12px; }
+  #counts { position: fixed; right: 16px; bottom: 12px; color: #666; font-size: 12px; }
+</style>
+<header>Room Test Site — a pinned entry's home (127.0.0.1)</header>
+<main>
+  <div class="row"><a id="onsite" href="/other.html">Another page on this site</a> <code>same site: in place</code></div>
+  <div class="row"><a id="offsite" href="http://localhost:8770/offsite.html">An article on another site</a> <code>off-site: Peek</code></div>
+  <div class="row"><a id="offsite2" href="http://localhost:8770/offsite.html?second">A second off-site link</a> <code>off-site: Peek</code></div>
+  <div class="row"><a id="chain" href="/redirect?to=http%3A%2F%2Flocalhost%3A8770%2Foffsite.html%3Fchain">Sign in (a redirect chain the site starts)</a> <code>redirect: in place</code></div>
+  <div class="row"><a id="oauth" href="http://localhost:8770/oauth/authorize?client_id=room&amp;response_type=code&amp;redirect_uri=http%3A%2F%2F127.0.0.1%3A8770%2Fcallback.html">Sign in with Provider (OAuth)</a> <code>OAuth: in place</code></div>
+  <form id="login" method="post" action="http://localhost:8770/login" class="row">
+    <input type="hidden" name="next" value="http://localhost:8770/offsite.html?posted">
+    <button id="post">Log in (form post to another site)</button> <code>form post: in place</code>
+  </form>
+  <div class="row"><button id="script" onclick="location.href='http://localhost:8770/offsite.html?script'">Continue (script sets location)</button> <code>script after a gesture: in place</code></div>
+  <div class="row"><a id="blank" href="http://localhost:8770/offsite.html?blank" target="_blank">Open in a new tab (target=_blank)</a> <code>new Today tab</code></div>
+  <div class="row"><button id="popup" onclick="window.open('http://localhost:8770/offsite.html?popup', 'room', 'width=500,height=400')">Open a popup</button> <code>window.open</code></div>
+  <div class="row"><a id="mail" href="mailto:test@example.com">mailto: link</a> <code>not a page</code></div>
+  <p style="height: 900px"></p>
+</main>
+<div id="counts">clicks 0 · moves 0</div>
+<script>
+  window.__clicks = 0; window.__moves = 0; window.__downs = 0;
+  const show = () => document.getElementById('counts').textContent = `clicks ${__clicks} · moves ${__moves}`;
+  addEventListener('click', () => { __clicks++; show(); }, true);
+  addEventListener('mousedown', () => { __downs++; }, true);
+  addEventListener('mousemove', () => { __moves++; show(); }, true);
+</script>

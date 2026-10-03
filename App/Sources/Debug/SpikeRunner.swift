@@ -17,7 +17,8 @@ import EngineCEF
 /// palette, palettemeasure (`PaletteSpikes.swift`), palette2, suggestcheck (`Palette2Spikes.swift`),
 /// Phase 2.5's spaces, spacecaptures, cookies (`SpaceSpikes.swift`), and
 /// Phase 2.6a's chromesurfaces (`ChromeSpikes.swift`) and 2.6b's
-/// chromesurfaces2 (`ChromeSpikes2.swift`).
+/// chromesurfaces2 (`ChromeSpikes2.swift`), and Phase 2.7a's layoutmodes
+/// (`LayoutSpikes.swift`).
 enum SpikeRunner {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSpike") }
 
@@ -67,6 +68,7 @@ enum SpikeRunner {
         case "cookies": await context.cookiesCheck()
         case "chromesurfaces": await context.chromeSurfaces()
         case "chromesurfaces2": await context.chromeSurfaces2()
+        case "layoutmodes": await context.layoutModes()
         default: record("error", "unknown spike")
         }
         record("end", name)

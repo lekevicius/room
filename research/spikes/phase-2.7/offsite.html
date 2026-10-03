@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>An Article on Another Site</title>
+<style>
+  body { font: 16px Georgia, serif; margin: 0; background: #fff; color: #1d1d1f; }
+  header { padding: 14px 28px; border-bottom: 1px solid #ddd; font: 600 14px -apple-system, system-ui; color: #a03; }
+  article { max-width: 640px; margin: 28px auto; line-height: 1.55; padding: 0 20px; }
+</style>
+<header>localhost — another site</header>
+<article>
+  <h1>An article on another site</h1>
+  <p id="query"></p>
+  <p>This page lives on a different host than the pinned site, so a click on a link to it from a pinned entry opens it in Peek instead of replacing the pinned page.</p>
+  <p><a id="deeper" href="/offsite-2.html">A link inside the article</a> (navigates inside Peek) · <a id="away" href="http://127.0.0.1:8770/other.html">back to the first site</a></p>
+  <p><button id="alert" onclick="alert('An alert from the page in Peek')">Show an alert</button></p>
+  <p style="height: 1200px">Scroll space.</p>
+</article>
+<script>
+  document.getElementById('query').textContent = location.search ? 'Opened with ' + location.search : '';
+  window.__clicks = 0; addEventListener('click', () => { __clicks++; }, true);
+</script>
