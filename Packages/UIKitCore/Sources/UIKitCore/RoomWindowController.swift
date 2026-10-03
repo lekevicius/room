@@ -42,9 +42,14 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
 
     // MARK: Sidebar
 
+    /// The active space's name: the header title while no header view is
+    /// set, and the window's title (Window menu, Mission Control).
     public var spaceTitle: String {
         get { sidebarView.title }
-        set { sidebarView.title = newValue }
+        set {
+            sidebarView.title = newValue
+            window?.title = newValue.isEmpty ? "Room" : newValue
+        }
     }
 
     /// Stored width (180–500); kept while the sidebar is closed.
@@ -171,6 +176,9 @@ public final class BrowserWindowView: NSView {
         didSet { if isSidebarOpen != oldValue { needsLayout = true; layoutSubtreeIfNeeded() } }
     }
 
+    /// Called after every layout pass (overlays such as toasts re-anchor).
+    public var onLayout: (() -> Void)?
+
     public override init(frame: NSRect) {
         super.init(frame: frame)
         materialView.frame = bounds
@@ -201,5 +209,6 @@ public final class BrowserWindowView: NSView {
         splitterView.isHidden = layout.splitter == nil
         splitterView.frame = layout.splitter ?? .zero
         splitterView.currentWidth = layout.sidebar.width
+        onLayout?()
     }
 }

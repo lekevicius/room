@@ -2,13 +2,37 @@ import AppKit
 import CoreImage
 import Design
 
-/// The sidebar placeholder: a transparent region over the window material
-/// that moves the window when dragged, with a header row laid out around the
-/// traffic lights. Chapter 2 fills `contentView` with the outline view.
+/// The sidebar region: a transparent area over the window material that
+/// moves the window when dragged. Its header row (`SidebarMetrics.headerHeight`)
+/// is laid out around the traffic lights: `headerView` (the address field)
+/// fills it from after the zoom button to the trailing inset, or the space
+/// title shows there while no header view is set. `bodyView` fills the rest.
 public final class SidebarView: NSView {
     /// Everything that dims while the window is inactive.
     public let contentView = FlippedView()
     let titleField = NSTextField(labelWithString: "")
+
+    /// Sits beside the traffic lights, vertically centred on them, at its
+    /// fitting height.
+    public var headerView: NSView? {
+        didSet {
+            guard headerView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let headerView { contentView.addSubview(headerView) }
+            titleField.isHidden = headerView != nil
+            needsLayout = true
+        }
+    }
+
+    /// Fills the sidebar below the header row.
+    public var bodyView: NSView? {
+        didSet {
+            guard bodyView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let bodyView { contentView.addSubview(bodyView, positioned: .below, relativeTo: nil) }
+            needsLayout = true
+        }
+    }
 
     public var trafficLights = TrafficLightGeometry.none {
         didSet { if trafficLights != oldValue { needsLayout = true } }
@@ -64,6 +88,13 @@ public final class SidebarView: NSView {
         let width = max(0, bounds.width - leading - SidebarMetrics.edgeInset)
         let frame = NSRect(x: leading, y: centerY - size.height / 2, width: min(size.width, width), height: size.height)
         titleField.frame = backingAlignedRect(frame, options: [.alignMinXNearest, .alignMinYNearest, .alignWidthOutward, .alignHeightOutward])
+        if let headerView {
+            let height = max(headerView.fittingSize.height, 1)
+            let header = NSRect(x: leading, y: centerY - height / 2, width: width, height: height)
+            headerView.frame = backingAlignedRect(header, options: .alignAllEdgesNearest)
+        }
+        bodyView?.frame = NSRect(x: 0, y: SidebarMetrics.headerHeight, width: bounds.width,
+                                 height: max(0, bounds.height - SidebarMetrics.headerHeight))
     }
 
     private func applyActivity() {
