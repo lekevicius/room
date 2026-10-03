@@ -66,6 +66,15 @@ struct HistoryProviderTests {
         #expect(neb.matches.contains { $0.action.url == "https://nebula.tv/" })
     }
 
+    @Test("A more frecent host reached only through links does not keep a typed one from completing")
+    func inlineSkipsIneligible() throws {
+        let fixture = try HistoryFixture([
+            HistoryImport(url: "https://example.org/", title: "Example", visits: visits(2)),
+            HistoryImport(url: "https://example.com/", title: "Example", visits: visits(1, .typed, daysAgo: 20)),
+        ])
+        #expect(fixture.omnibox.result(for: OmniboxInput(text: "exa"), in: context).inlineCompletion == "mple.com")
+    }
+
     @Test("Inline completion beats the verbatim search, then drops after a deletion")
     func inlineBeatsVerbatim() throws {
         let fixture = try HistoryFixture([HistoryImport(url: "https://github.com/", title: "GitHub", visits: visits(2, .typed))])

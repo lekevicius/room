@@ -86,8 +86,10 @@ public struct HistoryProvider: OmniboxProvider {
         guard !typed.isEmpty else { return nil }
         if !typed.contains("/") {
             // The host: the site root, at the scheme and "www." its most frecent page uses.
-            guard let host = (try? history.hosts(prefix: typed, limit: 1))?.first,
-                  host.typedCount > 0 || host.visitCount >= Self.inlineVisits,
+            // The most frecent host the user typed or visited often enough (a more
+            // frecent one reached only through links does not block it).
+            guard let host = (try? history.hosts(prefix: typed, limit: 5))?
+                    .first(where: { $0.typedCount > 0 || $0.visitCount >= Self.inlineVisits }),
                   let components = URLComponents(string: host.bestURL), let scheme = components.scheme, let name = components.host,
                   case let url = "\(scheme)://\(name)/",
                   let completion = InlineCompletion.suffix(completing: text, with: url)

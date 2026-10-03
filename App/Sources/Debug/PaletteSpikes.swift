@@ -25,13 +25,13 @@ extension SpikeRunner.Context {
     var palette: PaletteController? { (NSApp.delegate as? AppDelegate)?.palette }
 
     /// The spike session counts ⌘T/⌘L for the keyboard spike; here they open the palette.
-    private func restorePaletteHooks() {
+    func restorePaletteHooks() {
         guard let palette else { return }
         tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
         tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
     }
 
-    private func type(_ text: String) {
+    func type(_ text: String) {
         for character in text {
             let string = String(character)
             sendKey(string, keyCode: Self.keyCodes[character.lowercased().first ?? " "] ?? 0, character.isUppercase ? [.shift] : [])
@@ -45,7 +45,7 @@ extension SpikeRunner.Context {
         "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46, ".": 47, "/": 44, " ": 49, "-": 27, ":": 41,
     ]
 
-    private func press(_ name: String) {
+    func press(_ name: String) {
         switch name {
         case "⌘T": sendKey("t", keyCode: 17, [.command])
         case "⌘L": sendKey("l", keyCode: 37, [.command])
@@ -54,6 +54,8 @@ extension SpikeRunner.Context {
         case "⌥↩": sendKey("\r", keyCode: 36, [.option])
         case "⎋": sendKey("\u{1b}", keyCode: 53, [])
         case "⇥": sendKey("\t", keyCode: 48, [])
+        case "⌫": sendKey("\u{7f}", keyCode: 51, [])
+        case "⇧⌫": sendKey("\u{7f}", keyCode: 51, [.shift])
         case "↓": sendKey(String(UnicodeScalar(NSDownArrowFunctionKey)!), keyCode: 125, [.numericPad, .function])
         default: break
         }
@@ -256,6 +258,8 @@ extension SpikeRunner.Context {
         let texts = ["today tab 3", "pinned 4", "github", "swift docs", "news", "rust kernel", "developer.apple.com/sw", "wiki",
                      "com", "the", "zzz", "google search", "app", "example.org/article"]
         SpikeRunner.record("queries", texts.joined(separator: " | "))
+        // The no-network check compares the proxy and net-log against this window.
+        SpikeRunner.record("typing_start_epoch_ms", Int(Date().timeIntervalSince1970 * 1000))
         for text in texts {
             palette.toggleNew()
             try? await Task.sleep(for: .milliseconds(100))
@@ -272,6 +276,7 @@ extension SpikeRunner.Context {
             try? await Task.sleep(for: .milliseconds(100))
         }
         palette.onQueryTimed = nil
+        SpikeRunner.record("typing_end_epoch_ms", Int(Date().timeIntervalSince1970 * 1000))
         SpikeRunner.record("keystrokes", keyTurn.count)
         SpikeRunner.record("keystroke_to_rows_turn", SpikeRunner.stats(keyTurn))
         SpikeRunner.record("keystroke_to_rows_first_key", SpikeRunner.stats(firstKey))

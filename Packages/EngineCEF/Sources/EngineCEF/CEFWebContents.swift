@@ -377,11 +377,14 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
         let address = URL(string: url)
         self.url = address
         updateSecurityState()
-        // A new address outside a load is a same-document navigation
-        // (fragment, `pushState`): CEF calls no `OnLoadStart` for it.
-        if let address, !isLoading, committedURL != nil, address != committedURL {
-            committedURL = address
-            navigationDelegate?.webContents(self, didCommitNavigation: address, transition: .link)
+        // A new address that no `OnLoadStart` claims in the same turn is a
+        // same-document navigation (fragment, `pushState`; CEF reports those
+        // as loading too, so the loading state cannot tell them apart).
+        guard let address, committedURL != nil, address != committedURL else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.committedURL != address, self.url == address else { return }
+            self.committedURL = address
+            self.navigationDelegate?.webContents(self, didCommitNavigation: address, transition: .link)
         }
     }
 
