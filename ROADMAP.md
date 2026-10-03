@@ -251,6 +251,10 @@ Exit criteria: spec §B minus routing (routing is 4.2); two profiles keep separa
 
 Goal: every CEF delegate callback has real UI.
 
+Run it as two sessions with a report after each: **2.6a** = task 0 (palette rows on AppKit) and task 2 (permissions, dialogs, auth, certificate errors, file chooser, context menus, popups: the delegate core); **2.6b** = tasks 1, 3 and 4 (downloads, find/zoom/print/status pill/Copy URL/site panel, DevTools pane) and the exit checklist. The phase is done when both are.
+
+What 2.5 provides (details in the 2.5 entry of `docs/progress.md`, "For 2.6"): every engine profile shares one `downloadsDelegate`; `TabController.engineProfiles` maps model profile → engine profile, so a download, a permission or site data can be attributed to a profile and, through the page that started it, to a space; popups are created in the opener's context and `TabController.adoptOpenedPage` puts them in the opener's space; the site panel and the permission popover act on `Page.profileID`; the footer already holds the downloads button left of the space icons; the space form is the pattern for SwiftUI forms in the sidebar. Small carry-over: a Tabs test tears its state directory down while a write is still in flight ("disk I/O error" logged during `swift test`); close the store before removing the directory.
+
 Tasks:
 0. Palette rows on AppKit (carried from 2.4, user decision 2026-10-03): replace the SwiftUI rows in `Palette` with AppKit views (one reusable row view per slot: icon, title, detail, hint, chip, ×; same tokens, same look pixel for pixel against the 2.4b captures), keep the `OmniboxResult` interface; measured with `palettemeasure` on the 500 fixture with 50k history rows: a query's first keystroke under one 120 Hz frame median in the Debug build on the Mac mini's display (it was 22–25 ms), later keystrokes no worse than 2.4b's.
 1. Downloads: footer button with progress ring, bounce and badge; popover (name, progress, cancel, reveal, Clear); fly-in animation from the click point; filename decision and location from Settings; ⇧⌘J.
