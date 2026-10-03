@@ -2,3 +2,6 @@
 roomcore-build-laptop.log
 netlog-*/
 feature-*/
+roomcore-package-*.log
+baseline-*/
+roomcore-incremental-*.log

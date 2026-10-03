@@ -96,3 +96,26 @@ check requested by the user. No main push or merge is authorized.
 Draft PR: https://github.com/lekevicius/room/pull/1 (attached to this chat).
 Update this PR as evidence arrives; do not create a duplicate. Keep it draft
 until the runtime exit gates are met or the final partial scope is explicit.
+
+## Checkpoint 3 — component build and laptop baseline
+
+Build succeeded at about 05:41:37 EEST: 11,610 s resumed, 14,620 s cumulative
+including the prior partial run (4h03m40s). Siso confirms localexec capacity
+10, action pool 10, retry 0. Final load 404.72/462.97/478.30. No //room or
+patch edits during compilation. Packaged and deep/strict ad-hoc signing passed.
+
+nav: 14.209 s, exit 0, expected history/KVO state. open10: ready 15 s, all 10
+finished, exit 0. Valid ten-page quits: 0.493/0.471 s, 0 helpers left, 0 crash
+reports. A third attempt exceeded the 60 s page-loading bound (1 still loading)
+and was rejected; not counted as a successful measurement. See build-log.md.
+
+The first run's Chromium stderr omitted WARNING stub logs. Host spike launches
+now explicitly use --enable-logging=stderr --log-level=0; logger itself stays
+on. Per-page diagnostics now name any page that remains loading.
+
+The ten-site NetLog reproduced 88 TLS handshake failures: all 88 socket
+address lists were `[::]:443`, with local address `[::1]`, a received fatal
+TLS alert 80 and BoringSSL reason 1080 (TLSV1_ALERT_INTERNAL_ERROR). This is
+local/sinkholed endpoint behavior, not a Chromium certificate-validation
+failure. Known hosts are page advertising/measurement resources. Sixteen
+connections still need hostname attribution; do not close B-3 yet.

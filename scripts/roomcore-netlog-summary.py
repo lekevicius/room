@@ -70,7 +70,7 @@ def summarize(data, annotation_map):
         if 'initiator' in params:
             metadata[source]['initiator'] = params['initiator']
         # A URL-bearing request source is useful for dependency attribution.
-        for field in ('url', 'host', 'host_and_port', 'server_name'):
+        for field in ('url', 'host', 'host_and_port', 'server_name', 'destination'):
             parsed = host(params.get(field))
             if parsed:
                 source_hosts[source].add(parsed)

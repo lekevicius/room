@@ -23,6 +23,10 @@ do {
     // is answered. Team-signed builds keep their identity and use the real
     // keychain.
     var arguments = CommandLine.arguments
+    if HostSpike.requested != nil {
+        // Preserve BrowserWindow first-hit logs in each spike's captured stderr.
+        arguments += ["--enable-logging=stderr", "--log-level=0"]
+    }
     if CodeSignature.teamIdentifier == nil {
         arguments.append("--use-mock-keychain")
     }

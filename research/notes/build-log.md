@@ -154,11 +154,31 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-03 05:14:23 | 2 h 46 m 15.72 s | 34,961 / 40,924 graph steps, Chrome enterprise/UI components; no failure/completion marker | build/Siso nice 0; load 492.17 / 482.50 / 479.04 |
 | 2026-10-03 05:28:07 | 2 h 59 m 59.50 s | hourly sample recovered from log: 37,004 / 40,556 graph steps; third hour +14,845 completed steps | load not sampled at exactly three hours |
 | 2026-10-03 05:39:26 | 3 h 11 m 18.86 s | 38,955 / 39,975 graph steps, Chrome WebUI/preloading components; no failure/completion marker | build/Siso nice 0; load 480.14 / 481.37 / 485.62 |
+| 2026-10-03 05:41:37 | 3 h 13 m 30 s | **Build succeeded**, 39,698 executed graph steps; 39,084 local, 614 noexec, 45,805 skipped; **11,610 s resumed**, **14,620 s cumulative (4 h 3 m 40 s)** | nice 0; Siso localexec capacity **10**, action pool 10; retry 0; final load 404.72 / 462.97 / 478.30 |
 
 Total clean branded time must add 3,010 s from the earlier partial run to
 this resumed build; do not call the resumed wall time a clean-build total.
 
 
-These samples are progress only, not finished-build measurements. Default
-jobs remain unchanged as requested despite high load. Next scheduled poll is
-within 25 minutes; completion timing remains pending.
+Build completion was observed at the 06:04 scheduled poll; compiler processes
+had exited and system load had fallen to 29.13 / 33.90 / 121.27. No compiler
+failures or retries occurred. The five patches and //room sources remained
+unchanged throughout the resumed build.
+
+### Laptop baseline after completed component build (2026-10-03)
+
+| Check | Laptop result | Mac mini comparison |
+|---|---|---|
+| Package/sign | 518 component dylibs, 916 MB staged, 917 MB app; stage 5.3 s, cold host build 20.8 s; deep/strict ad-hoc signature valid | 518 dylibs; 916 MB; package about 10 s |
+| nav | 14.209 s whole process; exit 0; load/back/forward/reload URLs and history flags correct; reload KVO observed; native view 1034×788 in window | 12.2–18.2 s whole process; 991×758 native view |
+| open10 | ready 15 s, process 18.358 s, 10 pages, 0 loading at ready, exit 0; load 17.1 / 28.3 / 108.9 | ready 12 s at load 8–13 |
+| ten-page quit, valid samples | 0.493 / 0.471 s; 27 / 29 helpers observed, 0 left after grace, 0 new crash reports, exit 0; load1 23.18 / 38.50 | 0.18–0.55 s at load 8–16 |
+| ten-page quit, rejected sample | third attempt had 1 of 10 pages still loading after 63 s; script correctly failed the fixture instead of reporting it as a valid ten-loaded-page timing; process exited 0 | no directly matching failure recorded |
+
+Raw laptop evidence: `research/notes/baseline-laptop-initial/` (local,
+ignored). Quit raw runs: `/var/folders/z5/3xy83w8n657_xdt33yw7g_8w0000gn/T/roomcore-quit-pvi8xptc`.
+Baseline nav and two ten-loaded-page clean quits pass; external-page timeout
+is explicitly retained as a rejected sample. Added per-page diagnostics and
+explicit warning-level stderr logging to subsequent spikes: the first-hit
+stub logger was compiled in, but Chromium's default stderr configuration did
+not print its WARNING messages in the initial captures.

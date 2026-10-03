@@ -58,6 +58,9 @@ enum HostSpike {
             try? await Task.sleep(for: .milliseconds(250))
         }
         try? await Task.sleep(for: .seconds(3))
+        for (index, page) in host.pages.enumerated() {
+            record("page-\(index)", "url=\(page.url?.absoluteString ?? "nil") loading=\(page.isLoading) title=\(page.title)")
+        }
         record("pages", host.pages.count)
         record("loading-at-ready", host.pages.filter { $0.isLoading }.count)
         if host.pages.count != 10 || host.pages.contains(where: { $0.isLoading }) {
