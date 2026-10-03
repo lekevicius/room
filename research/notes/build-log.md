@@ -151,6 +151,7 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-03 04:24:22 | 1 h 56 m 15.32 s | 21,458 / 46,951 graph steps, Views/permissions/download components; no failure/completion marker | build/Siso nice 0; load 490.11 / 490.62 / 486.98 |
 | 2026-10-03 04:28:05 | 1 h 59 m 58.49 s | hourly sample recovered from log: 22,159 / 46,860 graph steps; second hour +7,778 completed steps | load not sampled at exactly two hours |
 | 2026-10-03 04:49:29 | 2 h 21 m 22.26 s | 27,080 / 44,307 graph steps, extensions/web apps/autocomplete; no failure/completion marker | build/Siso nice 0; load 490.20 / 482.00 / 477.36 |
+| 2026-10-03 05:14:23 | 2 h 46 m 15.72 s | 34,961 / 40,924 graph steps, Chrome enterprise/UI components; no failure/completion marker | build/Siso nice 0; load 492.17 / 482.50 / 479.04 |
 
 Total clean branded time must add 3,010 s from the earlier partial run to
 this resumed build; do not call the resumed wall time a clean-build total.
