@@ -486,3 +486,13 @@ investigation without proving a cause or a production fix. Details, matching
 UUIDs and rejected samples are in roomcore-shutdown-investigation.md. Added
 failure.json evidence to the quit runner; actual exit-2 fixture and Python
 syntax checks pass. No engine/network/patch changes in this checkpoint.
+
+09:32 EEST diagnostic checkpoint: a longer helper capture passed all three
+Room ten-page quits at 5.474 / 2.919 / 6.969 s (0 helpers/crashes). Native QoS
+calls did not reproduce delay (background max 0.238 ms). Installed Chrome
+control quit under 1 s but all three had NYTimes still loading and are rejected.
+Same-component stock-window control obtained one complete ten-page quit in
+1.091 s; two setup timeouts are rejected. No configuration reproduced another
+watchdog and no root cause is claimed. Reproduction sources and preparation
+failures are documented in roomcore-shutdown-investigation.md. No engine,
+patch, policy, public API or protected Chapter 2 edits. CI passed 70/78 s.

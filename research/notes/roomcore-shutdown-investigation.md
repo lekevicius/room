@@ -128,3 +128,53 @@ memory/load and child commands with that capture. The quit timing tool now
 writes failure.json with markers, helper commands, dumps and exit status for
 all rejected runs. An exit-2 child fixture verified that diagnostics are
 retained, the runner still fails, and no passing timing receipt is emitted.
+
+## Control comparisons — 09:18–09:31 EEST
+
+A longer helper capture on the same Room host (baseline-shutdown-helpers-watchdog)
+finished all three ten-loaded-page runs: 5.474 / 2.919 / 6.969 s, 24 / 26 / 27
+helpers, 0 left, 0 new crashes, exit 0. It did **not** reproduce the watchdog.
+The longer requested sample ended when its helper exited; group 3 contains
+only five usable snapshots. Two workers were in the same initial QoS call in
+four of five samples, then one advanced to the persistent file flush. No
+stronger root-cause claim follows. Machine before the exercise: load
+8.99 / 20.34 / 31.16, CPU 56.99% idle, 62 GiB used, 18 GiB compressor,
+1367 MiB unused, 1190 processes / 9059 threads.
+
+Controls deliberately distinguish configurations:
+
+| Control | Observation | Limit |
+|---|---|---|
+| Native pthread QoS operation | 32 user-initiated calls: max 0.002 ms; 32 background calls: median 0.215 ms, max 0.238 ms; all return 0 | No Chromium task pool, utility sandbox or disk flush; does not reproduce the delay |
+| Installed Google Chrome 154.0.8037.93, three fresh profiles, same URLs | Browser.close exits 0 in 0.880 / 0.888 / 0.919 s | NYTimes still interactive in all three at 63 s; all are rejected as ten-loaded-page baselines. Optimized build and patch version differ |
+| Fork component libraries, Chromium stock entry/window factory, staged bundle | One complete ten-page run: exit 0, 1.091 s (baseline-shutdown-stock-window-libraries/group-1) | Other two Page.enable commands timed out; rejected, not quit measurements. One pass does not establish a host-specific cause |
+
+The stock-entry control is **not an unmodified Chromium build**: branding and
+the eight patches remain linked, including CDM registration factories. It
+bypasses RoomApplication.run, its network policy, Swift host and installed
+RoomBrowserWindow factory. This removes the host/window boundary while keeping
+the component configuration. The installed Chrome control is unmodified but
+not the same build. Neither control reproduced an exit-2 watchdog.
+
+Diagnostic source is retained in roomcore-shutdown-comparison.mjs (Node 22's
+built-in WebSocket; isolated profiles, CDP Browser.close, bounded 180 s) and
+roomcore-qos-probe.c (64 total native calls, 15 s alarm). Comparison readiness
+requires a page-load event plus complete document state, so it is stricter in
+a different way than the Room isLoading check; it cannot replace that baseline.
+The driver now exits nonzero for incomplete/setup-failed samples and records
+final exit separately from a clean shutdown measurement.
+
+Preparation failures are retained too: direct out/dev startup exceeded the
+initial 15 s endpoint allowance; with 60 s allowance it reached CDP but all
+three Page.enable commands exceeded 20 s. A cloned bundle with the stock entry
+could not add a Libraries rpath (no Mach-O header space), then aborted in dyld
+for missing libc++_chrome. The corrected run used DYLD_LIBRARY_PATH pointing
+only to that bundle's staged Libraries. These are control-setup failures,
+not Room host crashes. The product bundle and source were unchanged.
+
+Next step remains capturing the network helper during an actual watchdog,
+rather than treating a slow successful sample as its cause. Avoid repeated
+unqualified stress runs: retain the helper across the full deadline plus
+machine state, and only consider a narrow engine/upstream change once the
+blocked operation is established. Watchdog, helper grace and data durability
+remain unchanged. Latest PR CI compile/unit checks passed in 70 / 78 s.

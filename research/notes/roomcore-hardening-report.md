@@ -59,3 +59,9 @@ advertised download bytes (no final/partial file remains), certificate-error
 leave back to the safe page, beforeunload cancellation preserving its page,
 and a muted Web Audio oscillator advancing 0.261333 s at 48 kHz before close.
 All four processes exit 0. Audible output and native controls remain unverified.
+
+Shutdown controls remain inconclusive: a longer Room capture passed three
+quits in 5.474 / 2.919 / 6.969 s; a stock-window entry point using the same
+component libraries passed one complete ten-page quit in 1.091 s. Other
+control samples failed page readiness/setup and are rejected. Native QoS
+calls did not reproduce the delay. No scheduling/watchdog workaround was added.
