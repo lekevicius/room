@@ -144,6 +144,7 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 |---|---|---|---|
 | 2026-10-03 02:28:07 | start | resumed `autoninja -C out/dev chrome`; Siso recalculates remaining total after regeneration | build and Siso nice 0, default jobs; load 20.59 / 45.70 / 49.30 |
 | 2026-10-03 02:46:19 | 18 m 12 s | 5,385 / 51,154 remaining-run graph steps (Siso recalculated total); still compiling V8/media | nice 0; load 440.95 / 443.86 / 348.54; 10 logical CPUs, 68,719,476,736 bytes RAM |
+| 2026-10-03 03:09:20 | 41 m 13 s | 11,755 / 47,624 graph steps; compiling Blink core/platform, no failure/completion marker | nice 0; load 504.45 / 476.79 / 436.47 |
 
 Total clean branded time must add 3,010 s from the earlier partial run to
 this resumed build; do not call the resumed wall time a clean-build total.
