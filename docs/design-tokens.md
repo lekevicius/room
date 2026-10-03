@@ -268,3 +268,16 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Peek shadow (`shadowRadius`, `shadowOpacityLight` / `Dark`) | 24 pt, 0.25 / 0.5, offset 8 pt down | chosen (floats above the page card) |
 | Peek open | scales up from 10% (`openStartScale`) centred on the last click (within 2 s; else the card's centre) to the card, `CASpringAnimation` perceptual `Motion.slow` (0.35 s), bounce 0; the dim fades in over `Motion.fast`; close fades over `Motion.fast`; Reduce Motion: fades | spec §I.1 ("scale from the link's rect … 350 ms"; CEF gives no link rect) |
 | `Timing.peekGestureWindow` | 2 s: `window.location` set this soon after a gesture navigates in place | spec §A.4 |
+
+## Added in Phase 2.7b (split view)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `SplitRules.maxPanes` | 4 panes; a fifth is refused with the toast "Can't add more panes to the split view" | spec §D (Arc, Zen `MAX_TABS`) |
+| Layouts | `hbox` side by side, `vbox` stacked, `grid` two columns over two rows (three panes: the third spans the bottom row; two panes: a row); ratios per pane (`hbox`/`vbox`) or two column + two row fractions (grid); a new layout starts equal | spec §D; grid shape chosen (Zen "3–4 = paired columns") |
+| `SplitMetrics.dividerWidth` / `resizerHitWidth` | 1 pt line between panes (separator colour), 7 pt hit area centred on it; double-click equalises | spec §D |
+| `SplitMetrics.minimumPaneFraction` / `minimumPaneLength` | a pane never gets under 7% of the split along the dragged axis, nor under 120 pt while the split has room (never more than an equal share) | Zen `min-resize-width` 7 percent; 120 pt chosen (as `DevToolsMetrics.minPaneHeight`) |
+| `SplitMetrics.paneHeaderHeight` / `paneHeaderRevealBand` / `paneHeaderButtonSize`, `Timing.paneHeaderHideDelay` | 24 pt header over the pane's top (domain, grip, layout menu, ×) while the pointer is within 36 pt of the top; buttons 20 pt; hides 0.3 s after the pointer leaves; `.headerView` material, the appearance that reads on the page's fill | spec §D (24 px strip); band, buttons, delay chosen |
+| `SplitMetrics.dropEdgeBand` / `dropPreviewFraction` / `dropPreviewAlpha` | an entry dragged into the card: within 40 pt of a pane's edge it splits to that side (the nearest edge in a corner), elsewhere it replaces the pane; the preview covers the half the new pane gets, accent at 18% with a 2 pt accent border, 10 pt corners | spec §D (40 px band); preview chosen |
+| `Timing.splitJoinDwell` (= `DropRules.holdDelay`) | a single entry resting 500 ms on a tab row's middle 60% joins it into a split (a pinned entry onto a pinned entry still makes a folder, §A.6) | spec §D, §A.6 |
+| `SplitMetrics.segmentTitleMinWidth` / `focusedSegmentAlpha` | the group row's segments show a title when at least 64 pt wide (else the favicon alone); the focused pane's segment is tinted with the accent at 16% | spec §D ("tinted"); values chosen |

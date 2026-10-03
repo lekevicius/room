@@ -464,3 +464,30 @@ The open animation starts at the click: after a posted click at (377, 135) the c
 Open as Tab made the Peek a Today tab (0 → 1) holding the same `WebContents` (`offsite.html?second`), selected, Peek gone. Esc (unused by the page) closed Peek; ⇧⌘T reopened the same URL over the pinned entry.
 
 Delegate checklist after the card changed (`scripts/chrome-surfaces.sh --session 2.6b --no-captures light`, all checks): every 2.6b result as before (dialogs, auth, certificate and Go Back, permissions, files, menus with Open Link in Peek, popups, downloads, find 14.1 ms median keystroke → match, zoom, print, status pill 606 ms, site panel, withdrawn dialog and prompt, crash, element fullscreen, DevTools 325 ms, audio, keys, Copy URL). One spike-side fix: the status pill's dodge (`leading → trailing`, x 4 → 731) is now polled every 1 ms; at 20 ms the poll missed it because the page clears its status text a few ms after the posted move and the pill leaves.
+
+## Phase 2.7b — split view, the View menu with a page focused, Peek over a split (2026-10-04, Mac mini M4, 24 GB, CEF, Debug)
+
+Method: as 2.7a (`scripts/layout-modes.sh`, spike `layoutmodes`; `-RoomSpikeOnly menu` and `split`, `App/Sources/Debug/LayoutSpikes.swift`, `SplitSpikes.swift`; `-RoomSpikeCapturePrefix phase-2.7b`). Panes are Today tabs on `site.html?pane=N`, alternately on 127.0.0.1 and localhost, loaded before the measure unless said. Pointer input is synthetic `NSEvent`s through `NSApp`; keys are `NSEvent` key-downs handed to `NSApp.mainMenu.performKeyEquivalent` (the path a page's unhandled key takes). Display at **60 Hz**, Room's window main and key, load average 5.0–5.6 (11.0 on the first split-only run), light and dark.
+
+### The View menu with a CEF page focused (2.7b carry-over)
+
+After a click into the page, the responder chain an action walks was `RenderWidgetHostViewCocoa → WebContentsViewCocoa → CefBrowserHostView → RoomCEFContainerView → CEFPageView → PageContainerView → (SplitPaneView → SplitView →) CardContainerView → CardView → BrowserWindowView → RoomWindow → RoomWindowController`: the chain **does** reach the window controller, the window is key and main. Before the fix `NSApp.target(forAction: toggleSidebar:)` was **`RoomWindow`**: `NSWindow` implements `toggleSidebar:` itself (AppKit's own sidebar action) and validated it disabled, so View ▸ Hide Sidebar was disabled in every state, not only with a page focused (Keep Sidebar Open, `toggleSidebarOverlayPin:`, reached the controller and was enabled while hidden). After: both items target `AppDelegate` (`hideOrShowSidebar:`, `keepSidebarOpen:`) and validate enabled docked and hidden; ⌘S through the main menu hid the sidebar and a second ⌘S docked it.
+
+### Split view (spec §D)
+
+| Measure | Light | Dark |
+|---|---|---|
+| Split created (`joinIntoSplit`: store, sidebar row, card) → both panes laid out with their pages, main thread; both pages loaded before (6 runs) | 12.79 ms median, 13.10 p95, 15.02 max | 13.46 / 15.05 / 16.24 |
+| … → the next committed frame (`CATransaction` completion) | 21.20 ms median, 22.88 p95 | 22.04 / 22.49 |
+| … with the new pane's page made by the split (one run) | laid out 22.5 ms, page loaded 330 ms | 28.2 ms, 346 ms |
+| Resizer drag with two loaded pages: 60 posted drag events ~16 ms apart, display-link intervals | 91 frames: median 16.67, p95 16.67, max 16.67 ms (none dropped) | 89 frames, same |
+| Press in the other pane's page → focused pane changed and the header field shows its URL, main thread (9 switches) | 2.68 ms median, 3.03 p95 | 2.35 / 2.76 |
+| … → the next committed frame | 7.04 ms median, 9.03 p95 | 6.52 / 6.63 |
+
+The drag ended where it began (ratios committed 0.501 / 0.499), no press reached the page under the resizer (`__downs` 0); a double-click equalised to 0.5 / 0.5. The header field followed the focused pane in every switch. Two panes in a 1244 × 818 window with the sidebar at 280 pt: frames 479 and 478 pt wide with the 1 pt line between, each pane's own page in its own container.
+
+Keys through the main menu (four panes): ⌥⌘G → grid, ⌃⇧1 → pane 1, ⌃⇧] → pane 2, ⌃⇧[ → pane 1, ⌥⌘V → side by side, ⌥⌘H → stacked, ⌥⌘G → grid, ⇧⌘= on four panes → refused (still 4) with the toast. On the first run ⌥⌘H matched the app menu's Hide Others (⌥⌘H, earlier in the menu bar) and hid the other apps; Hide Others lost its key (docs/shortcuts.md gives ⌥⌘H to the layout). ⌘W on the focused (Today) pane: 4 → 3 panes, the entry removed, the next pane focused. ⇧⌘O with Peek open over a two-pane split: 3 panes, the new one is the Peek's page right after A, focused, Peek gone. Element fullscreen of the focused pane: it filled the card alone, the others hidden; after exit all three back. ⌥⌘U left the focused pane alone in the card.
+
+Event isolation with Peek over a three-pane split (Phase 1.4 method): Peek's overlay covers the whole card (the panes together, spec §D); 7 moves at points over the dim on every pane reached **no** pane's page (`__clicks 0`, `__downs 0`, `__moves 0` on A, B and C), and the click on the dim that closed Peek reached none either; the focus stayed on A. Both appearances.
+
+The 2.7a checks re-run on the new card (the page container now inside a `SplitPaneView`): reveal 174.5 / 173.9 ms median, slide frames 16.67 ms throughout, grace 155.8 / 170.1 ms, cluster fade 2172 / 2167 ms, Peek decision → overlay frame 22.1 / 22.9 ms, every Peek rule as in 2.7a, event isolation 0 under the overlay and the dim. The 2.6b delegate checklist (`scripts/chrome-surfaces.sh --session 2.6b`, light): all 26 members called on CEF again (`didConsumeKey` as before never).
