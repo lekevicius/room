@@ -203,6 +203,8 @@ public struct OmniboxContext: Sendable {
     /// palette builds one when it opens), not per keystroke.
     let keys: [EntryKeys]
     public var activeSpaceID: UUID?
+    /// The active space's profile: history and essentials are its own (ROADMAP 2.5).
+    public var activeProfileID: UUID?
     /// The entry in the card: never suggested (switching to it does nothing).
     public var currentEntryID: UUID?
     public var searchEngine: SearchEngine
@@ -215,7 +217,7 @@ public struct OmniboxContext: Sendable {
 
     /// `previous`: an earlier context whose precomputed keys are reused for
     /// entries that did not change (the palette reopens on mostly the same sidebar).
-    public init(entries: [OmniboxEntry] = [], activeSpaceID: UUID? = nil, currentEntryID: UUID? = nil,
+    public init(entries: [OmniboxEntry] = [], activeSpaceID: UUID? = nil, activeProfileID: UUID? = nil, currentEntryID: UUID? = nil,
                 searchEngine: SearchEngine = .google, commands: [OmniboxCommand] = [], siteSearches: [SiteSearch] = SiteSearch.defaults,
                 now: Date = Date(), reusingKeysFrom previous: OmniboxContext? = nil) {
         self.entries = entries
@@ -232,6 +234,7 @@ public struct OmniboxContext: Sendable {
             keys = entries.map(EntryKeys.init)
         }
         self.activeSpaceID = activeSpaceID
+        self.activeProfileID = activeProfileID
         self.currentEntryID = currentEntryID
         self.searchEngine = searchEngine
         self.commands = commands

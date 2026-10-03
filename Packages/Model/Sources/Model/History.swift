@@ -3,8 +3,9 @@ import GRDB
 
 // Local browsing history for the palette (ROADMAP 2.4 tasks 3–4): the
 // `history_url` / `history_visit` / `history_fts` tables of schema v1 plus
-// v2's `host` and `frecency` columns. Throwaway until the engine's history
-// service (Chapter 3.5).
+// v2's `host` and `frecency` columns and v3's `profileID`: every profile
+// keeps its own history (Chromium, Arc), so every read and write names one.
+// Throwaway until the engine's history service (Chapter 3.5).
 
 /// How a recorded navigation started (the engine's page transition, as history sees it).
 public enum HistoryTransition: String, Hashable, Sendable, CaseIterable {
@@ -61,6 +62,7 @@ public enum Frecency {
 /// One history URL as the palette sees it.
 public struct HistoryRow: Hashable, Sendable {
     public var id: Int64
+    public var profileID: UUID
     public var url: String
     public var title: String?
     /// Lowercased, without "www.".
@@ -71,9 +73,10 @@ public struct HistoryRow: Hashable, Sendable {
     /// The stored frecency logarithm (`Frecency.current` gives its value now).
     public var frecency: Double
 
-    public init(id: Int64, url: String, title: String?, host: String, visitCount: Int, typedCount: Int, lastVisitAt: Timestamp,
-                frecency: Double) {
+    public init(id: Int64, profileID: UUID, url: String, title: String?, host: String, visitCount: Int, typedCount: Int,
+                lastVisitAt: Timestamp, frecency: Double) {
         self.id = id
+        self.profileID = profileID
         self.url = url
         self.title = title
         self.host = host
@@ -84,8 +87,8 @@ public struct HistoryRow: Hashable, Sendable {
     }
 
     init(row: Row) {
-        self.init(id: row["id"], url: row["url"], title: row["title"], host: row["host"], visitCount: row["visitCount"],
-                  typedCount: row["typedCount"], lastVisitAt: row["lastVisitAt"], frecency: row["frecency"])
+        self.init(id: row["id"], profileID: row["profileID"], url: row["url"], title: row["title"], host: row["host"],
+                  visitCount: row["visitCount"], typedCount: row["typedCount"], lastVisitAt: row["lastVisitAt"], frecency: row["frecency"])
     }
 }
 
@@ -123,6 +126,10 @@ public final class History: Sendable {
         pool = database.pool
     }
 
+    /// Rows v3 found without any profile to give them to (a database whose
+    /// state was never written); no profile ever has this id.
+    public static let orphanProfile = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
     /// Schemes that are recorded: web pages and files, never `about:`, `data:` or internal pages.
     static let recordedSchemes: Set<String> = ["http", "https", "file"]
 
@@ -136,24 +143,24 @@ public final class History: Sendable {
 
     // MARK: Writing
 
-    /// A committed main-frame navigation (ROADMAP 2.4 task 4). Reloads and
-    /// URLs history does not keep are ignored. `completion` runs on an
-    /// arbitrary queue once the visit is stored (tests wait on it).
-    public func recordVisit(url: String, title: String?, transition: HistoryTransition, at date: Date = Date(),
+    /// A committed main-frame navigation in `profile`'s page (ROADMAP 2.4
+    /// task 4). Reloads and URLs history does not keep are ignored.
+    /// `completion` runs on an arbitrary queue once the visit is stored (tests wait on it).
+    public func recordVisit(url: String, title: String?, transition: HistoryTransition, profile: UUID, at date: Date = Date(),
                             completion: (@Sendable (Result<Void, any Error>) -> Void)? = nil) {
         guard transition.isVisit, Self.hostKey(for: url) != nil else {
             completion?(.success(()))
             return
         }
         pool.asyncWrite({ db in
-            try Self.insertVisit(db, url: url, title: title, transition: transition, at: date)
+            try Self.insertVisit(db, url: url, title: title, transition: transition, profile: profile, at: date)
         }, completion: { _, result in completion?(result) })
     }
 
     /// Synchronous variant (the importer, tests).
-    public func recordVisitNow(url: String, title: String?, transition: HistoryTransition, at date: Date = Date()) throws {
+    public func recordVisitNow(url: String, title: String?, transition: HistoryTransition, profile: UUID, at date: Date = Date()) throws {
         guard transition.isVisit, Self.hostKey(for: url) != nil else { return }
-        try pool.write { db in try Self.insertVisit(db, url: url, title: title, transition: transition, at: date) }
+        try pool.write { db in try Self.insertVisit(db, url: url, title: title, transition: transition, profile: profile, at: date) }
     }
 
     /// The URL as recorded: without its `#fragment` (one row per page, not per anchor).
@@ -161,12 +168,14 @@ public final class History: Sendable {
         url.firstIndex(of: "#").map { String(url[..<$0]) } ?? url
     }
 
-    private static func insertVisit(_ db: Database, url: String, title: String?, transition: HistoryTransition, at date: Date) throws {
+    private static func insertVisit(_ db: Database, url: String, title: String?, transition: HistoryTransition, profile: UUID,
+                                    at date: Date) throws {
         let url = recordedURL(url)
         guard let host = hostKey(for: url) else { return }
         let time = Timestamp(date)
         let typed = transition == .typed ? 1 : 0
-        let existing = try Row.fetchOne(db, sql: "SELECT id, frecency FROM history_url WHERE url = ?", arguments: [url])
+        let existing = try Row.fetchOne(db, sql: "SELECT id, frecency FROM history_url WHERE profileID = ? AND url = ?",
+                                        arguments: [profile, url])
         let urlID: Int64
         let frecency: Double
         if let existing {
@@ -180,78 +189,85 @@ public final class History: Sendable {
         } else {
             frecency = Frecency.adding(transition.weight, at: date, to: Frecency.none)
             try db.execute(sql: """
-                INSERT INTO history_url (url, title, visitCount, typedCount, lastVisitAt, host, frecency)
-                VALUES (?, ?, 1, ?, ?, ?, ?)
-                """, arguments: [url, title, typed, time, host, frecency])
+                INSERT INTO history_url (profileID, url, title, visitCount, typedCount, lastVisitAt, host, frecency)
+                VALUES (?, ?, ?, 1, ?, ?, ?, ?)
+                """, arguments: [profile, url, title, typed, time, host, frecency])
             urlID = db.lastInsertedRowID
         }
         try db.execute(sql: "INSERT INTO history_visit (urlID, visitedAt, transition) VALUES (?, ?, ?)",
                        arguments: [urlID, time, transition.rawValue])
         // The host's aggregate: every visit adds to its frecency; its best URL is the most frecent one.
-        if let row = try Row.fetchOne(db, sql: "SELECT bestURL, bestFrecency, frecency FROM history_host WHERE host = ?", arguments: [host]) {
+        if let row = try Row.fetchOne(db, sql: "SELECT bestURL, bestFrecency, frecency FROM history_host WHERE profileID = ? AND host = ?",
+                                      arguments: [profile, host]) {
             let bestURL: String = row["bestURL"]
             let bestFrecency: Double = row["bestFrecency"]
             let best = bestURL == url || frecency > bestFrecency ? (url, frecency) : (bestURL, bestFrecency)
             try db.execute(sql: """
                 UPDATE history_host SET bestURL = ?, bestFrecency = ?, frecency = ?, visitCount = visitCount + 1,
-                    typedCount = typedCount + ? WHERE host = ?
-                """, arguments: [best.0, best.1, Frecency.adding(transition.weight, at: date, to: row["frecency"]), typed, host])
+                    typedCount = typedCount + ? WHERE profileID = ? AND host = ?
+                """, arguments: [best.0, best.1, Frecency.adding(transition.weight, at: date, to: row["frecency"]), typed, profile, host])
         } else {
             try db.execute(sql: """
-                INSERT INTO history_host (host, bestURL, bestFrecency, frecency, visitCount, typedCount) VALUES (?, ?, ?, ?, 1, ?)
-                """, arguments: [host, url, frecency, frecency, typed])
+                INSERT INTO history_host (profileID, host, bestURL, bestFrecency, frecency, visitCount, typedCount)
+                VALUES (?, ?, ?, ?, ?, 1, ?)
+                """, arguments: [profile, host, url, frecency, frecency, typed])
         }
     }
 
-    /// Recomputes a host's aggregate from its URLs (after deletions, the v2 backfill).
-    static func rebuildHost(_ db: Database, _ host: String) throws {
-        let rows = try Row.fetchAll(db, sql: "SELECT url, frecency, visitCount, typedCount FROM history_url WHERE host = ? ORDER BY frecency DESC",
-                                    arguments: [host])
+    /// Recomputes a profile's host aggregate from its URLs (after deletions, the v3 backfill).
+    static func rebuildHost(_ db: Database, profile: UUID, host: String) throws {
+        let rows = try Row.fetchAll(db, sql: """
+            SELECT url, frecency, visitCount, typedCount FROM history_url WHERE profileID = ? AND host = ? ORDER BY frecency DESC
+            """, arguments: [profile, host])
         guard let best = rows.first else {
-            try db.execute(sql: "DELETE FROM history_host WHERE host = ?", arguments: [host])
+            try db.execute(sql: "DELETE FROM history_host WHERE profileID = ? AND host = ?", arguments: [profile, host])
             return
         }
         // log Σ exp(f): the host's frecency is the sum of its URLs'.
         let top: Double = best["frecency"]
         let sum = top + log(rows.reduce(0.0) { $0 + exp(($1["frecency"] as Double) - top) })
         try db.execute(sql: """
-            INSERT OR REPLACE INTO history_host (host, bestURL, bestFrecency, frecency, visitCount, typedCount) VALUES (?, ?, ?, ?, ?, ?)
-            """, arguments: [host, best["url"] as String, top, sum, rows.reduce(0) { $0 + ($1["visitCount"] as Int) },
+            INSERT OR REPLACE INTO history_host (profileID, host, bestURL, bestFrecency, frecency, visitCount, typedCount)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, arguments: [profile, host, best["url"] as String, top, sum, rows.reduce(0) { $0 + ($1["visitCount"] as Int) },
                                rows.reduce(0) { $0 + ($1["typedCount"] as Int) }])
     }
 
     /// The page's title arrived after the commit.
-    public func setTitle(_ title: String, for url: String) {
+    public func setTitle(_ title: String, for url: String, profile: UUID) {
         let url = Self.recordedURL(url)
         pool.asyncWrite({ db in
-            try db.execute(sql: "UPDATE history_url SET title = ? WHERE url = ? AND title IS NOT ?", arguments: [title, url, title])
+            try db.execute(sql: "UPDATE history_url SET title = ? WHERE profileID = ? AND url = ? AND title IS NOT ?",
+                           arguments: [title, profile, url, title])
         }, completion: { _, _ in })
     }
 
-    /// Removes a URL and its visits (⇧Delete on a history suggestion, spec §C).
-    public func delete(url: String) throws {
+    /// Removes a URL and its visits from `profile`'s history (⇧Delete on a history suggestion, spec §C).
+    public func delete(url: String, profile: UUID) throws {
         try pool.write { db in
-            guard let host = try String.fetchOne(db, sql: "SELECT host FROM history_url WHERE url = ?", arguments: [url]) else { return }
-            try db.execute(sql: "DELETE FROM history_url WHERE url = ?", arguments: [url])
-            try Self.rebuildHost(db, host)
+            guard let host = try String.fetchOne(db, sql: "SELECT host FROM history_url WHERE profileID = ? AND url = ?",
+                                                 arguments: [profile, url]) else { return }
+            try db.execute(sql: "DELETE FROM history_url WHERE profileID = ? AND url = ?", arguments: [profile, url])
+            try Self.rebuildHost(db, profile: profile, host: host)
         }
     }
 
-    /// Removes every URL of a host (⇧Delete on an inline host suggestion: it
-    /// stands for the whole host, so deleting one URL would bring it straight back).
-    public func delete(host: String) throws {
+    /// Removes every URL of a host from `profile`'s history (⇧Delete on an
+    /// inline host suggestion: it stands for the whole host, so deleting one
+    /// URL would bring it straight back).
+    public func delete(host: String, profile: UUID) throws {
         try pool.write { db in
-            try db.execute(sql: "DELETE FROM history_url WHERE host = ?", arguments: [host])
-            try db.execute(sql: "DELETE FROM history_host WHERE host = ?", arguments: [host])
+            try db.execute(sql: "DELETE FROM history_url WHERE profileID = ? AND host = ?", arguments: [profile, host])
+            try db.execute(sql: "DELETE FROM history_host WHERE profileID = ? AND host = ?", arguments: [profile, host])
         }
     }
 
     /// Bulk insert in one transaction (fixtures and the 50k measurement).
-    public func importRows(_ rows: [HistoryImport]) throws {
+    public func importRows(_ rows: [HistoryImport], profile: UUID) throws {
         try pool.write { db in
             for row in rows {
                 for visit in row.visits {
-                    try Self.insertVisit(db, url: row.url, title: row.title, transition: visit.transition, at: visit.at)
+                    try Self.insertVisit(db, url: row.url, title: row.title, transition: visit.transition, profile: profile, at: visit.at)
                 }
             }
         }
@@ -259,25 +275,33 @@ public final class History: Sendable {
 
     // MARK: Reading
 
-    public func count() throws -> Int {
-        try pool.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM history_url") ?? 0 }
-    }
-
-    public func row(url: String) throws -> HistoryRow? {
-        try pool.read { db in try Row.fetchOne(db, sql: "SELECT * FROM history_url WHERE url = ?", arguments: [url]).map(HistoryRow.init) }
-    }
-
-    /// Visits recorded for `url`, oldest first, as (time, transition).
-    public func visits(url: String) throws -> [(Timestamp, HistoryTransition)] {
+    /// URLs in `profile`'s history; every profile's when `nil`.
+    public func count(profile: UUID? = nil) throws -> Int {
         try pool.read { db in
-            try Row.fetchAll(db, sql: """
-                SELECT v.visitedAt, v.transition FROM history_visit v JOIN history_url u ON u.id = v.urlID
-                WHERE u.url = ? ORDER BY v.visitedAt
-                """, arguments: [url]).map { ($0["visitedAt"], HistoryTransition(rawValue: $0["transition"]) ?? .other) }
+            if let profile {
+                return try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM history_url WHERE profileID = ?", arguments: [profile]) ?? 0
+            }
+            return try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM history_url") ?? 0
         }
     }
 
-    /// URLs whose URL or title contains every word of `text` (case-insensitive
+    public func row(url: String, profile: UUID) throws -> HistoryRow? {
+        try pool.read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM history_url WHERE profileID = ? AND url = ?", arguments: [profile, url]).map(HistoryRow.init)
+        }
+    }
+
+    /// Visits recorded for `url` in `profile`, oldest first, as (time, transition).
+    public func visits(url: String, profile: UUID) throws -> [(Timestamp, HistoryTransition)] {
+        try pool.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT v.visitedAt, v.transition FROM history_visit v JOIN history_url u ON u.id = v.urlID
+                WHERE u.profileID = ? AND u.url = ? ORDER BY v.visitedAt
+                """, arguments: [profile, url]).map { ($0["visitedAt"], HistoryTransition(rawValue: $0["transition"]) ?? .other) }
+        }
+    }
+
+    /// `profile`'s URLs whose URL or title contains every word of `text` (case-insensitive
     /// substrings, so "ikip" finds Wikipedia), most frecent first.
     ///
     /// Words of three characters or more go through the trigram index; shorter
@@ -286,21 +310,21 @@ public final class History: Sendable {
     /// directly; a word in nearly every URL ("com", "http") would make it
     /// return every row only to sort them, so the most frecent rows are
     /// scanned first and the index is consulted only if they hold too few matches.
-    public func search(_ text: String, limit: Int) throws -> [HistoryRow] {
+    public func search(_ text: String, profile: UUID, limit: Int) throws -> [HistoryRow] {
         let terms = text.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
         guard !terms.isEmpty, limit > 0 else { return [] }
         let indexed = terms.filter { $0.count >= 3 }
         return try pool.read { db in
             guard !indexed.isEmpty else {
                 let prefix = terms.joined(separator: " ")
-                return try Self.hostPrefixRows(db, prefix: prefix, limit: limit)
+                return try Self.hostPrefixRows(db, prefix: prefix, profile: profile, limit: limit)
             }
             let likes = terms.map { _ in "instr(lower(url || ' ' || COALESCE(title, '')), ?) > 0" }.joined(separator: " AND ")
             // The most frecent rows first: common words are answered here.
             let recent = try Row.fetchAll(db, sql: """
-                SELECT * FROM (SELECT * FROM history_url ORDER BY frecency DESC LIMIT \(Self.frecentScan))
+                SELECT * FROM (SELECT * FROM history_url WHERE profileID = ? ORDER BY frecency DESC LIMIT \(Self.frecentScan))
                 WHERE \(likes) ORDER BY frecency DESC LIMIT ?
-                """, arguments: StatementArguments(terms + [limit] as [any DatabaseValueConvertible]))
+                """, arguments: StatementArguments([profile] + terms + [limit] as [any DatabaseValueConvertible]))
             if recent.count >= limit { return recent.map(HistoryRow.init) }
             let pattern = indexed.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }.joined(separator: " AND ")
             let short = terms.filter { $0.count < 3 }
@@ -308,38 +332,39 @@ public final class History: Sendable {
                 .joined(separator: " AND ")
             let rows = try Row.fetchAll(db, sql: """
                 SELECT u.* FROM history_fts JOIN history_url u ON u.id = history_fts.rowid
-                WHERE history_fts MATCH ?\(shortFilter) ORDER BY u.frecency DESC LIMIT ?
-                """, arguments: StatementArguments([pattern] + short + [limit] as [any DatabaseValueConvertible]))
+                WHERE history_fts MATCH ? AND u.profileID = ?\(shortFilter) ORDER BY u.frecency DESC LIMIT ?
+                """, arguments: StatementArguments([pattern, profile] + short + [limit] as [any DatabaseValueConvertible]))
             return rows.map(HistoryRow.init)
         }
     }
 
-    /// The most frecent URLs (⌘Y lists them before anything is typed).
-    public func mostFrecent(limit: Int) throws -> [HistoryRow] {
+    /// `profile`'s most frecent URLs (⌘Y lists them before anything is typed).
+    public func mostFrecent(profile: UUID, limit: Int) throws -> [HistoryRow] {
         try pool.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM history_url ORDER BY frecency DESC LIMIT ?", arguments: [limit]).map(HistoryRow.init)
+            try Row.fetchAll(db, sql: "SELECT * FROM history_url WHERE profileID = ? ORDER BY frecency DESC LIMIT ?",
+                             arguments: [profile, limit]).map(HistoryRow.init)
         }
     }
 
     /// How many of the most frecent rows `search` scans before the index.
     static let frecentScan = 2_000
 
-    private static func hostPrefixRows(_ db: Database, prefix: String, limit: Int) throws -> [HistoryRow] {
+    private static func hostPrefixRows(_ db: Database, prefix: String, profile: UUID, limit: Int) throws -> [HistoryRow] {
         guard let upper = prefixUpperBound(prefix) else { return [] }
         return try Row.fetchAll(db, sql: """
-            SELECT * FROM history_url WHERE host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
-            """, arguments: [prefix, upper, limit]).map(HistoryRow.init)
+            SELECT * FROM history_url WHERE profileID = ? AND host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
+            """, arguments: [profile, prefix, upper, limit]).map(HistoryRow.init)
     }
 
     /// Hosts that start with `prefix` (lowercased, without "www."), most
     /// frecent first, each with its best URL (inline completion, spec §C).
-    public func hosts(prefix: String, limit: Int) throws -> [HistoryHost] {
+    public func hosts(prefix: String, profile: UUID, limit: Int) throws -> [HistoryHost] {
         let prefix = prefix.lowercased()
         guard !prefix.isEmpty, let upper = Self.prefixUpperBound(prefix) else { return [] }
         return try pool.read { db in
             try Row.fetchAll(db, sql: """
-                SELECT * FROM history_host WHERE host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
-                """, arguments: [prefix, upper, limit]).map {
+                SELECT * FROM history_host WHERE profileID = ? AND host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
+                """, arguments: [profile, prefix, upper, limit]).map {
                 HistoryHost(host: $0["host"], bestURL: $0["bestURL"], frecency: $0["frecency"], visitCount: $0["visitCount"],
                             typedCount: $0["typedCount"])
             }

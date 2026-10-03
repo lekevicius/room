@@ -124,8 +124,8 @@ struct Palette2_4bTests {
     @Test("Visited pages come back as history rows; a typed host completes inline; ⇧Delete removes it and it does not complete again")
     func historyAndDelete() async throws {
         let f = try PaletteFixture()
-        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/", title: "Hacker News", transition: .typed)
-        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/item?id=1", title: "A story", transition: .link)
+        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/", title: "Hacker News", transition: .typed, profile: f.space.profileID)
+        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/item?id=1", title: "A story", transition: .link, profile: f.space.profileID)
         f.palette.toggleNew()
         f.palette.setText("new")
         #expect(f.palette.result.inlineCompletion == "s.ycombinator.com")
@@ -148,9 +148,9 @@ struct Palette2_4bTests {
         f.palette.setText("room browser")
         f.palette.commit(modifier: .none)
         await f.settle()
-        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link)
-        #expect(try f.store.history.visits(url: "https://example.com").map(\.1) == [.typed])
-        #expect(try f.store.history.visits(url: "https://www.google.com/search?q=room%20browser").map(\.1) == [.generated])
+        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link, profile: f.space.profileID)
+        #expect(try f.store.history.visits(url: "https://example.com", profile: f.space.profileID).map(\.1) == [.typed])
+        #expect(try f.store.history.visits(url: "https://www.google.com/search?q=room%20browser", profile: f.space.profileID).map(\.1) == [.generated])
     }
 
     @Test("Suggestions join the search group when they arrive, keeping the highlighted row; switched off, they go and nothing is sent")
@@ -217,8 +217,8 @@ struct PaletteHistoryKeyTests {
     @Test("⌘Y opens the palette on the most frecent history; typing searches as usual; again closes")
     func recentHistory() throws {
         let f = try PaletteFixture()
-        try f.store.history.recordVisitNow(url: "https://swift.org/", title: "Swift", transition: .typed)
-        try f.store.history.recordVisitNow(url: "https://example.com/", title: "Example", transition: .link)
+        try f.store.history.recordVisitNow(url: "https://swift.org/", title: "Swift", transition: .typed, profile: f.space.profileID)
+        try f.store.history.recordVisitNow(url: "https://example.com/", title: "Example", transition: .link, profile: f.space.profileID)
         f.palette.toggleHistory()
         #expect(f.palette.result.matches.map(\.action.url) == ["https://swift.org/", "https://example.com/"])
         f.palette.setText("exa")

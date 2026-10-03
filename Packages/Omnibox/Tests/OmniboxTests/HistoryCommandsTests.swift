@@ -7,6 +7,9 @@ private let now = Date(timeIntervalSince1970: 1_790_000_000)
 private let day: TimeInterval = 86_400
 
 /// A history database in a temporary directory.
+/// The profile the history fixtures record in (and the contexts' active one).
+let historyProfile = UUID()
+
 final class HistoryFixture {
     let directory: URL
     let history: History
@@ -15,7 +18,7 @@ final class HistoryFixture {
         directory = FileManager.default.temporaryDirectory.appending(path: "RoomOmniboxTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         history = History(database: try RoomDatabase(url: directory.appending(path: "Room.sqlite")))
-        try history.importRows(rows)
+        try history.importRows(rows, profile: historyProfile)
     }
 
     deinit { try? FileManager.default.removeItem(at: directory) }
@@ -29,7 +32,7 @@ private func visits(_ count: Int, _ transition: HistoryTransition = .link, daysA
 
 @Suite("History provider (spec §C group 4, inline completion)")
 struct HistoryProviderTests {
-    let context = OmniboxContext(now: now)
+    let context = OmniboxContext(activeProfileID: historyProfile, now: now)
 
     @Test("Rows rank by match quality and frecency inside the history band, and are deletable")
     func ranking() throws {
@@ -104,7 +107,7 @@ struct HistoryProviderTests {
     func historyOpenTab() throws {
         let fixture = try HistoryFixture([HistoryImport(url: "https://github.com/", title: "GitHub", visits: visits(2, .typed))])
         let tab = OmniboxEntry(id: UUID(), kind: .today, title: "GitHub", url: "https://github.com/", spaceID: UUID(), spaceName: "Work")
-        let context = OmniboxContext(entries: [tab], now: now)
+        let context = OmniboxContext(entries: [tab], activeProfileID: historyProfile, now: now)
         let result = fixture.omnibox.result(for: OmniboxInput(text: "git"), in: context)
         #expect(result.inlineCompletion == "hub.com")
         guard case .switchToEntry(let id, _, _) = result.matches.first?.action else {
@@ -123,8 +126,19 @@ struct HistoryProviderTests {
         #expect(HistoryProvider.deletedHost(for: inline) == "github.com")
         let row = try #require(matches.first { $0.inlineCompletion == nil })
         #expect(HistoryProvider.deletedHost(for: row) == nil)
-        try fixture.history.delete(host: "github.com")
+        try fixture.history.delete(host: "github.com", profile: historyProfile)
         #expect(fixture.omnibox.result(for: OmniboxInput(text: "git"), in: context).matches.allSatisfy { $0.provider != .history })
+    }
+
+    @Test("History comes from the active space's profile only (ROADMAP 2.5)")
+    func otherProfile() throws {
+        let fixture = try HistoryFixture([HistoryImport(url: "https://github.com/", title: "GitHub", visits: visits(2, .typed))])
+        let provider = HistoryProvider(history: fixture.history)
+        #expect(!provider.matches(for: OmniboxInput(text: "git"), in: context).isEmpty)
+        let elsewhere = OmniboxContext(activeProfileID: UUID(), now: now)
+        #expect(provider.matches(for: OmniboxInput(text: "git"), in: elsewhere).isEmpty)
+        #expect(provider.recentMatches(in: elsewhere).isEmpty)
+        #expect(provider.recentMatches(in: context).count == 1)
     }
 
     @Test("Eight rows at most with history, open tabs and the kept search row")
@@ -134,7 +148,8 @@ struct HistoryProviderTests {
         })
         let tabs = (0..<4).map { OmniboxEntry(id: UUID(), kind: .today, title: "Docs tab \($0)", url: "https://tab\($0).example.org/",
                                               spaceID: nil) }
-        let result = fixture.omnibox.result(for: OmniboxInput(text: "docs"), in: OmniboxContext(entries: tabs, now: now))
+        let result = fixture.omnibox.result(for: OmniboxInput(text: "docs"), 
+                                            in: OmniboxContext(entries: tabs, activeProfileID: historyProfile, now: now))
         #expect(result.matches.count == OmniboxResult.limit)
         #expect(result.matches.contains { $0.keepsSlot })
         #expect(result.matches.map(\.group) == result.matches.map(\.group).sorted())
@@ -211,7 +226,8 @@ struct SiteSearchTests {
             HistoryImport(url: "https://www.youtube.com/watch?v=1", title: "lofi beats", visits: visits(2)),
             HistoryImport(url: "https://lofi.example.com/", title: "lofi elsewhere", visits: visits(5)),
         ])
-        let result = fixture.omnibox.result(for: OmniboxInput(field: "lofi", siteSearch: youtube), in: OmniboxContext(now: now))
+        let result = fixture.omnibox.result(for: OmniboxInput(field: "lofi", siteSearch: youtube),
+                                            in: OmniboxContext(activeProfileID: historyProfile, now: now))
         #expect(result.matches.first?.action == .search(query: "lofi", url: "https://www.youtube.com/results?search_query=lofi"))
         #expect(result.matches.first?.detail == "Search YouTube")
         #expect(result.inlineCompletion == nil)

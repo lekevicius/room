@@ -183,7 +183,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
         #if DEBUG
         if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
-        if let rows = HistoryFixture.requestedRows { HistoryFixture.populate(store.history, rows: rows) }
+        if let rows = HistoryFixture.requestedRows, let profile = store.sidebar.profiles.first {
+            HistoryFixture.populate(store.history, rows: rows, profile: profile.id)
+        }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
         let tabs = TabController(store: store)

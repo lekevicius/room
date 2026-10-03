@@ -15,8 +15,8 @@ enum HistoryFixture {
         return rows > 0 ? rows : nil
     }
 
-    static func populate(_ history: History, rows: Int, now: Date = Date()) {
-        guard (try? history.count()) == 0 else { return }
+    static func populate(_ history: History, rows: Int, profile: UUID, now: Date = Date()) {
+        guard (try? history.count(profile: profile)) == 0 else { return }
         var random = SplitMix64(seed: 2_404)
         let words = ["swift", "apple", "room", "browser", "news", "docs", "guide", "api", "design", "music", "video", "travel", "recipe",
                      "garden", "linux", "rust", "kernel", "photo", "maps", "market", "weather", "sport", "chess", "physics", "history",
@@ -61,7 +61,7 @@ enum HistoryFixture {
         }
         let start = ContinuousClock.now
         do {
-            try history.importRows(imports)
+            try history.importRows(imports, profile: profile)
             NSLog("Room: history fixture: \(rows) rows, \(imports.reduce(0) { $0 + $1.visits.count }) visits in \(ContinuousClock.now - start)")
         } catch {
             NSLog("Room: history fixture failed: \(error)")

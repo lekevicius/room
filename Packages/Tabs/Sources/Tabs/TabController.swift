@@ -15,6 +15,8 @@ public protocol PageDisplay: AnyObject {
 /// One loaded entry's page.
 final class Page {
     let contents: any WebContents
+    /// The model profile whose engine profile (cookie jar) made the page.
+    let profileID: UUID
     /// Bumped when the page leaves an entry, so stale observations stop.
     var generation = 0
     /// When the page was last on screen (the idle clock of spec §H).
@@ -26,8 +28,9 @@ final class Page {
     /// The favicon last written to the cache, so each icon is stored once.
     weak var storedFavicon: NSImage?
 
-    init(contents: any WebContents, lastVisible: Date) {
+    init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
+        self.profileID = profileID
         self.lastVisible = lastVisible
     }
 }
@@ -58,13 +61,59 @@ public final class TabController: SidebarHost {
     /// The idle clock (tests inject one).
     @ObservationIgnored public var now: () -> Date = Date.init
 
-    /// Pages are created in this profile. Until it exists (the engine creates
-    /// it asynchronously at launch) the selection waits and loads once it is set.
-    @ObservationIgnored public var profile: (any Engine.Profile)? {
-        didSet {
-            guard oldValue == nil, profile != nil, let id = currentEntryID, let entry = store.sidebar.entry(id) else { return }
-            activate(entry)
+    /// The engine profile (cookie jar) of each model profile, by
+    /// `Model.Profile.id`: an entry's page is made in its profile's (ROADMAP
+    /// 2.5 task 4). The engine creates them asynchronously; until an entry's
+    /// exists, its page waits and loads once `setEngineProfile` delivers it.
+    @ObservationIgnored public private(set) var engineProfiles: [UUID: any Engine.Profile] = [:]
+    /// Asked once per model profile whose engine profile a page needs and
+    /// that has none yet; the app creates it and calls `setEngineProfile`.
+    @ObservationIgnored public var requestEngineProfile: ((Model.Profile) -> Void)?
+    @ObservationIgnored private var requestedProfiles: Set<UUID> = []
+    /// Background loads waiting for their entry's engine profile.
+    @ObservationIgnored private var waitingLoads: [UUID] = []
+    @ObservationIgnored private var storeToken: ObservationToken?
+
+    /// Delivers a model profile's engine profile; the selection and background
+    /// loads waiting for it load now.
+    public func setEngineProfile(_ engineProfile: any Engine.Profile, for profileID: UUID) {
+        engineProfiles[profileID] = engineProfile
+        if let id = currentEntryID, pages[id] == nil, let entry = store.sidebar.entry(id), entry.profileID == profileID { activate(entry) }
+        let waiting = waitingLoads
+        waitingLoads = []
+        for id in waiting {
+            guard pages[id] == nil, let entry = store.sidebar.entry(id) else { continue }
+            if entry.profileID == profileID {
+                loadInBackground(entry)
+                sidebar?.pageStateDidChange([id])
+            } else {
+                waitingLoads.append(id)
+            }
         }
+    }
+
+    /// The first (default) profile's engine profile.
+    public var profile: (any Engine.Profile)? {
+        get { store.sidebar.profiles.first.flatMap { engineProfiles[$0.id] } }
+        set {
+            guard let newValue, let first = store.sidebar.profiles.first else { return }
+            setEngineProfile(newValue, for: first.id)
+        }
+    }
+
+    private func requestProfile(_ id: UUID) {
+        guard engineProfiles[id] == nil, requestedProfiles.insert(id).inserted,
+              let profile = store.sidebar.profiles.first(where: { $0.id == id }) else { return }
+        requestEngineProfile?(profile)
+    }
+
+    /// The engine profile name of a model profile: its name, with the
+    /// characters a directory name cannot hold replaced (the engine keeps it
+    /// at `<root>/Room Profile <name>`, a direct child of its root, Phase 1.4).
+    public static func engineProfileName(for profile: Model.Profile) -> String {
+        var name = String(profile.name.map { "/:\\".contains($0) ? "-" : $0 }).trimmingCharacters(in: .whitespaces)
+        while name.hasPrefix(".") { name.removeFirst() }
+        return name.isEmpty ? profile.id.uuidString : String(name.prefix(64))
     }
 
     /// The page in the card.
@@ -86,6 +135,26 @@ public final class TabController: SidebarHost {
 
     public init(store: RoomStore) {
         self.store = store
+        storeToken = store.sidebar.observe { [weak self] change in self?.sidebarDidChange(change) }
+    }
+
+    /// An entry that moved to a space of another profile (a move, a drop, a
+    /// space's profile changed) cannot keep its page: cookies belong to the
+    /// engine profile that made it. Its page closes and the entry loads
+    /// again at its URL in the new profile (spec §B), shown if it was.
+    private func sidebarDidChange(_ change: SidebarChange) {
+        for id in change.entries {
+            guard let page = pages[id], let entry = store.sidebar.entry(id),
+                  ProfileRules.needsNewPage(pageProfile: page.profileID, entry: entry) else { continue }
+            let shown = currentEntryID == id
+            unload(id)
+            if shown {
+                activate(entry)
+            } else {
+                loadInBackground(entry)
+            }
+            sidebar?.pageStateDidChange([id])
+        }
     }
 
     isolated deinit {
@@ -129,7 +198,12 @@ public final class TabController: SidebarHost {
             if let previous = currentEntryID { pages[previous]?.lastVisible = now() }
         }
         currentEntryID = entry.id
-        guard profile != nil || pages[entry.id] != nil else { return }
+        guard engineProfiles[entry.profileID] != nil || pages[entry.id] != nil else {
+            // Its profile is still being created: the card waits, empty (it loads in `setEngineProfile`).
+            requestProfile(entry.profileID)
+            show(nil)
+            return
+        }
         guard let page = pages[entry.id] ?? makePage(for: entry, hidden: false) else {
             show(nil)
             return
@@ -224,6 +298,11 @@ public final class TabController: SidebarHost {
     @discardableResult
     public func loadInBackground(_ entry: Entry) -> (any WebContents)? {
         if let page = pages[entry.id] { return page.contents }
+        if engineProfiles[entry.profileID] == nil {
+            requestProfile(entry.profileID)
+            if !waitingLoads.contains(entry.id) { waitingLoads.append(entry.id) }
+            return nil
+        }
         return makePage(for: entry, hidden: true)?.contents
     }
 
@@ -235,7 +314,10 @@ public final class TabController: SidebarHost {
     }
 
     private func makePage(for entry: Entry, hidden: Bool) -> Page? {
-        guard let profile else { return nil }
+        guard let profile = engineProfiles[entry.profileID] else {
+            requestProfile(entry.profileID)
+            return nil
+        }
         let contents: any WebContents
         do {
             contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden))
@@ -259,7 +341,8 @@ public final class TabController: SidebarHost {
     func adopt(_ contents: any WebContents, entry: UUID) -> Page {
         contents.uiDelegate = self
         contents.navigationDelegate = self
-        let page = Page(contents: contents, lastVisible: now())
+        let profileID = store.sidebar.entry(entry)?.profileID ?? store.sidebar.profiles.first?.id ?? History.orphanProfile
+        let page = Page(contents: contents, profileID: profileID, lastVisible: now())
         pages[entry] = page
         observe(page, entry: entry)
         return page
@@ -321,7 +404,7 @@ public final class TabController: SidebarHost {
             // once loading ends, so a page's previous title never lands on its new URL.
             if !contents.isLoading, let title, !title.isEmpty, page.historyTitle?.url != url || page.historyTitle?.title != title {
                 page.historyTitle = (url, title)
-                store.history.setTitle(title, for: live)
+                store.history.setTitle(title, for: live, profile: page.profileID)
             }
         }
         if let favicon, !favicon.isTemplate {
@@ -339,7 +422,7 @@ public final class TabController: SidebarHost {
         let contents = page.contents
         guard !contents.isLoading, let url = contents.url, let title = contents.title, !title.isEmpty else { return }
         page.historyTitle = (url, title)
-        store.history.setTitle(title, for: url.absoluteString)
+        store.history.setTitle(title, for: url.absoluteString, profile: page.profileID)
     }
 
     // MARK: Favicon cache (spec §I.2)

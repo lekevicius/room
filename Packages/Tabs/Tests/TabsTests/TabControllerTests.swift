@@ -88,6 +88,77 @@ final class TabsFixture {
     }
 }
 
+@Suite("Tab controller: profiles (ROADMAP 2.5 task 4)")
+struct ProfileTests {
+    /// A second profile with a space, and its FakeEngine profile delivered.
+    private func work(_ f: TabsFixture) throws -> (space: Space, engine: FakeProfile) {
+        let profile = f.sidebarStore.createProfile(name: "Work")
+        let space = try f.sidebarStore.createSpace(name: "Work", profile: profile.id)
+        let engine = try f.engine.profile(named: "Work")
+        f.tabs.setEngineProfile(engine, for: profile.id)
+        return (space, engine)
+    }
+
+    @Test("A page moved to a space of another profile loads again there, at its URL; the card follows")
+    func crossProfileMove() async throws {
+        let f = try TabsFixture()
+        let (work, workEngine) = try work(f)
+        let tab = try f.today("https://a.example/start")
+        f.sidebar.select(tab.id)
+        let before = try #require(f.page(tab.id))
+        try f.sidebarStore.move(tab.id, to: .today(space: work.id), at: 0)
+        await f.settle()
+        let after = try #require(f.page(tab.id))
+        #expect(after !== before)
+        #expect(before.state == .closed)
+        #expect(workEngine.openWebContents.contains { $0 === after })
+        #expect(!f.profile.openWebContents.contains { $0 === before })
+        #expect(after.url?.absoluteString == "https://a.example/start")
+        #expect(f.display.shown === after)
+        #expect(f.sidebarStore.entry(tab.id)?.profileID == work.profileID)
+    }
+
+    @Test("Moving within one profile keeps the page")
+    func sameProfileMove() async throws {
+        let f = try TabsFixture()
+        let other = try f.sidebarStore.createSpace(name: "Other", profile: f.space.profileID)
+        let tab = try f.today("https://a.example")
+        f.sidebar.select(tab.id)
+        let before = try #require(f.page(tab.id))
+        try f.sidebarStore.move(tab.id, to: .today(space: other.id), at: 0)
+        await f.settle()
+        #expect(f.page(tab.id) === before)
+        #expect(before.state == .alive)
+    }
+
+    @Test("A page whose profile has no engine profile yet asks for it once and loads when it arrives")
+    func waitsForProfile() throws {
+        let f = try TabsFixture()
+        let profile = f.sidebarStore.createProfile(name: "Later")
+        let space = try f.sidebarStore.createSpace(name: "Later", profile: profile.id)
+        var requests: [String] = []
+        f.tabs.requestEngineProfile = { requests.append($0.name) }
+        let tab = try f.sidebarStore.addEntry(.today, url: "https://later.example", space: space.id)
+        let background = try f.sidebarStore.addEntry(.today, url: "https://background.example", space: space.id)
+        f.sidebar.showSpace(space.id)
+        f.sidebar.select(tab.id)
+        #expect(f.tabs.loadInBackground(background) == nil)
+        #expect(requests == ["Later"])
+        #expect(f.display.shown == nil)
+        let engine = try f.engine.profile(named: "Later")
+        f.tabs.setEngineProfile(engine, for: profile.id)
+        #expect(engine.openWebContents.count == 2)
+        #expect(f.display.shown?.url?.absoluteString == "https://later.example")
+    }
+
+    @Test("Engine profile names stay one directory deep")
+    func engineNames() {
+        #expect(TabController.engineProfileName(for: Model.Profile(name: "Default", position: 0)) == "Default")
+        #expect(TabController.engineProfileName(for: Model.Profile(name: "a/b:c", position: 0)) == "a-b-c")
+        #expect(TabController.engineProfileName(for: Model.Profile(name: "..hidden", position: 0)) == "hidden")
+    }
+}
+
 @Suite("Tab controller: pages per entry and the card (ROADMAP 2.3)")
 struct PageTests {
     @Test("A page is created on an entry's first selection; switching keeps the others alive and shows the selected one")
@@ -451,7 +522,7 @@ struct SwitchingTests {
 struct HistoryRecordingTests {
     /// Waits for the history writes queued so far (the writer is serial).
     private func flushHistory(_ f: TabsFixture) throws {
-        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link)
+        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link, profile: f.space.profileID)
     }
 
     @Test("Commits become visits with how they started; a restored page is not a visit; the title follows")
@@ -465,12 +536,12 @@ struct HistoryRecordingTests {
         await f.settle()
         try flushHistory(f)
         let history = f.store.history
-        #expect(try history.row(url: "https://restored.example/") == nil)
-        #expect(try history.visits(url: "https://typed.example/").map(\.1) == [.typed])
-        #expect(try history.visits(url: "https://www.google.com/search?q=room").map(\.1) == [.generated])
-        #expect(try history.visits(url: "https://result.example/").map(\.1) == [.link])
+        #expect(try history.row(url: "https://restored.example/", profile: f.space.profileID) == nil)
+        #expect(try history.visits(url: "https://typed.example/", profile: f.space.profileID).map(\.1) == [.typed])
+        #expect(try history.visits(url: "https://www.google.com/search?q=room", profile: f.space.profileID).map(\.1) == [.generated])
+        #expect(try history.visits(url: "https://result.example/", profile: f.space.profileID).map(\.1) == [.link])
         // FakeEngine titles a finished page with its host.
-        #expect(try history.row(url: "https://typed.example/")?.title == "typed.example")
+        #expect(try history.row(url: "https://typed.example/", profile: f.space.profileID)?.title == "typed.example")
     }
 
     @Test("Reloads and discarded pages coming back add no visit; an unloaded pinned entry opens as a bookmark")
@@ -485,6 +556,6 @@ struct HistoryRecordingTests {
         f.sidebar.select(pinned.id)
         await f.settle()
         try flushHistory(f)
-        #expect(try f.store.history.visits(url: "https://pinned.example/").map(\.1) == [.bookmark])
+        #expect(try f.store.history.visits(url: "https://pinned.example/", profile: f.space.profileID).map(\.1) == [.bookmark])
     }
 }

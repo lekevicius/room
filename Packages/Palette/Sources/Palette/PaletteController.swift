@@ -367,7 +367,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             entries.append(snapshot)
         }
         entryCache = cache
-        return OmniboxContext(entries: entries, activeSpaceID: sidebar.activeSpaceID, currentEntryID: tabs.currentEntryID,
+        return OmniboxContext(entries: entries, activeSpaceID: sidebar.activeSpaceID, activeProfileID: activeSpace?.profileID,
+                              currentEntryID: tabs.currentEntryID,
                               searchEngine: searchEngine(), commands: commands(), now: now(), reusingKeysFrom: context)
     }
 
@@ -388,7 +389,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             // holds a URL; recent history after ⌘Y.
             localMatches = pasteAndGoMatch.map { [$0] } ?? []
             if listsRecentHistory, let history = omnibox.providers.lazy.compactMap({ $0 as? HistoryProvider }).first {
-                localMatches += history.recentMatches(in: OmniboxContext(now: now()))
+                localMatches += history.recentMatches(in: OmniboxContext(activeProfileID: sidebar.activeSpace?.profileID, now: now()))
             }
         } else {
             ensureContext()
@@ -518,11 +519,12 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public func deleteSuggestion(at index: Int) -> Bool {
         guard result.matches.indices.contains(index), result.matches[index].isDeletable else { return false }
         let match = result.matches[index]
+        guard let profile = sidebar.activeSpace?.profileID else { return false }
         do {
             if let host = HistoryProvider.deletedHost(for: match) {
-                try tabs.store.history.delete(host: host)
+                try tabs.store.history.delete(host: host, profile: profile)
             } else if let url = match.action.url {
-                try tabs.store.history.delete(url: url)
+                try tabs.store.history.delete(url: url, profile: profile)
             }
         } catch {
             NSLog("Room: history suggestion not removed: \(error)")

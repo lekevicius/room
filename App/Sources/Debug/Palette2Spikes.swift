@@ -60,13 +60,13 @@ extension SpikeRunner.Context {
         await loaded()
         await settle(800)
         for url in [typedURL, "https://example.org/", "https://example.org/pushed", "https://nonexistent.invalid/"] {
-            let visits = (try? history.visits(url: url)) ?? []
-            let title = (try? history.row(url: url))?.title ?? "nil"
+            let visits = (try? history.visits(url: url, profile: historyProfile)) ?? []
+            let title = (try? history.row(url: url, profile: historyProfile))?.title ?? "nil"
             SpikeRunner.record("history \(url)", "visits=\(visits.map(\.1.rawValue)) title=\(title)")
         }
-        let search = (try? history.search("room browser palette", limit: 3)) ?? []
+        let search = (try? history.search("room browser palette", profile: historyProfile, limit: 3)) ?? []
         SpikeRunner.record("history search page", search.map { "\($0.url) visits=\($0.visitCount)" }.joined(separator: ", "))
-        SpikeRunner.record("history rows total", (try? history.count()) ?? -1)
+        SpikeRunner.record("history rows total", (try? history.count(profile: historyProfile)) ?? -1)
 
         // The palette finds what was visited, and inline-completes the typed host.
         press("⌘T")
@@ -92,7 +92,7 @@ extension SpikeRunner.Context {
         ]
         for (url, title, transition, count) in visits {
             for index in 0..<count {
-                try? history.recordVisitNow(url: url, title: title, transition: index == 0 ? transition : .link,
+                try? history.recordVisitNow(url: url, title: title, transition: index == 0 ? transition : .link, profile: historyProfile,
                                             at: now.addingTimeInterval(Double(-index) * 3_600))
             }
         }
@@ -178,5 +178,10 @@ extension SpikeRunner.Context {
         SpikeRunner.record("typing_end_epoch_ms", Int(Date().timeIntervalSince1970 * 1000))
         for line in seen { SpikeRunner.record("suggest_rows", line) }
     }
+}
+
+extension SpikeRunner.Context {
+    /// The active space's profile: history follows it (ROADMAP 2.5).
+    var historyProfile: UUID { sidebar.activeSpace?.profileID ?? History.orphanProfile }
 }
 #endif

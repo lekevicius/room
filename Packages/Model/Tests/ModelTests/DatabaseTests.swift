@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 creates every table; v2 (history frecency) is the only other migration")
+    @Test("v1 creates every table; v2 (history frecency) and v3 (history per profile) follow")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
@@ -14,7 +14,7 @@ struct SchemaTests {
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }
@@ -84,10 +84,11 @@ struct SchemaTests {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
         try queue.write { db in
-            try db.execute(sql: "INSERT INTO history_url (url, title, lastVisitAt) VALUES (?, ?, 0)",
-                           arguments: ["https://en.wikipedia.org/wiki/Vilnius", "Vilnius - Wikipedia"])
-            try db.execute(sql: "INSERT INTO history_url (url, title, lastVisitAt) VALUES (?, ?, 0)",
-                           arguments: ["https://example.com", "Example Domain"])
+            let profile = UUID()
+            try db.execute(sql: "INSERT INTO history_url (profileID, url, title, lastVisitAt) VALUES (?, ?, ?, 0)",
+                           arguments: [profile, "https://en.wikipedia.org/wiki/Vilnius", "Vilnius - Wikipedia"])
+            try db.execute(sql: "INSERT INTO history_url (profileID, url, title, lastVisitAt) VALUES (?, ?, ?, 0)",
+                           arguments: [profile, "https://example.com", "Example Domain"])
             let match = try String.fetchAll(db, sql: "SELECT url FROM history_fts WHERE history_fts MATCH ?", arguments: ["ikip"])
             #expect(match == ["https://en.wikipedia.org/wiki/Vilnius"])
             try db.execute(sql: "UPDATE history_url SET title = 'Renamed' WHERE url = 'https://example.com'")

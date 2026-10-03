@@ -1,3 +1,4 @@
+import Foundation
 import GRDB
 
 /// Schema migrations. Never edit a shipped migration; append a new one.
@@ -7,10 +8,14 @@ public enum Schema {
     /// Phase 2.4b: history's host key and frecency (`History`, `Frecency`).
     public static let v2 = "v2-history-frecency"
 
+    /// Phase 2.5: history follows the profile (decided 2026-10-03, ROADMAP 2.5).
+    public static let v3 = "v3-history-profile"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
         migrator.registerMigration(v2, migrate: createV2)
+        migrator.registerMigration(v3, migrate: createV3)
         return migrator
     }
 
@@ -48,7 +53,79 @@ public enum Schema {
                            arguments: [History.hostKey(for: row["url"]) ?? "", frecency, id])
         }
         for host in try String.fetchAll(db, sql: "SELECT DISTINCT host FROM history_url") {
-            try History.rebuildHost(db, host)
+            try rebuildHostV2(db, host)
+        }
+    }
+
+    /// v2's `History.rebuildHost`, frozen with the migration that uses it
+    /// (v3 keys hosts by profile).
+    private static func rebuildHostV2(_ db: Database, _ host: String) throws {
+        let rows = try Row.fetchAll(db, sql: "SELECT url, frecency, visitCount, typedCount FROM history_url WHERE host = ? ORDER BY frecency DESC",
+                                    arguments: [host])
+        guard let best = rows.first else {
+            try db.execute(sql: "DELETE FROM history_host WHERE host = ?", arguments: [host])
+            return
+        }
+        let top: Double = best["frecency"]
+        let sum = top + log(rows.reduce(0.0) { $0 + exp(($1["frecency"] as Double) - top) })
+        try db.execute(sql: """
+            INSERT OR REPLACE INTO history_host (host, bestURL, bestFrecency, frecency, visitCount, typedCount) VALUES (?, ?, ?, ?, ?, ?)
+            """, arguments: [host, best["url"] as String, top, sum, rows.reduce(0) { $0 + ($1["visitCount"] as Int) },
+                               rows.reduce(0) { $0 + ($1["typedCount"] as Int) }])
+    }
+
+    /// `history_url.profileID`: each profile keeps its own history, as in
+    /// Chromium and Arc. A URL is unique per profile, not per database, so
+    /// `history_url` is rebuilt (SQLite cannot change a UNIQUE constraint in
+    /// place) with the same row ids, which keeps `history_visit` pointing at
+    /// its URLs; `history_host` is keyed by (profile, host) and recomputed;
+    /// the FTS index is recreated over the new table. Rows from v2 belong to
+    /// the default profile (the first by position). GRDB runs migrations with
+    /// foreign keys off, so dropping the old table cascades nothing.
+    static func createV3(_ db: Database) throws {
+        let defaultProfile = try DatabaseValue.fetchOne(db, sql: "SELECT id FROM profile ORDER BY position LIMIT 1")
+            ?? History.orphanProfile.databaseValue
+        try db.create(table: "history_url_v3") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("profileID", .blob).notNull()
+            t.column("url", .text).notNull()
+            t.column("title", .text)
+            t.column("visitCount", .integer).notNull().defaults(to: 0)
+            t.column("typedCount", .integer).notNull().defaults(to: 0)
+            t.column("lastVisitAt", .integer).notNull()
+            t.column("host", .text).notNull().defaults(to: "")
+            t.column("frecency", .double).notNull().defaults(to: Frecency.none)
+            t.uniqueKey(["profileID", "url"])
+        }
+        try db.execute(sql: """
+            INSERT INTO history_url_v3 (id, profileID, url, title, visitCount, typedCount, lastVisitAt, host, frecency)
+            SELECT id, ?, url, title, visitCount, typedCount, lastVisitAt, host, frecency FROM history_url
+            """, arguments: [defaultProfile])
+        try db.drop(table: "history_fts")
+        try db.drop(table: "history_url")
+        try db.rename(table: "history_url_v3", to: "history_url")
+        try db.create(index: "history_url_frecency", on: "history_url", columns: ["profileID", "frecency"])
+        try db.create(index: "history_url_host", on: "history_url", columns: ["profileID", "host", "frecency"])
+        try db.create(virtualTable: "history_fts", using: FTS5()) { t in
+            t.synchronize(withTable: "history_url")
+            t.tokenizer = FTS5TokenizerDescriptor(components: ["trigram"])
+            t.column("url")
+            t.column("title")
+        }
+
+        try db.drop(table: "history_host")
+        try db.create(table: "history_host") { t in
+            t.column("profileID", .blob).notNull()
+            t.column("host", .text).notNull()
+            t.column("bestURL", .text).notNull()
+            t.column("bestFrecency", .double).notNull()
+            t.column("frecency", .double).notNull()
+            t.column("visitCount", .integer).notNull()
+            t.column("typedCount", .integer).notNull()
+            t.primaryKey(["profileID", "host"])
+        }
+        for row in try Row.fetchAll(db, sql: "SELECT DISTINCT profileID, host FROM history_url") {
+            try History.rebuildHost(db, profile: row["profileID"], host: row["host"])
         }
     }
 

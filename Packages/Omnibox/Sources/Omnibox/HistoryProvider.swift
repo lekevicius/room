@@ -3,7 +3,8 @@ import Model
 
 /// History (spec §C group 4): the FTS5 index ranked by frecency and match
 /// quality, and the only source of inline completion. It queries its
-/// database on every keystroke (the context snapshot does not hold history).
+/// database on every keystroke (the context snapshot does not hold history),
+/// in the active space's profile only (history follows the profile, ROADMAP 2.5).
 ///
 /// Inline completion completes a host ("gi" → github.com) or, once the
 /// typed text has a path, a whole URL, from the most frecent candidate that
@@ -27,21 +28,21 @@ public struct HistoryProvider: OmniboxProvider {
 
     public func matches(for input: OmniboxInput, in context: OmniboxContext) -> [OmniboxMatch] {
         let text = input.trimmed
-        guard !text.isEmpty else { return [] }
+        guard !text.isEmpty, let profile = context.activeProfileID else { return [] }
         switch input.mode {
         case .commands:
             return []
         case .siteSearch(let site):
-            let rows = (try? history.search(text, limit: fetchLimit * 3)) ?? []
+            let rows = (try? history.search(text, profile: profile, limit: fetchLimit * 3)) ?? []
             return rows.filter { $0.host == site.host || $0.host.hasSuffix("." + site.host) }.prefix(fetchLimit).map { match(for: $0, text: text, context: context) }
         case .normal:
             break
         }
-        let rows = (try? history.search(text, limit: fetchLimit)) ?? []
+        let rows = (try? history.search(text, profile: profile, limit: fetchLimit)) ?? []
         var matches = rows.map { match(for: $0, text: text, context: context) }
         // After a deletion nothing completes, and nothing takes the inline band
         // either: the verbatim row is the top hit again.
-        if !input.preventsInlineCompletion, let inline = inlineMatch(for: text, rows: rows, context: context) {
+        if !input.preventsInlineCompletion, let inline = inlineMatch(for: text, rows: rows, profile: profile, context: context) {
             matches.removeAll { $0.dedupeKey == inline.dedupeKey }
             matches.append(inline)
         }
@@ -50,7 +51,8 @@ public struct HistoryProvider: OmniboxProvider {
 
     /// The most frecent pages, for ⌘Y with nothing typed (shortcuts.md: History is the palette's history group until Chapter 3).
     public func recentMatches(in context: OmniboxContext, limit: Int = OmniboxResult.limit) -> [OmniboxMatch] {
-        let rows = (try? history.mostFrecent(limit: limit)) ?? []
+        guard let profile = context.activeProfileID else { return [] }
+        let rows = (try? history.mostFrecent(profile: profile, limit: limit)) ?? []
         return rows.enumerated().map { index, row in
             var match = match(for: row, text: "", context: context)
             match.relevance = Relevance.history.upperBound - index
@@ -80,7 +82,7 @@ public struct HistoryProvider: OmniboxProvider {
 
     // MARK: Inline completion
 
-    private func inlineMatch(for text: String, rows: [HistoryRow], context: OmniboxContext) -> OmniboxMatch? {
+    private func inlineMatch(for text: String, rows: [HistoryRow], profile: UUID, context: OmniboxContext) -> OmniboxMatch? {
         guard !text.contains(where: \.isWhitespace) else { return nil }
         let typed = Self.stripped(text.lowercased())
         guard !typed.isEmpty else { return nil }
@@ -88,7 +90,7 @@ public struct HistoryProvider: OmniboxProvider {
             // The host: the site root, at the scheme and "www." its most frecent page uses.
             // The most frecent host the user typed or visited often enough (a more
             // frecent one reached only through links does not block it).
-            guard let host = (try? history.hosts(prefix: typed, limit: 5))?
+            guard let host = (try? history.hosts(prefix: typed, profile: profile, limit: 5))?
                     .first(where: { $0.typedCount > 0 || $0.visitCount >= Self.inlineVisits }),
                   let components = URLComponents(string: host.bestURL), let scheme = components.scheme, let name = components.host,
                   case let url = "\(scheme)://\(name)/",
