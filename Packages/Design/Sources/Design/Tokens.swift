@@ -137,6 +137,8 @@ public enum Typography {
     public static var spaceTitle: NSFont { .systemFont(ofSize: 13, weight: .semibold) }
     /// Sublabels, footer labels, badges.
     public static var secondary: NSFont { .systemFont(ofSize: 11, weight: .regular) }
+    /// The palette's text field (chosen; Arc's command bar is a size up from its rows).
+    public static var paletteField: NSFont { .systemFont(ofSize: 18, weight: .regular) }
 }
 
 /// Window and overlay materials.
@@ -224,6 +226,9 @@ public enum Timing {
     /// ⌃Tab held this long before the switcher shows; a quicker tap
     /// switches without it (chosen).
     public static let tabSwitcherDelay: TimeInterval = 0.12
+    /// Text typed into the palette for a tab and not committed comes back
+    /// when the palette reopens on that tab within this long (spec §C, Zen `wait-to-clear`).
+    public static let typedTextMemory: TimeInterval = 45
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).
@@ -233,4 +238,26 @@ public enum TabSwitcherMetrics {
     public static let width: CGFloat = 340
     public static let rowHeight: CGFloat = 36
     public static let padding: CGFloat = 8
+}
+
+/// The ⌘T / ⌘L palette (spec §C, §I.1).
+public enum PaletteMetrics {
+    /// Spec §C (Zen's floating urlbar).
+    public static let width: CGFloat = 640
+    /// The palette's top edge sits this far down the card (spec §C: 18% of the content area).
+    public static let topFraction: CGFloat = 0.18
+    /// Never closer than this to the window's edges when the window is narrow (chosen).
+    public static let windowMargin: CGFloat = 16
+    public static let fieldHeight: CGFloat = 48
+    /// Text inset in the field; the search icon sits in it (chosen, `Spacing.l`).
+    public static let fieldInset: CGFloat = 16
+    /// Rows match the sidebar's (measured from Dia).
+    public static let rowHeight: CGFloat = 36
+    /// Around the list; the highlight pill is inset like the sidebar's selection pill.
+    public static let listPadding: CGFloat = 6
+    public static let iconSize: CGFloat = 16
+    /// Gap between groups (chosen; groups have no headers, spec §C orders them).
+    public static let groupGap: CGFloat = 4
+    /// Open: scale 0.96 → 1 with a fade, `Motion.fast` (spec §I.1).
+    public static let openScale: CGFloat = 0.96
 }

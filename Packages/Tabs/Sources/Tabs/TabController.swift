@@ -46,9 +46,11 @@ public final class TabController: SidebarHost {
     @ObservationIgnored public weak var sidebar: SidebarController?
     /// Dialogs, permission prompts, context menus, file choosers, keys.
     @ObservationIgnored public weak var pageUIDelegate: (any WebContentsUIDelegate)?
-    /// "New Tab" and the header's address field (the palette, Phase 2.4).
+    /// ⌘T and "New Tab" (the palette, Phase 2.4).
     @ObservationIgnored public var onNewTab: (() -> Void)?
-    @ObservationIgnored public var onEditAddress: (() -> Void)?
+    /// ⌘L (`docked` false) and a click on the header's address field
+    /// (`docked` true: the palette edits in place, spec §C).
+    @ObservationIgnored public var onEditAddress: ((_ docked: Bool) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.
     @ObservationIgnored public weak var engine: (any EngineApplication)?
     /// The idle clock (tests inject one).
@@ -169,15 +171,29 @@ public final class TabController: SidebarHost {
 
     public func newTab() { onNewTab?() }
 
-    public func editAddress() { onEditAddress?() }
+    /// The header's address field was clicked.
+    public func editAddress() { onEditAddress?(true) }
 
-    // MARK: Opening URLs (the ⌘T/⌘L prompt until the palette, Phase 2.4)
+    /// ⌘L.
+    public func openLocation() { onEditAddress?(false) }
+
+    // MARK: Opening URLs (the palette, Phase 2.4)
 
     /// A new Today tab at the end of the active space's Today list, selected.
     @discardableResult
     public func openNewTab(url: String) -> UUID? {
         guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
         sidebar.select(entry.id)
+        return entry.id
+    }
+
+    /// A new Today tab at the end of the active space's Today list, loading
+    /// behind the current one (the palette's ⌥Enter, spec §C).
+    @discardableResult
+    public func openBackgroundTab(url: String) -> UUID? {
+        guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
+        loadInBackground(entry)
+        sidebar.pageStateDidChange([entry.id])
         return entry.id
     }
 

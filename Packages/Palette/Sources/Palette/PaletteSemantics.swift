@@ -1,0 +1,121 @@
+import Foundation
+import Omnibox
+
+/// Why the palette is open (spec §C).
+nonisolated public enum PaletteMode: Equatable, Sendable {
+    /// ⌘T: no tab exists until a commit.
+    case new
+    /// ⌘L or a click on the header's address field: the entry in the card,
+    /// prefilled with `url` (its page's URL when it opened).
+    case edit(entry: UUID, url: String)
+
+    public var entry: UUID? {
+        if case .edit(let entry, _) = self { entry } else { nil }
+    }
+
+    /// The text the field starts with.
+    public var prefill: String {
+        if case .edit(_, let url) = self { url } else { "" }
+    }
+}
+
+/// The modifier held while committing (spec §C: Enter, ⌘Enter, ⌥Enter).
+nonisolated public enum CommitModifier: Equatable, Sendable {
+    case none
+    /// ⌘: the other place: the current tab from ⌘T, a new tab from ⌘L, a copy of an entry.
+    case command
+    /// ⌥: a new tab in the background.
+    case option
+}
+
+/// What a commit does to tabs.
+nonisolated public enum CommitAction: Equatable, Sendable {
+    /// A new Today tab (selected unless `background`).
+    case openTab(url: String, background: Bool)
+    /// Load `url` in the entry in the card.
+    case navigateCurrent(url: String)
+    /// ⌘L, Enter on the unchanged URL (Arc).
+    case reloadCurrent
+    /// Select an existing entry, showing its space first.
+    case switchTo(entry: UUID, space: UUID?)
+    /// 2.4b: run a registry command.
+    case runCommand(id: String)
+    /// Nothing to commit (an empty field).
+    case none
+}
+
+/// What Esc does.
+nonisolated public enum EscapeAction: Equatable, Sendable {
+    case close
+    /// ⌘L with edited text: put the URL back, selected; the next Esc closes (spec §C "Esc restores").
+    case restore(String)
+}
+
+/// The ⌘T / ⌘L table of spec §C as a pure function.
+nonisolated public enum PaletteSemantics {
+    /// - Parameters:
+    ///   - action: the highlighted row's action (`nil`: no rows).
+    ///   - textUnchanged: ⌘L and the field still holds the prefilled URL.
+    ///   - hasCurrent: an entry is in the card (⌘Enter from ⌘T needs one).
+    public static func commit(mode: PaletteMode, action: MatchAction?, textUnchanged: Bool, modifier: CommitModifier,
+                              hasCurrent: Bool) -> CommitAction {
+        if case .edit(_, let url) = mode, textUnchanged {
+            switch modifier {
+            case .none: return .reloadCurrent
+            case .command: return .openTab(url: url, background: false)
+            case .option: return .openTab(url: url, background: true)
+            }
+        }
+        guard let action else { return .none }
+        switch action {
+        case .navigate(let url), .search(_, let url):
+            switch (mode, modifier) {
+            case (.new, .none): return .openTab(url: url, background: false)
+            case (.new, .command): return hasCurrent ? .navigateCurrent(url: url) : .openTab(url: url, background: false)
+            case (.edit, .none): return .navigateCurrent(url: url)
+            case (.edit, .command): return .openTab(url: url, background: false)
+            case (_, .option): return .openTab(url: url, background: true)
+            }
+        case .switchToEntry(let id, let space, let url):
+            switch modifier {
+            case .none: return .switchTo(entry: id, space: space)
+            case .command: return url.map { .openTab(url: $0, background: false) } ?? .switchTo(entry: id, space: space)
+            case .option: return url.map { .openTab(url: $0, background: true) } ?? .switchTo(entry: id, space: space)
+            }
+        case .command(let id):
+            return .runCommand(id: id)
+        }
+    }
+
+    public static func escape(mode: PaletteMode, text: String) -> EscapeAction {
+        if case .edit(_, let url) = mode, text != url { return .restore(url) }
+        return .close
+    }
+}
+
+/// Typed-but-uncommitted text per tab (spec §C: kept 45 s, Zen
+/// `wait-to-clear`). The palette remembers it when it is dismissed with
+/// edited text (click outside, ⌘L again, switching tabs) and offers it on
+/// the next ⌘L on that tab within the window; Esc and commits forget it.
+nonisolated public struct TypedTextMemory: Sendable {
+    public var lifetime: TimeInterval
+    private var stored: [UUID: (text: String, at: Date)] = [:]
+
+    public init(lifetime: TimeInterval) {
+        self.lifetime = lifetime
+    }
+
+    public mutating func remember(_ text: String, for entry: UUID, at date: Date) {
+        stored[entry] = (text, date)
+    }
+
+    /// The remembered text if it is still fresh; it is used up either way.
+    public mutating func take(for entry: UUID, at date: Date) -> String? {
+        guard let item = stored.removeValue(forKey: entry) else { return nil }
+        return date.timeIntervalSince(item.at) <= lifetime ? item.text : nil
+    }
+
+    public mutating func forget(_ entry: UUID) {
+        stored[entry] = nil
+    }
+}

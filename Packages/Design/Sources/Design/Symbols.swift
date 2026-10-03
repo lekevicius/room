@@ -21,6 +21,7 @@ public enum Symbol: CaseIterable, Sendable {
     case paste
     case commands
     case history
+    case openURL
 
     // Sidebar rows (§A, §I)
     case newTab
@@ -120,6 +121,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .paste: "doc.on.clipboard"
         case .commands: "command"
         case .history: "clock.arrow.circlepath"
+        case .openURL: "globe"
         case .newTab: "plus"
         case .closeTab: "xmark"
         case .pin: "pin"
