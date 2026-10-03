@@ -1,5 +1,10 @@
 # RoomCore Chrome UI surface audit — 2026-10-03
 
+The active work is bounded by the user-approved
+[UI compatibility scope](roomcore-ui-compatibility-scope.md), including six
+work packages, stopping rules and completion criteria. This wider inventory
+does not expand that Goal automatically.
+
 The original 18 drives are a crash-path sample, not a complete Chrome UI audit.
 This inventory expands the scope after the user's request for permissions,
 downloads, extension popups, autofill, print preview, docked DevTools, media,

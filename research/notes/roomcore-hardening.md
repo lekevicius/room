@@ -649,3 +649,11 @@ main also shows its newer Chapter2 work, so final exact-main scope is not yet
 requalified. No rebase attempted with the local shutdown candidate present.
 Main now uses backlog B-16 for a sidebar scroll check; reconcile that identifier
 collision on the next safe rebase. Here B-16 means this branch's shutdown issue.
+
+User approved the bounded UI compatibility pass as the new Goal. Authoritative
+scope: roomcore-ui-compatibility-scope.md. Six packages, one initial drive plus
+at most two justified repair/verification rounds per distinct path; larger
+Chapter3 requirements become concrete handoff rows. No further shutdown
+investigation under this Goal. Preserve/isolate the local0011 candidate before
+engine work; do not bundle it with UI changes. Deliver a compact results matrix
+and tested narrow fixes, update PR1, then finish the Goal.
