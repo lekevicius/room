@@ -227,13 +227,14 @@ extension SpikeRunner.Context {
         palette.onQueryTimed = { duration in
             queries.append(Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000)
         }
-        var keyTurn: [Double] = [], rows: [Int] = []
+        var keyTurn: [Double] = [], firstKey: [Double] = [], laterKeys: [Double] = [], rows: [Int] = []
         for text in ["today tab 3", "pinned 4", "folder", "site1", "example.org/article", "tab 39", "zzz", "github.com", "wikipedia"] {
             palette.toggleNew()
             try? await Task.sleep(for: .milliseconds(100))
-            for character in text {
+            for (index, character) in text.enumerated() {
                 let timing = await timedTurn { self.type(String(character)) }
                 keyTurn.append(timing.turn)
+                if index == 0 { firstKey.append(timing.turn) } else { laterKeys.append(timing.turn) }
                 rows.append(palette.result.matches.count)
             }
             palette.toggleNew()
@@ -242,6 +243,8 @@ extension SpikeRunner.Context {
         palette.onQueryTimed = nil
         SpikeRunner.record("keystrokes", keyTurn.count)
         SpikeRunner.record("keystroke_to_rows_turn", SpikeRunner.stats(keyTurn))
+        SpikeRunner.record("keystroke_to_rows_first_key", SpikeRunner.stats(firstKey))
+        SpikeRunner.record("keystroke_to_rows_later_keys", SpikeRunner.stats(laterKeys))
         SpikeRunner.record("keystroke_query_only", SpikeRunner.stats(queries))
         SpikeRunner.record("rows_per_keystroke", "min \(rows.min() ?? 0) max \(rows.max() ?? 0)")
     }

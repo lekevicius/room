@@ -88,34 +88,31 @@ enum EntryMatching {
         let terms = text.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
         guard !terms.isEmpty else { return [] }
         let typedURL: String? = if case .url(let url, _) = URLFixup.classify(text) { URLNormalization.normalized(url) } else { nil }
-        return context.entries.compactMap { entry -> OmniboxMatch? in
-            guard kinds.contains(entry.kind), entry.id != context.currentEntryID else { return nil }
-            let urls = [entry.url, entry.storedURL].compactMap { $0 }
+        var matches: [OmniboxMatch] = []
+        for (entry, keys) in zip(context.entries, context.keys) {
+            guard kinds.contains(entry.kind), entry.id != context.currentEntryID else { continue }
             let relevance: Int
-            if let typedURL, urls.contains(where: { URLNormalization.normalized($0) == typedURL }) {
+            if let typedURL, keys.normalizedURLs.contains(typedURL) {
                 relevance = exactRelevance
             } else {
-                guard let quality = quality(terms: terms, title: entry.title, urls: urls) else { return nil }
+                guard let quality = quality(terms: terms, keys: keys) else { continue }
                 let recency = recencyFraction(entry.lastActiveAt, now: context.now)
                 let space = entry.spaceID == nil || entry.spaceID == context.activeSpaceID ? 1.0 : 0.0
                 relevance = Relevance.scaled(quality * 0.85 + recency * 0.1 + space * 0.05, in: band)
             }
             let otherSpace = entry.spaceID != nil && entry.spaceID != context.activeSpaceID
-            return OmniboxMatch(id: "\(provider.rawValue):\(entry.id)", provider: provider, relevance: relevance,
-                                action: .switchToEntry(id: entry.id, space: entry.spaceID, url: entry.url),
-                                title: entry.title, detail: entry.url.map(VerbatimProvider.displayURL), icon: .entry(entry.id),
-                                spaceName: otherSpace ? entry.spaceName : nil)
+            matches.append(OmniboxMatch(id: "\(provider.rawValue):\(entry.id)", provider: provider, relevance: relevance,
+                                        action: .switchToEntry(id: entry.id, space: entry.spaceID, url: entry.url),
+                                        title: entry.title, detail: entry.url.map(VerbatimProvider.displayURL), icon: .entry(entry.id),
+                                        spaceName: otherSpace ? entry.spaceName : nil))
         }
+        return matches
     }
 
     /// 0…1, or `nil` when some word matches nothing. The mean over words of
     /// the best place each one matches.
-    static func quality(terms: [String], title: String, urls: [String]) -> Double? {
-        let title = title.lowercased()
-        let hosts = urls.compactMap { URLComponents(string: $0)?.host?.lowercased() }.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
-        let bareURLs = urls.map { $0.lowercased() }.map { url in
-            url.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: "")
-        }
+    static func quality(terms: [String], keys: EntryKeys) -> Double? {
+        let title = keys.title, hosts = keys.hosts, bareURLs = keys.bareURLs
         var total = 0.0
         for term in terms {
             let score: Double

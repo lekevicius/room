@@ -149,6 +149,17 @@ struct EntryProviderTests {
         #expect(matches.allSatisfy { Relevance.openTabs.contains($0.relevance) })
     }
 
+    @Test("A context reusing an earlier one's keys matches an entry's new URL, not its old one")
+    func reusedKeys() {
+        let id = UUID()
+        let before = OmniboxContext(entries: [OmniboxEntry(id: id, kind: .today, title: "Tab", url: "https://alpha.example/", spaceID: work)],
+                                    activeSpaceID: work, now: now)
+        let after = OmniboxContext(entries: [OmniboxEntry(id: id, kind: .today, title: "Tab", url: "https://beta.example/", spaceID: work)],
+                                   activeSpaceID: work, now: now, reusingKeysFrom: before)
+        #expect(OpenTabsProvider().matches(for: OmniboxInput(text: "beta"), in: after).count == 1)
+        #expect(OpenTabsProvider().matches(for: OmniboxInput(text: "alpha"), in: after).isEmpty)
+    }
+
     @Test("A tab at exactly the typed URL is the top hit, deduped against the verbatim URL")
     func exactTab() {
         let tab = entry(.today, "GitHub", "https://github.com/", space: home)

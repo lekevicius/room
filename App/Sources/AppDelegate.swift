@@ -272,6 +272,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             palette?.layout()
         }
         self.palette = palette
+        // The glass and the rows' hosting view are built before the first ⌘T.
+        DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
         if let window = controller.window {
             switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
         }

@@ -43,8 +43,14 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// What the user typed (without inline completion).
     public private(set) var typedText = ""
 
+    /// The overlay while open (`nil` when closed).
     private var overlay: PaletteOverlayView?
+    /// Built once and reused: building the glass and the hosting view cost
+    /// most of the open's main-thread time (2.4a measurement).
+    private var builtOverlay: PaletteOverlayView?
     private var context = OmniboxContext()
+    /// Each entry's snapshot as of the last open, reused while the entry is unchanged.
+    private var entryCache: [UUID: (entry: Entry, snapshot: OmniboxEntry)] = [:]
     private var memory = TypedTextMemory(lifetime: Timing.typedTextMemory)
     private weak var previousResponder: NSResponder?
     /// ⌘Enter: the field editor has no command for it, and a key equivalent
@@ -86,16 +92,11 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         self.presentation = presentation
         context = makeContext()
         previousResponder = hostView.window?.firstResponder
-        let overlay = PaletteOverlayView(frame: hostView.bounds)
-        overlay.autoresizingMask = [.width, .height]
-        overlay.onClickOutside = { [weak self] in self?.dismiss() }
+        let overlay = preparedOverlay()
         let panel = overlay.panel
-        panel.field.delegate = self
-        panel.rows.onHover = { [weak self] index in self?.highlight(index) }
-        panel.rows.onClick = { [weak self] index, flags in
-            self?.highlight(index)
-            self?.commit(modifier: Self.modifier(flags))
-        }
+        overlay.frame = hostView.bounds
+        overlay.layer?.removeAllAnimations()
+        overlay.alphaValue = 1
         hostView.addSubview(overlay, positioned: .above, relativeTo: nil)
         self.overlay = overlay
         // Typed text kept for this tab (45 s) comes back with the caret at its end.
@@ -122,6 +123,29 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         }
     }
 
+    /// Builds the overlay ahead of the first ⌘T (the app calls it once the window is up).
+    public func prewarm() {
+        let overlay = preparedOverlay()
+        overlay.panel.frame = NSRect(x: 0, y: 0, width: PaletteMetrics.width, height: PaletteMetrics.fieldHeight)
+        overlay.panel.layoutSubtreeIfNeeded()
+    }
+
+    private func preparedOverlay() -> PaletteOverlayView {
+        if let builtOverlay { return builtOverlay }
+        let overlay = PaletteOverlayView(frame: hostView?.bounds ?? .zero)
+        overlay.autoresizingMask = [.width, .height]
+        overlay.onClickOutside = { [weak self] in self?.dismiss() }
+        let panel = overlay.panel
+        panel.field.delegate = self
+        panel.rows.onHover = { [weak self] index in self?.highlight(index) }
+        panel.rows.onClick = { [weak self] index, flags in
+            self?.highlight(index)
+            self?.commit(modifier: Self.modifier(flags))
+        }
+        builtOverlay = overlay
+        return overlay
+    }
+
     /// Closed without a commit (a click outside, ⌘T/⌘L again, a tab
     /// switch): edited ⌘L text is kept for that tab (spec §C, 45 s).
     public func dismiss() {
@@ -141,15 +165,17 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         highlightedIndex = nil
         self.overlay = nil
         let window = overlay.window
-        overlay.panel.field.delegate = nil
         if Motion.reduceMotion || window == nil {
             overlay.removeFromSuperview()
         } else {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = Motion.fast
                 overlay.animator().alphaValue = 0
-            } completionHandler: {
-                MainActor.assumeIsolated { overlay.removeFromSuperview() }
+            } completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    // Unless it reopened during the fade.
+                    if self?.overlay !== overlay { overlay.removeFromSuperview() }
+                }
             }
         }
         guard restoringFocus, let window else { return }
@@ -222,19 +248,35 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
 
     // MARK: Querying
 
+    /// The providers' snapshot of the sidebar, built when the palette opens.
+    /// Unchanged entries reuse their last snapshot and match keys (6 ms for
+    /// 500 entries otherwise, Debug build, 2.4a measurement).
     private func makeContext() -> OmniboxContext {
         let store = sidebar.store.sidebar
         let activeSpace = sidebar.activeSpace
-        let entries = store.entries.values.compactMap { entry -> OmniboxEntry? in
-            guard entry.kind != .folder else { return nil }
+        let spaceNames = Dictionary(store.spaces.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        var cache: [UUID: (entry: Entry, snapshot: OmniboxEntry)] = [:]
+        var entries: [OmniboxEntry] = []
+        entries.reserveCapacity(store.entries.count)
+        for entry in store.entries.values {
+            guard entry.kind != .folder else { continue }
             // Essentials belong to a profile: only the active space's profile's are reachable.
-            if entry.kind == .essential, let profile = activeSpace?.profileID, entry.profileID != profile { return nil }
-            return OmniboxEntry(id: entry.id, kind: entry.kind, title: EntryLabel.title(entry), url: entry.currentURL,
-                                storedURL: entry.storedURL, spaceID: entry.spaceID, spaceName: entry.spaceID.flatMap { store.space($0)?.name },
-                                lastActiveAt: entry.lastActiveAt?.date)
+            if entry.kind == .essential, let profile = activeSpace?.profileID, entry.profileID != profile { continue }
+            let spaceName = entry.spaceID.flatMap { spaceNames[$0] }
+            let snapshot: OmniboxEntry
+            if let cached = entryCache[entry.id], cached.entry == entry, cached.snapshot.spaceName == spaceName {
+                snapshot = cached.snapshot
+            } else {
+                snapshot = OmniboxEntry(id: entry.id, kind: entry.kind, title: EntryLabel.title(entry), url: entry.currentURL,
+                                        storedURL: entry.storedURL, spaceID: entry.spaceID, spaceName: spaceName,
+                                        lastActiveAt: entry.lastActiveAt?.date)
+            }
+            cache[entry.id] = (entry, snapshot)
+            entries.append(snapshot)
         }
+        entryCache = cache
         return OmniboxContext(entries: entries, activeSpaceID: sidebar.activeSpaceID, currentEntryID: tabs.currentEntryID,
-                              searchEngine: .google, now: now())
+                              searchEngine: .google, now: now(), reusingKeysFrom: context)
     }
 
     /// ⌘L with the URL untouched shows no rows: Enter reloads (spec §C).
@@ -309,7 +351,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     }
 
     public func controlTextDidChange(_ notification: Notification) {
-        guard let field = overlay?.panel.field else { return }
+        guard isOpen, let field = overlay?.panel.field else { return }
         // With an inline completion selected, the field holds more than was typed.
         var text = field.stringValue
         if let editor = field.currentEditor(), editor.selectedRange.length > 0,
@@ -322,6 +364,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     // MARK: Keys (field-editor commands, ROADMAP 2.4 task 1)
 
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        guard isOpen else { return false }
         switch selector {
         case #selector(NSResponder.moveUp(_:)):
             moveHighlight(-1)

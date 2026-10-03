@@ -163,7 +163,10 @@ public struct OmniboxEntry: Hashable, Sendable {
 
 /// What the providers know besides the input.
 public struct OmniboxContext: Sendable {
-    public var entries: [OmniboxEntry]
+    public let entries: [OmniboxEntry]
+    /// Lowercased titles, hosts and URLs, computed once per context (the
+    /// palette builds one when it opens), not per keystroke.
+    let keys: [EntryKeys]
     public var activeSpaceID: UUID?
     /// The entry in the card: never suggested (switching to it does nothing).
     public var currentEntryID: UUID?
@@ -171,12 +174,52 @@ public struct OmniboxContext: Sendable {
     /// The recency clock (tests inject one).
     public var now: Date
 
+    /// `previous`: an earlier context whose precomputed keys are reused for
+    /// entries that did not change (the palette reopens on mostly the same sidebar).
     public init(entries: [OmniboxEntry] = [], activeSpaceID: UUID? = nil, currentEntryID: UUID? = nil,
-                searchEngine: SearchEngine = .google, now: Date = Date()) {
+                searchEngine: SearchEngine = .google, now: Date = Date(), reusingKeysFrom previous: OmniboxContext? = nil) {
         self.entries = entries
+        if let previous {
+            var known: [UUID: (entry: OmniboxEntry, keys: EntryKeys)] = [:]
+            for (entry, keys) in zip(previous.entries, previous.keys) { known[entry.id] = (entry, keys) }
+            keys = entries.map { entry in
+                if let old = known[entry.id], old.entry.url == entry.url, old.entry.storedURL == entry.storedURL, old.entry.title == entry.title {
+                    return old.keys
+                }
+                return EntryKeys(entry)
+            }
+        } else {
+            keys = entries.map(EntryKeys.init)
+        }
         self.activeSpaceID = activeSpaceID
         self.currentEntryID = currentEntryID
         self.searchEngine = searchEngine
         self.now = now
+    }
+}
+
+/// What matching needs from an entry, precomputed.
+struct EntryKeys: Sendable {
+    var title: String
+    /// Hosts without "www.".
+    var hosts: [String]
+    /// URLs lowercased, without "http(s)://".
+    var bareURLs: [String]
+    /// `URLNormalization.normalized` of each URL (exact matches).
+    var normalizedURLs: [String]
+
+    init(_ entry: OmniboxEntry) {
+        let urls = [entry.url, entry.storedURL].compactMap { $0 }
+        title = entry.title.lowercased()
+        hosts = urls.compactMap { URLComponents(string: $0)?.host?.lowercased() }.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
+        bareURLs = urls.map { url in
+            var lower = url.lowercased()
+            for prefix in ["https://", "http://"] where lower.hasPrefix(prefix) {
+                lower.removeFirst(prefix.count)
+                break
+            }
+            return lower
+        }
+        normalizedURLs = urls.map(URLNormalization.normalized)
     }
 }
