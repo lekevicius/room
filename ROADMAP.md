@@ -268,6 +268,10 @@ Exit criteria: a checklist of every `WebContentsUIDelegate`, `NavigationDelegate
 
 Goal: the three layout modes that make Arc feel like Arc.
 
+Run it as two sessions with a report after each: **2.7a** = tasks 1, 2 and 4 (hide/reveal, the floating traffic-light cluster, Peek; Peek's Split button is present and disabled until 2.7b); **2.7b** = task 3 (split view), Peek's Split button, and the exit criteria. The phase is done when both are.
+
+What 2.6 provides (details in the 2.6b entry of `docs/progress.md`, "For 2.7"): the card's `PageContainerView` has a tool layer (find bar, zoom indicator, status pill) and a prompt layer (dialogs, interstitial, crashed-page view), both per card and laid out in the card's bounds, so Peek's overlay card and each split pane need their own container and the prompts and find bar follow the focused pane; popovers anchored on the header's site button and the downloads popover already fall back to the card's corner when the sidebar is hidden; element fullscreen hides the sidebar through `BrowserWindowView.isPageFullscreen`, and hide/reveal must leave it alone while a page is fullscreen; "Open Link in Peek" is already in the context menu, disabled until Peek exists; `DelegateRecorder` and `-RoomSpikeOnly` re-run the delegate checklist after the card changes.
+
 Tasks:
 1. Sidebar hide/reveal (spec §E): ⌘S (page-first), ⌥⌘S pin, 4 pt edge band with 150 ms dwell, floating glass overlay with 10 pt inset, 150 ms keep-open grace, 200/100 pt outside-window tolerance, popups/menus/palette keep it open; splitter snap-close toast once; background-tab, new-space and download-complete toasts while hidden.
 2. Floating traffic-light cluster (38 pt) when the sidebar is hidden; it fades after 2 s without pointer movement near it and is **the window's drag region** together with the top 5% of the card (Chapter 1 carry-over); optional "Show toolbar" (View menu) 36 pt toolbar.
