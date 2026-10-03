@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-extension-popup|ui-file-input|ui-filesystem|ui-download-close|ui-download-destination|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|ui-address-suggestions|ui-passwords|ui-card-save|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-extension-popup|ui-file-input|ui-filesystem|ui-download-close|ui-download-destination|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"

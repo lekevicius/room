@@ -35,6 +35,18 @@
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/autofill/address_bubbles_controller.h"
+#include "chrome/browser/autofill/personal_data_manager_factory.h"
+#include "chrome/browser/ui/autofill/chrome_autofill_client.h"
+#include "chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.h"
+#include "chrome/browser/ui/tab_dialogs.h"
+#include "chrome/browser/ui/views/passwords/password_bubble_view_base.h"
+#include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/content/browser/content_autofill_driver.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/form_structure.h"
+#include "content/public/browser/render_widget_host_view.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
 #include "chrome/browser/ui/autofill/autofill_bubble_base.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -77,6 +89,7 @@ class Client : public room::RoomBrowserWindowClient {
   std::unique_ptr<Client> _client;
   std::unique_ptr<IdentityDialogController> _spike_identity_controller;
   std::shared_ptr<int> _spike_address_decisions;
+  std::shared_ptr<int> _spike_card_decisions;
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
@@ -357,7 +370,65 @@ class Client : public room::RoomBrowserWindowClient {
     }
     return @(count);
   }
-  if ([action isEqualToString:@"address-save"] ||
+  if ([action isEqualToString:@"password-presentation"]) {
+    auto* dialogs = TabDialogs::FromWebContents(contents);
+    if (!dialogs) { return @(-1); }
+    dialogs->ShowManagePasswordsBubble(true);
+    bool provider = ToolbarButtonProvider::From(_browser) != nullptr;
+    bool bubble = PasswordBubbleViewBase::manage_password_bubble() != nullptr;
+    LOG(WARNING) << "Room UI probe password provider=" << provider << " bubble=" << bubble;
+    return @(1 | (provider ? 2 : 0) | (bubble ? 4 : 0));
+  }
+  if ([action isEqualToString:@"card-save"]) {
+    autofill::CreditCard card;
+    card.SetRawInfo(autofill::CREDIT_CARD_NAME_FULL, u"Room Fixture");
+    card.SetNumber(u"4111111111111111");
+    card.SetExpirationMonth(12);
+    card.SetExpirationYear(2030);
+    autofill::SaveCardBubbleControllerImpl::CreateForWebContents(contents);
+    _spike_card_decisions = std::make_shared<int>(0);
+    autofill::SaveCardBubbleControllerImpl::FromWebContents(contents)->OfferLocalSave(
+        card, autofill::payments::PaymentsAutofillClient::SaveCreditCardOptions().with_show_prompt(),
+        base::BindOnce([](std::shared_ptr<int> count,
+                         autofill::payments::PaymentsAutofillClient::SaveCardOfferUserDecision decision) {
+          LOG(WARNING) << "Room UI probe local card decision=" << static_cast<int>(decision) << " count=" << ++*count;
+        }, _spike_card_decisions));
+    return @1;
+  }
+  if ([action isEqualToString:@"card-decisions"]) {
+    return @(_spike_card_decisions ? *_spike_card_decisions : -1);
+  }
+  if ([action isEqualToString:@"address-profiles"]) {
+    auto* data = autofill::PersonalDataManagerFactory::GetForBrowserContext(_profile.room_profile);
+    return @(data->address_data_manager().GetProfiles().size());
+  }
+  if ([action isEqualToString:@"address-diagnostics"]) {
+    auto* client = autofill::ChromeAutofillClient::FromWebContentsForTesting(contents);
+    auto* driver = autofill::ContentAutofillDriver::GetForRenderFrameHost(contents->GetPrimaryMainFrame());
+    auto* data = autofill::PersonalDataManagerFactory::GetForBrowserContext(_profile.room_profile);
+    int forms = 0, fields = 0;
+    if (driver) {
+      driver->GetAutofillManager().ForEachCachedForm([&](const autofill::FormStructure& form) {
+        ++forms; fields += form.fields().size();
+      });
+    }
+    auto* view = contents->GetRenderWidgetHostView();
+    LOG(WARNING) << "Room UI probe address enabled=" << (client && client->IsAutofillProfileEnabled())
+                 << " eligible=" << data->address_data_manager().GetProfilesToSuggest().size()
+                 << " view_focus=" << (view && view->HasFocus())
+                 << " driver=" << (driver != nullptr) << " forms=" << forms << " fields=" << fields
+                 << " can_show=" << (driver && driver->GetAutofillManager().CanShowAutofillUi());
+    return @(forms);
+  }
+  if ([action isEqualToString:@"address-suggestions"]) {
+    auto* client = autofill::ChromeAutofillClient::FromWebContentsForTesting(contents);
+    if (!client) { return @(-1); }
+    LOG(WARNING) << "Room UI probe autofill suggestions=" << client->GetAutofillSuggestions().size()
+                 << " ui_session=" << client->GetSessionIdForCurrentAutofillSuggestions().has_value();
+    return @(client->GetAutofillSuggestions().size());
+  }
+  if ([action isEqualToString:@"address-seed"] ||
+      [action isEqualToString:@"address-save"] ||
       [action isEqualToString:@"address-update"]) {
     autofill::AutofillProfile address(autofill::AddressCountryCode("US"));
     address.SetRawInfo(autofill::NAME_FULL, u"Room Fixture");
@@ -365,6 +436,13 @@ class Client : public room::RoomBrowserWindowClient {
     address.SetRawInfo(autofill::ADDRESS_HOME_CITY, u"Mountain View");
     address.SetRawInfo(autofill::ADDRESS_HOME_STATE, u"CA");
     address.SetRawInfo(autofill::ADDRESS_HOME_ZIP, u"94043");
+    if ([action isEqualToString:@"address-seed"]) {
+      address.SetRawInfo(autofill::EMAIL_ADDRESS, u"room-fixture@example.test");
+      address.FinalizeAfterImport();
+      auto* data = autofill::PersonalDataManagerFactory::GetForBrowserContext(_profile.room_profile);
+      data->address_data_manager().AddProfile(address);
+      return @1;
+    }
     autofill::AutofillProfile original(address);
     const bool update = [action isEqualToString:@"address-update"];
     if (update) {

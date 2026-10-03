@@ -9,7 +9,7 @@ enum HostFeatureSpike {
     static let names = ["popups", "dialogs", "keys", "audio", "scroll", "transparent",
                         "corners", "band", "form", "extension", "downloads", "permissions",
                         "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash",
-                        "autofill-save", "autofill-update",
+                        "autofill-save", "autofill-update", "ui-address-suggestions", "ui-passwords", "ui-card-save",
                         "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth",
                         "ui-print-preview", "ui-devtools", "ui-extension-popup",
                         "ui-file-input", "ui-filesystem", "ui-download-close", "ui-download-destination",
@@ -73,6 +73,8 @@ enum HostFeatureSpike {
                 try await HostEmbeddedUISpike.run(name, host: host)
             case "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth":
                 try await HostDeviceChooserSpike.run(name, host: host, cdp: cdp)
+            case "ui-address-suggestions", "ui-passwords", "ui-card-save":
+                try await HostAutofillUISpike.run(name, host: host, cdp: cdp, page: page, profile: profile)
             case "autofill-save", "autofill-update":
                 let action = name == "autofill-save" ? "address-save" : "address-update"
                 for decision in ["cancel", "accept"] {

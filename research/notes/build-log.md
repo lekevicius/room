@@ -303,3 +303,8 @@ Existing out/dev, default jobs, private CLI probe only:33s/13steps, load55.25/40
 ## 2026-10-03 — native file and download diagnostic
 
 Initial compile failed after29.67s at a probe-only static/member DownloadManager call. Corrected build26s/2steps, load49.85/50.86/45.11; GN/Swift checks pass. Package stage4.8s/host14.3s, strict signature valid. File input20s, filesystem13s, download-close boundary10s, destination cancel11s; all exit0. Production code/policy unchanged; see UI results for unsupported close-decision UI.
+
+
+## 2026-10-03 — local card registration fix and bounded autofill diagnostics
+
+Probe38s/2steps; production registration fix29s/2steps,load113.41/98.40/75.07; final private diagnostic32s/2steps,load89.16/91.45/80.38. GN/stand-in Swift/strict signature pass after explicit probe dependency and Swift expression corrections. Baseline after production fix:nav17.169s;10loaded external pages quit4.840s,load72.982,26helpers0left0newcrashes,exit0. Card crash7s/139 before fix; cancel/accept repair19s/0. Final owner setup failed11s/0, not a lifetime pass. Address suggestion final19s/0 generates3rows but selection remains unverified due keyDown vs rawKeyDown probe boundary. See UI results and exact identity manifest.

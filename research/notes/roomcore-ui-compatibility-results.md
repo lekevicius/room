@@ -29,9 +29,9 @@ no new network-audit claim is made here.
 |---|---|---|
 | Address save | `scripts/roomcore-features.sh autofill-save <new-directory>` invokes Chrome AddressBubblesController with a synthetic local address. Initial run crashed at ShowSaveBubble+104 (SIGSEGV, exit139,15s). First repair still crashed at the same missing-window lookup. Second repair reached SaveAddressProfileView: one owned visible dialog; cancel decision3/count1; accept decision2/count1; tab destruction decision7/ignored/count1. | Bubble/callback repair demonstrated; required serial baseline passes. Final-tab fixture exit remains blocked: after closing the final tab, the process stayed in its main event loop and the90s outer watchdog terminated it (receipt100s,exit143). This is not a clean process pass. Native anchor/focus and saved-profile persistence are unverified. |
 | Address update | `scripts/roomcore-features.sh autofill-update <new-directory>`; real UpdateAddressProfileView, owned-dialog count1; cancel and accept each callback1; owner-close ignored callback1. 11s,exit0. A second blank tab keeps final-window termination separate. | Works in spike for presentation/decisions/owner lifetime. Persistent profile updates and native focus remain unverified. |
-| Address suggestions | Separate field-popup path; save-bubble callbacks do not prove filling. | Pending. |
-| Password save/update | PasswordBubbleViewBase uses ToolbarButtonProvider::From(browser); Room has none. The private autofill anchor adapter is deliberately not a fake global Chrome toolbar. | Pending controlled runtime boundary probe; not supported by the address fix. |
-| Local card save | Local synthetic record only; no upload/payment. | Pending. |
+| Address suggestions | Final bounded probe: real suggestion controller has3rows,1eligible stored profile,1cached form/6fields,native focus1,UI enabled1. Selection did not fill; see evidence below. | Suggestion generation established; fill not accepted. Probe used keyDown, while Chrome popup listeners require rawKeyDown; native keyboard/selection remains unverified. |
+| Password save/update | Actual TabDialogs presentation returns before save/update state dispatch: ToolbarButtonProvider absent, no bubble.17s,exit0. | Verified common presentation prerequisite blocked. Room needs a real toolbar/action anchor and password decision lifecycle; no password storage or save/update pass claimed. |
+| Local card save | Reproduced null handler crash at DoShowBubble+156,exit139/7s. Eagerly register existing AutofillBubbleHandler; real SaveCardBubble cancel/accept each callback1.19s,exit0. | Crash fixed and baseline passed. Final owner-close verification failed because third bubble never became visible; owner cancellation and persistent card save are not accepted. |
 
 Evidence: `feature-ui-autofill-save-initial`,
 `feature-ui-autofill-save-repair1`, `feature-ui-autofill-save-repair2`.
@@ -307,3 +307,82 @@ chrome/browser/file_select_helper.cc, ui/shell_dialogs/select_file_dialog_mac.mm
 components/remote_cocoa/app_shim/select_file_dialog_bridge.mm,
 chrome/browser/ui/unload_controller.cc and Room's window stubs. No production
 engine/policy/public API/patch changes; no new baseline or idle-audit claim.
+
+
+## Autofill follow-through — card crash fixed, remaining acceptance bounded
+
+The local synthetic card drive found a distinct registration defect:
+SaveCardBubbleControllerImpl::DoShowBubble+156 dereferenced address0, SIGSEGV,
+exit139 in7s. Unlike the address controller's legacy BrowserWindow getter,
+this controller reads AutofillBubbleHandler from BrowserWindowInterface's
+UnownedUserDataHost. Room created that handler only lazily when the getter
+was called. The fix initializes the existing handler in RoomBrowserWindow's
+constructor; its constructor only stores the private anchor adapter and
+registers window user data. No fake ToolbarButtonProvider registration,
+public API change, new patch or background activity is added.
+
+Repair1: actual SaveCardBubble owned-dialog count1; cancel=declined1/count1,
+accept=accepted0/count1;19s,exit0. The first owner-close attempt did not wait
+for a third visible bubble and therefore does not qualify owner lifetime.
+Final verification2 adds that assertion: cancel/accept still pass, but the
+third bubble never becomes visible (11s,process exit0,driver failure).
+OfferLocalSave can return before setup when bubble_view remains or
+MaySetUpBubble sees conflicting pending UI; this fixture did not distinguish
+those states. The callback deliberately does not persist a card, so this is
+not the complete save/manage-card transaction. No third repair round: card
+owner-lifetime, persistence and focus remain explicit acceptance gaps for the
+real Chapter3 transaction/ownership integration. Do not call the failed owner
+setup a successful cancellation or a second engine defect.
+
+Required serial baseline after the production registration fix:
+nav17.169s;10loaded external pages,quit4.840s,26helpers/0left,0newcrashreports,
+exit0,load72.982. No sampling; original5s helper grace unchanged. This baseline
+uses the repair1 package identity, before later probe-only diagnostics.
+The original crashing package is preserved at build/roomcore/audit-ui-card-initial.
+Crashpad dump and macOS symbolized report identify the call site.
+
+Address suggestions consumed the bounded initial+2 verification rounds:
+
+- Initial12s/exit0,driver failure:1stored synthetic profile but0suggestions.
+- Verification1:23s/exit0,driver failure. Actual field focus=true,secure=true,
+  valueR after input dispatch; still0suggestions.
+- Final verification2:19s/exit0,driver failure at selection. FinalizeAfterImport
+  normalizes the seeded structured address; RoomWebContents.focus establishes
+  native focus. Chrome reports enabled1,eligible1,view_focus1,driver1,
+  cached forms1/fields6,can_show1; actual suggestion controller has3rows and
+  an active UI session. The field values remain nameR/other fields empty.
+
+The final selection failure has a concrete probe boundary:
+HostAutofillUISpike sends CDP keyDown; InputHandler preserves this as kKeyDown,
+whereas RenderWidgetHostImpl::KeyPressListenersHandleEvent accepts only
+kRawKeyDown. AutofillPopupControllerImpl registers its selection handler there.
+Thus suggestion generation is established, but the probe never qualified
+browser-popup key selection. Stop at the agreed round limit; a future native
+acceptance or correctly encoded raw-key probe must verify selection/fill and
+focus restoration. Do not infer that Chrome's fill implementation is broken,
+or report a filled address from this run.
+
+Password presentation17s/exit0 invokes real TabDialogs::ShowManagePasswordsBubble.
+PasswordBubbleViewBase::ShowBubble returns at its missing ToolbarButtonProvider
+check before CreateBubble reads the model state. This common gate prevents
+both save and update views; neither credentials nor model callbacks were
+fabricated to pretend it works. Chapter3 must supply a real password action
+anchor/controller and pending decision cancellation, separate from the private
+autofill adapter used for the demonstrated address/card bubbles.
+
+Builds: extra probe38s/2steps; registration fix29s/2steps; final probe32s/2steps.
+GN check initially identified two missing explicit probe dependencies, corrected;
+Swift typecheck initially rejected a throwing short-circuit expression, corrected.
+Final GN/typecheck and strict signature pass. Final package host7.6s. No network
+policy changed; the handler constructor has no network work, so the existing
+exact-identity idle audit is retained without claiming a new600s audit.
+All receipts/source/component hashes are in roomcore-ui-card-checkpoint.json.
+
+### Remaining active Goal work after this checkpoint
+
+Package2 still needs device chooser owner destruction, the distinct extension-
+origin path, and effective local/loopback-network permission/grant lifetime.
+Packages3–6 now have measured outcomes and explicit boundaries. Package1 has
+bounded findings above, including failed selection/owner-lifetime acceptance;
+those must remain visible in the final handoff rather than quietly reclassified
+as passes. No return to shutdown stress or periodic scheduling.

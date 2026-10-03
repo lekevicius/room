@@ -336,6 +336,9 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser)) {
   RoomWindows().emplace(browser, this);
+  // Payment bubbles resolve AutofillBubbleHandler through window user data,
+  // without calling the legacy BrowserWindow getter first.
+  GetAutofillBubbleHandler();
 }
 
 autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {

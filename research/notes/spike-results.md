@@ -563,3 +563,12 @@ public ObjC headers unchanged.
 Required new serial baseline nav15.105s, ten loaded pages quit2.933s,
 28helpers/0left,0crashes,exit0. Full evidence and remaining subfeatures are in
 roomcore-ui-compatibility-results.md. This checkpoint does not finish the Goal.
+
+
+## 2026-10-03 — UI pass: local card save registration
+
+| Feature | Chrome path / failure | Window requirement | Fix / verification |
+|---|---|---|---|
+| Synthetic local card save | SaveCardBubbleControllerImpl::DoShowBubble+156, null handler, SIGSEGV7s/exit139 | AutofillBubbleHandler registered on BrowserWindowInterface user-data host before any caller; Chrome payment path bypasses legacy getter | Initialize existing handler at Room window construction. One visible SaveCardBubble; cancel and accept each callback1,19s/exit0. Baseline nav17.169s,ten-page quit4.840s,26helpers0left0crashes. Final owner-close fixture fails third-bubble setup, so lifetime/persistence unaccepted. |
+
+No new raw patch/public header or network-policy change. Full bounded outcomes, including actual3-row suggestions without accepted fill and password toolbar prerequisite, live in roomcore-ui-compatibility-results.md.
