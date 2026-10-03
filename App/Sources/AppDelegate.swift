@@ -224,7 +224,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar.host = tabs
         controller.sidebarView.headerView = sidebar.addressField
         controller.sidebarView.bodyView = sidebar.bodyView
-        sidebar.onSpaceChange = { [weak controller] space in controller?.spaceTitle = space.name }
+        // The window's title (Window menu, Mission Control) is not drawn: set after the switch's frame.
+        sidebar.onSpaceChange = { [weak controller] space in
+            DispatchQueue.main.async { controller?.spaceTitle = space.name }
+        }
         // The window's tint follows the active space's theme (spec §B), crossfading with the slide.
         sidebar.onTintChange = { [weak controller] theme, animated in
             controller?.materialView.setTint(theme.map(SpaceTint.init), animated: animated)

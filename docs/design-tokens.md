@@ -190,3 +190,26 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Inline completion | a host or URL typed before, or visited 3 times | chosen, after Chromium's HistoryURL provider (inlines typed URLs) |
 | `Symbol.appearance` | `circle.lefthalf.filled` | palette: Switch to Light/Dark/Auto Appearance |
 | Commands outside `>` | 3 letters or more starting a word of the title, relevance 400–700 (always the last group) | chosen; spec §C group 6 |
+
+## Added in Phase 2.5 (spaces)
+
+| Token | Value | Provenance |
+|---|---|---|
+| Space switch slide | both lists move by the list's width over `Motion.medium` (0.25 s), ease-out, as layer transforms on lists built ahead of time; Reduce Motion: a crossfade over the same time | spec §B, §I.1; Zen `switch-animation-duration=250` |
+| Tint crossfade | `colors` of the tint gradient over `Motion.medium`, ease-in-out, alongside the slide | spec §B |
+| Theme algorithms (`ThemePalette`) | the first well is the base; the algorithm fills empty wells at hue offsets from it: Complementary +180°; Split +150°, +210°; Analogous −30°, +30°; Triadic +120°, +240°; Floating none. A filled well always wins; 3 colours at most | spec §B (five algorithms, 1–3 colours); colour-wheel harmonies as Zen's gradient generator places its dots; the "fill empty wells" rule is ours |
+| Tint gradient (`SpaceTintView`) | diagonal, top leading → bottom trailing, always 3 stops: one colour fades from its alpha to `tintOpacityRange.lowerBound`; two put their 50% blend in the middle; three as given | chosen; 3 stops so themes with different colour counts interpolate |
+| Tint alpha | `ThemePalette.tintAlpha`: `themeOpacity` (0–1, default 0.5) mapped linearly into `Materials.tintOpacityRange` (0.10–0.25; 0.5 → 0.175) | chosen, within the Phase 1.6 range |
+| Dark theme colours | lightness capped at 0.45 (`ThemePalette.darkMaxLightness`), hue and saturation kept | chosen: pastel themes washed out the dark material |
+| `SpaceIconMetrics.size` / `pitch` / `dotSize` | 20 / 26 / 6 pt; icons shrink to fit between the footer buttons | chosen; Zen shrinks its strip on overflow |
+| `SpaceIconMetrics.activeScale` | 1.15, animated over `Motion.medium` | spec §B |
+| Active highlight | `Palette.sidebarHover` capsule 2 pt around the active icon (`indicatorPadding`), sliding over `Motion.medium` ease-out | spec §B "the active indicator slides"; colour chosen |
+| `SpaceIconMetrics.inactiveAlpha` | 0.55 | chosen |
+| Hover name | `Typography.secondary`, secondary label colour, right of the icon row, fades over `Motion.fast` | spec §B |
+| `SpaceIconMetrics.reorderThreshold` | 5 pt of travel turns a press on an icon into a reorder drag, haptic `.alignment` per slot | Zen (>5 px) |
+| Drop on a space icon | `Palette.sidebarMultiSelection` circle behind the icon; resting `DropRules.holdDelay` (0.5 s) switches to the space | spec §B / ROADMAP 2.5 task 5 (500 ms) |
+| Swipe | 25% of the list width or a fling (progress + 0.5 × velocity in widths/s) switches; before the first space a rubber band bounded at 0.15 widths; past the last the new-space form; axis locks horizontal when the first movement is 1.5× more horizontal | spec §B, Zen (`threshold 0.25`, `velocity 0.5`); band limit and lock ratio chosen |
+| ⌃ + wheel | one space per notch (down = next), 200 ms cooldown; trackpad ⌃-scroll counts 30 pt as a notch | Zen `scroll-modifier-key`, cooldown 200 ms; trackpad step chosen |
+| `SpaceFormMetrics.padding` / `iconCell` / `previewHeight` | 12 / 26 / 18 pt | chosen |
+| Space form icons | 24 SF Symbols and 24 emoji, any emoji typed in its field | chosen |
+| `Symbol.more` on the space title row | "…" on hover, left of the chevron | spec §B |

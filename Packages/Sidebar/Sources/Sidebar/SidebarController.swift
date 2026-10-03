@@ -51,6 +51,10 @@ public final class SidebarController: NSObject {
     public private(set) var debugPaneLoads = 0
     /// Called at the start (`true`) and end of every space switch (spike timing).
     public var debugSwitchTiming: ((Bool) -> Void)?
+    /// How long each list took to build, load and warm up after launch (one run-loop turn each).
+    public private(set) var debugPrepareTimes: [Duration] = []
+    /// Each part of a switch and how long it took (spike timing).
+    public var debugSwitchPhase: ((String, Duration) -> Void)?
     #endif
 
     private var token: ObservationToken?
@@ -100,6 +104,7 @@ public final class SidebarController: NSObject {
         grid.registerForDraggedTypes(Self.acceptedDragTypes)
         footer.onSelectSpace = { [weak self] id in self?.showSpace(id) }
         footer.spaceMenu = { [weak self] id in self?.spaceMenu(id) }
+        footer.onReorderSpace = { [weak self] id, index in try? self?.sidebar.moveSpace(id, to: index) }
         footer.dropEvents = self
         bodyView.onScrollWheel = { [weak self] event in self?.handleSpaceScroll(event) ?? false }
         bodyView.onEmptyDoubleClick = { [weak self] in self?.host?.newTab() }
@@ -208,7 +213,11 @@ public final class SidebarController: NSObject {
     /// (after launch and when spaces are added), so switching never builds one.
     public func prepareSpaces() {
         guard let next = sidebar.spaces.first(where: { panes[$0.id]?.isLoaded != true }) else { return }
-        preparedPane(next.id)
+        #if DEBUG
+        let start = ContinuousClock.now
+        defer { debugPrepareTimes.append(ContinuousClock.now - start) }
+        #endif
+        if let target = preparedPane(next.id), target !== pane { bodyView.warmUp(target.scrollView) }
         DispatchQueue.main.async { [weak self] in self?.prepareSpaces() }
     }
 
@@ -245,6 +254,16 @@ public final class SidebarController: NSObject {
         debugSwitchTiming?(true)
         defer { debugSwitchTiming?(false) }
         #endif
+        #if DEBUG
+        var mark = ContinuousClock.now
+        func phase(_ name: String) {
+            let now = ContinuousClock.now
+            debugSwitchPhase?(name, now - mark)
+            mark = now
+        }
+        #else
+        func phase(_ name: String) {}
+        #endif
         let previousProfile = tree.space?.profileID
         setHovered(nil)
         clearMultiSelection()
@@ -256,14 +275,20 @@ public final class SidebarController: NSObject {
         // The remembered selection's row may peek out of a collapsed folder.
         if target.tree.selectedEntry != selectedEntryID { perform(target.tree.selectionChanged(to: selectedEntryID), in: target, animated: false) }
         updatePill(in: target, animated: false)
+        phase("list")
         if slides { bodyView.show(target.scrollView, direction: direction, animated: animated) }
+        phase("slide")
         footer.setSpaces(sidebar.spaces, active: space.id, animated: animated)
+        phase("footer")
         if space.profileID != previousProfile { reloadGrid(animated: animated) } else { refreshTiles() }
+        phase("essentials")
         updateAddressField()
         updateOverflow()
         onTintChange?(space.theme, animated)
         onSpaceChange?(space)
+        phase("tint_title")
         if let id = selectedEntryID, let entry = sidebar.entry(id) { host?.activate(entry) } else { host?.deactivate() }
+        phase("card")
     }
 
 
@@ -1175,6 +1200,22 @@ public final class SidebarBodyView: NSView {
         overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: hit)
         overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - hit, width: bounds.width, height: hit)
         onScroll?()
+    }
+
+    /// Makes a hidden list's visible rows and draws them once, transparent
+    /// and under the active list, so its first switch only composites
+    /// (row views are made on first display; the first switch to each space
+    /// took ~100 ms without this, Phase 2.5 spike).
+    func warmUp(_ list: NSView) {
+        guard list !== activeList, list.isHidden, window != nil else { return }
+        list.frame = listContainer.bounds
+        list.alphaValue = 0
+        list.isHidden = false
+        listContainer.addSubview(list, positioned: .below, relativeTo: activeList)
+        list.layoutSubtreeIfNeeded()
+        list.displayIfNeeded()
+        list.isHidden = true
+        list.alphaValue = 1
     }
 
     /// Lays out a list that is not on screen yet (a pane built ahead of a switch).

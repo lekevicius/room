@@ -159,8 +159,12 @@ final class SidebarFooterView: NSView {
     /// A space's context menu (right-click on its icon).
     var spaceMenu: ((UUID) -> NSMenu?)?
     weak var dropEvents: SpaceIconDropEvents?
+    /// An icon was dragged to `index` (Reorder Spaces, spec §B).
+    var onReorderSpace: ((UUID, Int) -> Void)?
     /// The icon a drag rests on and the pending switch to it.
     private var dropHover: (space: UUID, work: DispatchWorkItem)?
+    /// An icon being dragged along the row: its space and the slot it would take.
+    private var reorder: (space: UUID, index: Int)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -224,16 +228,20 @@ final class SidebarFooterView: NSView {
                 icon.onClick = { [weak self] in self?.onSelectSpace?(space.id) }
                 icon.onMenu = { [weak self] in self?.spaceMenu?(space.id) }
                 icon.onHover = { [weak self] hovering in self?.iconHovered(space.id, hovering) }
+                icon.onDrag = { [weak self] event, phase in self?.iconDragged(space.id, event, phase) }
                 iconRow.addSubview(icon)
                 return icon
             } : []
         } else {
-            for (icon, space) in zip(icons, spaces) { icon.update(space) }
+            // A switch: only the active icon changes (no layout pass, Phase 2.5 switch timing).
+            for (icon, space) in zip(icons, spaces) where icon.space != space { icon.update(space) }
+            applyActive(animated: animated && previousActive != nil && previousActive != active)
+            return
         }
         indicator.isHidden = icons.isEmpty
         needsLayout = true
         layoutSubtreeIfNeeded()
-        applyActive(animated: animated && previousActive != nil && previousActive != active)
+        applyActive(animated: false)
         updateLabel()
     }
 
@@ -246,7 +254,9 @@ final class SidebarFooterView: NSView {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = duration > 0
             indicator.animator().frame = target
-            for (offset, icon) in icons.enumerated() { icon.setActive(offset == index, animated: duration > 0) }
+            for (offset, icon) in icons.enumerated() where icon.isActive != (offset == index) || !animated {
+                icon.setActive(offset == index, animated: duration > 0)
+            }
         }
     }
 
@@ -301,6 +311,44 @@ final class SidebarFooterView: NSView {
         let labelX = iconRow.frame.maxX + Spacing.xs
         nameLabel.frame = NSRect(x: labelX, y: ((bounds.height - labelHeight) / 2).rounded(),
                                  width: max(0, plusButton.frame.minX - Spacing.xs - labelX), height: labelHeight)
+    }
+
+    // MARK: Reordering (spec §B: drag an icon more than a few points, Zen)
+
+    private func iconDragged(_ space: UUID, _ event: NSEvent, _ phase: SpaceIconView.DragPhase) {
+        guard let from = spaces.firstIndex(where: { $0.id == space }), !icons.isEmpty else { return }
+        let pitch = iconRow.bounds.width / CGFloat(icons.count)
+        let x = iconRow.convert(event.locationInWindow, from: nil).x
+        let index = min(max(Int(x / max(pitch, 1)), 0), icons.count - 1)
+        switch phase {
+        case .moved:
+            if reorder?.index != index {
+                if reorder != nil { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+                reorder = (space, index)
+                layoutReorder(moving: from, to: index, pitch: pitch)
+            }
+            // The dragged icon follows the pointer.
+            icons[from].frame.origin.x = min(max(x - icons[from].frame.width / 2, 0), iconRow.bounds.width - icons[from].frame.width)
+        case .ended:
+            let target = reorder?.index
+            reorder = nil
+            if let target, target != from { onReorderSpace?(space, target) } else { needsLayout = true }
+        }
+    }
+
+    /// The other icons make room for the dragged one at `to`.
+    private func layoutReorder(moving from: Int, to: Int, pitch: CGFloat) {
+        var order = Array(icons.indices)
+        order.remove(at: from)
+        order.insert(from, at: to)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.standard
+            for (slot, index) in order.enumerated() where index != from {
+                var frame = icons[index].frame
+                frame.origin.x = CGFloat(slot) * pitch + (pitch - frame.width) / 2
+                icons[index].animator().frame = frame
+            }
+        }
     }
 
     /// The icon view of a space (DEBUG captures, drop targeting).
@@ -383,6 +431,8 @@ enum SpaceIconMetrics {
     static let indicatorPadding: CGFloat = 2
     /// An inactive icon's opacity.
     static let inactiveAlpha: CGFloat = 0.55
+    /// Pointer travel that turns a press on an icon into a reorder drag (Zen: 5 px).
+    static let reorderThreshold: CGFloat = 5
 }
 
 /// A space's icon in the footer: its emoji, its SF Symbol, or a dot.
@@ -390,10 +440,15 @@ final class SpaceIconView: NSView {
     private let label = NSTextField(labelWithString: "")
     private let imageView = NSImageView()
     private(set) var space: Space
-    private var isActive = false
+    private(set) var isActive = false
     var onClick: (() -> Void)?
     var onMenu: (() -> NSMenu?)?
     var onHover: ((Bool) -> Void)?
+    enum DragPhase { case moved, ended }
+    /// A press that moved past `SidebarMetrics.dragThreshold` drags the icon (reorder).
+    var onDrag: ((NSEvent, DragPhase) -> Void)?
+    private var pressLocation: NSPoint?
+    private var dragging = false
     var isDropTarget = false { didSet { if isDropTarget != oldValue { needsDisplay = true; updateLayer() } } }
 
     init(space: Space) {
@@ -486,9 +541,25 @@ final class SpaceIconView: NSView {
 
     override func mouseEntered(with event: NSEvent) { onHover?(true) }
     override func mouseExited(with event: NSEvent) { onHover?(false) }
-    override func mouseDown(with event: NSEvent) {}
+    override func mouseDown(with event: NSEvent) {
+        pressLocation = event.locationInWindow
+        dragging = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = pressLocation else { return }
+        if !dragging, hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y) > SpaceIconMetrics.reorderThreshold {
+            dragging = true
+        }
+        if dragging { onDrag?(event, .moved) }
+    }
 
     override func mouseUp(with event: NSEvent) {
+        defer { pressLocation = nil; dragging = false }
+        if dragging {
+            onDrag?(event, .ended)
+            return
+        }
         guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         onClick?()
     }

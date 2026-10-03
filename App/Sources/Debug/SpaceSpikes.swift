@@ -39,6 +39,29 @@ extension SpikeRunner.Context {
         let prepareStart = ContinuousClock.now
         let prepared = await waitUntil(15) { self.sidebar.debugPreparedSpaces == spaces.count }
         SpikeRunner.record("lists_prepared_after_launch", "\(prepared) in \(String(format: "%.0f", ms(prepareStart, .now))) ms of waiting")
+        SpikeRunner.record("list_build_load_warm_up_per_space", SpikeRunner.stats(sidebar.debugPrepareTimes.map {
+            Double($0.components.seconds) * 1000 + Double($0.components.attoseconds) / 1e15
+        }))
+
+        // The first switch to each space after launch: its list's rows are made on first display.
+        var cold: [Double] = [], coldSync: [Double] = []
+        var coldPhases: [String: [Double]] = [:]
+        sidebar.debugSwitchPhase = { name, duration in
+            coldPhases[name, default: []].append(Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15)
+        }
+        for space in spaces.dropFirst() {
+            let timing = await timedTurn { sidebar.showSpace(space.id) }
+            cold.append(timing.turn)
+            coldSync.append(timing.sync)
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        sidebar.debugSwitchPhase = nil
+        SpikeRunner.record("first_switch_to_each_space_turn", SpikeRunner.stats(cold))
+        SpikeRunner.record("first_switch_to_each_space_code", SpikeRunner.stats(coldSync))
+        for name in ["list", "slide", "footer", "essentials", "tint_title", "card"] {
+            SpikeRunner.record("first_switch_phase_\(name)", SpikeRunner.stats(coldPhases[name] ?? []))
+        }
+        sidebar.showSpace(spaces[0].id, animated: false)
 
         // What a switch would pay without a prepared list: one space's full reload.
         var reload: [Double] = []
@@ -75,6 +98,10 @@ extension SpikeRunner.Context {
             if begin { started = .now } else { ended = .now }
         }
         var keyToSwitch: [Double] = [], switchCode: [Double] = [], keyToFrame: [Double] = []
+        var phases: [String: [Double]] = [:]
+        sidebar.debugSwitchPhase = { name, duration in
+            phases[name, default: []].append(Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15)
+        }
         var missed = 0
         let loadsBefore = sidebar.debugPaneLoads
         for _ in 0..<60 {
@@ -97,6 +124,10 @@ extension SpikeRunner.Context {
             try? await Task.sleep(for: .milliseconds(450))
         }
         sidebar.debugSwitchTiming = nil
+        sidebar.debugSwitchPhase = nil
+        for name in ["list", "slide", "footer", "essentials", "tint_title", "card"] {
+            SpikeRunner.record("switch_phase_\(name)", SpikeRunner.stats(phases[name] ?? []))
+        }
         SpikeRunner.record("display_frame_interval", ticks.intervalDescription)
         ticks.stop()
         SpikeRunner.record("switches_missed", missed)
