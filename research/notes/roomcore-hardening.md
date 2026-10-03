@@ -226,3 +226,9 @@ tried to reapply committed 0006 (Chromium 9fda24ebc9370). Under pipefail,
 grep -q can exit early and make git log fail with SIGPIPE. Consume the full
 history with grep -xF redirected to /dev/null instead. One retry reported
 0 applied, 6 already and completed; no Chromium source failure occurred.
+
+Network policy is now built and baseline-verified (16 s incremental;
+nav 23.598 s, ten-page quit 4.240 s, 0 helpers left/0 crash reports).
+The last requests were SODA preemptive downloads enabled by developer field
+trials. A 30 s smoke with PreemptiveSodaDownload disabled has zero requests,
+connections and DNS. Fixed-copy 600 s audit started 07:18 EEST; result pending.

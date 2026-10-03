@@ -44,3 +44,34 @@ Observed zero network: False. Validate duration and clean shutdown against the r
 Pending. A 60-second switch-only smoke run is in progress; it cannot qualify
 as the required final audit. Do not disable Widevine on-demand availability
 merely to remove startup component-update traffic.
+
+### Suppression implementation and short verification
+
+Switches disable background networking (including Safe Browsing updates),
+component extensions, sync, time queries, AIM, search preconnect, model
+execution/download features, and PreemptiveSodaDownload. Chromium's developer
+field-trial config enables the last feature on Mac despite its source default.
+It caused SODA icnkogojpkfjeajonkmlplionaamopkf and English pack
+oegebmmcimckjhkhbggblnkjloogjdfg to download through explicit on-demand calls.
+Disabling it removed the last five requests from the 30-second policy smoke.
+Final short smoke: 0 requests, 0 connections, 0 DNS, 14 events, 28.764 s event
+span, 30 s idle, 43 s process, exit 0. The 600-second audit is still pending.
+
+Gaia browser-account networking uses a Room ChromeSigninClient through the
+existing per-profile factory seam. Chrome cloud-policy invalidation channels
+use the existing null-provider factory seam. These are upstream APIs named
+for tests, without test-only behavior; no test context or fake is linked.
+Website requests, Google website sign-in and website push use separate paths.
+Their complete functional acceptance is not established by idle silence.
+
+A supported empty optimization-guide manifest override prevents the global
+manifest broker's independent startup fetch. Patch 0006 adds one scheduler
+factory hook: //room selects an on-demand-only scheduler. There is no existing
+pref/switch/factory for disabling automatic checks while retaining component
+registration; --disable-component-update removes Widevine registration too.
+The original five patch files are unchanged. Explicit component updates stay
+available; Widevine first-use download still needs runtime verification.
+
+Network-policy build 16 s (2 steps), ad-hoc package passed. Post-change nav
+23.598 s; ten loaded pages, quit 4.240 s at load1 38.39, 26 helpers observed,
+0 left after unchanged 5 s grace, 0 new crash reports, exit 0.

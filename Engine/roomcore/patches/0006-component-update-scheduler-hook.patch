@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/browser_process_impl.cc b/chrome/browser/browser_process_impl.cc
+--- a/chrome/browser/browser_process_impl.cc
++++ b/chrome/browser/browser_process_impl.cc
+@@ -1477,6 +1477,12 @@
+   return activity_reporter_.get();
+ }
+ 
++namespace room {
++// Room can suppress periodic checks while preserving explicit CDM updates.
++std::unique_ptr<component_updater::UpdateScheduler>
++    (*g_create_component_update_scheduler_hook)() = nullptr;
++}  // namespace room
++
+ component_updater::ComponentUpdateService*
+ BrowserProcessImpl::component_updater() {
+   if (component_updater_) {
+@@ -1488,7 +1494,9 @@
+   }
+ 
+   std::unique_ptr<component_updater::UpdateScheduler> scheduler =
+-      std::make_unique<component_updater::TimerUpdateScheduler>();
++      room::g_create_component_update_scheduler_hook
++          ? room::g_create_component_update_scheduler_hook()
++          : std::make_unique<component_updater::TimerUpdateScheduler>();
+ 
+   std::string brand;
+   google_brand::GetBrand(&brand);

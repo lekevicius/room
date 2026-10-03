@@ -18,6 +18,7 @@
 #import "room/browser/room_browser_window.h"
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_profile_internal.h"
+#include "room/core/room_network_policy.h"
 
 // chrome/app/chrome_main.cc, linked into the same library.
 extern "C" int ChromeMain(int argc, const char** argv);
@@ -130,6 +131,7 @@ constexpr const char* kDefaultSwitches[] = {
                 }
               }];
 
+  auto network_policy = room::InstallNetworkPolicy();
   const int result = ChromeMain(argc, argv.data());
 
   [NSNotificationCenter.defaultCenter removeObserver:_willTerminateObserver];

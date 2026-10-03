@@ -6,3 +6,4 @@
 0003-browser-window-factory-hook.patch
 0004-link-room-core.patch
 0005-read-anything-without-side-panel.patch
+0006-component-update-scheduler-hook.patch
