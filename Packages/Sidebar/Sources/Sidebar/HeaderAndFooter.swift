@@ -269,9 +269,13 @@ final class SidebarFooterView: NSView {
         let name = hoveredID.flatMap { id in spaces.first { $0.id == id }?.name }
         if let name { nameLabel.stringValue = name }
         needsLayout = true
+        layoutSubtreeIfNeeded()
+        // A name longer than the gap before "+" takes its place while shown.
+        let covers = name != nil && nameLabel.frame.maxX > plusButton.frame.minX - Spacing.xs
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Motion.fast
             nameLabel.animator().alphaValue = name == nil ? 0 : 1
+            plusButton.animator().alphaValue = covers ? 0 : 1
         }
     }
 
@@ -307,10 +311,10 @@ final class SidebarFooterView: NSView {
         if let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index), indicator.layer?.animationKeys()?.isEmpty != false {
             indicator.frame = icons[index].frame.insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
         }
-        let labelHeight = ceil(nameLabel.cell?.cellSize.height ?? 14)
+        let labelSize = nameLabel.cell?.cellSize ?? NSSize(width: 0, height: 14)
         let labelX = iconRow.frame.maxX + Spacing.xs
-        nameLabel.frame = NSRect(x: labelX, y: ((bounds.height - labelHeight) / 2).rounded(),
-                                 width: max(0, plusButton.frame.minX - Spacing.xs - labelX), height: labelHeight)
+        nameLabel.frame = NSRect(x: labelX, y: ((bounds.height - ceil(labelSize.height)) / 2).rounded(),
+                                 width: max(0, min(ceil(labelSize.width), bounds.width - inset - labelX)), height: ceil(labelSize.height))
     }
 
     // MARK: Reordering (spec §B: drag an icon more than a few points, Zen)
