@@ -156,3 +156,23 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `TabSwitcherMetrics.width` / `rowHeight` / `padding` | 340 / 36 / 8 | chosen; rows reuse the sidebar's favicon and title metrics; corner `Radius.large` on `NSGlassEffectView` |
 | Switcher highlight | `Palette.sidebarMultiSelection` (accent α 0.18), corner `Radius.medium` | chosen: the sidebar's white selection pill does not read on light glass (2.3 capture) |
 | Card empty state | "Press ⌘T to search or type a URL", `Typography.row`, `tertiaryLabelColor`, centred | spec §A.7 text; style chosen |
+
+## Added in Phase 2.4a (palette)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `PaletteMetrics.width` | 640 | spec §C (Zen's floating urlbar) |
+| `PaletteMetrics.topFraction` | 0.18 | spec §C: top edge 18% down the content area (the card) |
+| `PaletteMetrics.windowMargin` | 16 | chosen: the panel narrows to stay this far from the window edges |
+| `PaletteMetrics.fieldHeight` / `fieldInset` | 48 / 16 | chosen |
+| `PaletteMetrics.rowHeight` / `iconSize` | 36 / 16 | the sidebar's row and favicon (measured from Dia) |
+| `PaletteMetrics.listPadding` / `groupGap` | 6 / 4 | chosen: highlight inset like the sidebar pill; groups have no headers, a gap separates them |
+| `PaletteMetrics.openScale` | 0.96, with a fade over `Motion.fast` (0.12 s); close fades over `Motion.fast` | spec §I.1; reduced motion: fade only |
+| Panel | `NSGlassEffectView`, corner `Radius.large` | PLAN §2.4 overlays |
+| Row highlight | `Palette.sidebarMultiSelection` (accent α 0.18), corner `Radius.medium` | as the ⌃Tab switcher (2.3) |
+| Space chip | `Typography.secondary` on a `Palette.sidebarHover` capsule | chosen; spec §C names the chip |
+| Docked (header-field click) | the panel's left edge on the address field's, centred on it vertically, never above `CardMetrics.inset` from the window top | chosen; spec §C "keeps the input docked in place" |
+| `Typography.paletteField` | system 18 regular | chosen |
+| `Timing.typedTextMemory` | 45 s | spec §C (Zen `wait-to-clear`) |
+| `Symbol.openURL` | `globe` | the verbatim URL row |
+| Max rows | 8 (`OmniboxResult.limit`) | spec §C |
