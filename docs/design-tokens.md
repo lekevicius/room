@@ -143,3 +143,16 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Palette.sidebarMultiSelection` | accent α 0.18 | chosen: multi-selected rows and the drop-onto target |
 | Clear stagger | step = min(30 ms, 300 ms / (rows − 1)) over the visible rows, 150 ms slide + fade each, ease-in | spec §A.7 (`Motion.clearStagger`, `clearStaggerMax`) |
 | Folder preview | 280 pt wide (`popoverFieldWidth`), rows 28 pt, 8 visible | chosen; behaviour spec §A.6 |
+
+## Added in Phase 2.3 (tabs, lifecycle, ⌃Tab switcher)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `Timing.discardIdleToday` / `discardIdlePermanent` | 60 min / 3 h | spec §H (idle discard: Today tabs, pinned entries and essentials) |
+| `Timing.discardSweepInterval` | 60 s | chosen (how often the idle sweep runs) |
+| Memory-pressure discard | warning: the older half of the eligible pages (rounded up); critical: all of them; least recently seen first | chosen; spec §H says LRU first, never the selected or an audible page |
+| `Timing.tabSwitcherDelay` | 0.12 s | chosen: ⌃ held this long shows the list; a quicker ⌃Tab tap switches without it |
+| `TabSwitcherMetrics.limit` | 5 | spec §G ("5 most recent") |
+| `TabSwitcherMetrics.width` / `rowHeight` / `padding` | 340 / 36 / 8 | chosen; rows reuse the sidebar's favicon and title metrics; corner `Radius.large` on `NSGlassEffectView` |
+| Switcher highlight | `Palette.sidebarMultiSelection` (accent α 0.18), corner `Radius.medium` | chosen: the sidebar's white selection pill does not read on light glass (2.3 capture) |
+| Card empty state | "Press ⌘T to search or type a URL", `Typography.row`, `tertiaryLabelColor`, centred | spec §A.7 text; style chosen |
