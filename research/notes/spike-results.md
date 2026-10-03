@@ -410,3 +410,57 @@ Where the first key's time went (Time Profiler, first keys spun onto a P core, b
 Behaviour checked on CEF (both appearances): downloads land in Settings' folder (a throwaway one), a second "room-2.6b-small.txt" becomes "room-2.6b-small (1).txt", a download without a length spins the ring (`progress == -1`), pause / resume / cancel through `Profile` work and a cancelled file is removed, two completions leave badge 2, opening the popover clears it, Clear empties finished rows; ⌘F opens the bar with the keyboard in it, "1 of 400", ⌘G → "2 of 400", ⇧⌘G → "1 of 400", Esc closes and the keyboard returns to the page; ⌘= (page first, unhandled, then the menu) → 110% with the indicator, ⌘- ⌘- → 90%, ⌘0 → 100%, the indicator leaves on its own; the status pill dodges to the bottom-right (x 4 → 731) when the pointer reaches it; the site panel on `http://127.0.0.1:8766` shows Location Allow (2.6a's grant), Notifications Block (2.6a's denial), changes Location → Block and Pop-ups → Allow, the page then reads `geolocation: denied`, Clear empties `document.cookie` and `localStorage`, Reset Permissions leaves nothing stored; a JavaScript alert is withdrawn by a navigation (sheet gone, `webContentsDidDismissJavaScriptDialogs`, the page reaches the new URL) and so is a location prompt (`webContentsDidDismissPermissionPrompt`); `chrome://crash` → `processGone(.crashed)`, the crashed-page view with the keyboard in it, Return reloads; the canvas video's fullscreen button → the window goes fullscreen with the card edge to edge (1920 × 1080), `exitFullscreen()` → back with the sidebar and the traffic lights at 19,19; the DevTools divider dragged 150 pt up → 42% → 60.7%; ⌥⌘J opens on the console; ⇧⌘C / ⌥⇧⌘C copy the URL and `[Audio](http://…)`.
 
 Bugs found by running it (fixed before the numbers above): CEF's first `Find` for a text only counts (active match 0: nothing highlighted, ⌘G did nothing; first run "0/400", after the fix "1/400"); a navigation under a pending `alert()` never committed on Alloy (the request went out, the page stayed); `OnDismissPermissionPrompt` also follows answered prompts; download updates carry an empty suggested name; `GetContentSetting` answers with the effective value, so the site panel listed all twelve permissions as set; the popover opened below the footer (flipped `maxY`); the toolbar came back hidden after element fullscreen (traffic lights 9,9). The first run's downloads never started because a stale 2.6a test server held port 8766 and the new `/download` route also matched `/downloads.html`; the script now refuses to run beside another server.
+
+## Phase 2.7a — hide/reveal, the traffic-light cluster, Peek (2026-10-04, Mac mini M4, 24 GB, CEF, Debug)
+
+Method: `scripts/layout-modes.sh` (spike `layoutmodes`, `App/Sources/Debug/LayoutSpikes.swift`) serves `research/spikes/phase-2.7/` on 127.0.0.1:8770, which also answers as `localhost:8770`, a second site (different eTLD+1). A pinned entry on `http://127.0.0.1:8770/site.html` is the "permanent entry". Pointer input is synthetic `NSEvent`s posted through `NSApp` (the path real events take: local monitors, hit testing, the page's view), page clicks are CDP `Input.dispatchMouseEvent` after a CDP hover (Chromium reports the hovered link as status text, as for a real pointer). Display at **60 Hz**; Room's window main; load average 10.6–13.5; light and dark runs. Timings use `ContinuousClock` on the main thread; frame intervals come from a `CADisplayLink` on the window's view while the slide runs.
+
+### Hide/reveal (spec §E)
+
+| Measure (5 rounds per appearance) | Light | Dark | Configured |
+|---|---|---|---|
+| Pointer into the 4 pt band → overlay shown (state) | 176.6 ms median, 177.9 p95 | 176.9 / 181.6 | dwell 150 ms |
+| Slide | 14–15 frames over 233–250 ms | 14–15 frames | 250 ms ease-out |
+| Slide frame intervals (main-thread display link) | 73 frames: median 16.67, p95 16.67, max 16.67 ms (none dropped) | same | 60 Hz |
+| Pointer away over the page → hidden | 157.3 ms median, 170.5 p95 | 170.1 / 170.2 | grace 150 ms |
+
+The extra ~25 ms over the dwell and ~5–20 ms over the grace are the timer firing on the main run loop plus the 20 ms poll that reads the state. ⌥⌘S kept the overlay after the pointer left and a page click hid it. While the sidebar is hidden the list keeps the overlay's size, so a reveal only moves a view (no list layout).
+
+Event isolation (Phase 1.4 method, synthetic events through `NSApp`): with the overlay shown, 5 moves and 5 clicks at points over the overlay where the card lies under it reached the page **0 times** (`__clicks 0`, `__downs 0`, `__moves 0`), both appearances.
+
+### The floating traffic-light cluster and the drag regions
+
+The pill is 84 × 38 at (7, 7) around the buttons' 60 × 14 at (19, 19) (AppKit's place with the empty unified toolbar; never moved). It faded **2161–2179 ms** after the last pointer movement near it (2 s + the 150 ms fade), the buttons hid with it and `TrafficLightLayout` kept their frames (the docked header lays out the same after); a movement near it brought both back. A hit test on the pill returns `TrafficLightClusterView` (`mouseDownCanMoveWindow` true); the content band is the top 40 pt of an 806 pt card. Docking hides the pill and shows the buttons. The drags themselves need a person's pointer (the window server runs a window drag; listed for the user).
+
+The toolbar is 36 pt across the card's top: content from 6 pt docked, from 85 pt (past the zoom button + 12) with the sidebar hidden, centred on the buttons' line (20 pt into the bar); the cluster stays hidden while it shows.
+
+### Peek (spec §A.4, §I.6)
+
+What each navigation from the pinned entry did on CEF (both appearances alike):
+
+| Navigation | Result |
+|---|---|
+| Link to the same site (`/other.html`) | in place |
+| Link to the other site | Peek over the pinned page (the page stays at `site.html`) |
+| Link into a redirect chain the site starts (`/redirect?to=localhost…`) | in place, through to `localhost:8770/offsite.html?chain` |
+| Direct OAuth authorize link on the other site | in place, back to `callback.html?code=room-test` |
+| Form post to the other site (303 to it) | in place |
+| `location.href = other site` in a click handler, gesture 0.2 s before | in place |
+| the same, last input 3 s before | Peek |
+| ⇧-click on an off-site link (Chrome's new-window disposition) | Peek |
+| `target=_blank` | a new Today tab (as 2.6a), selected |
+
+| Measure (5 opens per appearance) | Light | Dark |
+|---|---|---|
+| Peek decision → the overlay's first committed frame (`CATransaction` completion) | 22.4 ms median, 23.5 p95 | 22.4 / 23.0 |
+| Peek decision → the Peek page's first contentful paint (`performance.timeOrigin` + FCP vs the decision's wall clock; a local page) | 113.7 ms median, 116.8 p95 | 99.7 / 101.8 |
+
+The overlay's 22 ms includes the cancelled navigation's turn (Peek opens on the next main-actor turn after `decidePolicy` returns `.ignore`), the page's `CEFWebContents` creation and the first layout of the card.
+
+Event isolation under the Peek dim: 3 moves over the dim (outside the card) reached the page under **0 times** (`__clicks 0`, `__downs 0`, `__moves 0`); a click inside the card reached the Peek page (its `__clicks` 1) and left Peek open; a click on the dim closed Peek and did not reach the page under. Both appearances.
+
+The open animation starts at the click: after a posted click at (377, 135) the card's first presented frame read back was centred at (631–634, 292–295), 575–581 pt wide, moving from the click toward the card's centre (762, 409); the read-back comes one poll after the animation began, so the frame is already part-way.
+
+Open as Tab made the Peek a Today tab (0 → 1) holding the same `WebContents` (`offsite.html?second`), selected, Peek gone. Esc (unused by the page) closed Peek; ⇧⌘T reopened the same URL over the pinned entry.
+
+Delegate checklist after the card changed (`scripts/chrome-surfaces.sh --session 2.6b --no-captures light`, all checks): every 2.6b result as before (dialogs, auth, certificate and Go Back, permissions, files, menus with Open Link in Peek, popups, downloads, find 14.1 ms median keystroke → match, zoom, print, status pill 606 ms, site panel, withdrawn dialog and prompt, crash, element fullscreen, DevTools 325 ms, audio, keys, Copy URL). One spike-side fix: the status pill's dodge (`leading → trailing`, x 4 → 731) is now polled every 1 ms; at 20 ms the poll missed it because the page clears its status text a few ms after the posted move and the pill leaves.

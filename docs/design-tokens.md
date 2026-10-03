@@ -243,3 +243,28 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Element fullscreen | the card fills the window edge to edge (no inset, corner, border or shadow), the sidebar hidden, the window fullscreen while the page is | `cef_display_handler.h` (the client makes the window fullscreen) |
 | DevTools pane (`DevToolsMetrics`) | 42% of the card when first opened (`defaultFraction`, Phase 1.4); a divider with an 8 pt drag area (`dividerHitHeight`) around a 1 pt `separatorColor` line, the up-down resize cursor; neither the page nor the pane under 120 pt (`minPageHeight`, `minPaneHeight`); the share is remembered (`RoomDevToolsFraction`), double-click restores the default | ROADMAP 2.6 task 4; minimums chosen |
 | `Symbol.pageCrashed` / `findPrevious` / `findNext` / `dismiss` / `file` | `exclamationmark.octagon` / `chevron.up` / `chevron.down` / `xmark.circle.fill` / `doc` | chosen |
+
+## Added in Phase 2.7a (hide/reveal, the traffic-light cluster, the toolbar, Peek)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `RevealMetrics.edgeBand` | 4 pt at the window's leading edge | spec §E (4 px) |
+| `Timing.revealDwell` / `revealGrace` | 0.15 / 0.15 s | spec §E (150 ms dwell; Zen `sidebar-keep-hover.duration` 150 ms) |
+| `RevealMetrics.outsideToleranceX` / `Y` | 200 / 100 pt around the overlay, pointer outside the window | spec §E (Zen `outside-window-edge-offset`) |
+| `RevealMetrics.overlayInset` | 10 pt from the top, leading and bottom edges | spec §E (Zen `--zen-compact-float`) |
+| Overlay slide | `Motion.medium` (0.25 s) ease-out in, ease-in out, fully off the leading edge; Reduce Motion: a fade | spec §E (250 ms) |
+| `RevealMetrics.overlayCornerRadius` | `Radius.large` (12) on `NSGlassEffectView` | chosen (the overlays' radius) |
+| Overlay wash (`overlayTintWhiteLight` / `Dark`, `overlayTintAlpha`) | white 0.88 / 0.16 at α 0.75 inside the glass | chosen: untinted glass let page text read through the rows; the glass's own `tintColor` rendered near white and hid the white selection pill (2.7a captures) |
+| Overlay header | Back, Forward, Reload (`navigationButtonSize` 28) beside the traffic lights; the address field on its own row below, `addressRowGap` 4 | spec §E ("present in the revealed overlay header"); layout chosen (Arc's two rows) |
+| `ClusterMetrics.height` | 38 pt glass pill centred on the window's own buttons | spec §E (38 px) |
+| `ClusterMetrics.horizontalPadding` | 12 pt beside the outer buttons (pill 84 × 38 around 60 × 14 buttons) | chosen |
+| `Timing.clusterFade` | 2 s after the pointer was last within `ClusterMetrics.nearDistance` (60 pt) of the pill; fades with the buttons over `Motion.standard`, back over `Motion.fast` | spec §E (2 s); distance chosen |
+| Cluster wash | the overlay's wash inside the pill's glass | chosen (page text read through the clear glass behind the buttons) |
+| `ClusterMetrics.contentDragFraction` / `contentDragThreshold` | the top 5% of the card drags the window once a press moves 3 pt | spec §E (Zen `drag-window-from-content`); threshold = AppKit's drag distance |
+| `ToolbarMetrics.height` / `buttonSize` / `padding` / `urlHeight` | 36 / 28 / 6 / 26 pt; the bar sits in the card's top on the page's fill, its content centred on the traffic lights' line when they sit in it | spec §E (36 px); the rest chosen |
+| Toolbar and Peek header appearance | Aqua on a light page fill, Dark Aqua on a dark one (relative luminance > 0.5) | chosen (2.7a dark captures) |
+| `PeekMetrics.sizeFraction` / `cornerRadius` / `dimAlpha` | 86% of the content area (the page card), 24 pt corners, black at 30% over the card | spec §I.6 |
+| `PeekMetrics.headerHeight` / `headerButtonSize` / `headerPadding` | 40 / 28 / 10 pt: the domain (`Typography.spaceTitle`, secondary), Open as Tab (`Symbol.peekExpand`), Split (`Symbol.peekSplit`, disabled until 2.7b), × | chosen; contents spec §I.6 |
+| Peek shadow (`shadowRadius`, `shadowOpacityLight` / `Dark`) | 24 pt, 0.25 / 0.5, offset 8 pt down | chosen (floats above the page card) |
+| Peek open | scales up from 10% (`openStartScale`) centred on the last click (within 2 s; else the card's centre) to the card, `CASpringAnimation` perceptual `Motion.slow` (0.35 s), bounce 0; the dim fades in over `Motion.fast`; close fades over `Motion.fast`; Reduce Motion: fades | spec §I.1 ("scale from the link's rect … 350 ms"; CEF gives no link rect) |
+| `Timing.peekGestureWindow` | 2 s: `window.location` set this soon after a gesture navigates in place | spec §A.4 |
