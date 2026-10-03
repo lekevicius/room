@@ -224,6 +224,88 @@ struct SidebarStoreTests {
         #expect(back.kind == .today && back.storedURL == nil && back.liveURL == "https://a/page")
     }
 
+    @Test("A group drag lands together at the drop position, counted with the dragged rows still in place (§A.9)")
+    func groupMove() throws {
+        let tabs = try (0..<5).map { try sidebar.addEntry(.today, url: "https://t/\($0)", title: "T\($0)", space: space.id) }
+        let (a, b, c, d, e) = (tabs[0].id, tabs[1].id, tabs[2].id, tabs[3].id, tabs[4].id)
+        // Drop b and d on the gap above e.
+        try sidebar.move([b, d], to: .today(space: space.id), insertingAt: 4)
+        #expect(sidebar.today(space: space.id).map(\.id) == [a, c, b, d, e])
+        // Drop a below the last row.
+        try sidebar.move([a], to: .today(space: space.id), insertingAt: 5)
+        #expect(sidebar.today(space: space.id).map(\.id) == [c, b, d, e, a])
+        #expect(sidebar.today(space: space.id).map(\.position) == Array(0..<5))
+        // Across a section boundary: both convert, in one change.
+        var changes = 0
+        let token = sidebar.observe { _ in changes += 1 }
+        try sidebar.move([c, b], to: .pinned(space: space.id, folder: nil), insertingAt: 0)
+        token.cancel()
+        #expect(changes == 1)
+        #expect(sidebar.pinned(space: space.id).map(\.id) == [c, b])
+        #expect(sidebar.pinned(space: space.id).map(\.storedURL) == ["https://t/2", "https://t/1"])
+        #expect(sidebar.pinned(space: space.id).allSatisfy { $0.kind == .pinned })
+        #expect(sidebar.today(space: space.id).map(\.id) == [d, e, a])
+    }
+
+    @Test("A group drag into Essentials past the cap is refused whole (§A.9)")
+    func groupMoveCap() throws {
+        for index in 0..<11 { try sidebar.addEntry(.essential, url: "https://e/\(index)", space: space.id) }
+        let one = try sidebar.addEntry(.today, url: "https://t/1", space: space.id)
+        let two = try sidebar.addEntry(.today, url: "https://t/2", space: space.id)
+        let essentials = Container.essentials(profile: profile.id)
+        let before = store.currentState()
+        #expect(throws: SidebarError.conversion(.essentialsFull(cap: 12))) {
+            try sidebar.move([one.id, two.id], to: essentials, insertingAt: 0)
+        }
+        #expect(store.currentState() == before)
+        #expect((try? sidebar.canMove([one.id, two.id], to: essentials).get()) == nil)
+        #expect((try? sidebar.canMove([one.id], to: essentials).get()) != nil)
+        try sidebar.move([one.id], to: essentials, insertingAt: 11)
+        #expect(sidebar.essentials(profile: profile.id).count == 12)
+        #expect(sidebar.entry(one.id)?.kind == .essential && sidebar.entry(one.id)?.storedURL == "https://t/1")
+        // Folders never leave the pinned section.
+        let folder = try sidebar.addFolder(name: "F", space: space.id)
+        #expect(throws: SidebarError.conversion(.folderOutsidePinned)) {
+            try sidebar.move([folder.id], to: .today(space: space.id), insertingAt: 0)
+        }
+    }
+
+    @Test("A folder dragged with its own child moves its subtree once (§A.9)")
+    func groupMoveNested() throws {
+        let folder = try sidebar.addFolder(name: "F", space: space.id)
+        let child = try sidebar.addEntry(.pinned, url: "https://c", space: space.id, folder: folder.id)
+        let other = try sidebar.addEntry(.pinned, url: "https://o", space: space.id)
+        try sidebar.move([folder.id, child.id], to: .pinned(space: space.id, folder: nil), insertingAt: 2)
+        #expect(sidebar.pinned(space: space.id).map(\.id) == [other.id, folder.id])
+        #expect(sidebar.pinned(space: space.id, folder: folder.id).map(\.id) == [child.id])
+        // Into a folder: the dragged Today tab converts and nests.
+        let tab = try sidebar.addEntry(.today, url: "https://t", space: space.id)
+        try sidebar.move([tab.id], to: .pinned(space: space.id, folder: folder.id), insertingAt: 1)
+        #expect(sidebar.pinned(space: space.id, folder: folder.id).map(\.id) == [child.id, tab.id])
+        #expect(sidebar.entry(tab.id)?.kind == .pinned && sidebar.entry(tab.id)?.folderID == folder.id)
+    }
+
+    @Test("⌥-drag duplicates into the target section; the originals stay (§A.9)")
+    func duplicate() throws {
+        let tab = try sidebar.addEntry(.today, url: "https://t/page", title: "Page", space: space.id)
+        try sidebar.markActive(tab.id)
+        let pinned = try sidebar.addEntry(.pinned, url: "https://p", title: "P", space: space.id)
+        let copies = try sidebar.duplicate([tab.id], to: .pinned(space: space.id, folder: nil), at: 0)
+        let copy = try #require(copies.first)
+        #expect(copy.id != tab.id && copy.kind == .pinned && copy.storedURL == "https://t/page" && copy.lastActiveAt == nil)
+        #expect(sidebar.pinned(space: space.id).map(\.id) == [copy.id, pinned.id])
+        #expect(sidebar.entry(tab.id)?.kind == .today, "the original stays")
+        let todayCopy = try #require(try sidebar.duplicate([pinned.id], to: .today(space: space.id), at: 1).first)
+        #expect(todayCopy.kind == .today && todayCopy.liveURL == "https://p" && todayCopy.storedURL == nil)
+        #expect(sidebar.today(space: space.id).map(\.id) == [tab.id, todayCopy.id])
+        let folder = try sidebar.addFolder(name: "F", space: space.id)
+        #expect(throws: SidebarError.invalidKind) { try sidebar.duplicate([folder.id], to: .today(space: space.id), at: 0) }
+        for index in 0..<12 { try sidebar.addEntry(.essential, url: "https://e/\(index)", space: space.id) }
+        #expect(throws: SidebarError.conversion(.essentialsFull(cap: 12))) {
+            try sidebar.duplicate([tab.id], to: .essentials(profile: profile.id), at: 0)
+        }
+    }
+
     @Test("The thirteenth essential is refused and nothing changes")
     func essentialsCap() throws {
         for index in 0..<12 { try sidebar.addEntry(.essential, url: "https://e/\(index)", space: space.id) }

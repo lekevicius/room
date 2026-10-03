@@ -298,33 +298,13 @@ public final class SidebarStore {
 
     /// Moves an entry to `container` at `index` (clamped), converting its
     /// kind when the section changes (§A.9). Folders move with their subtree.
+    /// `index` counts the container without the moved entry.
     public func move(_ id: UUID, to container: Container, at index: Int) throws(SidebarError) {
         guard let entry = entries[id] else { throw .unknownEntry(id) }
-        let space: Space
-        switch container {
-        case .essentials(let profile):
-            let current = entry.spaceID.flatMap { self.space($0) }
-            guard let match = current?.profileID == profile ? current : spaces.first(where: { $0.profileID == profile }) else {
-                throw .unknownProfile(profile)
-            }
-            space = match
-        case .pinned(let spaceID, let folder):
-            guard let match = self.space(spaceID) else { throw .unknownSpace(spaceID) }
-            if let folder {
-                try validateFolder(folder, in: spaceID)
-                do { try FolderRules.validatePlacement(of: id, into: folder, in: entries) } catch { throw .folder(error) }
-            }
-            space = match
-        case .today(let spaceID):
-            guard let match = self.space(spaceID) else { throw .unknownSpace(spaceID) }
-            space = match
-        }
+        let space = try targetSpace(for: container, moving: entry)
+        try validateFolderTarget(container, moving: [id])
         let essentialsCount = essentials(profile: space.profileID).filter { $0.id != id }.count
-        var converted: Entry
-        do { converted = try EntryRules.converted(entry, to: container.section, in: space, essentialsCount: essentialsCount) } catch {
-            throw .conversion(error)
-        }
-        if case .pinned(_, let folder) = container { converted.folderID = folder }
+        let converted = try convert(entry, to: container, in: space, essentialsCount: essentialsCount)
 
         var change = SidebarChange()
         detach(id, change: &change)
@@ -333,6 +313,143 @@ public final class SidebarStore {
             reassignSubtree(of: id, to: space, change: &change)
         }
         commit(change)
+    }
+
+    /// Drag and drop (§A.9): moves `ids`, in this order, to `container`,
+    /// together at `index`, which counts the container as it is now, moved
+    /// entries included (the drop position the user sees). Kinds convert by
+    /// section; the Essentials cap counts every entry that would become an
+    /// essential; if any entry is refused nothing changes. An entry whose
+    /// folder is moved too stays inside it. One change for the whole move.
+    public func move(_ ids: [UUID], to container: Container, insertingAt index: Int) throws(SidebarError) {
+        let moving = try topLevel(ids)
+        guard let first = moving.first else { return }
+        let space = try targetSpace(for: container, moving: first)
+        try validateFolderTarget(container, moving: moving.map(\.id))
+        let movingIDs = Set(moving.map(\.id))
+        var essentialsCount = essentials(profile: space.profileID).filter { !movingIDs.contains($0.id) }.count
+        var converted: [Entry] = []
+        for entry in moving {
+            converted.append(try convert(entry, to: container, in: space, essentialsCount: essentialsCount))
+            if container.section == .essentials { essentialsCount += 1 }
+        }
+        let current = containers[container] ?? []
+        let clamped = min(max(index, 0), current.count)
+        let target = clamped - current.prefix(clamped).filter(movingIDs.contains).count
+
+        var change = SidebarChange()
+        for entry in moving { detach(entry.id, change: &change) }
+        for (offset, entry) in converted.enumerated() {
+            insert(entry, at: target + offset, change: &change)
+            let original = moving[offset]
+            if entry.kind == .folder, entry.spaceID != original.spaceID || entry.profileID != original.profileID {
+                reassignSubtree(of: entry.id, to: space, change: &change)
+            }
+        }
+        commit(change)
+    }
+
+    /// ⌥-drag (§A.9): copies of `ids` inserted together at `index` in
+    /// `container` (counting it as it is now), converted to its section.
+    /// Folders are not copied. The copies have no page yet and no MRU
+    /// history; a Today copy carries the original's page URL. Returns them.
+    @discardableResult
+    public func duplicate(_ ids: [UUID], to container: Container, at index: Int) throws(SidebarError) -> [Entry] {
+        let originals = try ids.map { id throws(SidebarError) -> Entry in
+            guard let entry = entries[id] else { throw .unknownEntry(id) }
+            guard entry.kind != .folder else { throw .invalidKind }
+            return entry
+        }
+        guard let first = originals.first else { return [] }
+        let space = try targetSpace(for: container, moving: first)
+        try validateFolderTarget(container, moving: [])
+        var essentialsCount = essentials(profile: space.profileID).count
+        var copies: [Entry] = []
+        for original in originals {
+            var copy = original
+            copy.id = UUID()
+            copy.createdAt = clock()
+            copy.lastActiveAt = nil
+            copy.splitGroupID = nil
+            if original.kind.isPermanent { copy.liveURL = nil; copy.liveTitle = nil }
+            copies.append(try convert(copy, to: container, in: space, essentialsCount: essentialsCount))
+            if container.section == .essentials { essentialsCount += 1 }
+        }
+        var change = SidebarChange()
+        for (offset, copy) in copies.enumerated() { insert(copy, at: index + offset, change: &change) }
+        commit(change)
+        return copies.compactMap { entries[$0.id] }
+    }
+
+    /// Whether `move(ids, to: container, …)` would succeed (drag validation).
+    public func canMove(_ ids: [UUID], to container: Container) -> Result<Void, SidebarError> {
+        do {
+            let moving = try topLevel(ids)
+            guard let first = moving.first else { return .success(()) }
+            let space = try targetSpace(for: container, moving: first)
+            try validateFolderTarget(container, moving: moving.map(\.id))
+            let movingIDs = Set(moving.map(\.id))
+            var essentialsCount = essentials(profile: space.profileID).filter { !movingIDs.contains($0.id) }.count
+            for entry in moving {
+                _ = try convert(entry, to: container, in: space, essentialsCount: essentialsCount)
+                if container.section == .essentials { essentialsCount += 1 }
+            }
+            return .success(())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// The space whose section `container` is (for essentials: the moved
+    /// entry's space if it shares the profile, else the profile's first space).
+    private func targetSpace(for container: Container, moving entry: Entry) throws(SidebarError) -> Space {
+        switch container {
+        case .essentials(let profile):
+            let current = entry.spaceID.flatMap { self.space($0) }
+            guard let match = current?.profileID == profile ? current : spaces.first(where: { $0.profileID == profile }) else {
+                throw .unknownProfile(profile)
+            }
+            return match
+        case .pinned(let spaceID, _), .today(let spaceID):
+            guard let match = self.space(spaceID) else { throw .unknownSpace(spaceID) }
+            return match
+        }
+    }
+
+    private func validateFolderTarget(_ container: Container, moving ids: [UUID]) throws(SidebarError) {
+        guard case .pinned(let spaceID, let folder?) = container else { return }
+        try validateFolder(folder, in: spaceID)
+        for id in ids {
+            do { try FolderRules.validatePlacement(of: id, into: folder, in: entries) } catch { throw .folder(error) }
+        }
+    }
+
+    private func convert(_ entry: Entry, to container: Container, in space: Space, essentialsCount: Int) throws(SidebarError) -> Entry {
+        var converted: Entry
+        do { converted = try EntryRules.converted(entry, to: container.section, in: space, essentialsCount: essentialsCount) } catch {
+            throw .conversion(error)
+        }
+        if case .pinned(_, let folder) = container { converted.folderID = folder }
+        return converted
+    }
+
+    /// `ids` without duplicates and without entries inside a folder that is
+    /// also listed (they move with it), in the given order.
+    private func topLevel(_ ids: [UUID]) throws(SidebarError) -> [Entry] {
+        var seen = Set<UUID>()
+        var result: [Entry] = []
+        let listed = Set(ids)
+        for id in ids where seen.insert(id).inserted {
+            guard let entry = entries[id] else { throw .unknownEntry(id) }
+            var parent = entry.folderID
+            var nested = false
+            while let folder = parent {
+                if listed.contains(folder) { nested = true; break }
+                parent = entries[folder]?.folderID
+            }
+            if !nested { result.append(entry) }
+        }
+        return result
     }
 
     /// Removes an entry. A folder's children move up into its parent, in its
