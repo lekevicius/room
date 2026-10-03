@@ -140,7 +140,7 @@ extension SpikeRunner.Context {
                     + "inline=\(palette.result.inlineCompletion ?? "-") rows=\(palette.result.matches.map(\.title))")
                 SpikeRunner.record("capture_\(name)_\(suffix)", writeComposite(page: pageImage, pageView: tabs.current?.nativeView,
                                                                               overlay: palette.debugPanel,
-                                                                              to: directory.appending(path: "phase-2.4b-palette-\(name)-\(suffix).png")))
+                                                                              to: directory.appending(path: "\(UserDefaults.standard.string(forKey: "RoomCapturePrefix") ?? "phase-2.4b")-palette-\(name)-\(suffix).png")))
                 palette.dismiss()
                 try? await Task.sleep(for: .milliseconds(300))
             }

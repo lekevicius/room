@@ -191,7 +191,7 @@ extension SpikeRunner.Context {
                 palette.debugPanel?.displayIfNeeded()
                 SpikeRunner.record("capture_\(name)_\(suffix)", writeComposite(page: pageImage, pageView: tabs.current?.nativeView,
                                                                               overlay: palette.debugPanel,
-                                                                              to: directory.appending(path: "phase-2.4a-palette-\(name)-\(suffix).png")))
+                                                                              to: directory.appending(path: "\(UserDefaults.standard.string(forKey: "RoomCapturePrefix") ?? "phase-2.4a")-palette-\(name)-\(suffix).png")))
                 palette.dismiss()
                 try? await Task.sleep(for: .milliseconds(300))
             }

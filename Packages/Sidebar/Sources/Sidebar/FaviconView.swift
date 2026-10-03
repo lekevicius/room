@@ -88,6 +88,8 @@ public final class FaviconView: NSView {
             let appearance = NSAppearance.currentDrawing()
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = context
+            // The bitmap's context is in pixels: draw in points.
+            context.cgContext.scaleBy(x: scale, y: scale)
             appearance.performAsCurrentDrawingAppearance {
                 renderLetterTile(letter, color: color, in: NSRect(origin: .zero, size: size))
             }

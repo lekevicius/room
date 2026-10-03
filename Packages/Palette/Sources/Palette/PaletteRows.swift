@@ -160,6 +160,8 @@ final class PaletteRowView: NSView {
         return image
     }
     private static let gap = SidebarMetrics.faviconTitleGap + 2
+    /// `NSTextField` labels draw their text this far inside their frame (the cell's line fragment padding).
+    private static let textInset: CGFloat = 2
     private static let chipInsets = NSSize(width: 6, height: 2)
 
     override init(frame: NSRect) {
@@ -309,19 +311,23 @@ final class PaletteRowView: NSView {
         }
         if !hint.isHidden {
             let width = ceil(hintSize.width)
-            Self.place(hint, NSRect(x: right - width, y: ((height - hintSize.height) / 2).rounded(), width: width, height: ceil(hintSize.height)))
+            // Labels inset their text by `textInset`: the text, not the label, ends at `right`.
+            Self.place(hint, NSRect(x: right - width + Self.textInset, y: ((height - hintSize.height) / 2).rounded(), width: width, height: ceil(hintSize.height)))
             right = hint.frame.minX - gap
         }
         if !chip.isHidden {
             let insets = Self.chipInsets
-            let size = NSSize(width: ceil(chipSize.width) + 2 * insets.width, height: ceil(chipSize.height) + 2 * insets.height)
+            // The measured cell includes the label's own text inset on each side.
+            let textWidth = ceil(chipSize.width) - 2 * Self.textInset
+            let size = NSSize(width: textWidth + 2 * insets.width, height: ceil(chipSize.height) + 2 * insets.height)
             Self.place(chip, NSRect(x: right - size.width, y: ((height - size.height) / 2).rounded(), width: size.width, height: size.height))
             chip.layer?.cornerRadius = size.height / 2
-            Self.place(chipLabel, NSRect(x: insets.width, y: insets.height, width: ceil(chipSize.width), height: ceil(chipSize.height)))
+            Self.place(chipLabel, NSRect(x: insets.width - Self.textInset, y: insets.height, width: ceil(chipSize.width),
+                                         height: ceil(chipSize.height)))
             right = chip.frame.minX - gap
         }
         // The spacer between the label and the trailing items is at least 8 pt, with a gap on each side.
-        let labelX = iconFrame.maxX + gap
+        let labelX = iconFrame.maxX + gap - Self.textInset
         let labelLimit = right - 8 - gap
         let labelHeight = Self.labelHeight
         Self.place(label, NSRect(x: labelX, y: ((height - labelHeight) / 2).rounded(), width: max(0, labelLimit - labelX), height: labelHeight))
