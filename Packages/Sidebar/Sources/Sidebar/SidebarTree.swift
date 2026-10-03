@@ -170,6 +170,8 @@ final class SidebarTree {
         if change.spaces.contains(spaceID) {
             update.spaceChanged = true
             keys.insert(.pinnedRoot)
+            // Set Profile: the grid shows the new profile's essentials.
+            if let space, essentialIDs != store.essentials(profile: space.profileID).map(\.id) { update.essentialsChanged = true }
         }
         keys.formUnion(collapsedKeys())
         if update.essentialsChanged {

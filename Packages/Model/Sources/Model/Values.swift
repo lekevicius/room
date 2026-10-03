@@ -299,10 +299,15 @@ public struct Settings: Hashable, Sendable, Codable {
     /// The default search engine's identifier (`google`, `duckduckgo`, `kagi`);
     /// Google until the first-run choice (Phase 2.8).
     public var searchEngine: String = "google"
+    /// The one-time "Logins and cookies won't carry over" warning was
+    /// confirmed (moving a tab to a space of another profile, spec §B).
+    public var crossProfileMoveWarned: Bool = false
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine }
+    private enum CodingKeys: String, CodingKey {
+        case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned
+    }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -314,6 +319,8 @@ public struct Settings: Hashable, Sendable, Codable {
         searchSuggestions = (try? container.decodeIfPresent(Bool.self, forKey: .searchSuggestions)).flatMap { $0 }
             ?? defaults.searchSuggestions
         searchEngine = (try? container.decodeIfPresent(String.self, forKey: .searchEngine)).flatMap { $0 } ?? defaults.searchEngine
+        crossProfileMoveWarned = (try? container.decodeIfPresent(Bool.self, forKey: .crossProfileMoveWarned)).flatMap { $0 }
+            ?? defaults.crossProfileMoveWarned
     }
 }
 

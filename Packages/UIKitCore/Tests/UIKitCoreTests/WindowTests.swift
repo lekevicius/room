@@ -152,14 +152,14 @@ struct WindowMaterialTests {
         #expect(!view.mouseDownCanMoveWindow)
     }
 
-    @Test("No tint by default; a tint is a top-to-bottom gradient within 10–25%")
+    @Test("No tint by default; one colour is a gradient fading from the top within 10–25%")
     func tint() throws {
         let view = WindowMaterialView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
         #expect(colors(view).allSatisfy { $0.alphaComponent == 0 })
         view.setTintColor(.systemPurple, animated: false)
         let tinted = colors(view)
-        #expect(tinted.count == 2)
-        #expect(tinted[0].alphaComponent > tinted[1].alphaComponent)
+        #expect(tinted.count == 3)
+        #expect(tinted[0].alphaComponent > tinted[2].alphaComponent)
         for color in tinted {
             #expect(Materials.tintOpacityRange.contains(color.alphaComponent))
         }

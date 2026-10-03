@@ -15,9 +15,16 @@ public final class SidebarController: NSObject {
     public let bodyView = SidebarBodyView()
     /// Goes into `SidebarView.headerView`.
     public let addressField = AddressFieldView()
-    let outline = SidebarOutlineView()
     let grid = EssentialsGridView()
     let footer = SidebarFooterView()
+    /// One list per space of the window, built ahead of a switch; `pane` is
+    /// the active space's (`SpacePane`).
+    private(set) var panes: [UUID: SpacePane] = [:]
+    private(set) var pane: SpacePane
+    private var paneByOutline: [ObjectIdentifier: SpacePane] = [:]
+    /// The active space's outline and tree.
+    var outline: SidebarOutlineView { pane.outline }
+    var tree: SidebarTree { pane.tree }
 
     public let store: RoomStore
     public let windowID: UUID
@@ -25,10 +32,27 @@ public final class SidebarController: NSObject {
         didSet { reloadAll() }
     }
     public weak var toasts: ToastPresenting?
-    /// The active space was renamed or replaced (window title).
+    /// The active space was renamed, edited or replaced (window title, tint).
     public var onSpaceChange: ((Space) -> Void)?
+    /// The window's tint should show `theme` (`nil`: neutral): a switch
+    /// (`animated`: crossfaded over the slide's `Motion.medium`), an edited
+    /// theme, the form's live preview.
+    public var onTintChange: ((_ theme: SpaceTheme?, _ animated: Bool) -> Void)?
+    /// Confirmation dialogs (Delete Space, the cross-profile warning) answer
+    /// through this instead of a modal alert when set (tests).
+    public var confirmations: ((_ message: String) -> Bool)?
+    /// The space form while it is on screen (`SidebarSpaces`).
+    var spaceForm: SpaceFormState?
+    /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
+    var swipe = SpaceSwipe()
+    var wheel = SpaceWheel()
+    #if DEBUG
+    /// Lists loaded since launch (a switch to a prepared space loads none).
+    public private(set) var debugPaneLoads = 0
+    /// Called at the start (`true`) and end of every space switch (spike timing).
+    public var debugSwitchTiming: ((Bool) -> Void)?
+    #endif
 
-    private(set) var tree: SidebarTree
     private var token: ObservationToken?
     private var flagsMonitor: Any?
     private var hoveredNode: OutlineNode?
@@ -64,20 +88,20 @@ public final class SidebarController: NSObject {
         self.store = store
         self.windowID = windowID
         let spaceID = Self.activeSpace(store: store, windowID: windowID)
-        tree = SidebarTree(store: store.sidebar, spaceID: spaceID,
-                           selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
+        pane = SpacePane(store: store.sidebar, spaceID: spaceID,
+                         selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
         super.init()
-        bodyView.install(grid: grid, outline: outline, footer: footer)
-        outline.dataSource = self
-        outline.delegate = self
+        bodyView.install(grid: grid, footer: footer)
+        attach(pane)
         outline.events = self
-        outline.target = self
-        outline.action = #selector(outlineClicked(_:))
-        outline.doubleAction = #selector(outlineDoubleClicked(_:))
+        bodyView.show(pane.scrollView, direction: .forward, animated: false)
         grid.events = self
         grid.dropEvents = self
-        outline.registerForDraggedTypes(Self.acceptedDragTypes)
         grid.registerForDraggedTypes(Self.acceptedDragTypes)
+        footer.onSelectSpace = { [weak self] id in self?.showSpace(id) }
+        footer.spaceMenu = { [weak self] id in self?.spaceMenu(id) }
+        footer.dropEvents = self
+        bodyView.onScrollWheel = { [weak self] event in self?.handleSpaceScroll(event) ?? false }
         bodyView.onEmptyDoubleClick = { [weak self] in self?.host?.newTab() }
         bodyView.onOverflowClick = { [weak self] in self?.scrollToSelected() }
         bodyView.onScroll = { [weak self] in self?.updateOverflow() }
@@ -113,14 +137,135 @@ public final class SidebarController: NSObject {
         store.windows.selectedEntry(space: tree.spaceID, window: windowID)
     }
 
-    /// Shows `space` (switching animation is Phase 2.5).
-    public func showSpace(_ spaceID: UUID) {
-        guard sidebar.space(spaceID) != nil else { return }
-        store.windows.setActiveSpace(spaceID, window: windowID)
-        tree = SidebarTree(store: sidebar, spaceID: spaceID, selectedEntry: selectedEntryID)
-        reloadAll()
+    // MARK: Panes
+
+    private func attach(_ pane: SpacePane) {
+        let outline = pane.outline
+        // Registered first: setting the data source makes AppKit ask for rows at once.
+        panes[pane.spaceID] = pane
+        paneByOutline[ObjectIdentifier(outline)] = pane
+        outline.dataSource = self
+        outline.delegate = self
+        outline.target = self
+        outline.action = #selector(outlineClicked(_:))
+        outline.doubleAction = #selector(outlineDoubleClicked(_:))
+        outline.registerForDraggedTypes(Self.acceptedDragTypes)
+        pane.scrollView.spaceScroll = { [weak self] event in self?.handleSpaceScroll(event) ?? false }
+        bodyView.addList(pane.scrollView)
+    }
+
+    private func detach(_ pane: SpacePane) {
+        panes[pane.spaceID] = nil
+        paneByOutline[ObjectIdentifier(pane.outline)] = nil
+        pane.outline.dataSource = nil
+        pane.outline.delegate = nil
+        bodyView.removeList(pane.scrollView)
+    }
+
+    func pane(for outlineView: NSOutlineView) -> SpacePane {
+        paneByOutline[ObjectIdentifier(outlineView)] ?? pane
+    }
+
+    /// The selected entry of `pane`'s space in this window.
+    func selectedEntry(in pane: SpacePane) -> UUID? {
+        store.windows.selectedEntry(space: pane.spaceID, window: windowID)
+    }
+
+    /// The list of `spaceID`, built and loaded if it is not (the cost a
+    /// switch would otherwise pay: `SpacePane`).
+    @discardableResult
+    func preparedPane(_ spaceID: UUID) -> SpacePane? {
+        guard sidebar.space(spaceID) != nil else { return nil }
+        let target: SpacePane
+        if let existing = panes[spaceID] {
+            target = existing
+        } else {
+            target = SpacePane(store: sidebar, spaceID: spaceID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
+            attach(target)
+        }
+        if !target.isLoaded { load(target) }
+        return target
+    }
+
+    private func load(_ target: SpacePane) {
+        #if DEBUG
+        debugPaneLoads += 1
+        #endif
+        target.tree.selectedEntry = selectedEntry(in: target)
+        target.tree.reloadAll()
+        bodyView.layoutOffscreen(target.scrollView)
+        target.outline.reloadData()
+        target.outline.expandItem(nil, expandChildren: true)
+        target.isLoaded = true
+        updatePill(in: target, animated: false)
+        if let id = selectedEntry(in: target), let node = target.tree.displayedNode(for: id) {
+            let row = target.outline.row(forItem: node)
+            if row >= 0 { target.outline.scrollRowToVisible(row) }
+        }
+    }
+
+    /// Builds the lists of every space not built yet, one per run-loop turn
+    /// (after launch and when spaces are added), so switching never builds one.
+    public func prepareSpaces() {
+        guard let next = sidebar.spaces.first(where: { panes[$0.id]?.isLoaded != true }) else { return }
+        preparedPane(next.id)
+        DispatchQueue.main.async { [weak self] in self?.prepareSpaces() }
+    }
+
+    // MARK: Switching spaces (spec §B)
+
+    /// Shows `spaceID`: its list slides in over `Motion.medium` (crossfade
+    /// under Reduce Motion) from the side its icon is on, its remembered
+    /// selection comes back into the card, and the window's tint follows
+    /// (`onSpaceSwitch`).
+    public func showSpace(_ spaceID: UUID, animated: Bool = true) {
+        guard spaceID != tree.spaceID, let space = sidebar.space(spaceID), let target = preparedPane(spaceID) else { return }
+        let fromIndex = sidebar.spaces.firstIndex { $0.id == tree.spaceID } ?? 0
+        let toIndex = sidebar.spaces.firstIndex { $0.id == spaceID } ?? 0
+        switchPane(to: target, space: space, direction: SlideDirection(from: fromIndex, to: toIndex), animated: animated)
+    }
+
+    /// ⌥⌘→ (`offset` 1) / ⌥⌘← (−1), wrapping around (spec §B).
+    public func showAdjacentSpace(_ offset: Int) {
+        guard let target = SpaceRules.adjacent(to: tree.spaceID, offset: offset, in: sidebar.spaces) else { return }
+        guard let space = sidebar.space(target.id), let next = preparedPane(target.id) else { return }
+        // Wrapping keeps the direction of the key: → always slides in from the right.
+        switchPane(to: next, space: space, direction: offset > 0 ? .forward : .backward, animated: true)
+    }
+
+    /// ⌃1…⌃9, ⌃0 (spec §B).
+    public func showSpace(digit: Int) {
+        guard let space = SpaceRules.space(forDigit: digit, in: sidebar.spaces) else { return }
+        showSpace(space.id)
+    }
+
+    /// `slides` false: a swipe already moves the lists (`SidebarSwipe`).
+    func switchPane(to target: SpacePane, space: Space, direction: SlideDirection, animated: Bool, slides: Bool = true) {
+        #if DEBUG
+        debugSwitchTiming?(true)
+        defer { debugSwitchTiming?(false) }
+        #endif
+        let previousProfile = tree.space?.profileID
+        setHovered(nil)
+        clearMultiSelection()
+        focusedNode = nil
+        outline.events = nil
+        pane = target
+        outline.events = self
+        store.windows.setActiveSpace(space.id, window: windowID)
+        // The remembered selection's row may peek out of a collapsed folder.
+        if target.tree.selectedEntry != selectedEntryID { perform(target.tree.selectionChanged(to: selectedEntryID), in: target, animated: false) }
+        updatePill(in: target, animated: false)
+        if slides { bodyView.show(target.scrollView, direction: direction, animated: animated) }
+        footer.setSpaces(sidebar.spaces, active: space.id, animated: animated)
+        if space.profileID != previousProfile { reloadGrid(animated: animated) } else { refreshTiles() }
+        updateAddressField()
+        updateOverflow()
+        onTintChange?(space.theme, animated)
+        onSpaceChange?(space)
         if let id = selectedEntryID, let entry = sidebar.entry(id) { host?.activate(entry) } else { host?.deactivate() }
     }
+
 
     /// The host's pages changed (loaded, loading, audible, favicon…).
     public func pageStateDidChange(_ ids: Set<UUID>) {
@@ -140,13 +285,17 @@ public final class SidebarController: NSObject {
 
     // MARK: Reload
 
+    /// Rebuilds the active list, the grid and the footer from the store; the
+    /// other spaces' lists load again before they are next shown.
     func reloadAll() {
+        for other in panes.values where other !== pane { other.isLoaded = false }
         tree.selectedEntry = selectedEntryID
         tree.reloadAll()
         outline.reloadData()
         outline.expandItem(nil, expandChildren: true)
+        pane.isLoaded = true
         reloadGrid(animated: false)
-        footer.setSpaces(sidebar.spaces, active: tree.spaceID)
+        footer.setSpaces(sidebar.spaces, active: tree.spaceID, animated: false)
         updateAddressField()
         bodyView.needsLayout = true
         bodyView.layoutSubtreeIfNeeded()
@@ -164,8 +313,25 @@ public final class SidebarController: NSObject {
     private func apply(_ change: SidebarChange) {
         if change.removedSpaces.contains(tree.spaceID) || tree.space == nil {
             let next = store.windows.window(windowID)?.activeSpaceID.flatMap { sidebar.space($0) }?.id ?? sidebar.spaces.first?.id
-            if let next { showSpace(next) }
+            for removed in change.removedSpaces where removed != tree.spaceID { if let gone = panes[removed] { detach(gone) } }
+            let old = pane
+            if let next, next != old.spaceID, let space = sidebar.space(next), let target = preparedPane(next) {
+                switchPane(to: target, space: space, direction: .backward, animated: true)
+            }
+            if old !== pane, sidebar.space(old.spaceID) == nil {
+                // After its slide out (the list is still on screen until then).
+                DispatchQueue.main.asyncAfter(deadline: .now() + Motion.medium + 0.05) { [weak self] in
+                    guard let self, sidebar.space(old.spaceID) == nil, panes[old.spaceID] === old else { return }
+                    detach(old)
+                }
+            }
             return
+        }
+        for removed in change.removedSpaces { if let gone = panes[removed] { detach(gone) } }
+        // The other spaces' lists follow without animation (they are off screen).
+        for other in panes.values where other !== pane && other.isLoaded {
+            if let selected = other.tree.selectedEntry, sidebar.entry(selected) == nil { other.tree.selectedEntry = nil }
+            perform(other.tree.update(for: change), in: other, animated: false)
         }
         // The selected entry may have been removed; the window store drops it.
         if let selected = tree.selectedEntry, sidebar.entry(selected) == nil { tree.selectedEntry = nil }
@@ -173,8 +339,15 @@ public final class SidebarController: NSObject {
         perform(update)
         if update.essentialsChanged { reloadGrid(animated: true) }
         for id in change.entries { if let tile = grid.tile(for: id) { configureTile(tile) } }
-        if !change.spaces.isEmpty || !change.removedSpaces.isEmpty { footer.setSpaces(sidebar.spaces, active: tree.spaceID) }
-        if update.spaceChanged, let space = tree.space { onSpaceChange?(space) }
+        if !change.spaces.isEmpty || !change.removedSpaces.isEmpty {
+            footer.setSpaces(sidebar.spaces, active: tree.spaceID, animated: true)
+            // A new space's list is built in the background before it is first shown.
+            if sidebar.spaces.contains(where: { panes[$0.id] == nil }) { DispatchQueue.main.async { [weak self] in self?.prepareSpaces() } }
+        }
+        if update.spaceChanged, let space = tree.space {
+            onSpaceChange?(space)
+            if spaceForm == nil { onTintChange?(space.theme, true) }
+        }
         updateAddressField()
         retainMultiSelection()
         if let node = focusedNode, outline.row(forItem: node) < 0 { focusedNode = nil }
@@ -184,43 +357,50 @@ public final class SidebarController: NSObject {
 
     /// Applies row removals/insertions (150 ms ease-out fade, spec §I.1) and reconfigures.
     private func perform(_ update: SidebarTree.Update) {
+        perform(update, in: pane, animated: true)
+    }
+
+    private func perform(_ update: SidebarTree.Update, in target: SpacePane, animated: Bool) {
+        let outline = target.outline
         if update.changesRows {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = Motion.standard
+                context.duration = animated ? Motion.standard : 0
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 outline.beginUpdates()
                 for removal in update.removals {
-                    outline.removeItems(at: removal.indexes, inParent: removal.parent, withAnimation: .effectFade)
+                    outline.removeItems(at: removal.indexes, inParent: removal.parent, withAnimation: animated ? .effectFade : [])
                 }
                 for insertion in update.insertions {
-                    outline.insertItems(at: insertion.indexes, inParent: insertion.parent, withAnimation: .effectFade)
+                    outline.insertItems(at: insertion.indexes, inParent: insertion.parent, withAnimation: animated ? .effectFade : [])
                 }
                 outline.endUpdates()
             }
             for node in update.insertedExpandable { outline.expandItem(node, expandChildren: true) }
         }
-        for node in update.reconfigure { reconfigure(node) }
-        updatePill(animated: true)
-        if update.changesRows { outline.refreshHover() }
+        for node in update.reconfigure { reconfigure(node, in: target) }
+        updatePill(in: target, animated: animated)
+        if update.changesRows, target === pane { outline.refreshHover() }
     }
 
-    func reconfigure(_ node: OutlineNode) {
-        let row = outline.row(forItem: node)
-        guard row >= 0, let view = outline.view(atColumn: 0, row: row, makeIfNecessary: false) else { return }
-        configure(view, for: node)
+    func reconfigure(_ node: OutlineNode) { reconfigure(node, in: pane) }
+
+    private func reconfigure(_ node: OutlineNode, in target: SpacePane) {
+        let row = target.outline.row(forItem: node)
+        guard row >= 0, let view = target.outline.view(atColumn: 0, row: row, makeIfNecessary: false) else { return }
+        configure(view, for: node, in: target)
     }
 
-    private func configure(_ view: NSView, for node: OutlineNode) {
+    private func configure(_ view: NSView, for node: OutlineNode, in target: SpacePane) {
         switch (node.kind, view) {
         case (.entry, let cell as EntryCellView):
-            guard let entry = tree.entry(node) else { return }
-            let level = outline.level(forItem: node)
-            cell.configure(EntryRowModel(entry: entry, page: pageState(entry.id), isSelected: entry.id == selectedEntryID,
+            guard let entry = target.tree.entry(node) else { return }
+            let level = target.outline.level(forItem: node)
+            cell.configure(EntryRowModel(entry: entry, page: pageState(entry.id), isSelected: entry.id == selectedEntry(in: target),
                                          isChanged: isChanged(entry), depth: entry.kind == .today ? 0 : max(0, level - 1)))
         case (.spaceTitle, let cell as SpaceTitleCellView):
-            if let space = tree.space { cell.configure(space) }
+            if let space = target.tree.space { cell.configure(space) }
         case (.separator, let cell as SeparatorCellView):
-            cell.configure(todayCount: sidebar.today(space: tree.spaceID).count)
+            cell.configure(todayCount: sidebar.today(space: target.spaceID).count)
         default:
             break
         }
@@ -252,9 +432,12 @@ public final class SidebarController: NSObject {
         updateOverflow()
     }
 
-    func updatePill(animated: Bool) {
+    func updatePill(animated: Bool) { updatePill(in: pane, animated: animated) }
+
+    private func updatePill(in target: SpacePane, animated: Bool) {
+        let outline = target.outline
         var selectedRow = -1
-        if let id = selectedEntryID, let node = tree.displayedNode(for: id) {
+        if let id = selectedEntry(in: target), let node = target.tree.displayedNode(for: id) {
             selectedRow = outline.row(forItem: node)
         }
         outline.enumerateAvailableRowViews { rowView, row in
@@ -278,8 +461,13 @@ public final class SidebarController: NSObject {
     private func reloadGrid(animated: Bool) {
         let ids = tree.essentialIDs
         grid.setEntries(ids, animated: animated)
-        for id in ids { if let tile = grid.tile(for: id) { configureTile(tile) } }
+        refreshTiles()
         bodyView.needsLayout = true
+    }
+
+    /// Tiles show the active space's selection (essentials are shared by its profile's spaces).
+    private func refreshTiles() {
+        for id in tree.essentialIDs { if let tile = grid.tile(for: id) { configureTile(tile) } }
     }
 
     func configureTile(_ tile: EssentialTileView) {
@@ -297,7 +485,13 @@ public final class SidebarController: NSObject {
         switch node.kind {
         case .newTab:
             host?.newTab()
-        case .spaceTitle, .separator:
+        case .spaceTitle:
+            // A click on the name renames the space inline (spec §B).
+            if let event, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? SpaceTitleCellView,
+               cell.nameRect.insetBy(dx: -2, dy: -4).contains(cell.convert(event.locationInWindow, from: nil)) {
+                cell.beginRename()
+            }
+        case .separator:
             break
         case .entry(let id):
             guard let entry = sidebar.entry(id) else { return }
@@ -483,7 +677,7 @@ public final class SidebarController: NSObject {
 
     func setHoveredForDebug(_ node: OutlineNode?) { setHovered(node) }
 
-    private func setHovered(_ node: OutlineNode?) {
+    func setHovered(_ node: OutlineNode?) {
         guard node !== hoveredNode else { return }
         setHover(false, on: hoveredNode)
         hoveredNode = node
@@ -545,15 +739,15 @@ public final class SidebarController: NSObject {
 
 extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        tree.children(of: item as? OutlineNode).count
+        pane(for: outlineView).tree.children(of: item as? OutlineNode).count
     }
 
     public func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        tree.children(of: item as? OutlineNode)[index]
+        pane(for: outlineView).tree.children(of: item as? OutlineNode)[index]
     }
 
     public func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        (item as? OutlineNode).map(tree.isExpandable) ?? false
+        (item as? OutlineNode).map(pane(for: outlineView).tree.isExpandable) ?? false
     }
 
     public func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool { false }
@@ -620,11 +814,12 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
 
     public func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
         guard let rowView = rowView as? SidebarRowView, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
-        rowView.isSelectedEntry = node.entryID != nil && node.entryID == selectedEntryID
-        rowView.isHovered = node === hoveredNode
-        rowView.isMultiSelected = node.entryID.map(multiSelection.contains) ?? false
-        rowView.showsFocusRing = focusRingVisible && node === focusedNode && outline.window?.firstResponder === outline
-            && outline.window?.isKeyWindow == true
+        let isActive = pane(for: outlineView) === pane
+        rowView.isSelectedEntry = node.entryID != nil && node.entryID == selectedEntry(in: pane(for: outlineView))
+        rowView.isHovered = isActive && node === hoveredNode
+        rowView.isMultiSelected = isActive && (node.entryID.map(multiSelection.contains) ?? false)
+        rowView.showsFocusRing = isActive && focusRingVisible && node === focusedNode && outlineView.window?.firstResponder === outlineView
+            && outlineView.window?.isKeyWindow == true
         rowView.isDropTarget = false
         rowView.alphaValue = node.entryID.map { drag?.ids.contains($0) == true } == true ? SidebarMetrics.draggedRowAlpha : 1
     }
@@ -642,6 +837,8 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
             let cell = outlineView.makeView(withIdentifier: SpaceTitleCellView.identifier, owner: self) as? SpaceTitleCellView
                 ?? SpaceTitleCellView()
             cell.onToggle = { [weak self] in self?.togglePinnedCollapsed() }
+            cell.onMore = { [weak self] button in self?.showSpaceMenu(at: button) }
+            cell.onRenameEnded = { [weak self] name in self?.spaceRenameEnded(name) }
             view = cell
         case .separator:
             let cell = outlineView.makeView(withIdentifier: SeparatorCellView.identifier, owner: self) as? SeparatorCellView
@@ -652,7 +849,7 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
         case .newTab:
             view = outlineView.makeView(withIdentifier: NewTabCellView.identifier, owner: self) ?? NewTabCellView()
         }
-        configure(view, for: node)
+        configure(view, for: node, in: pane(for: outlineView))
         return view
     }
 
@@ -673,7 +870,9 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
     func outlineEmptyAreaDoubleClicked() { host?.newTab() }
 
     func outlineMenu(forRow row: Int) -> NSMenu? {
-        guard let id = (outline.item(atRow: row) as? OutlineNode)?.entryID else { return nil }
+        guard let node = outline.item(atRow: row) as? OutlineNode else { return nil }
+        if node.kind == .spaceTitle { return spaceMenu(tree.spaceID) }
+        guard let id = node.entryID else { return nil }
         return menu(forClicked: id)
     }
 
@@ -716,13 +915,18 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
     func tileMenu(_ id: UUID) -> NSMenu? { menu(forClicked: id) }
 }
 
-/// The sidebar below the header: Essentials, the outline (with the
-/// overflow indicators at its edges, spec §I.11), the footer. A
-/// double-click on its empty background is a new tab (spec §F).
+/// The sidebar below the header: Essentials, the lists (one per space,
+/// only the active one shown, with the overflow indicators at their edges,
+/// spec §I.11), the footer. Space switches slide the lists (spec §B); the
+/// grid and the footer stay put. A double-click on its empty background is
+/// a new tab (spec §F).
 public final class SidebarBodyView: NSView {
     private(set) var grid: EssentialsGridView?
-    private(set) var scrollView = NSScrollView()
     private(set) var footer: SidebarFooterView?
+    /// Clips the lists while they slide.
+    let listContainer = ListContainerView()
+    /// The list on screen (a space's scroll view, or the new-space form).
+    private(set) weak var activeList: NSView?
     private let overflowTop = OverflowIndicatorView(edge: .top)
     private let overflowBottom = OverflowIndicatorView(edge: .bottom)
     var onEmptyDoubleClick: (() -> Void)?
@@ -732,43 +936,210 @@ public final class SidebarBodyView: NSView {
             overflowBottom.onClick = onOverflowClick
         }
     }
-    /// The list scrolled.
+    /// The active list scrolled.
     var onScroll: (() -> Void)?
+    /// Scroll events over the grid, the footer and the gaps (space swipes, ⌃+wheel).
+    var onScrollWheel: ((NSEvent) -> Bool)?
+    /// Stretches the slide (DEBUG captures of a mid-slide frame).
+    var slideSlowdown: Double = 1
+    /// Finishes the running slide at once (a new switch starts from the end state).
+    private var finishSlide: (() -> Void)?
+    /// The lists under a two-finger swipe: the current one and its neighbour.
+    private var interactive: (current: NSView, neighbour: NSView?, sign: CGFloat)?
 
     public override var isFlipped: Bool { true }
     public override var mouseDownCanMoveWindow: Bool { true }
 
-    func install(grid: EssentialsGridView, outline: NSOutlineView, footer: SidebarFooterView) {
+    func install(grid: EssentialsGridView, footer: SidebarFooterView) {
         self.grid = grid
         self.footer = footer
-        scrollView.documentView = outline
-        // Height comes from `tile()` in `layout()`: with height autoresizing a
-        // shorter window shrank the outline below its rows (2.2b), cutting off the last ones.
-        outline.autoresizingMask = [.width]
-        scrollView.drawsBackground = false
-        scrollView.contentView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.scrollerStyle = .overlay
-        scrollView.automaticallyAdjustsContentInsets = false
-        scrollView.contentInsets = NSEdgeInsetsZero
-        scrollView.verticalScrollElasticity = .allowed
-        scrollView.contentView.postsBoundsChangedNotifications = true
-        NotificationCenter.default.addObserver(self, selector: #selector(clipViewScrolled(_:)),
-                                               name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
         footer.onEmptyDoubleClick = { [weak self] in self?.onEmptyDoubleClick?() }
+        listContainer.wantsLayer = true
+        listContainer.layer?.masksToBounds = true
         addSubview(grid)
-        addSubview(scrollView)
+        addSubview(listContainer)
         addSubview(footer)
         addSubview(overflowTop)
         addSubview(overflowBottom)
     }
 
-    @objc private func clipViewScrolled(_ notification: Notification) { onScroll?() }
+    /// Adds a list (hidden until shown).
+    func addList(_ view: NSView) {
+        guard view.superview !== listContainer else { return }
+        view.isHidden = true
+        view.wantsLayer = true
+        view.frame = listContainer.bounds
+        listContainer.addSubview(view)
+        if let scrollView = view as? NSScrollView {
+            NotificationCenter.default.addObserver(self, selector: #selector(clipViewScrolled(_:)),
+                                                   name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        }
+    }
+
+    func removeList(_ view: NSView) {
+        if let scrollView = view as? NSScrollView {
+            NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        }
+        if activeList === view { activeList = nil }
+        view.removeFromSuperview()
+    }
+
+    @objc private func clipViewScrolled(_ notification: Notification) {
+        guard (notification.object as? NSView)?.superview === activeList else { return }
+        onScroll?()
+    }
 
     func setOverflow(above: Bool, below: Bool) {
         overflowTop.isHidden = !above
         overflowBottom.isHidden = !below
+    }
+
+    // MARK: Switching lists (spec §B, §I.1)
+
+    /// Shows `incoming` in place of the active list: both slide horizontally
+    /// by the list's width over `Motion.medium`, ease-out (`direction`: which
+    /// side the new one comes from); under Reduce Motion they crossfade.
+    /// Compositor-only (layer animations on lists that already have their
+    /// rows), so the first frame does not wait on any reload.
+    func show(_ incoming: NSView, direction: SlideDirection, animated: Bool, completion: (() -> Void)? = nil) {
+        finishSlide?()
+        cancelInteractive()
+        let outgoing = activeList
+        activeList = incoming
+        incoming.frame = listContainer.bounds
+        incoming.isHidden = false
+        guard animated, let outgoing, outgoing !== incoming, listContainer.bounds.width > 0, window != nil else {
+            if let outgoing, outgoing !== incoming { outgoing.isHidden = true }
+            needsLayout = true
+            completion?()
+            return
+        }
+        let width = listContainer.bounds.width
+        animate(incoming, from: Self.offsetTransform(width * direction.sign), to: CATransform3DIdentity,
+                outgoing, from: CATransform3DIdentity, to: Self.offsetTransform(-width * direction.sign), completion: completion)
+    }
+
+    private func animate(_ incoming: NSView, from inStart: CATransform3D, to inEnd: CATransform3D,
+                         _ outgoing: NSView, from outStart: CATransform3D, to outEnd: CATransform3D, completion: (() -> Void)?) {
+        guard let inLayer = incoming.layer, let outLayer = outgoing.layer else { return }
+        var finished = false
+        let finish: () -> Void = { [weak self, weak incoming, weak outgoing] in
+            guard !finished else { return }
+            finished = true
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            outgoing?.isHidden = self?.activeList !== outgoing
+            for layer in [incoming?.layer, outgoing?.layer].compactMap({ $0 }) {
+                layer.removeAnimation(forKey: "slide")
+                layer.removeAnimation(forKey: "fade")
+                layer.transform = CATransform3DIdentity
+                layer.opacity = 1
+            }
+            CATransaction.commit()
+            self?.finishSlide = nil
+            completion?()
+        }
+        finishSlide = finish
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        CATransaction.setCompletionBlock { finish() }
+        if Motion.reduceMotion {
+            // Crossfade only (spec §I.1).
+            inLayer.transform = CATransform3DIdentity
+            outLayer.transform = CATransform3DIdentity
+            inLayer.add(basic("opacity", from: 0, to: 1), forKey: "fade")
+            outLayer.add(basic("opacity", from: 1, to: 0), forKey: "fade")
+            outLayer.opacity = 0
+        } else {
+            inLayer.transform = inEnd
+            outLayer.transform = outEnd
+            inLayer.add(basic("transform", from: NSValue(caTransform3D: inStart), to: NSValue(caTransform3D: inEnd)), forKey: "slide")
+            outLayer.add(basic("transform", from: NSValue(caTransform3D: outStart), to: NSValue(caTransform3D: outEnd)), forKey: "slide")
+        }
+        CATransaction.commit()
+    }
+
+    private static func basic(_ keyPath: String, from: Any, to: Any) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: keyPath)
+        animation.fromValue = from
+        animation.toValue = to
+        animation.duration = Motion.medium
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        return animation
+    }
+
+    private func basic(_ keyPath: String, from: Any, to: Any) -> CABasicAnimation {
+        let animation = Self.basic(keyPath, from: from, to: to)
+        animation.duration *= slideSlowdown
+        return animation
+    }
+
+    static func offsetTransform(_ x: CGFloat) -> CATransform3D { CATransform3DMakeTranslation(x, 0, 0) }
+
+    // MARK: Two-finger swipe (spec §B)
+
+    /// The lists follow the fingers: `progress` in list widths (+ = towards
+    /// the neighbour on the right); `neighbour` slides in from that side
+    /// (`nil` at an end: the current list rubber-bands alone).
+    func trackSwipe(current: NSView, neighbour: NSView?, progress: CGFloat) {
+        finishSlide?()
+        let sign: CGFloat = progress >= 0 ? 1 : -1
+        if let interactive, interactive.current !== current || interactive.neighbour !== neighbour {
+            cancelInteractive()
+        }
+        interactive = (current, neighbour, sign)
+        let width = listContainer.bounds.width
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        current.layer?.transform = Self.offsetTransform(-progress * width)
+        if let neighbour {
+            if neighbour.isHidden {
+                neighbour.frame = listContainer.bounds
+                neighbour.isHidden = false
+            }
+            neighbour.layer?.transform = Self.offsetTransform((sign - progress) * width)
+        }
+        CATransaction.commit()
+    }
+
+    /// Ends a swipe: to the neighbour (it becomes the active list) or back.
+    func endSwipe(toNeighbour: Bool, completion: (() -> Void)? = nil) {
+        guard let (current, neighbour, sign) = interactive else {
+            completion?()
+            return
+        }
+        interactive = nil
+        let width = listContainer.bounds.width
+        let currentNow = current.layer?.presentation()?.transform ?? current.layer?.transform ?? CATransform3DIdentity
+        if toNeighbour, let neighbour {
+            let neighbourNow = neighbour.layer?.presentation()?.transform ?? neighbour.layer?.transform ?? CATransform3DIdentity
+            activeList = neighbour
+            animate(neighbour, from: neighbourNow, to: CATransform3DIdentity, current, from: currentNow,
+                    to: Self.offsetTransform(-sign * width), completion: completion)
+        } else if let neighbour {
+            let neighbourNow = neighbour.layer?.presentation()?.transform ?? neighbour.layer?.transform ?? CATransform3DIdentity
+            activeList = current
+            animate(current, from: currentNow, to: CATransform3DIdentity, neighbour, from: neighbourNow,
+                    to: Self.offsetTransform(sign * width), completion: completion)
+        } else {
+            CATransaction.begin()
+            CATransaction.setCompletionBlock { completion?() }
+            current.layer?.transform = CATransform3DIdentity
+            current.layer?.add(basic("transform", from: NSValue(caTransform3D: currentNow),
+                                          to: NSValue(caTransform3D: CATransform3DIdentity)), forKey: "slide")
+            CATransaction.commit()
+        }
+    }
+
+    private func cancelInteractive() {
+        guard let (current, neighbour, _) = interactive else { return }
+        interactive = nil
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        current.layer?.transform = CATransform3DIdentity
+        neighbour?.layer?.transform = CATransform3DIdentity
+        if let neighbour, neighbour !== activeList { neighbour.isHidden = true }
+        CATransaction.commit()
     }
 
     public override func mouseDown(with event: NSEvent) {
@@ -777,6 +1148,11 @@ public final class SidebarBodyView: NSView {
         } else {
             window?.performDrag(with: event)
         }
+    }
+
+    public override func scrollWheel(with event: NSEvent) {
+        if onScrollWheel?(event) == true { return }
+        super.scrollWheel(with: event)
     }
 
     public override func layout() {
@@ -788,16 +1164,32 @@ public final class SidebarBodyView: NSView {
         let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + Spacing.xs : 0
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
-        scrollView.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - footerHeight - top))
-        if let outline = scrollView.documentView as? NSOutlineView {
+        listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - footerHeight - top))
+        for list in listContainer.subviews {
+            list.frame = listContainer.bounds
+            guard !list.isHidden, let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { continue }
             outline.sizeLastColumnToFit()
             outline.tile()
         }
         let hit = SidebarMetrics.overflowHitHeight
-        overflowTop.frame = NSRect(x: 0, y: scrollView.frame.minY, width: bounds.width, height: hit)
-        overflowBottom.frame = NSRect(x: 0, y: scrollView.frame.maxY - hit, width: bounds.width, height: hit)
+        overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: hit)
+        overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - hit, width: bounds.width, height: hit)
         onScroll?()
     }
+
+    /// Lays out a list that is not on screen yet (a pane built ahead of a switch).
+    func layoutOffscreen(_ list: NSView) {
+        list.frame = listContainer.bounds
+        guard let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { return }
+        outline.sizeLastColumnToFit()
+        outline.tile()
+    }
+}
+
+/// The clipping box the lists slide in.
+final class ListContainerView: NSView {
+    override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { true }
 }
 
 #if DEBUG
@@ -819,6 +1211,30 @@ extension SidebarController {
 
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
+
+    /// Spaces whose list is built and loaded.
+    public var debugPreparedSpaces: Int { panes.values.filter(\.isLoaded).count }
+
+    /// Reloads `space`'s list from scratch off screen (what a switch would
+    /// cost without prepared lists: `SpacePane`).
+    public func debugReloadPane(_ space: UUID) {
+        guard let target = panes[space], target !== pane else { return }
+        target.isLoaded = false
+        preparedPane(space)
+    }
+
+    /// Space switches run `factor` times slower (a mid-slide capture).
+    public func debugSetSlideSlowdown(_ factor: Double) { bodyView.slideSlowdown = factor }
+
+    /// The footer's name label as if the pointer were on `space`'s icon.
+    public func debugHoverSpaceIcon(_ space: UUID?) { footer.debugHover(space) }
+
+    /// The space form on screen, as Edit Theme… or New Space shows it.
+    public func debugShowSpaceForm(edit space: UUID?) {
+        if let space { editSpace(space, focus: .theme) } else { newSpace() }
+    }
+
+    public func debugDismissSpaceForm() { dismissSpaceForm(animated: false) }
 
     public var debugOutline: NSOutlineView { outline }
 

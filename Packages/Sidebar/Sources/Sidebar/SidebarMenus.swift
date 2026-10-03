@@ -35,7 +35,7 @@ extension SidebarController {
         menu.addItem(action(CommandName.newTab, symbol: .newTab, key: "t") { [weak self] in self?.host?.newTab() })
         menu.addItem(action(CommandName.newFolder, symbol: .newFolder) { [weak self] in self?.newFolder(parent: nil) })
         menu.addItem(later(CommandName.newSplit, symbol: .newSplit, phase: "2.7", key: "=", modifiers: [.command, .shift]))
-        menu.addItem(later(CommandName.newSpace, symbol: .newSpace, phase: "2.5"))
+        menu.addItem(action(CommandName.newSpace, symbol: .newSpace) { [weak self] in self?.newSpace() })
         return menu
     }
 
@@ -367,18 +367,7 @@ extension SidebarController {
     }
 
     func move(_ id: UUID, toSpace space: UUID) {
-        guard let entry = sidebar.entry(id) else { return }
-        if selectedEntryID == id, let plan = sidebar.closePlan(for: id, behavior: .close, space: tree.spaceID) {
-            applyFallback(plan.fallback)
-        }
-        let container: Container = entry.kind == .today
-            ? .today(space: space)
-            : .pinned(space: space, folder: nil)
-        let index = entry.kind == .today ? 0 : sidebar.pinned(space: space).count
-        try? sidebar.move(id, to: container, at: index)
-        if let name = sidebar.space(space)?.name {
-            toasts?.show(Toast(id: "moved", symbol: .moveTo, message: "Moved to \(name)"))
-        }
+        moveEntries([id], toSpace: space)
     }
 
     func moveToFolder(_ id: UUID, folder: UUID?) {

@@ -306,15 +306,26 @@ final class AudioIndicatorView: NSImageView {
 
 /// The space title above the pinned list: icon, name, and a chevron that
 /// collapses the pinned section (spec §B).
-final class SpaceTitleCellView: NSTableCellView {
+/// The space title row (spec §B): icon and name, a click on the name renames
+/// it inline, "…" on hover opens the space menu, the chevron collapses the
+/// pinned section (Arc).
+final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     static let identifier = NSUserInterfaceItemIdentifier("space-title")
 
     private let iconField = makeLabel(font: Typography.spaceTitle, color: .secondaryLabelColor)
+    private let iconImage = NSImageView()
     private let nameField = makeLabel(font: Typography.spaceTitle, color: .labelColor)
     let chevron = makeIconButton(.disclosure, size: 9, label: "Collapse Pinned")
+    let moreButton = makeIconButton(.more, size: 11, label: "Space Menu")
     var onToggle: (() -> Void)?
+    /// "…" was clicked: the space menu, below the button.
+    var onMore: ((NSButton) -> Void)?
+    /// An inline rename ended (`nil` name: cancelled).
+    var onRenameEnded: ((String?) -> Void)?
     var isHovered = false { didSet { updateChevron() } }
     private var isCollapsed = false
+    private(set) var isRenaming = false
+    private var spaceName = ""
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -322,8 +333,15 @@ final class SpaceTitleCellView: NSTableCellView {
         chevron.target = self
         chevron.action = #selector(toggle)
         chevron.setAccessibilityIdentifier("pinned-collapse")
+        moreButton.target = self
+        moreButton.action = #selector(more)
+        moreButton.setAccessibilityIdentifier("space-more")
+        nameField.delegate = self
+        iconImage.contentTintColor = .secondaryLabelColor
         addSubview(iconField)
+        addSubview(iconImage)
         addSubview(nameField)
+        addSubview(moreButton)
         addSubview(chevron)
     }
 
@@ -333,8 +351,20 @@ final class SpaceTitleCellView: NSTableCellView {
     override var isFlipped: Bool { true }
 
     func configure(_ space: Space) {
-        nameField.stringValue = space.name
-        iconField.stringValue = space.icon.flatMap { $0.unicodeScalars.first?.properties.isEmoji == true ? $0 : nil } ?? ""
+        spaceName = space.name
+        if !isRenaming { nameField.stringValue = space.name }
+        switch SpaceIcon(space.icon) {
+        case .emoji(let emoji):
+            iconField.stringValue = emoji
+            iconImage.image = nil
+        case .symbol(let name):
+            iconField.stringValue = ""
+            iconImage.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold))
+        case .none:
+            iconField.stringValue = ""
+            iconImage.image = nil
+        }
         isCollapsed = space.pinnedCollapsed
         chevron.setAccessibilityLabel(isCollapsed ? "Expand Pinned" : "Collapse Pinned")
         chevron.toolTip = chevron.accessibilityLabel()
@@ -345,11 +375,58 @@ final class SpaceTitleCellView: NSTableCellView {
 
     private func updateChevron() {
         chevron.isHidden = !(isHovered || isCollapsed)
+        moreButton.isHidden = !isHovered || isRenaming
         chevron.image = (isCollapsed ? Symbol.forward : Symbol.disclosure).image(pointSize: 9, weight: .medium,
                                                                                  accessibilityDescription: chevron.accessibilityLabel())
     }
 
     @objc private func toggle() { onToggle?() }
+    @objc private func more() { onMore?(moreButton) }
+
+    /// The name's frame (a click there renames).
+    var nameRect: NSRect { nameField.frame }
+
+    // MARK: Rename (spec §B: click the name to rename inline)
+
+    func beginRename() {
+        guard let window, !isRenaming else { return }
+        isRenaming = true
+        nameField.isEditable = true
+        nameField.isSelectable = true
+        nameField.drawsBackground = true
+        nameField.backgroundColor = .textBackgroundColor
+        nameField.focusRingType = .none
+        updateChevron()
+        window.makeFirstResponder(nameField)
+        nameField.currentEditor()?.selectAll(nil)
+    }
+
+    private func endRename(committed: Bool) {
+        guard isRenaming else { return }
+        isRenaming = false
+        let text = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        nameField.isEditable = false
+        nameField.isSelectable = false
+        nameField.drawsBackground = false
+        nameField.stringValue = spaceName
+        updateChevron()
+        onRenameEnded?(committed && !text.isEmpty ? text : nil)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(NSResponder.insertNewline(_:)):
+            endRename(committed: true)
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            endRename(committed: false)
+            return true
+        default:
+            return false
+        }
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) { endRename(committed: true) }
 
     override func layout() {
         super.layout()
@@ -359,14 +436,24 @@ final class SpaceTitleCellView: NSTableCellView {
         if !iconField.stringValue.isEmpty {
             let width = ceil(iconField.cell?.cellSize.width ?? 16)
             iconField.frame = NSRect(x: x, y: y, width: width, height: height)
+            iconImage.frame = .zero
             x += width + SidebarMetrics.faviconTitleGap
+        } else if iconImage.image != nil {
+            let side = SidebarMetrics.faviconSize
+            iconImage.frame = NSRect(x: x, y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
+            iconField.frame = .zero
+            x += side + SidebarMetrics.faviconTitleGap
         } else {
             iconField.frame = .zero
+            iconImage.frame = .zero
         }
         let chevronSize = SidebarMetrics.chevronSize
         let trailing = bounds.width - SidebarMetrics.rowHorizontalInset - Spacing.xs
         chevron.frame = NSRect(x: trailing - chevronSize, y: (bounds.height - chevronSize) / 2, width: chevronSize, height: chevronSize)
-        nameField.frame = NSRect(x: x, y: y, width: max(0, trailing - chevronSize - x), height: height)
+        moreButton.frame = chevron.frame.offsetBy(dx: -chevronSize, dy: 0)
+        let nameWidth = ceil(nameField.cell?.cellSize.width ?? 0)
+        nameField.frame = NSRect(x: x, y: y, width: max(0, min(isRenaming ? .greatestFiniteMagnitude : nameWidth + 2,
+                                                                moreButton.frame.minX - x)), height: height)
     }
 }
 
