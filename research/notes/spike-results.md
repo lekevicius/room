@@ -225,6 +225,20 @@ What changed between the first and the final build: building the providers' snap
 
 The keystroke tail is the first keystroke of each query (9 of 77): the list appears and the panel grows from the field alone to up to 8 rows (22 ms median). Every later keystroke is under 16 ms at p95 (6.4–6.6 ms). Laying a full list out once at prewarm did not change it (tried, reverted). 2.4b measures keystroke-to-local-results at 50k history rows against the same split.
 
+**Visible-window run (the user, 2026-10-03 13:06Z, screen unlocked, Room frontmost, `window_main: true`, load 5.7 3.2 3.1, same build and method).** The display link now fires, so open-to-first-frame is measured: the time from `toggleNew()` to the panel's next display-link callback.
+
+| Measure | Median | p95 | Max |
+|---|---|---|---|
+| Open call (our code) | 7.28 ms | 8.83 ms | 19.64 ms |
+| Open turn (incl. AppKit layout, display, commit) | 20.28 ms | 22.67 ms | 39.79 ms |
+| **Open to next frame** | **25.75 ms** | **36.79 ms** | 43.65 ms |
+| Keystroke to rows, all (n = 77) | 4.87 ms | 18.49 ms | 33.81 ms |
+| First key of a query (n = 9) | 18.49 ms | 27.21 ms | 33.81 ms |
+| Later keys (n = 68) | 4.49 ms | **11.06 ms** | 14.54 ms |
+| Providers + scorer alone (n = 86) | 2.45 ms | 5.26 ms | 10.90 ms |
+
+The palette appears 1.5–2 frames at 60 Hz (3–4 at 120 Hz) after ⌘T; the open turn is ~5 ms longer than in the occluded runs (a visible window composites). Later keystrokes stay under 16 ms at p95; the first key of a query is still the panel growing. No 2.4a target applied; the open is the number to bring down (first candidate: build the sidebar snapshot on the first keystroke instead of at open, about 4–6 ms of the open call).
+
 Behaviour on CEF (`scripts/run-spike.sh palette -RoomSidebarFixture demo`, key events into the field editor; the window was not key, so key equivalents that need a key window were not exercised):
 
 | Check | Result |
