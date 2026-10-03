@@ -90,6 +90,8 @@ public enum Symbol: CaseIterable, Sendable {
     case share
     case extensions
     case settings
+    /// Palette: Switch to Light/Dark/Auto Appearance (2.4b).
+    case appearance
 
     // Permission prompts (§3.4 of the engine API, Chapter 2.6)
     case camera
@@ -176,6 +178,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .share: "square.and.arrow.up"
         case .extensions: "puzzlepiece.extension"
         case .settings: "gearshape"
+        case .appearance: "circle.lefthalf.filled"
         case .camera: "camera"
         case .microphone: "mic"
         case .location: "location"

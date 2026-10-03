@@ -107,7 +107,11 @@ final class PaletteFixture {
         sidebar.host = tabs
         palette = PaletteController(hostView: hostView, tabs: tabs, sidebar: sidebar)
         palette.now = { [unowned self] in clock }
+        palette.clipboard = clipboard
     }
+
+    /// Paste & Go's clipboard: tests never touch the real one.
+    let clipboard = FakeClipboard()
 
     deinit { try? FileManager.default.removeItem(at: directory) }
 

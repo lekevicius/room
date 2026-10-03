@@ -41,6 +41,9 @@ final class PalettePanelView: NSView {
     private let content = FlippedView()
     private let searchIcon = NSImageView()
     private let separator = NSBox()
+    /// The site-search chip ("YouTube") left of the field (spec §C).
+    private let chip = NSView()
+    private let chipLabel = NSTextField(labelWithString: "")
     private lazy var rowsView = NSHostingView(rootView: PaletteRowsView(model: rows))
 
     override init(frame: NSRect) {
@@ -53,6 +56,13 @@ final class PalettePanelView: NSView {
         searchIcon.contentTintColor = .secondaryLabelColor
         separator.boxType = .separator
         rowsView.sizingOptions = []
+        chip.wantsLayer = true
+        chip.layer?.cornerRadius = PaletteMetrics.chipHeight / 2
+        chip.isHidden = true
+        chipLabel.font = NSFont.systemFont(ofSize: Typography.secondary.pointSize, weight: .semibold)
+        chipLabel.textColor = .labelColor
+        chip.addSubview(chipLabel)
+        content.addSubview(chip)
         content.addSubview(searchIcon)
         content.addSubview(field)
         content.addSubview(separator)
@@ -71,6 +81,24 @@ final class PalettePanelView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// Shows the site-search chip with `name`, or hides it (`nil`).
+    func setChip(_ name: String?) {
+        chip.isHidden = name == nil
+        chipLabel.stringValue = name ?? ""
+        field.placeholderString = name.map { "Search \($0)…" } ?? PaletteField.placeholder
+        needsLayout = true
+    }
+
+    override func updateLayer() {
+        super.updateLayer()
+        chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        effectiveAppearance.performAsCurrentDrawingAppearance { chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor }
+    }
+
     /// The panel's height for `rowCount` rows in `groupCount` groups.
     static func height(rowCount: Int, groupCount: Int) -> CGFloat {
         guard rowCount > 0 else { return PaletteMetrics.fieldHeight }
@@ -85,7 +113,17 @@ final class PalettePanelView: NSView {
         let icon: CGFloat = 18
         searchIcon.frame = NSRect(x: inset, y: (PaletteMetrics.fieldHeight - icon) / 2, width: icon, height: icon)
         let fieldHeight = ceil(field.intrinsicContentSize.height)
-        let x = searchIcon.frame.maxX + PaletteMetrics.listPadding + 4
+        var x = searchIcon.frame.maxX + PaletteMetrics.listPadding + 4
+        if !chip.isHidden {
+            let label = chipLabel.intrinsicContentSize
+            let width = ceil(label.width) + 2 * PaletteMetrics.chipPadding
+            chip.frame = NSRect(x: x, y: ((PaletteMetrics.fieldHeight - PaletteMetrics.chipHeight) / 2).rounded(), width: width,
+                                height: PaletteMetrics.chipHeight)
+            chipLabel.frame = NSRect(x: PaletteMetrics.chipPadding, y: ((PaletteMetrics.chipHeight - ceil(label.height)) / 2).rounded(),
+                                     width: ceil(label.width), height: ceil(label.height))
+            effectiveAppearance.performAsCurrentDrawingAppearance { chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor }
+            x = chip.frame.maxX + PaletteMetrics.listPadding
+        }
         field.frame = NSRect(x: x, y: ((PaletteMetrics.fieldHeight - fieldHeight) / 2).rounded(), width: max(0, width - x - inset),
                              height: fieldHeight)
         let hasRows = !rows.rows.isEmpty
@@ -127,6 +165,8 @@ final class PalettePanelView: NSView {
 /// palette type size. Its delegate (the controller) handles ↑/↓/⏎/⎋/⇥
 /// through the field editor's commands.
 final class PaletteField: NSTextField {
+    static let placeholder = "Search or enter URL…"
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         isBordered = false
@@ -134,7 +174,7 @@ final class PaletteField: NSTextField {
         drawsBackground = false
         focusRingType = .none
         font = Typography.paletteField
-        placeholderString = "Search or enter URL…"
+        placeholderString = Self.placeholder
         usesSingleLineMode = true
         cell?.wraps = false
         cell?.isScrollable = true

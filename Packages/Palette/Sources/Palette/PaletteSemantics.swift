@@ -38,8 +38,10 @@ nonisolated public enum CommitAction: Equatable, Sendable {
     case reloadCurrent
     /// Select an existing entry, showing its space first.
     case switchTo(entry: UUID, space: UUID?)
-    /// 2.4b: run a registry command.
+    /// Run a registry command (the palette closes first).
     case runCommand(id: String)
+    /// Put a site-search chip in the field (the palette stays open).
+    case enterSiteSearch(keyword: String)
     /// Nothing to commit (an empty field).
     case none
 }
@@ -84,6 +86,11 @@ nonisolated public enum PaletteSemantics {
             }
         case .command(let id):
             return .runCommand(id: id)
+        case .enterSiteSearch(let keyword):
+            return .enterSiteSearch(keyword: keyword)
+        case .pasteAndGo:
+            // The palette reads the clipboard and commits what it holds instead.
+            return .none
         }
     }
 

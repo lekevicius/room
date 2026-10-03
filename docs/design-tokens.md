@@ -176,3 +176,16 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Timing.typedTextMemory` | 45 s | spec §C (Zen `wait-to-clear`) |
 | `Symbol.openURL` | `globe` | the verbatim URL row |
 | Max rows | 8 (`OmniboxResult.limit`) | spec §C |
+
+## Added in Phase 2.4b (palette: history, commands, site search, suggest)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `Timing.suggestDebounce` | 0.12 s | ROADMAP 2.4 task 6 (120 ms); `macos-ui-stack.md` §5.2 (100–150 ms) |
+| `SuggestClient.limit` | 5 suggestions | `macos-ui-stack.md` §5.2 ("cap at 5") |
+| `PaletteMetrics.chipHeight` / `chipPadding` | 24 / 8 | chosen: the site-search chip left of the field (spec §C "chip on the left") |
+| Site-search chip | `Typography.secondary` semibold on a `Palette.sidebarMultiSelection` capsule | chosen; the row highlight's accent tint marks the mode |
+| `PaletteMetrics.deleteButtonSize` | 18 | chosen: the × on a history row (spec §C "hover shows an × on the right"), shown on hover or highlight |
+| History frecency | half-life 30 days; visit weights typed 2, bookmark 1.5, link/other 1, generated/keyword/form 0.3, reload 0 | Firefox frecency (exponential decay, visit-type bonuses scaled to link = 1), `macos-ui-stack.md` §5.2 |
+| Inline completion | a host or URL typed before, or visited 3 times | chosen, after Chromium's HistoryURL provider (inlines typed URLs) |
+| Commands outside `>` | 3 letters or more starting a word of the title, relevance 400–700 (always the last group) | chosen; spec §C group 6 |

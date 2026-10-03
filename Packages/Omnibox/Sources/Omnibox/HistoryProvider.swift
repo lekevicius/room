@@ -48,6 +48,16 @@ public struct HistoryProvider: OmniboxProvider {
         return matches
     }
 
+    /// The most frecent pages, for ⌘Y with nothing typed (shortcuts.md: History is the palette's history group until Chapter 3).
+    public func recentMatches(in context: OmniboxContext, limit: Int = OmniboxResult.limit) -> [OmniboxMatch] {
+        let rows = (try? history.mostFrecent(limit: limit)) ?? []
+        return rows.enumerated().map { index, row in
+            var match = match(for: row, text: "", context: context)
+            match.relevance = Relevance.history.upperBound - index
+            return match
+        }
+    }
+
     // MARK: Rows
 
     private func match(for row: HistoryRow, text: String, context: OmniboxContext) -> OmniboxMatch {

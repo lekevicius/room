@@ -10,6 +10,8 @@ struct PaletteRow: Identifiable, Equatable {
         /// A favicon, or the letter tile for `domain` without one (spec §I.2).
         case favicon(NSImage?, domain: String, dimmed: Bool)
         case symbol(Symbol)
+        /// A command's SF Symbol by name.
+        case systemName(String)
     }
 
     var id: String
@@ -22,6 +24,8 @@ struct PaletteRow: Identifiable, Equatable {
     var spaceName: String?
     /// The first row of a group after the first: a small gap above it.
     var startsGroup: Bool
+    /// A history row: an × removes it (spec §C).
+    var isDeletable = false
 }
 
 /// The rows and the highlight; the controller writes it, the SwiftUI list reads it.
@@ -31,6 +35,7 @@ final class PaletteRowsModel {
     var highlighted: Int?
     @ObservationIgnored var onHover: ((Int) -> Void)?
     @ObservationIgnored var onClick: ((Int, NSEvent.ModifierFlags) -> Void)?
+    @ObservationIgnored var onDelete: ((Int) -> Void)?
     /// The pointer only highlights a row when it moved: rows changing under a
     /// still pointer must not take the highlight from the keyboard's top hit.
     @ObservationIgnored var lastPointer: NSPoint?
@@ -53,7 +58,7 @@ struct PaletteRowsView: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                PaletteRowView(row: row, highlighted: model.highlighted == index)
+                PaletteRowView(row: row, highlighted: model.highlighted == index) { model.onDelete?(index) }
                     .padding(.top, row.startsGroup ? PaletteMetrics.groupGap : 0)
                     .contentShape(Rectangle())
                     .onContinuousHover { phase in
@@ -70,6 +75,8 @@ struct PaletteRowsView: View {
 private struct PaletteRowView: View {
     let row: PaletteRow
     let highlighted: Bool
+    let delete: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: SidebarMetrics.faviconTitleGap + 2) {
@@ -104,7 +111,22 @@ private struct PaletteRowView: View {
                     .lineLimit(1)
                     .opacity(highlighted ? 1 : 0)
             }
+            if row.isDeletable {
+                // Spec §C: hover shows an × on the right (also on the highlighted row, for ⇧Delete's target).
+                Button(action: delete) {
+                    Image(systemName: Symbol.closeTab.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: PaletteMetrics.deleteButtonSize, height: PaletteMetrics.deleteButtonSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Remove from History")
+                .accessibilityLabel("Remove from History")
+                .opacity(highlighted || hovering ? 1 : 0)
+            }
         }
+        .onHover { hovering = $0 }
         .padding(.horizontal, SidebarMetrics.rowContentInset)
         .frame(height: PaletteMetrics.rowHeight)
         .background {
@@ -123,6 +145,10 @@ private struct PaletteRowView: View {
             FaviconRepresentable(image: image, domain: domain, dimmed: dimmed)
         case .symbol(let symbol):
             Image(systemName: symbol.name)
+                .font(.system(size: 13))
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        case .systemName(let name):
+            Image(systemName: name)
                 .font(.system(size: 13))
                 .foregroundStyle(Color(nsColor: .secondaryLabelColor))
         }

@@ -275,6 +275,13 @@ public final class History: Sendable {
         }
     }
 
+    /// The most frecent URLs (⌘Y lists them before anything is typed).
+    public func mostFrecent(limit: Int) throws -> [HistoryRow] {
+        try pool.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM history_url ORDER BY frecency DESC LIMIT ?", arguments: [limit]).map(HistoryRow.init)
+        }
+    }
+
     /// How many of the most frecent rows `search` scans before the index.
     static let frecentScan = 2_000
 

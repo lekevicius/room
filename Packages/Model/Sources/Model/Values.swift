@@ -293,10 +293,16 @@ public struct Settings: Hashable, Sendable, Codable {
     public var permanentCloseBehavior: PermanentCloseBehavior = .resetUnloadSwitch
     /// Today tabs untouched this long are archived (spec §A.7; 12, 24, 168, 720).
     public var archiveAfterHours: Int = 12
+    /// Search suggestions from the engine while typing in the palette: on by
+    /// default, the off switch in Settings (user decision 2026-10-03; CLAUDE.md).
+    public var searchSuggestions: Bool = true
+    /// The default search engine's identifier (`google`, `duckduckgo`, `kagi`);
+    /// Google until the first-run choice (Phase 2.8).
+    public var searchEngine: String = "google"
 
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case permanentCloseBehavior, archiveAfterHours }
+    private enum CodingKeys: String, CodingKey { case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -305,6 +311,9 @@ public struct Settings: Hashable, Sendable, Codable {
             .flatMap { $0 } ?? defaults.permanentCloseBehavior
         archiveAfterHours = (try? container.decodeIfPresent(Int.self, forKey: .archiveAfterHours)).flatMap { $0 }
             ?? defaults.archiveAfterHours
+        searchSuggestions = (try? container.decodeIfPresent(Bool.self, forKey: .searchSuggestions)).flatMap { $0 }
+            ?? defaults.searchSuggestions
+        searchEngine = (try? container.decodeIfPresent(String.self, forKey: .searchEngine)).flatMap { $0 } ?? defaults.searchEngine
     }
 }
 

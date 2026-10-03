@@ -90,6 +90,9 @@ public enum MatchAction: Hashable, Sendable {
     case command(id: String)
     /// The site-search hint row: enter `keyword`'s chip mode (spec §C).
     case enterSiteSearch(keyword: String)
+    /// Paste & Go (spec §C top hit): the clipboard holds a URL; it is read
+    /// only when this row is chosen (no paste-access prompt before).
+    case pasteAndGo
 
     /// The page this action ends on, if it is a page (dedupe key, copies).
     public var url: String? {
@@ -97,7 +100,7 @@ public enum MatchAction: Hashable, Sendable {
         case .navigate(let url): url
         case .search(_, let url): url
         case .switchToEntry(_, _, let url): url
-        case .command, .enterSiteSearch: nil
+        case .command, .enterSiteSearch, .pasteAndGo: nil
         }
     }
 }
@@ -159,6 +162,7 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
     public var dedupeKey: String {
         if case .command(let id) = action { return "command:" + id }
         if case .enterSiteSearch(let keyword) = action { return "sitesearch:" + keyword }
+        if case .pasteAndGo = action { return "paste-and-go" }
         return action.url.map(URLNormalization.normalized) ?? id
     }
 }

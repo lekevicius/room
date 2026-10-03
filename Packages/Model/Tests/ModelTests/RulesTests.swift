@@ -294,6 +294,8 @@ struct ValueTests {
         #expect(decoded == Settings())
         let partial = try JSONDecoder().decode(Settings.self, from: Data(#"{"archiveAfterHours":24}"#.utf8))
         #expect(partial.archiveAfterHours == 24 && partial.permanentCloseBehavior == .resetUnloadSwitch)
+        // Suggestions are on and the engine is Google unless the user chose otherwise (2026-10-03).
+        #expect(partial.searchSuggestions && partial.searchEngine == "google")
     }
 
     @Test("Timestamps round-trip through JSON and rounding is stable")

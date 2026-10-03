@@ -229,6 +229,9 @@ public enum Timing {
     /// Text typed into the palette for a tab and not committed comes back
     /// when the palette reopens on that tab within this long (spec §C, Zen `wait-to-clear`).
     public static let typedTextMemory: TimeInterval = 45
+    /// Search suggestions are requested once typing pauses this long (ROADMAP 2.4 task 6;
+    /// `macos-ui-stack.md` §5.2: 100–150 ms).
+    public static let suggestDebounce: TimeInterval = 0.12
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).
@@ -260,4 +263,9 @@ public enum PaletteMetrics {
     public static let groupGap: CGFloat = 4
     /// Open: scale 0.96 → 1 with a fade, `Motion.fast` (spec §I.1).
     public static let openScale: CGFloat = 0.96
+    /// The site-search chip left of the field (spec §C): height and horizontal padding (chosen).
+    public static let chipHeight: CGFloat = 24
+    public static let chipPadding: CGFloat = 8
+    /// The × that removes a history row (spec §C), on hover or highlight.
+    public static let deleteButtonSize: CGFloat = 18
 }

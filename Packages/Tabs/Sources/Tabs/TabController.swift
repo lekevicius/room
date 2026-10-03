@@ -341,9 +341,22 @@ public final class TabController: SidebarHost {
         if store.sidebar.entry(entry)?.faviconID != id { try? store.sidebar.setFavicon(entry, id) }
     }
 
+    /// A site's cached icon by its page URL's host, with or without "www."
+    /// (history rows in the palette).
+    public func favicon(forURL url: String) -> NSImage? {
+        guard let host = URLComponents(string: url)?.host?.lowercased() else { return nil }
+        let other = host.hasPrefix("www.") ? String(host.dropFirst(4)) : "www." + host
+        guard let id = store.favicons.id(forHost: host) ?? store.favicons.id(forHost: other) else { return nil }
+        return image(forFavicon: id)
+    }
+
     /// The cached icon of an entry without a live one (unloaded, restored, discarded).
     private func storedFavicon(for entry: UUID) -> NSImage? {
         guard let id = store.sidebar.entry(entry)?.faviconID else { return nil }
+        return image(forFavicon: id)
+    }
+
+    private func image(forFavicon id: Int64) -> NSImage? {
         if let image = faviconImages[id] { return image }
         guard let png = store.favicons.png(id), let image = NSImage(data: png) else { return nil }
         image.size = NSSize(width: 16, height: 16)
