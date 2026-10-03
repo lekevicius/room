@@ -25,3 +25,4 @@ GetExclusiveAccessContext
 GetWebContentsModalDialogHost
 GetWebContentsModalDialogHostFor
 CreateFindBar
+GetAutofillBubbleHandler

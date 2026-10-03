@@ -24,6 +24,8 @@
 #include "chrome/browser/ui/views/find_bar_host.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
 #include "chrome/browser/ui/views/find_bar_owner.h"
+#include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
+#include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
@@ -38,10 +40,59 @@ namespace room {
 // (patches/0003-browser-window-factory-hook.patch).
 extern BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*);
 extern views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*);
+extern BrowserWindow* (*g_find_browser_window_hook)(content::WebContents*);
 extern std::unique_ptr<SadTab> (*g_create_sad_tab_hook)(content::WebContents*, SadTabKind);
 }  // namespace room
 
 namespace {
+
+// Private adapter for retained Chromium autofill bubbles. Do not register this
+// as the browser's ToolbarButtonProvider: Room has no Chrome toolbar controls.
+class RoomAutofillAnchors : public ToolbarButtonProvider {
+ public:
+  explicit RoomAutofillAnchors(RoomBrowserWindow* window) : window_(window) {}
+  ExtensionsContainerViews* GetExtensionsContainerViews() override {
+    return nullptr;
+  }
+  PinnedToolbarActions* GetPinnedToolbarActions() override { return nullptr; }
+  gfx::Size GetToolbarButtonSize() const override { return {}; }
+  views::BubbleAnchor GetDefaultExtensionDialogAnchor() override {
+    return Anchor();
+  }
+  page_actions::PageActionViewInterface* GetPageActionViewInterface(
+      actions::ActionId) override {
+    return nullptr;
+  }
+  AppMenuControl* GetAppMenuControl() override { return nullptr; }
+  gfx::Rect GetFindBarBoundingBox(int) override { return {}; }
+  void FocusToolbar() override {}
+  views::AccessiblePaneView* GetAsAccessiblePaneView() override {
+    return nullptr;
+  }
+  views::BubbleAnchor GetBubbleAnchor(
+      std::optional<actions::ActionId>) override {
+    return Anchor();
+  }
+  views::BubbleAnchor GetPageActionBubbleAnchor(actions::ActionId) override {
+    return Anchor();
+  }
+  void ZoomChangedForActiveTab(bool) override {}
+  AvatarToolbarButtonInterface* GetAvatarToolbarButtonInterface() override {
+    return nullptr;
+  }
+  ToolbarButton* GetBackButton() override { return nullptr; }
+  ReloadControl* GetReloadButton() override { return nullptr; }
+  ToolbarButton* GetDownloadButton() override { return nullptr; }
+  WebUIToolbarWebView* GetWebUIToolbarViewForTesting() override {
+    return nullptr;
+  }
+
+ private:
+  views::BubbleAnchor Anchor() {
+    return views::BubbleAnchor(window_->GetBubbleAnchor());
+  }
+  raw_ptr<RoomBrowserWindow> window_;
+};
 
 auto& RoomWindows() {
   static base::NoDestructor<std::map<BrowserWindowInterface*, RoomBrowserWindow*>> windows;
@@ -225,6 +276,14 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  g_find_browser_window_hook = +[](content::WebContents* contents) -> BrowserWindow* {
+    for (const auto& [browser, window] : RoomWindows()) {
+      if (browser->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0) {
+        return window;
+      }
+    }
+    return nullptr;
+  };
   g_create_sad_tab_hook = +[](content::WebContents* contents, SadTabKind kind)
       -> std::unique_ptr<SadTab> {
     for (const auto& [browser, window] : RoomWindows()) {
@@ -263,6 +322,8 @@ struct RoomBrowserWindow::ObjCMembers {
   NSWindow* __weak window;
   std::unique_ptr<RoomModalDialogHost> modal_host;
   std::unique_ptr<RoomFindBarOwner> find_owner;
+  std::unique_ptr<RoomAutofillAnchors> autofill_anchors;
+  std::unique_ptr<autofill::AutofillBubbleHandlerImpl> autofill_handler;
 };
 
 RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
@@ -270,10 +331,21 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
                                      room::RoomBrowserWindowClient* client)
     : browser_(browser),
       client_(client),
-      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr, nullptr})),
+      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr, nullptr,
+                                                   nullptr, nullptr})),
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser)) {
   RoomWindows().emplace(browser, this);
+}
+
+autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
+  RoomStubHit("GetAutofillBubbleHandler");
+  if (!objc_->autofill_handler) {
+    objc_->autofill_anchors = std::make_unique<RoomAutofillAnchors>(this);
+    objc_->autofill_handler = std::make_unique<autofill::AutofillBubbleHandlerImpl>(
+        browser_, objc_->autofill_anchors.get());
+  }
+  return objc_->autofill_handler.get();
 }
 
 RoomBrowserWindow::~RoomBrowserWindow() {

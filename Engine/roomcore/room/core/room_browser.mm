@@ -15,10 +15,14 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
+#include "chrome/browser/ui/autofill/autofill_bubble_base.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/permissions/permission_request_manager.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/views/widget/widget.h"
+#include "ui/views/window/dialog_delegate.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
@@ -53,6 +57,7 @@ class Client : public room::RoomBrowserWindowClient {
   raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
   std::unique_ptr<IdentityDialogController> _spike_identity_controller;
+  std::shared_ptr<int> _spike_address_decisions;
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
@@ -195,6 +200,67 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action hasPrefix:@"ui-dialog-"]) {
+    auto* window =
+        static_cast<RoomBrowserWindow*>(BrowserWindow::FromBrowser(_browser));
+    auto widgets = views::Widget::GetAllOwnedWidgets(
+        window->GetBubbleAnchor()->GetWidget()->GetNativeView());
+    int count = 0;
+    for (const auto& widget : widgets) {
+      auto* dialog = widget->widget_delegate()->AsDialogDelegate();
+      if (!dialog || !widget->IsVisible()) {
+        continue;
+      }
+      ++count;
+      LOG(WARNING) << "Room UI probe dialog=" << widget->GetName();
+      if ([action isEqualToString:@"ui-dialog-cancel"]) {
+        dialog->CancelDialog();
+        break;
+      }
+      if ([action isEqualToString:@"ui-dialog-accept"]) {
+        dialog->AcceptDialog();
+        break;
+      }
+    }
+    return @(count);
+  }
+  if ([action isEqualToString:@"address-save"] ||
+      [action isEqualToString:@"address-update"]) {
+    autofill::AutofillProfile address(autofill::AddressCountryCode("US"));
+    address.SetRawInfo(autofill::NAME_FULL, u"Room Fixture");
+    address.SetRawInfo(autofill::ADDRESS_HOME_STREET_ADDRESS, u"1 Test Street");
+    address.SetRawInfo(autofill::ADDRESS_HOME_CITY, u"Mountain View");
+    address.SetRawInfo(autofill::ADDRESS_HOME_STATE, u"CA");
+    address.SetRawInfo(autofill::ADDRESS_HOME_ZIP, u"94043");
+    autofill::AutofillProfile original(address);
+    const bool update = [action isEqualToString:@"address-update"];
+    if (update) {
+      address.SetRawInfo(autofill::ADDRESS_HOME_STREET_ADDRESS,
+                         u"2 Test Street");
+    }
+    _spike_address_decisions = std::make_shared<int>(0);
+    autofill::AddressBubblesController::SetUpAndShowSaveOrUpdateAddressBubble(
+        contents, address, update ? &original : nullptr,
+        autofill::AutofillClient::SaveAddressBubbleType::kSave, update,
+        base::BindOnce(
+            [](std::shared_ptr<int> count,
+               autofill::AutofillClient::AddressPromptUserDecision decision,
+               base::optional_ref<const autofill::AutofillProfile>) {
+              LOG(WARNING) << "Room UI probe address decision="
+                           << static_cast<int>(decision)
+                           << " count=" << ++*count;
+            },
+            _spike_address_decisions));
+    return @1;
+  }
+  if ([action isEqualToString:@"address-visible"]) {
+    auto* controller =
+        autofill::AddressBubblesController::FromWebContents(contents);
+    return @(controller && controller->GetBubbleView());
+  }
+  if ([action isEqualToString:@"address-decisions"]) {
+    return @(_spike_address_decisions ? *_spike_address_decisions : -1);
   }
   if ([action isEqualToString:@"renderer-status"]) {
     int status = contents->IsCrashed() ? 1 : 0;

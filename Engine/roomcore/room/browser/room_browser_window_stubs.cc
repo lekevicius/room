@@ -122,11 +122,6 @@ void RoomBrowserWindow::SetContentsSize(const gfx::Size& size) {
   RoomStubHit("SetContentsSize");
 }
 
-autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
-  RoomStubHit("GetAutofillBubbleHandler");
-  return nullptr;
-}
-
 void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
   RoomStubHit("SetFocusToLocationBar");
 }

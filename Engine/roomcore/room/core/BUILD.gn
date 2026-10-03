@@ -50,6 +50,8 @@ source_set("core") {
     "//components/permissions",
     "//components/keyed_service/content",
     "//chrome/browser/ui",
+    "//chrome/browser/ui/autofill",
+    "//components/autofill/core/browser",
     "//chrome/browser/ui/login",
     "//chrome/browser/ui/webid",
     "//chrome/browser/ui/browser_window",
@@ -61,6 +63,7 @@ source_set("core") {
     "//net",
     "//room/browser",
     "//ui/base",
+    "//ui/views",
     "//url",
   ]
   frameworks = [

@@ -8,7 +8,9 @@ import RoomCore
 enum HostFeatureSpike {
     static let names = ["popups", "dialogs", "keys", "audio", "scroll", "transparent",
                         "corners", "band", "form", "extension", "downloads", "permissions",
-                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash"]
+                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash",
+                        "autofill-save", "autofill-update",
+                        "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
         guard names.contains(name) else { HostSpike.record("error", "unknown spike \(name)"); return }
@@ -58,6 +60,48 @@ enum HostFeatureSpike {
             }
             guard ready else { throw HostCDP.Failure("fixture did not finish loading") }
             switch name {
+            case "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth":
+                try await HostDeviceChooserSpike.run(name, host: host, cdp: cdp)
+            case "autofill-save", "autofill-update":
+                let action = name == "autofill-save" ? "address-save" : "address-update"
+                for decision in ["cancel", "accept"] {
+                    HostSpike.record("ui-probe-trigger", "\(action) / \(decision)")
+                    guard try host.runSpikeAction(action) == 1 else {
+                        throw HostCDP.Failure("address controller action unavailable")
+                    }
+                    try await Task.sleep(for: .milliseconds(500))
+                    let visible = try host.runSpikeAction("address-visible")
+                    let dialogs = try host.runSpikeAction("ui-dialog-count")
+                    HostSpike.record("address-visible", "view=\(visible) owned-dialogs=\(dialogs)")
+                    guard visible == 1, dialogs == 1 else {
+                        throw HostCDP.Failure("address bubble missing its owned visible dialog")
+                    }
+                    guard try host.runSpikeAction("ui-dialog-\(decision)") == 1 else {
+                        throw HostCDP.Failure("address dialog decision unavailable")
+                    }
+                    for _ in 0..<30 {
+                        if try host.runSpikeAction("address-visible") == 0 { break }
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    let callbacks = try host.runSpikeAction("address-decisions")
+                    HostSpike.record("address-\(decision)", "callbacks=\(callbacks)")
+                    guard callbacks == 1, try host.runSpikeAction("address-visible") == 0 else {
+                        throw HostCDP.Failure("address decision did not complete once and close")
+                    }
+                }
+                // Keep a second tab so owner destruction does not also test
+                // the separately observed final-window quit boundary.
+                if name == "autofill-update" {
+                    _ = host.open(URL(string: "about:blank")!, in: profile, activate: false)
+                }
+                guard try host.runSpikeAction(action) == 1 else {
+                    throw HostCDP.Failure("owner-destruction setup unavailable")
+                }
+                try await Task.sleep(for: .milliseconds(300))
+                page.close()
+                HostSpike.record("address-owner-closed", page.isClosed)
+                guard page.isClosed else { throw HostCDP.Failure("address owner did not close") }
+                HostSpike.record("review-required", "real Views decision callbacks; native focus and persistent form-data storage are separate checks")
             case "popups":
                 try await cdp.evaluate("document.querySelector('#blank').click(); true", userGesture: true)
                 try await cdp.evaluate("document.querySelector('#open').click(); true", userGesture: true)

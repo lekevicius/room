@@ -542,3 +542,24 @@ Baseline: nav 21.170 s; ten loaded pages quit 0.554 s, load1 18.00,
 26 helpers / 0 left / 0 new crash reports, exit 0. Chapter 3 still needs
 accessible crash status, retry interaction and reporting controls. The fallback
 label is containment, not finished product UI. Public ObjC headers unchanged.
+
+
+## 2026-10-03 — bounded UI compatibility: address bubbles
+
+The new scope/results documents separate real Chrome UI from the original
+18 crash-survival drives. Address save reproduced SIGSEGV in ShowSaveBubble
+at the missing BrowserWindow lookup; its first repair still hit that lookup.
+Second/final repair provides a Room-tab lookup hook, lazily owns Chrome's
+AutofillBubbleHandlerImpl with the existing Views parent, and guards the
+Chrome-only iOS promotion after accept. New UI patch0011 is separate from
+the archived/deferred shutdown candidate0011. Original five patches and
+public ObjC headers unchanged.
+
+| Feature | Chrome path | Window members / ownership | Fixed how / measured result |
+|---|---|---|---|
+| Address save/update | AddressBubblesController → FindBrowserWindowWithWebContents → AutofillBubbleHandlerImpl → SaveAddressProfileView/UpdateAddressProfileView | Registered Room tab/window, GetAutofillBubbleHandler, stable Views anchor; handler owned by Room window | Tiny nullable lookup hook + optional promo guard, private anchor adapter. Save cancel/accept/owner-close each callback1; final-tab exit failed100s/143. Update with second tab passes11s/0 with one owned dialog and three exactly-once decisions. Persistent save/native focus not accepted. |
+| Web USB/HID/Serial chooser | chrome::ShowDeviceChooserDialog → ChooserBubbleUiViewDelegate → DeviceChooserContentView::Cancel | Existing permission anchor/native parent | No new engine repair needed. Each10s/exit0; one visible owned dialog; USB/Serial NotFoundError, HID empty list. No hardware connected. |
+
+Required new serial baseline nav15.105s, ten loaded pages quit2.933s,
+28helpers/0left,0crashes,exit0. Full evidence and remaining subfeatures are in
+roomcore-ui-compatibility-results.md. This checkpoint does not finish the Goal.

@@ -248,3 +248,19 @@ unchanged, probe exit2 →0. No browser hang is asserted by this diagnostic.
 Required real-site serial baseline: nav20.447s; ten loaded pages quit3.083s,
 load29.759,26helpers/0left/0crashes,exit0. Details: shutdown investigation and
 baseline-shutdown-worker-start. Concurrent B-16 remains a separate open gate.
+
+
+## 2026-10-03 — bounded UI pass, autofill
+
+Deferred shutdown candidate archived before source edits; accepted10-patch
+Chromium restored, Room rebased onto main2239107 without protected source
+changes. Probe build first failed on a capturing BindOnce lambda; correction
+built56s/69steps. First repair compile corrected raw_ptr-set iteration, then
+built27s/36steps. Missing direct ToolbarButtonProvider GN dependency corrected.
+Second/final runtime repair adds window lookup hook and optional promo guard:
+Chromium2f06f6d7533a5,63s/5steps,nice0/default jobs,out/dev reused, completion
+load34.09/30.55/33.18. GN room dependency check passes. Packaging stage5s,
+host10.3s,518dylibs,916MBframework/918MBapp,strict ad-hoc signature valid.
+Required baseline nav15.105s,ten loaded real pages quit2.933s,28helpers/0left,
+0newcrashes,exit0,load1 20.385. Address callback results and final-tab exit
+failure are separately qualified in roomcore-ui-compatibility-results.md.
