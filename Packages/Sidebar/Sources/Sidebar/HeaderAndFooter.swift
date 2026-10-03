@@ -28,7 +28,8 @@ public final class AddressFieldView: NSView {
         siteButton.action = #selector(siteClicked)
         siteButton.setAccessibilityIdentifier("site-button")
         domainField.font = Typography.row
-        domainField.lineBreakMode = .byTruncatingTail
+        // A domain that does not fit keeps both ends: "devel…apple.com" (2.2a review).
+        domainField.lineBreakMode = .byTruncatingMiddle
         domainField.cell?.truncatesLastVisibleLine = true
         copyButton.image = Symbol.copyURL.image(pointSize: 12, accessibilityDescription: "Copy URL")
         copyButton.isBordered = false
@@ -88,13 +89,15 @@ public final class AddressFieldView: NSView {
     public override func layout() {
         super.layout()
         let side = bounds.height
-        siteButton.frame = NSRect(x: Spacing.xs, y: 0, width: side - Spacing.xs, height: side)
+        let padding = SidebarMetrics.addressFieldPadding
+        let icon = SidebarMetrics.faviconSize
+        siteButton.frame = NSRect(x: padding, y: 0, width: icon, height: side)
         let copyWidth: CGFloat = copyButton.isHidden ? 0 : side
         copyButton.frame = NSRect(x: bounds.width - side, y: 0, width: side, height: side)
-        let x = siteButton.frame.maxX
+        let x = siteButton.frame.maxX + padding
         let height = ceil(domainField.cell?.cellSize.height ?? 16)
         domainField.frame = NSRect(x: x, y: ((bounds.height - height) / 2).rounded(),
-                                   width: max(0, bounds.width - x - copyWidth - Spacing.s), height: height)
+                                   width: max(0, bounds.width - x - max(copyWidth, padding)), height: height)
     }
 
     private func updateHover() {

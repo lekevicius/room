@@ -5,7 +5,7 @@ import Design
 /// The sidebar region: a transparent area over the window material that
 /// moves the window when dragged. Its header row (`SidebarMetrics.headerHeight`)
 /// is laid out around the traffic lights: `headerView` (the address field)
-/// fills it from after the zoom button to the trailing inset, or the space
+/// fills it from after the zoom button to the rows' trailing inset, or the space
 /// title shows there while no header view is set. `bodyView` fills the rest.
 public final class SidebarView: NSView {
     /// Everything that dims while the window is inactive.
@@ -90,7 +90,9 @@ public final class SidebarView: NSView {
         titleField.frame = backingAlignedRect(frame, options: [.alignMinXNearest, .alignMinYNearest, .alignWidthOutward, .alignHeightOutward])
         if let headerView {
             let height = max(headerView.fittingSize.height, 1)
-            let header = NSRect(x: leading, y: centerY - height / 2, width: width, height: height)
+            // Ends where the rows' pill ends, so the domain gets every point there is (2.2a review).
+            let headerWidth = max(0, bounds.width - leading - SidebarMetrics.headerTrailingInset)
+            let header = NSRect(x: leading, y: centerY - height / 2, width: headerWidth, height: height)
             headerView.frame = backingAlignedRect(header, options: .alignAllEdgesNearest)
         }
         bodyView?.frame = NSRect(x: 0, y: SidebarMetrics.headerHeight, width: bounds.width,

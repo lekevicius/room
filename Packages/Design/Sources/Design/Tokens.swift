@@ -86,6 +86,12 @@ public enum SidebarMetrics {
 
     /// Address field in the header, beside the traffic lights (chosen).
     public static let addressFieldHeight: CGFloat = 28
+    /// The header (address field) ends at the rows' trailing inset, aligned
+    /// with the selection pill (2.2a review: the domain truncated at 16 pt).
+    public static let headerTrailingInset: CGFloat = rowHorizontalInset
+    /// Horizontal padding inside the address field, around the site icon and
+    /// the domain (2.2a review: trimmed from 8 to `Spacing.xs`).
+    public static let addressFieldPadding: CGFloat = Spacing.xs
     /// Bottom bar (spec §F).
     public static let footerHeight: CGFloat = 40
 }
