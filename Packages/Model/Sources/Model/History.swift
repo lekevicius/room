@@ -94,7 +94,7 @@ public struct HistoryHost: Hashable, Sendable {
     public var host: String
     /// The host's most frecent URL (its scheme is the one to complete to).
     public var bestURL: String
-    /// The most frecent URL's stored frecency.
+    /// The sum of its URLs' frecencies (stored logarithm).
     public var frecency: Double
     public var visitCount: Int
     public var typedCount: Int
@@ -168,16 +168,17 @@ public final class History: Sendable {
         let typed = transition == .typed ? 1 : 0
         let existing = try Row.fetchOne(db, sql: "SELECT id, frecency FROM history_url WHERE url = ?", arguments: [url])
         let urlID: Int64
+        let frecency: Double
         if let existing {
             urlID = existing["id"]
-            let frecency = Frecency.adding(transition.weight, at: date, to: existing["frecency"])
+            frecency = Frecency.adding(transition.weight, at: date, to: existing["frecency"])
             try db.execute(sql: """
                 UPDATE history_url SET visitCount = visitCount + 1, typedCount = typedCount + ?,
                     lastVisitAt = MAX(lastVisitAt, ?), frecency = ?, title = COALESCE(?, title)
                 WHERE id = ?
                 """, arguments: [typed, time, frecency, title, urlID])
         } else {
-            let frecency = Frecency.adding(transition.weight, at: date, to: Frecency.none)
+            frecency = Frecency.adding(transition.weight, at: date, to: Frecency.none)
             try db.execute(sql: """
                 INSERT INTO history_url (url, title, visitCount, typedCount, lastVisitAt, host, frecency)
                 VALUES (?, ?, 1, ?, ?, ?, ?)
@@ -186,6 +187,37 @@ public final class History: Sendable {
         }
         try db.execute(sql: "INSERT INTO history_visit (urlID, visitedAt, transition) VALUES (?, ?, ?)",
                        arguments: [urlID, time, transition.rawValue])
+        // The host's aggregate: every visit adds to its frecency; its best URL is the most frecent one.
+        if let row = try Row.fetchOne(db, sql: "SELECT bestURL, bestFrecency, frecency FROM history_host WHERE host = ?", arguments: [host]) {
+            let bestURL: String = row["bestURL"]
+            let bestFrecency: Double = row["bestFrecency"]
+            let best = bestURL == url || frecency > bestFrecency ? (url, frecency) : (bestURL, bestFrecency)
+            try db.execute(sql: """
+                UPDATE history_host SET bestURL = ?, bestFrecency = ?, frecency = ?, visitCount = visitCount + 1,
+                    typedCount = typedCount + ? WHERE host = ?
+                """, arguments: [best.0, best.1, Frecency.adding(transition.weight, at: date, to: row["frecency"]), typed, host])
+        } else {
+            try db.execute(sql: """
+                INSERT INTO history_host (host, bestURL, bestFrecency, frecency, visitCount, typedCount) VALUES (?, ?, ?, ?, 1, ?)
+                """, arguments: [host, url, frecency, frecency, typed])
+        }
+    }
+
+    /// Recomputes a host's aggregate from its URLs (after deletions, the v2 backfill).
+    static func rebuildHost(_ db: Database, _ host: String) throws {
+        let rows = try Row.fetchAll(db, sql: "SELECT url, frecency, visitCount, typedCount FROM history_url WHERE host = ? ORDER BY frecency DESC",
+                                    arguments: [host])
+        guard let best = rows.first else {
+            try db.execute(sql: "DELETE FROM history_host WHERE host = ?", arguments: [host])
+            return
+        }
+        // log Σ exp(f): the host's frecency is the sum of its URLs'.
+        let top: Double = best["frecency"]
+        let sum = top + log(rows.reduce(0.0) { $0 + exp(($1["frecency"] as Double) - top) })
+        try db.execute(sql: """
+            INSERT OR REPLACE INTO history_host (host, bestURL, bestFrecency, frecency, visitCount, typedCount) VALUES (?, ?, ?, ?, ?, ?)
+            """, arguments: [host, best["url"] as String, top, sum, rows.reduce(0) { $0 + ($1["visitCount"] as Int) },
+                               rows.reduce(0) { $0 + ($1["typedCount"] as Int) }])
     }
 
     /// The page's title arrived after the commit.
@@ -198,13 +230,20 @@ public final class History: Sendable {
 
     /// Removes a URL and its visits (⇧Delete on a history suggestion, spec §C).
     public func delete(url: String) throws {
-        try pool.write { db in try db.execute(sql: "DELETE FROM history_url WHERE url = ?", arguments: [url]) }
+        try pool.write { db in
+            guard let host = try String.fetchOne(db, sql: "SELECT host FROM history_url WHERE url = ?", arguments: [url]) else { return }
+            try db.execute(sql: "DELETE FROM history_url WHERE url = ?", arguments: [url])
+            try Self.rebuildHost(db, host)
+        }
     }
 
     /// Removes every URL of a host (⇧Delete on an inline host suggestion: it
     /// stands for the whole host, so deleting one URL would bring it straight back).
     public func delete(host: String) throws {
-        try pool.write { db in try db.execute(sql: "DELETE FROM history_url WHERE host = ?", arguments: [host]) }
+        try pool.write { db in
+            try db.execute(sql: "DELETE FROM history_url WHERE host = ?", arguments: [host])
+            try db.execute(sql: "DELETE FROM history_host WHERE host = ?", arguments: [host])
+        }
     }
 
     /// Bulk insert in one transaction (fixtures and the 50k measurement).
@@ -298,12 +337,11 @@ public final class History: Sendable {
         let prefix = prefix.lowercased()
         guard !prefix.isEmpty, let upper = Self.prefixUpperBound(prefix) else { return [] }
         return try pool.read { db in
-            // SQLite returns the bare `url` column from the row that holds MAX(frecency).
             try Row.fetchAll(db, sql: """
-                SELECT host, url, MAX(frecency) AS best, SUM(visitCount) AS visits, SUM(typedCount) AS typed
-                FROM history_url WHERE host >= ? AND host < ? GROUP BY host ORDER BY best DESC LIMIT ?
+                SELECT * FROM history_host WHERE host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
                 """, arguments: [prefix, upper, limit]).map {
-                HistoryHost(host: $0["host"], bestURL: $0["url"], frecency: $0["best"], visitCount: $0["visits"], typedCount: $0["typed"])
+                HistoryHost(host: $0["host"], bestURL: $0["bestURL"], frecency: $0["frecency"], visitCount: $0["visitCount"],
+                            typedCount: $0["typedCount"])
             }
         }
     }

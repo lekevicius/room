@@ -119,7 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #if DEBUG
         // An explicit `-RoomStateDirectory` wins (the relaunch measurement reuses one).
         if UserDefaults.standard.string(forKey: "RoomStateDirectory") == nil,
-           SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
+           SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil
+            || HistoryFixture.requestedRows != nil {
             directory = FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
         }
         #endif
@@ -182,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
         #if DEBUG
         if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
+        if let rows = HistoryFixture.requestedRows { HistoryFixture.populate(store.history, rows: rows) }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
         let tabs = TabController(store: store)

@@ -204,5 +204,23 @@ struct HistorySearchTests {
         #expect(hosts.first?.visitCount == 2)
         #expect(hosts.first?.typedCount == 1)
         #expect(try fixture.history.hosts(prefix: "s", limit: 5).map(\.host) == ["swift.org"])
+        // Deleting the best URL hands the host to the next one; deleting the last removes the host.
+        try fixture.history.delete(url: "https://github.com/apple/swift")
+        let after = try fixture.history.hosts(prefix: "git", limit: 5)
+        #expect(after.first?.bestURL == "https://github.com/" && after.first?.visitCount == 1 && after.first?.typedCount == 0)
+        try fixture.history.delete(url: "https://github.com/")
+        #expect(try fixture.history.hosts(prefix: "git", limit: 5).isEmpty)
+    }
+
+    @Test("A host's frecency is the sum of its URLs'")
+    func hostFrecency() throws {
+        let fixture = try HistoryFixture()
+        defer { fixture.directory.cleanup() }
+        try fixture.history.recordVisitNow(url: "https://a.example/1", title: nil, transition: .link, at: now)
+        try fixture.history.recordVisitNow(url: "https://a.example/2", title: nil, transition: .link, at: now)
+        try fixture.history.recordVisitNow(url: "https://b.example/", title: nil, transition: .typed, at: now.addingTimeInterval(-1))
+        let hosts = try fixture.history.hosts(prefix: "", limit: 5) + fixture.history.hosts(prefix: "a", limit: 5)
+        let a = try #require(hosts.first { $0.host == "a.example" })
+        #expect(abs(Frecency.current(a.frecency, at: now) - 2) < 1e-6)
     }
 }

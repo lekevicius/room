@@ -22,8 +22,10 @@ final class PaletteOverlayView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        // Hidden between opens (it stays in the view tree): clicks go to the window.
+        guard !isHidden else { return nil }
         // Above every sibling (the page included): outside the panel it is the overlay itself.
-        super.hitTest(point) ?? (frame.contains(point) ? self : nil)
+        return super.hitTest(point) ?? (frame.contains(point) ? self : nil)
     }
 
     override func mouseDown(with event: NSEvent) { onClickOutside?() }
@@ -37,6 +39,10 @@ final class PaletteOverlayView: NSView {
 final class PalettePanelView: NSView {
     let field = PaletteField()
     let rows = PaletteRowsModel()
+    /// Rows the panel shows; the list's slots may hold more (stale, clipped away).
+    var visibleRowCount = 0 {
+        didSet { if visibleRowCount != oldValue { needsLayout = true } }
+    }
     private let glass = NSGlassEffectView()
     private let content = FlippedView()
     private let searchIcon = NSImageView()
@@ -67,6 +73,8 @@ final class PalettePanelView: NSView {
         content.addSubview(field)
         content.addSubview(separator)
         content.addSubview(rowsView)
+        content.wantsLayer = true
+        content.layer?.masksToBounds = true
         glass.contentView = content
         addSubview(glass)
         setAccessibilityElement(true)
@@ -126,12 +134,14 @@ final class PalettePanelView: NSView {
         }
         field.frame = NSRect(x: x, y: ((PaletteMetrics.fieldHeight - fieldHeight) / 2).rounded(), width: max(0, width - x - inset),
                              height: fieldHeight)
-        let hasRows = !rows.rows.isEmpty
-        separator.isHidden = !hasRows
+        separator.isHidden = visibleRowCount == 0
         separator.frame = NSRect(x: 0, y: PaletteMetrics.fieldHeight, width: width, height: 1)
-        rowsView.isHidden = !hasRows
+        // Never hidden, only zero-high without rows: un-hiding the hosting view
+        // made SwiftUI rebuild the list on a query's first keystroke (2.4b profile).
         let top = PaletteMetrics.fieldHeight + 1
-        rowsView.frame = NSRect(x: 0, y: top, width: width, height: max(0, bounds.height - top))
+        // Always the height of every slot (the content view clips it), so its size changes only with the width.
+        let full = Self.height(rowCount: PaletteRowsView.slots, groupCount: PaletteRowsView.slots) - top
+        rowsView.frame = NSRect(x: 0, y: top, width: width, height: full)
     }
 
     // MARK: Open / close animation (spec §I.1: scale 0.96 → 1 and fade, 120 ms)
@@ -167,6 +177,15 @@ final class PalettePanelView: NSView {
 final class PaletteField: NSTextField {
     static let placeholder = "Search or enter URL…"
 
+    override class var cellClass: AnyClass? {
+        get { PaletteFieldCell.self }
+        set {}
+    }
+
+    // No neighbours in the key-view loop (see `PaletteFieldEditor`).
+    override var previousValidKeyView: NSView? { nil }
+    override var nextValidKeyView: NSView? { nil }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         isBordered = false
@@ -179,11 +198,37 @@ final class PaletteField: NSTextField {
         cell?.wraps = false
         cell?.isScrollable = true
         lineBreakMode = .byClipping
+        // It holds URLs and queries. Declared, AppKit's AutoFill stops guessing
+        // whether it is a username or one-time-code field, which built an
+        // AutoFill window on every open (2.4b profile).
+        contentType = .URL
         setAccessibilityIdentifier("palette-field")
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+}
+
+/// Gives the palette field its own field editor (below).
+final class PaletteFieldCell: NSTextFieldCell {
+    private lazy var editor = PaletteFieldEditor()
+
+    override func fieldEditor(for controlView: NSView) -> NSTextView? { editor }
+}
+
+/// The palette's field editor. Field and editor have no neighbours in the
+/// key-view loop: when a field gains focus, AppKit's AutoFill heuristics ask
+/// for its previous and next valid key views, which otherwise walk every
+/// view in the window (6–7 ms per open with 500 sidebar rows, 2.4b
+/// profile). The palette's field has no username or password neighbour to find.
+final class PaletteFieldEditor: NSTextView {
+    convenience init() {
+        self.init(frame: .zero)
+        isFieldEditor = true
+    }
+
+    override var previousValidKeyView: NSView? { nil }
+    override var nextValidKeyView: NSView? { nil }
 }
 
 private final class FlippedView: NSView {

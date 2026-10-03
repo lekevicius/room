@@ -203,39 +203,70 @@ extension SpikeRunner.Context {
         guard let palette else { return SpikeRunner.record("error", "no palette") }
         let entries = store.entries.values.filter { $0.kind != .folder }.count
         SpikeRunner.record("entries", entries)
+        SpikeRunner.record("history_rows", (try? tabs.store.history.count()) ?? -1)
+        // The no-network check types with suggestions off (`-RoomSuggestionsOff YES`).
+        if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff") { tabs.store.settings.update { $0.searchSuggestions = false } }
+        SpikeRunner.record("suggestions", tabs.store.settings.settings.searchSuggestions ? "on" : "off")
         if let page = tabs.current { await waitLoaded(page, timeout: 20) }
         try? await Task.sleep(for: .seconds(1))
 
         var openSync: [Double] = [], openTurn: [Double] = [], firstFrame: [Double] = []
+        // One display link, running before the opens: a link created after
+        // the open added its own start-up latency to "next frame" (2.4b).
+        let ticks = FrameTicks(view: controller.rootView)
+        try? await Task.sleep(for: .milliseconds(200))
         for _ in 0..<40 {
-            let probe = FrameProbe()
             let start = ContinuousClock.now
             let timing = await timedTurn { palette.toggleNew() }
             openSync.append(timing.sync)
             openTurn.append(timing.turn)
-            if let panel = palette.debugPanel, let frame = await probe.nextFrame(of: panel, timeout: 0.25) {
+            // The first frame that starts after the turn committed the panel.
+            let committed = start + .microseconds(Int(timing.turn * 1000))
+            if let frame = await ticks.firstTick(after: committed, timeout: 0.25) {
                 firstFrame.append(Double((frame - start).components.attoseconds) / 1e15 + Double((frame - start).components.seconds) * 1000)
             }
             palette.toggleNew()
             try? await Task.sleep(for: .milliseconds(150))
         }
+        SpikeRunner.record("display_frame_interval", ticks.intervalDescription)
+        ticks.stop()
         SpikeRunner.record("palette_open_call", SpikeRunner.stats(openSync))
         SpikeRunner.record("palette_open_turn", SpikeRunner.stats(openTurn))
         SpikeRunner.record("palette_open_to_next_frame", firstFrame.isEmpty ? "no display-link frame (window occluded)" : SpikeRunner.stats(firstFrame))
 
-        var queries: [Double] = []
+        var queries: [Double] = [], firstQueries: [Double] = [], nextIsFirst = false
+        var phases: [String: [Double]] = [:]
+        func ms(_ duration: Duration) -> Double { Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000 }
         palette.onQueryTimed = { duration in
-            queries.append(Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000)
+            let ms = Double(duration.components.attoseconds) / 1e15 + Double(duration.components.seconds) * 1000
+            queries.append(ms)
+            if nextIsFirst { firstQueries.append(ms) }
+        }
+        palette.onQueryPhases = { snapshot, providers, rows in
+            let key = nextIsFirst ? "first" : "later"
+            phases["\(key)_snapshot", default: []].append(ms(snapshot))
+            phases["\(key)_providers", default: []].append(ms(providers))
+            phases["\(key)_rank_and_rows", default: []].append(ms(rows))
+            nextIsFirst = false
         }
         var keyTurn: [Double] = [], firstKey: [Double] = [], laterKeys: [Double] = [], rows: [Int] = []
-        for text in ["today tab 3", "pinned 4", "folder", "site1", "example.org/article", "tab 39", "zzz", "github.com", "wikipedia"] {
+        var historyRows: [Int] = [], inline = 0
+        // Sidebar entries (2.4a) and history: hosts, words, a path, common
+        // trigrams ("com", "the"), a miss.
+        let texts = ["today tab 3", "pinned 4", "github", "swift docs", "news", "rust kernel", "developer.apple.com/sw", "wiki",
+                     "com", "the", "zzz", "google search", "app", "example.org/article"]
+        SpikeRunner.record("queries", texts.joined(separator: " | "))
+        for text in texts {
             palette.toggleNew()
             try? await Task.sleep(for: .milliseconds(100))
             for (index, character) in text.enumerated() {
+                nextIsFirst = index == 0
                 let timing = await timedTurn { self.type(String(character)) }
                 keyTurn.append(timing.turn)
                 if index == 0 { firstKey.append(timing.turn) } else { laterKeys.append(timing.turn) }
                 rows.append(palette.result.matches.count)
+                historyRows.append(palette.result.matches.filter { $0.provider == .history }.count)
+                if palette.result.inlineCompletion != nil { inline += 1 }
             }
             palette.toggleNew()
             try? await Task.sleep(for: .milliseconds(100))
@@ -246,33 +277,57 @@ extension SpikeRunner.Context {
         SpikeRunner.record("keystroke_to_rows_first_key", SpikeRunner.stats(firstKey))
         SpikeRunner.record("keystroke_to_rows_later_keys", SpikeRunner.stats(laterKeys))
         SpikeRunner.record("keystroke_query_only", SpikeRunner.stats(queries))
+        SpikeRunner.record("keystroke_query_only_first_key", SpikeRunner.stats(firstQueries))
+        for key in phases.keys.sorted() { SpikeRunner.record("query_phase_\(key)", SpikeRunner.stats(phases[key] ?? [])) }
+        palette.onQueryPhases = nil
         SpikeRunner.record("rows_per_keystroke", "min \(rows.min() ?? 0) max \(rows.max() ?? 0)")
+        SpikeRunner.record("history_rows_per_keystroke", "min \(historyRows.min() ?? 0) max \(historyRows.max() ?? 0) "
+            + "mean \(String(format: "%.1f", Double(historyRows.reduce(0, +)) / Double(max(1, historyRows.count))))")
+        SpikeRunner.record("keystrokes_with_inline_completion", inline)
     }
 }
 
-/// The first display-link callback for a view after now (the frame the
-/// palette first appears in), or `nil` if none comes (occluded window).
-private final class FrameProbe: NSObject {
-    private var continuation: CheckedContinuation<ContinuousClock.Instant?, Never>?
+/// A display link that runs for the whole measurement and remembers when
+/// each frame started; `firstTick(after:)` finds the first frame after an
+/// instant (`nil` if none comes: occluded window).
+private final class FrameTicks: NSObject {
     private var link: CADisplayLink?
+    private var times: [ContinuousClock.Instant] = []
+    private var intervals: [Double] = []
 
-    func nextFrame(of view: NSView, timeout: Double) async -> ContinuousClock.Instant? {
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
-            let link = view.displayLink(target: self, selector: #selector(tick))
-            self.link = link
-            link.add(to: .main, forMode: .common)
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in self?.finish(nil) }
-        }
+    init(view: NSView) {
+        super.init()
+        let link = view.displayLink(target: self, selector: #selector(tick(_:)))
+        link.add(to: .main, forMode: .common)
+        self.link = link
     }
 
-    @objc private func tick() { finish(.now) }
+    @objc private func tick(_ link: CADisplayLink) {
+        times.append(.now)
+        if times.count > 600 { times.removeFirst(times.count - 600) }
+        intervals.append((link.targetTimestamp - link.timestamp) * 1000)
+    }
 
-    private func finish(_ instant: ContinuousClock.Instant?) {
+    func firstTick(after instant: ContinuousClock.Instant, timeout: Double) async -> ContinuousClock.Instant? {
+        let deadline = ContinuousClock.now + .milliseconds(Int(timeout * 1000))
+        while ContinuousClock.now < deadline {
+            if let tick = times.first(where: { $0 > instant }) { return tick }
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        return nil
+    }
+
+    /// The display's frame interval as the link reported it (8.3 ms at 120 Hz).
+    var intervalDescription: String {
+        guard !intervals.isEmpty else { return "no frames (window occluded)" }
+        let sorted = intervals.sorted()
+        return String(format: "median %.2f ms (min %.2f, max %.2f, %d frames)", sorted[sorted.count / 2], sorted.first!, sorted.last!,
+                      sorted.count)
+    }
+
+    func stop() {
         link?.invalidate()
         link = nil
-        continuation?.resume(returning: instant)
-        continuation = nil
     }
 }
 #endif

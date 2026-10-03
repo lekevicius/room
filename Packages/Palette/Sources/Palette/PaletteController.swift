@@ -51,6 +51,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public var now: () -> Date = Date.init
     /// Called after every query with its main-thread duration (DEBUG measurements).
     public var onQueryTimed: ((Duration) -> Void)?
+    /// Called after every query with the snapshot, providers and ranking-plus-rows durations (DEBUG measurements).
+    public var onQueryPhases: ((_ snapshot: Duration, _ providers: Duration, _ rows: Duration) -> Void)?
 
     public private(set) var mode: PaletteMode?
     public private(set) var presentation: Presentation = .centered
@@ -143,7 +145,12 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         overlay.frame = hostView.bounds
         overlay.layer?.removeAllAnimations()
         overlay.alphaValue = 1
-        hostView.addSubview(overlay, positioned: .above, relativeTo: nil)
+        // The overlay stays in the view tree between opens, hidden: adding it
+        // moved the rows' hosting view into the window on every open (2.4b profile).
+        if overlay.superview !== hostView || hostView.subviews.last !== overlay {
+            hostView.addSubview(overlay, positioned: .above, relativeTo: nil)
+        }
+        overlay.isHidden = false
         self.overlay = overlay
         // Typed text kept for this tab (45 s) comes back with the caret at its end.
         let remembered = mode.entry.flatMap { memory.take(for: $0, at: now()) }
@@ -184,9 +191,16 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         return false
     }
 
-    /// Builds the overlay ahead of the first ⌘T (the app calls it once the window is up).
+    /// Builds the overlay ahead of the first ⌘T and puts it in the window,
+    /// hidden (the app calls it once the window is up).
     public func prewarm() {
         let overlay = preparedOverlay()
+        guard !isOpen else { return }
+        overlay.isHidden = true
+        if let hostView, overlay.superview !== hostView {
+            overlay.frame = hostView.bounds
+            hostView.addSubview(overlay, positioned: .above, relativeTo: nil)
+        }
         overlay.panel.frame = NSRect(x: 0, y: 0, width: PaletteMetrics.width, height: PaletteMetrics.fieldHeight)
         overlay.panel.layoutSubtreeIfNeeded()
     }
@@ -233,16 +247,13 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         self.overlay = nil
         let window = overlay.window
         if Motion.reduceMotion || window == nil {
-            overlay.removeFromSuperview()
+            hideIfClosed(overlay)
         } else {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = Motion.fast
                 overlay.animator().alphaValue = 0
             } completionHandler: { [weak self] in
-                MainActor.assumeIsolated {
-                    // Unless it reopened during the fade.
-                    if self?.overlay !== overlay { overlay.removeFromSuperview() }
-                }
+                MainActor.assumeIsolated { self?.hideIfClosed(overlay) }
             }
         }
         guard restoringFocus, let window else { return }
@@ -251,6 +262,12 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         } else {
             focusPage(in: window)
         }
+    }
+
+    /// Hidden, not removed; unless it reopened during the fade.
+    private func hideIfClosed(_ overlay: PaletteOverlayView) {
+        guard self.overlay !== overlay else { return }
+        overlay.isHidden = true
     }
 
     /// Focus returns to the page (ROADMAP 2.4 task 1): the first view in its
@@ -362,6 +379,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
 
     private func query(preventingInline: Bool) {
         let start = ContinuousClock.now
+        var snapshotDone: ContinuousClock.Instant?
         input = OmniboxInput(field: typedText, siteSearch: siteSearch, preventsInlineCompletion: preventingInline)
         if isUnchangedEdit {
             localMatches = []
@@ -374,12 +392,17 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             }
         } else {
             ensureContext()
+            snapshotDone = ContinuousClock.now
             localMatches = omnibox.candidates(for: input, in: context)
         }
+        let providersDone = ContinuousClock.now
         keepSuggestions(for: input)
         rank(keepingHighlight: false)
         requestSuggestions()
-        onQueryTimed?(ContinuousClock.now - start)
+        let end = ContinuousClock.now
+        onQueryTimed?(end - start)
+        let snapshot = (snapshotDone ?? start) - start
+        onQueryPhases?(snapshot, providersDone - start - snapshot, end - providersDone)
     }
 
     /// The rows from the local matches and the suggestions that have arrived.
@@ -525,9 +548,14 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         guard let overlay else { return }
         let model = overlay.panel.rows
         let rows = result.matches.enumerated().map { index, match in row(for: match, startsGroup: index > 0 && match.group != result.matches[index - 1].group) }
-        // Unchanged rows are not reassigned: SwiftUI would redraw the list on every open.
-        if model.rows != rows { model.rows = rows }
-        if model.highlighted != highlightedIndex { model.highlighted = highlightedIndex }
+        // No rows: the panel shrinks to the field and clips the list, whose
+        // slots keep their last content, so the next keystroke updates rows in
+        // place instead of filling empty ones (a query's first keystroke cost
+        // 24 ms, mostly SwiftUI drawing rows from nothing, 2.4b measurement).
+        // Unchanged rows are not reassigned either.
+        if !rows.isEmpty, model.rows != rows { model.rows = rows }
+        if !rows.isEmpty, model.highlighted != highlightedIndex { model.highlighted = highlightedIndex }
+        overlay.panel.visibleRowCount = rows.count
         layout()
     }
 

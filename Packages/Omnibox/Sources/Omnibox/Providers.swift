@@ -94,6 +94,10 @@ enum EntryMatching {
         let terms = text.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
         guard !terms.isEmpty else { return [] }
         let typedURL: String? = if case .url(let url, _) = URLFixup.classify(text) { URLNormalization.normalized(url) } else { nil }
+        // One byte search per word rejects the entries it is not in at all (most
+        // of them); a single letter matches word starts only.
+        let needles = terms.map { Array($0.utf8) }
+        let initial: Character? = terms.count == 1 && terms[0].count == 1 ? terms[0].first : nil
         var matches: [OmniboxMatch] = []
         for (entry, keys) in zip(context.entries, context.keys) {
             guard kinds.contains(entry.kind), entry.id != context.currentEntryID else { continue }
@@ -101,7 +105,8 @@ enum EntryMatching {
             if let typedURL, keys.normalizedURLs.contains(typedURL) {
                 relevance = exactRelevance
             } else {
-                guard let quality = quality(terms: terms, keys: keys) else { continue }
+                if let initial, !keys.initials.contains(initial) { continue }
+                guard needles.allSatisfy(keys.haystackContains), let quality = quality(terms: terms, keys: keys) else { continue }
                 let recency = recencyFraction(entry.lastActiveAt, now: context.now)
                 let space = entry.spaceID == nil || entry.spaceID == context.activeSpaceID ? 1.0 : 0.0
                 relevance = Relevance.scaled(quality * 0.85 + recency * 0.1 + space * 0.05, in: band)
@@ -110,7 +115,8 @@ enum EntryMatching {
             matches.append(OmniboxMatch(id: "\(provider.rawValue):\(entry.id)", provider: provider, relevance: relevance,
                                         action: .switchToEntry(id: entry.id, space: entry.spaceID, url: entry.url),
                                         title: entry.title, detail: entry.url.map(VerbatimProvider.displayURL), icon: .entry(entry.id),
-                                        spaceName: otherSpace ? entry.spaceName : nil))
+                                        spaceName: otherSpace ? entry.spaceName : nil,
+                                        normalizedURL: entry.url == nil ? nil : keys.normalizedURLs.first))
         }
         return matches
     }

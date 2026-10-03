@@ -12,7 +12,7 @@ import Model
 public struct HistoryProvider: OmniboxProvider {
     public let history: History
     /// Rows fetched per keystroke before scoring.
-    public var fetchLimit = 12
+    public var fetchLimit = OmniboxResult.limit
 
     public init(history: History) {
         self.history = history

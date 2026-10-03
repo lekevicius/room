@@ -14,9 +14,11 @@ public enum Schema {
         return migrator
     }
 
-    /// `history_url.host` (lowercased, without "www.") for inline host
-    /// completion and `frecency` (the decayed-visit logarithm) for ordering;
-    /// rows already present are backfilled from their visits.
+    /// `history_url.host` (lowercased, without "www.") and `frecency` (the
+    /// decayed-visit logarithm) for ordering, and `history_host`, one row per
+    /// host with its summed frecency and most frecent URL, so inline host
+    /// completion is a range scan over hosts rather than a grouping of every
+    /// URL (Firefox's `moz_origins`). Rows already present are backfilled.
     static func createV2(_ db: Database) throws {
         try db.alter(table: "history_url") { t in
             t.add(column: "host", .text).notNull().defaults(to: "")
@@ -24,6 +26,14 @@ public enum Schema {
         }
         try db.create(index: "history_url_frecency", on: "history_url", columns: ["frecency"])
         try db.create(index: "history_url_host", on: "history_url", columns: ["host", "frecency"])
+        try db.create(table: "history_host") { t in
+            t.primaryKey("host", .text)
+            t.column("bestURL", .text).notNull()
+            t.column("bestFrecency", .double).notNull()
+            t.column("frecency", .double).notNull()
+            t.column("visitCount", .integer).notNull()
+            t.column("typedCount", .integer).notNull()
+        }
         let rows = try Row.fetchAll(db, sql: "SELECT id, url FROM history_url")
         for row in rows {
             let id: Int64 = row["id"]
@@ -36,6 +46,9 @@ public enum Schema {
             }
             try db.execute(sql: "UPDATE history_url SET host = ?, frecency = ? WHERE id = ?",
                            arguments: [History.hostKey(for: row["url"]) ?? "", frecency, id])
+        }
+        for host in try String.fetchAll(db, sql: "SELECT DISTINCT host FROM history_url") {
+            try History.rebuildHost(db, host)
         }
     }
 

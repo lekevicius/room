@@ -10,7 +10,7 @@ struct SchemaTests {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
         let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon",
-                      "history_url", "history_visit", "history_fts", "kv"]
+                      "history_url", "history_visit", "history_fts", "history_host", "kv"]
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }

@@ -140,10 +140,14 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
     public var isDeletable: Bool
     /// Set by the scorer: the group this match is shown in.
     public internal(set) var group: MatchGroup
+    /// Matches that end on the same page are one suggestion (spec §C):
+    /// the normalised URL, computed once (the scorer compares it often).
+    public let dedupeKey: String
 
+    /// `normalizedURL`: the action's URL already normalised (entries precompute it).
     public init(id: String, provider: ProviderKind, relevance: Int, action: MatchAction, title: String, detail: String? = nil,
                 icon: MatchIcon, spaceName: String? = nil, inlineCompletion: String? = nil, keepsSlot: Bool = false,
-                isDeletable: Bool = false) {
+                isDeletable: Bool = false, normalizedURL: String? = nil) {
         self.id = id
         self.provider = provider
         self.relevance = relevance
@@ -156,14 +160,12 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
         self.keepsSlot = keepsSlot
         self.isDeletable = isDeletable
         group = MatchGroup(provider: provider)
-    }
-
-    /// Matches that end on the same page are one suggestion (spec §C).
-    public var dedupeKey: String {
-        if case .command(let id) = action { return "command:" + id }
-        if case .enterSiteSearch(let keyword) = action { return "sitesearch:" + keyword }
-        if case .pasteAndGo = action { return "paste-and-go" }
-        return action.url.map(URLNormalization.normalized) ?? id
+        dedupeKey = switch action {
+        case .command(let id): "command:" + id
+        case .enterSiteSearch(let keyword): "sitesearch:" + keyword
+        case .pasteAndGo: "paste-and-go"
+        default: normalizedURL ?? action.url.map(URLNormalization.normalized) ?? id
+        }
     }
 }
 
@@ -240,6 +242,14 @@ public struct OmniboxContext: Sendable {
 
 /// What matching needs from an entry, precomputed.
 struct EntryKeys: Sendable {
+    /// Whether `needle` (UTF-8) occurs in the haystack (`memmem`).
+    func haystackContains(_ needle: [UInt8]) -> Bool {
+        guard !needle.isEmpty else { return true }
+        return haystack.withUnsafeBytes { hay in
+            needle.withUnsafeBytes { memmem(hay.baseAddress, hay.count, $0.baseAddress, $0.count) != nil }
+        }
+    }
+
     var title: String
     /// Hosts without "www.".
     var hosts: [String]
@@ -247,6 +257,12 @@ struct EntryKeys: Sendable {
     var bareURLs: [String]
     /// `URLNormalization.normalized` of each URL (exact matches).
     var normalizedURLs: [String]
+    /// First letters of the title's words and of the hosts' labels: a
+    /// one-letter query matches only word starts (most titles contain any letter).
+    var initials: Set<Character>
+    /// Title and bare URLs in one UTF-8 buffer: a word found nowhere in it
+    /// rejects the entry with one byte search (most entries match nothing typed).
+    var haystack: [UInt8]
 
     init(_ entry: OmniboxEntry) {
         self.init(title: entry.title, urls: [entry.url, entry.storedURL].compactMap { $0 })
@@ -264,5 +280,15 @@ struct EntryKeys: Sendable {
             return lower
         }
         normalizedURLs = urls.map(URLNormalization.normalized)
+        haystack = Array(([self.title] + bareURLs).joined(separator: "\u{1}").utf8)
+        var initials = Set<Character>()
+        for text in [self.title] + hosts {
+            var atStart = true
+            for character in text {
+                if atStart, character.isLetter || character.isNumber { initials.insert(character) }
+                atStart = " -_/.:|·—".contains(character)
+            }
+        }
+        self.initials = initials
     }
 }

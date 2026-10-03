@@ -26,6 +26,9 @@ struct PaletteRow: Identifiable, Equatable {
     var startsGroup: Bool
     /// A history row: an × removes it (spec §C).
     var isDeletable = false
+
+    /// An unused slot's content.
+    static let empty = PaletteRow(id: "", icon: .symbol(.search), title: "", startsGroup: false)
 }
 
 /// The rows and the highlight; the controller writes it, the SwiftUI list reads it.
@@ -54,12 +57,22 @@ final class PaletteRowsModel {
 /// switch to dark while it was out of the window (2.4a capture).
 struct PaletteRowsView: View {
     let model: PaletteRowsModel
+    /// One per possible row (`OmniboxResult.limit`).
+    static let slots = 8
 
     var body: some View {
+        // Fixed slots, identified by position and always laid out at full
+        // height: a keystroke changes the rows' content, not SwiftUI's
+        // geometry (2.4b profile: SwiftUI rebuilt and re-measured every row on
+        // each keystroke). Unused slots are transparent; the panel clips the
+        // list to the rows in use.
         VStack(spacing: 0) {
-            ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                PaletteRowView(row: row, highlighted: model.highlighted == index) { model.onDelete?(index) }
-                    .padding(.top, row.startsGroup ? PaletteMetrics.groupGap : 0)
+            ForEach(0..<Self.slots, id: \.self) { index in
+                let row = index < model.rows.count ? model.rows[index] : nil
+                PaletteRowView(row: row ?? .empty, highlighted: model.highlighted == index) { model.onDelete?(index) }
+                    .padding(.top, row?.startsGroup == true ? PaletteMetrics.groupGap : 0)
+                    .opacity(row == nil ? 0 : 1)
+                    .allowsHitTesting(row != nil)
                     .contentShape(Rectangle())
                     .onContinuousHover { phase in
                         if case .active = phase { model.pointerMoved(over: index) }
@@ -69,7 +82,20 @@ struct PaletteRowsView: View {
             Spacer(minLength: 0)
         }
         .padding(PaletteMetrics.listPadding)
+        .transaction { $0.animation = nil }
     }
+}
+
+/// Fonts and colours made once: building `Font(NSFont)` and `Color(nsColor:)`
+/// in every row body made SwiftUI resolve them again on each keystroke.
+/// The colours stay dynamic (`NSColor`s resolve when drawn).
+private enum Style {
+    static let row = Font(Typography.row)
+    static let secondary = Font(Typography.secondary)
+    static let label = Color(nsColor: .labelColor)
+    static let secondaryLabel = Color(nsColor: .secondaryLabelColor)
+    static let chip = Color(nsColor: Palette.sidebarHover)
+    static let highlight = Color(nsColor: Palette.sidebarMultiSelection)
 }
 
 private struct PaletteRowView: View {
@@ -81,49 +107,40 @@ private struct PaletteRowView: View {
     var body: some View {
         HStack(spacing: SidebarMetrics.faviconTitleGap + 2) {
             icon.frame(width: PaletteMetrics.iconSize, height: PaletteMetrics.iconSize)
-            Text(row.title)
-                .font(Font(Typography.row))
-                .foregroundStyle(Color(nsColor: .labelColor))
+            // Title and detail in one text: one resolve and one measure per row
+            // (separate texts with layout priorities were most of a keystroke's
+            // SwiftUI time, 2.4b profile). The detail is cut first.
+            label
+                .font(Style.row)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .layoutPriority(1)
-            if let detail = row.detail {
-                Text(detail)
-                    .font(Font(Typography.row))
-                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
             Spacer(minLength: 8)
             if let space = row.spaceName {
                 Text(space)
-                    .font(Font(Typography.secondary))
-                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                    .font(Style.secondary)
+                    .foregroundStyle(Style.secondaryLabel)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(Color(nsColor: Palette.sidebarHover)))
+                    .background(Capsule().fill(Style.chip))
                     .lineLimit(1)
             }
-            if let hint = row.hint {
+            if highlighted, let hint = row.hint {
                 Text(hint)
-                    .font(Font(Typography.secondary))
-                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                    .font(Style.secondary)
+                    .foregroundStyle(Style.secondaryLabel)
                     .lineLimit(1)
-                    .opacity(highlighted ? 1 : 0)
             }
             if row.isDeletable {
                 // Spec §C: hover shows an × on the right (also on the highlighted row, for ⇧Delete's target).
-                Button(action: delete) {
-                    Image(systemName: Symbol.closeTab.name)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                        .frame(width: PaletteMetrics.deleteButtonSize, height: PaletteMetrics.deleteButtonSize)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Remove from History")
-                .accessibilityLabel("Remove from History")
-                .opacity(highlighted || hovering ? 1 : 0)
+                Image(systemName: Symbol.closeTab.name)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Style.secondaryLabel)
+                    .frame(width: PaletteMetrics.deleteButtonSize, height: PaletteMetrics.deleteButtonSize)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: delete)
+                    .accessibilityLabel("Remove from History")
+                    .accessibilityAddTraits(.isButton)
+                    .opacity(highlighted || hovering ? 1 : 0)
             }
         }
         .onHover { hovering = $0 }
@@ -132,11 +149,17 @@ private struct PaletteRowView: View {
         .background {
             if highlighted {
                 RoundedRectangle(cornerRadius: Radius.medium, style: .continuous)
-                    .fill(Color(nsColor: Palette.sidebarMultiSelection))
+                    .fill(Style.highlight)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(highlighted ? .isSelected : [])
+    }
+
+    private var label: Text {
+        let title = Text(row.title).foregroundStyle(Style.label)
+        guard let detail = row.detail else { return title }
+        return Text("\(title)  \(Text(detail).foregroundStyle(Style.secondaryLabel))")
     }
 
     @ViewBuilder private var icon: some View {
@@ -146,11 +169,11 @@ private struct PaletteRowView: View {
         case .symbol(let symbol):
             Image(systemName: symbol.name)
                 .font(.system(size: 13))
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                .foregroundStyle(Style.secondaryLabel)
         case .systemName(let name):
             Image(systemName: name)
                 .font(.system(size: 13))
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                .foregroundStyle(Style.secondaryLabel)
         }
     }
 }
