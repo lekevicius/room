@@ -11,7 +11,7 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | Package | Ad-hoc strict signature valid; 518 component dylibs, 916 MB framework, latest host 918 MB; mock keychain |
 | Initial baseline | nav 14.209 s; open10 ready 15 s; valid ten-page quits 0.493 / 0.471 s, 0 helpers left / 0 new crashes |
 | Latest serial baseline | After activation fix: nav 11.419 s; ten loaded pages, quit 0.549 s, load1 11.05, 26 helpers / 0 left / 0 new crashes, exit 0 |
-| Concurrent repetition | After FedCM fix: auth 20 s; ten-page quit 1.881 s, 26 helpers / 0 left / 0 crashes, exit 0. Does not resolve the retained older watchdog |
+| Concurrent repetition | Three-browser exercise reproduced 2 watchdog exits after all ten pages loaded; third fixture rejected. Helper-capture repeat passed at 6.017 / 5.691 s but does not resolve the failure |
 | Surface coverage | Original 18 processes driven without crashes. 17 drives pass; fullscreen deliberately rejects and its driver fails. Added deterministic FedCM passive bubble / active modal probe passes. Native UI acceptance remains partial |
 | Network before | Fresh profile, 600 s idle, 608 s process: 62 HTTP / 86 connections / 9 DNS, 0 TLS errors |
 | Network after demand-CDM and FedCM | Fresh profile, 600 s idle, 610 s process: 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events, clean exit. Fixed app code 2a04498 |
@@ -32,7 +32,7 @@ After request list: empty. Detailed attribution: roomcore-network-audit.md.
 Room supplies a real Views parent for web dialogs, a permission bubble anchor,
 Chrome FindBarOwner, and FedCM bubble/modal anchors with initialized primary
 Views context. Extension tab edits now reflect live model state instead of an
-always-false stub; actual tab 1→2→1 and popup create/remove probes pass. Stub-hit logging remains enabled. Each engine fix has an
+always-false stub; actual tab 1→2→1 and popup create/remove probes pass. Explicit activation now activates NSApp before making the window key; action.openPopup advances to the expected missing-toolbar boundary. Stub-hit logging remains enabled. Each engine fix has an
 incremental build and navigation/ten-page quit baseline. The full surface,
 Chrome call sites and members are in spike-results.md.
 
@@ -40,8 +40,11 @@ The old concurrent auth completion hit Chrome's 10 s shutdown watchdog (exit
 2), and its concurrent baseline retained 9 helpers beyond 5 s. These samples
 remain failures. The minidump shows the main thread joining the IO thread,
 which is in macOS VM deallocation during Mojo channel teardown. A later
-concurrent run found and led to fixing the separate FedCM crash. A clean
-repeat cannot prove the original shutdown issue fixed. See
+concurrent run found and led to fixing the separate FedCM crash. Two new
+watchdogs reproduced after all ten pages loaded: live samples first wait for
+the network service, then one final dump reaches thread-pool shutdown. A
+targeted slow successful repeat captured the network helper waiting on worker
+startup/QoS setting. This is a diagnostic lead, not a proven cause or fix. See
 roomcore-shutdown-investigation.md for stacks and next diagnostic step.
 
 Chapter 3 must supply popup/window ownership, native address/permission/FedCM
@@ -50,3 +53,9 @@ download chooser/status/cancellation, extension actions, and fullscreen state
 with visible origin/escape UI. Stub behavior cannot stand in for these. Current
 AGENTS.md prohibits accessibility/computer-use driving; native click/focus/
 compositing checks remain explicitly listed for reviewer interaction.
+
+Completion probes additionally verify cancellation after 131,072 of 33,554,432
+advertised download bytes (no final/partial file remains), certificate-error
+leave back to the safe page, beforeunload cancellation preserving its page,
+and a muted Web Audio oscillator advancing 0.261333 s at 48 kHz before close.
+All four processes exit 0. Audible output and native controls remain unverified.

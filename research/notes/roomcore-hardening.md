@@ -473,3 +473,16 @@ and original page preserved (16 s). Muted Web Audio oscillator advances
 0.261333 s at 48 kHz and closes (11 s). All exit 0; native interaction boundaries
 remain. Corrected consolidated report's stale latest-baseline row to 11.419 s
 nav / 0.549 s quit. No new network policy or patch changes.
+
+### Shutdown reproduction checkpoint — 09:15 EEST
+
+The bounded three-browser / ten-page exercise reproduced two 10 s watchdog
+exits (all pages loaded); a third was rejected for Stack Overflow still
+loading. Live samples show network-service process wait before the final
+watchdog stacks. One targeted helper capture then passed slowly at 6.017 /
+5.691 s and showed network-service ThreadPool shutdown waiting while two
+workers were still setting their initial macOS QoS. This narrows the
+investigation without proving a cause or a production fix. Details, matching
+UUIDs and rejected samples are in roomcore-shutdown-investigation.md. Added
+failure.json evidence to the quit runner; actual exit-2 fixture and Python
+syntax checks pass. No engine/network/patch changes in this checkpoint.

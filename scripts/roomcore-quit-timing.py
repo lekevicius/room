@@ -99,6 +99,25 @@ def main():
                 print(json.dumps(receipt), flush=True)
                 if left or crashes:
                     raise RuntimeError('shutdown left helpers or produced a crash report')
+            except Exception as error:
+                # A watchdog exit is the sample we most need to diagnose. Keep
+                # its helpers and markers even when it cannot produce a valid
+                # timing receipt; never turn the failure into a passing sample.
+                rows = processes()
+                failure = {
+                    'error': str(error), 'exit_status': process.poll(),
+                    'browser_pid': process.pid, 'load1': load,
+                    'markers': markers(spike), 'observed_helpers': observed,
+                    'remaining_helpers': {
+                        pid: cmd for pid, cmd in observed.items()
+                        if pid in rows and rows[pid][1] == cmd},
+                    'new_crash_reports': sorted(crash_reports() - before),
+                    'minidumps': [str(path.relative_to(run_dir)) for path in
+                                 sorted((run_dir / 'profile/Crashpad').rglob('*.dmp'))],
+                }
+                (run_dir / 'failure.json').write_text(
+                    json.dumps(failure, indent=2) + '\n')
+                raise
             finally:
                 if process.poll() is None:
                     process.terminate()
