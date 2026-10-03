@@ -30,6 +30,9 @@ final class Page {
     /// While the certificate interstitial shows, the row reads the host, not
     /// Chromium's title for the blocked navigation (2.6a carry-over).
     var interstitialHost: String?
+    /// The link under the pointer or keyboard focus (the status text): Peek's
+    /// rule tells a click on it from a navigation the page's script started.
+    var hoveredLink: URL?
 
     init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
@@ -110,6 +113,8 @@ public final class TabController: SidebarHost {
         }
     }
 
+    func requestEngineProfile(for id: UUID) { requestProfile(id) }
+
     private func requestProfile(_ id: UUID) {
         guard engineProfiles[id] == nil, requestedProfiles.insert(id).inserted,
               let profile = store.sidebar.profiles.first(where: { $0.id == id }) else { return }
@@ -128,12 +133,28 @@ public final class TabController: SidebarHost {
     /// The page in the card.
     public private(set) var current: (any WebContents)?
     /// The page that has the keyboard and the page commands (reload, find,
-    /// zoom, back/forward): the card's page.
-    public var focusedPage: (any WebContents)? { current }
+    /// zoom, back/forward): the Peek over the card if one shows, else the card's page.
+    public var focusedPage: (any WebContents)? { peekContents ?? current }
+    /// The selected entry's Peek on screen (observable through `focusedPage` and `shownPeek`).
+    var peekContents: (any WebContents)?
     /// The entry whose page the card shows (or would, while it loads).
     public private(set) var currentEntryID: UUID?
 
     @ObservationIgnored var pages: [UUID: Page] = [:]
+    /// Peek pages by the entry they opened over (spec §I.6).
+    @ObservationIgnored var peeks: [UUID: Page] = [:]
+    /// Peek pages Room closed, until the engine reports them gone.
+    @ObservationIgnored var closingPeeks: Set<ObjectIdentifier> = []
+    /// Where Peek shows (the app's overlay card).
+    @ObservationIgnored public weak var peekDisplay: (any PeekDisplay)?
+    /// Settings ▸ "Open links to other sites from pinned tabs in Peek" (spec §A.4).
+    @ObservationIgnored public var isPeekEnabled: () -> Bool = { true }
+    /// When the last mouse or key press in the window happened (`uptime`'s
+    /// clock; the app's event monitor sets it): Peek's 2 s gesture window.
+    @ObservationIgnored public var lastUserInput: TimeInterval?
+    @ObservationIgnored public var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Spikes only: every Peek decision on an entry's navigation.
+    @ObservationIgnored public var debugPeekDecisions: ((NavigationAction, PeekDecision) -> Void)?
     /// Pages being closed by `unload`, until the engine reports them gone.
     @ObservationIgnored var closing: [ObjectIdentifier: (contents: any WebContents, entry: UUID)] = [:]
     /// The last tab a page opened, while the user has not switched tabs (§A.7).
@@ -182,8 +203,14 @@ public final class TabController: SidebarHost {
     /// The engine profile (cookie jar, permissions) a page lives in: the site
     /// panel acts on it (ROADMAP 2.6).
     public func engineProfile(for contents: any WebContents) -> (any Engine.Profile)? {
-        guard let id = entryID(for: contents), let page = pages[id] else { return nil }
+        guard let page = page(for: contents) else { return nil }
         return engineProfiles[page.profileID]
+    }
+
+    /// An entry's page or a Peek page.
+    func page(for contents: any WebContents) -> Page? {
+        if let id = entryID(for: contents) { return pages[id] }
+        return peekOpener(of: contents).flatMap { peeks[$0] }
     }
 
     /// Entries with a page, alive or discarded.
@@ -232,6 +259,8 @@ public final class TabController: SidebarHost {
         // A discarded page comes back at its URL (back/forward is lost on CEF, B-13).
         if page.contents.state == .discarded { page.contents.reload() }
         show(page.contents)
+        // Its Peek, if it had one, comes back with it.
+        updatePeek(animated: false)
     }
 
     public func deactivate() {
@@ -239,10 +268,13 @@ public final class TabController: SidebarHost {
         currentEntryID = nil
         relatedChain = nil
         show(nil)
+        updatePeek(animated: false)
     }
 
     /// Idempotent; the store is not touched (the sidebar resets or removes the entry).
     public func unload(_ entry: UUID) {
+        // Its Peek closes first (spec §A.3).
+        closePeek(over: entry, recordForReopen: false, animated: true)
         guard let page = pages.removeValue(forKey: entry) else { return }
         page.generation += 1
         if currentEntryID == entry { show(nil) }
@@ -350,8 +382,16 @@ public final class TabController: SidebarHost {
     // MARK: Pages
 
     private func show(_ contents: (any WebContents)?) {
+        if contents !== current { updatePeekBeforeSwitch() }
         current = contents
         display?.show(contents)
+    }
+
+    /// Another page goes into the card: the old entry's Peek leaves with it.
+    private func updatePeekBeforeSwitch() {
+        guard peekContents != nil else { return }
+        peekContents = nil
+        peekDisplay?.showPeek(nil, animated: false)
     }
 
     private func makePage(for entry: Entry, hidden: Bool) -> Page? {
@@ -393,14 +433,7 @@ public final class TabController: SidebarHost {
     /// A page `opener` opened (link with a new-tab disposition, `window.open`):
     /// a new Today tab placed per §A.7, selected unless it opened in the background.
     func adoptOpenedPage(_ contents: any WebContents, url: URL?, openedBy openerID: UUID, select: Bool) {
-        guard let sidebar, let opener = store.sidebar.entry(openerID) else {
-            contents.close()
-            return
-        }
-        let space = opener.spaceID ?? sidebar.activeSpaceID
-        let lastRelated = relatedChain?.opener == openerID ? relatedChain?.last : nil
-        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space))
-        guard let entry = try? store.sidebar.addEntry(.today, url: (url ?? contents.url)?.absoluteString, space: space, at: index) else {
+        guard let sidebar, let entry = insertRelatedToday(url: (url ?? contents.url)?.absoluteString, openedBy: openerID) else {
             contents.close()
             return
         }
@@ -416,7 +449,7 @@ public final class TabController: SidebarHost {
 
     // MARK: Page state into the store
 
-    private func observe(_ page: Page, entry: UUID) {
+    func observe(_ page: Page, entry: UUID) {
         page.generation += 1
         track(page, entry: entry, generation: page.generation)
     }

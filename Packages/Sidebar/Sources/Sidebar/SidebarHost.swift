@@ -47,4 +47,13 @@ public protocol SidebarHost: AnyObject {
     func newTab()
     /// The header's address field was clicked (⌘L docked, Phase 2.4).
     func editAddress()
+    /// Space on a focused permanent row (spec §I.13): its stored URL in Peek.
+    func peek(_ entry: Entry)
+    /// ⇧⌘T on a closed Peek: it opens again over `entry`'s page (spec §I.6).
+    func reopenPeek(url: String, over entry: UUID)
+}
+
+public extension SidebarHost {
+    func peek(_ entry: Entry) {}
+    func reopenPeek(url: String, over entry: UUID) {}
 }

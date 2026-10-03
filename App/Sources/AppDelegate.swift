@@ -39,6 +39,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var statusPill: StatusPill?
     /// The site panel on the header's site button (2.6b).
     let sitePanel = SitePanel()
+    /// Peek over the card (2.7a).
+    private(set) var peek: PeekPresenter?
+    /// The last press in the window: Peek's 2 s gesture window and where its open animation starts.
+    private var inputMonitor: Any?
+    private var lastClick: (point: CGPoint, time: TimeInterval)?
     /// The hidden sidebar's overlay header, keep-open checks and toasts (2.7a).
     private(set) var hiddenSidebar: HiddenSidebar?
     #if DEBUG
@@ -291,9 +296,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         observeSuggestionsSwitch(settings, palette: palette)
         tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
         tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
-        rootView.onLayout = { [weak toasts, weak palette] in
+        rootView.onLayout = { [weak self, weak toasts, weak palette] in
             toasts?.updateAnchor()
             palette?.layout()
+            self?.peek?.layout()
         }
         self.palette = palette
         hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
@@ -354,27 +360,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             statusPill?.layout()
             zoom?.layout()
         }
+        installPeek(tabs: tabs, pageHost: pageHost, rootView: rootView, tools: { [weak statusPill, weak zoom] in
+            statusPill?.layout()
+            zoom?.layout()
+        })
         pageDelegate.onStatusText = { [weak statusPill] text in statusPill?.setStatus(text) }
         pageDelegate.onPageClosed = { [weak find] page in find?.pageClosed(page) }
         self.find = find
         self.zoom = zoom
         self.statusPill = statusPill
-        pageHost.onShow = { [weak chrome, weak fullscreen, weak find, weak zoom, weak statusPill] contents in
-            chrome?.prompts.setCurrentPage(contents)
+        pageHost.onShow = { [weak self, weak fullscreen] contents in
             fullscreen?.cardDidShow(contents)
-            find?.setPage(contents)
-            zoom?.setPage(contents)
-            statusPill?.reset()
+            self?.focusPageSurfaces()
         }
         find.setPage(pageHost.contents)
         sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
+        chrome.isPeekAvailable = true
         chrome.performMenuAction = { [weak tabs] action, page in
             switch action {
             case .openLinkInNewTab(let url), .openImageInNewTab(let url):
                 tabs?.openLink(url, from: page)
-            case .openLinkInPeek:
-                break  // Peek is Phase 2.7; the item is disabled until then.
+            case .openLinkInPeek(let url):
+                tabs?.openPeek(url, from: page)
             case .copyLink(let url), .copyImageAddress(let url):
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url.absoluteString, forType: .string)
@@ -421,6 +429,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                       isLoading: page?.isLoading ?? false, hasPage: page != nil)
             toolbar.setURL(page?.url?.absoluteString)
         }
+    }
+
+    /// Peek over the card (spec §A.4, §I.6): the presenter, its page's own
+    /// tool and prompt layers, and the input monitor its rules read.
+    private func installPeek(tabs: TabController, pageHost: PageHost, rootView: BrowserWindowView, tools: @escaping () -> Void) {
+        let peek = PeekPresenter(rootView: rootView)
+        peek.overlay.container.toolLayer.onLayout = tools
+        peek.onClose = { [weak tabs] in tabs?.closeShownPeek() }
+        peek.onExpand = { [weak tabs] in tabs?.expandShownPeek() }
+        peek.onFocus = { [weak self, weak pageHost] contents, _ in
+            self?.focusPageSurfaces()
+            if contents == nil { pageHost?.focusPage() }
+        }
+        peek.recentClick = { [weak self] in
+            guard let click = self?.lastClick, ProcessInfo.processInfo.systemUptime - click.time < Timing.peekGestureWindow else { return nil }
+            return click.point
+        }
+        tabs.peekDisplay = peek
+        let settings = store?.settings
+        tabs.isPeekEnabled = { [weak settings] in settings?.settings.peekOffSiteLinks ?? true }
+        self.peek = peek
+        inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) {
+            [weak self, weak tabs, weak rootView] event in
+            tabs?.lastUserInput = event.timestamp
+            if event.type == .leftMouseDown, let rootView, event.window === rootView.window {
+                self?.lastClick = (rootView.convert(event.locationInWindow, from: nil), event.timestamp)
+            }
+            return event
+        }
+    }
+
+    /// The focused page (Peek's if it shows, else the card's) owns the
+    /// prompts, the find bar, the zoom indicator and the status pill, in its
+    /// own container (2.7b: the focused split pane).
+    private func focusPageSurfaces() {
+        guard let pageHost else { return }
+        let (page, container): ((any WebContents)?, PageContainerView) = if let peek, let contents = peek.contents {
+            (contents, peek.overlay.container)
+        } else {
+            (pageHost.contents, pageHost.container)
+        }
+        promptPresenter?.setHost(container.promptLayer)
+        pageDelegate?.chrome.prompts.setCurrentPage(page)
+        find?.setHost(container.toolLayer)
+        find?.setPage(page)
+        zoom?.setHost(container.toolLayer)
+        zoom?.setPage(page)
+        statusPill?.setHost(container.toolLayer)
+        statusPill?.reset()
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open
@@ -472,7 +529,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// ⌘W: the multi-selection or the selected entry, per spec §A.3.
-    @objc func closeTab(_ sender: Any?) { sidebar?.closeCommandTargets() }
+    @objc func closeTab(_ sender: Any?) {
+        // A Peek over the page closes first (spec §I.6, shortcuts.md: Esc, ⌘W).
+        if tabs?.closeShownPeek() == true { return }
+        sidebar?.closeCommandTargets()
+    }
+
+    /// ⌘O: Peek becomes a Today tab under its entry (spec §I.6).
+    @objc func expandPeek(_ sender: Any?) { tabs?.expandShownPeek() }
+
+    /// ⇧⌘O: Peek into a split with its entry (2.7b; disabled until then).
+    @objc func splitPeek(_ sender: Any?) {}
 
     /// ⇧⌘T.
     @objc func reopenClosedTab(_ sender: Any?) { sidebar?.reopenClosedTab() }
@@ -520,15 +587,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func clearTodayTabs(_ sender: Any?) { sidebar?.clearTodayTabs() }
 
     @objc func reloadPage(_ sender: Any?) {
-        tabs?.current?.reload()
+        tabs?.focusedPage?.reload()
     }
 
     @objc func goBack(_ sender: Any?) {
-        tabs?.current?.goBack()
+        tabs?.focusedPage?.goBack()
     }
 
     @objc func goForward(_ sender: Any?) {
-        tabs?.current?.goForward()
+        tabs?.focusedPage?.goForward()
     }
 
     /// ⇧⌘J: the downloads popover (spec §G).
@@ -546,7 +613,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// ⌘= (tag 1), ⌘- (tag −1), ⌘0 (tag 0).
     @objc func zoomPage(_ sender: Any?) {
-        guard let page = tabs?.current, let item = sender as? NSMenuItem else { return }
+        guard let page = tabs?.focusedPage, let item = sender as? NSMenuItem else { return }
         switch item.tag {
         case 1: zoom?.zoomIn(page)
         case -1: zoom?.zoomOut(page)
@@ -571,7 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// ⌘P: the system print panel (CEF's; ROADMAP 2.6 task 3).
-    @objc func printPage(_ sender: Any?) { tabs?.current?.print() }
+    @objc func printPage(_ sender: Any?) { tabs?.focusedPage?.print() }
 
     /// ⇧⌘C (tag 0) and ⌥⇧⌘C (tag 1): Copy URL / as Markdown with a toast (spec §F).
     @objc func copyPageURL(_ sender: Any?) {
@@ -611,7 +678,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(clearTodayTabs(_:)):
             return sidebar?.canClearToday == true
         case #selector(closeTab(_:)):
-            return sidebar?.canCloseCommandTargets == true
+            return tabs?.shownPeek != nil || sidebar?.canCloseCommandTargets == true
         case #selector(reopenClosedTab(_:)):
             return sidebar?.canReopenClosedTab == true
         case #selector(selectSpaceByNumber(_:)):
@@ -630,23 +697,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return tabs?.current != nil
         case #selector(reloadPage(_:)), #selector(showFindBar(_:)), #selector(findNext(_:)), #selector(printPage(_:)),
              #selector(showJavaScriptConsole(_:)), #selector(inspectElements(_:)):
-            return tabs?.current != nil
+            return tabs?.focusedPage != nil
         case #selector(zoomPage(_:)):
-            guard let page = tabs?.current else { return false }
+            guard let page = tabs?.focusedPage else { return false }
             switch menuItem.tag {
             case 1: return page.zoomFactor < ZoomRules.steps.last! - 0.001
             case -1: return page.zoomFactor > ZoomRules.steps.first! + 0.001
             default: return !ZoomRules.isDefault(page.zoomFactor)
             }
+        case #selector(expandPeek(_:)):
+            return tabs?.shownPeek != nil
+        case #selector(splitPeek(_:)):
+            return false  // Split view is 2.7b.
         case #selector(toggleToolbar(_:)):
             menuItem.state = windowController?.showsToolbar == true ? .on : .off
             return windowController != nil
         case #selector(copyPageURL(_:)):
             return sidebar?.selectedHasURL == true
         case #selector(goBack(_:)):
-            return tabs?.current?.canGoBack == true
+            return tabs?.focusedPage?.canGoBack == true
         case #selector(goForward(_:)):
-            return tabs?.current?.canGoForward == true
+            return tabs?.focusedPage?.canGoForward == true
         default:
             return true
         }

@@ -17,11 +17,18 @@ extension SidebarController {
             if case .page = closed, pageState(id).isLoaded { host?.unload(id) }
             select(id)
             pageStateDidChange([id])
+            // A Peek comes back over its entry's page.
+            if case .peek(let url, _) = closed { host?.reopenPeek(url: url, over: id) }
             return
         }
     }
 
     public var canReopenClosedTab: Bool { !closedTabs.isEmpty }
+
+    /// A Peek over `opener`'s page closed (⇧⌘T brings it back, spec §I.6).
+    public func recordClosedPeek(url: String, opener: UUID) {
+        closedTabs.push(.peek(url: url, opener: opener))
+    }
 
     /// ⌘1…⌘8 select the Nth entry in sidebar order, ⌘9 the last.
     public func selectTab(digit: Int) {

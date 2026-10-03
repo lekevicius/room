@@ -53,7 +53,11 @@ nonisolated public struct NavigationAction: Sendable, Hashable {
     /// What the page or the click asked for (⌘-click → `.newBackgroundTab`).
     public var disposition: Disposition
     public var isUserGesture: Bool
+    /// A server redirect (3xx) in the navigation's chain.
     public var isRedirect: Bool
+    /// A client redirect: `location.replace()`, a meta refresh, a script
+    /// navigation while the page loads (Chromium `PAGE_TRANSITION_CLIENT_REDIRECT`).
+    public var isClientRedirect: Bool
 
     public init(
         url: URL,
@@ -62,7 +66,8 @@ nonisolated public struct NavigationAction: Sendable, Hashable {
         transition: PageTransition,
         disposition: Disposition = .currentTab,
         isUserGesture: Bool = false,
-        isRedirect: Bool = false
+        isRedirect: Bool = false,
+        isClientRedirect: Bool = false
     ) {
         self.url = url
         self.referrer = referrer
@@ -71,5 +76,6 @@ nonisolated public struct NavigationAction: Sendable, Hashable {
         self.disposition = disposition
         self.isUserGesture = isUserGesture
         self.isRedirect = isRedirect
+        self.isClientRedirect = isClientRedirect
     }
 }

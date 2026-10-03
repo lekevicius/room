@@ -9,6 +9,9 @@ public enum ClosedTab: Equatable, Sendable {
     /// The page of a permanent entry that ⌘W unloaded or reset (the entry
     /// stays): the entry as it was, with the page's live URL and title.
     case page(Entry)
+    /// A Peek closed over an entry's page (spec §I.6: ⇧⌘T reopens it): its
+    /// URL, over the entry it belonged to.
+    case peek(url: String, opener: UUID)
 }
 
 /// The window's reopen stack: newest last, at most `capacity` (Chrome's
@@ -45,6 +48,8 @@ extension SidebarStore {
             guard entry(before.id) != nil else { return nil }
             if let url = before.liveURL { try? setLivePage(before.id, url: url, title: before.liveTitle) }
             return before.id
+        case .peek(_, let opener):
+            return entry(opener) != nil ? opener : nil
         }
     }
 }

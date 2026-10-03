@@ -184,6 +184,14 @@ public final class StatusPill {
 
     public func reset() { state.reset() }
 
+    /// The focused page's tool layer (the card's, Peek's): the pill starts over there.
+    public func setHost(_ host: NSView) {
+        guard host !== self.host else { return }
+        state.reset()
+        view.removeFromSuperview()
+        self.host = host
+    }
+
     private func update() {
         guard let host, let text = state.shownText else {
             view.removeFromSuperview()

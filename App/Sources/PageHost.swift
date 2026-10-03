@@ -111,7 +111,8 @@ final class PageContainerView: NSView {
     var pageView: NSView? {
         didSet {
             guard pageView !== oldValue else { return }
-            oldValue?.removeFromSuperview()
+            // A page view another container took already (Peek → Open as Tab) stays where it is.
+            if oldValue?.superview === self { oldValue?.removeFromSuperview() }
             if let pageView { addSubview(pageView, positioned: .below, relativeTo: nil) }
             // Tools and prompts stay above the page view whatever was added last.
             addSubview(toolLayer, positioned: .above, relativeTo: nil)

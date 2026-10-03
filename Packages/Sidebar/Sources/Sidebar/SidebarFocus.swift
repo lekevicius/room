@@ -140,7 +140,7 @@ extension SidebarController {
 
     /// ↑/↓ move the focus ring, →/← open and close folders, Enter selects
     /// (on the selected row: rename, §I.9), Delete is ⌘W, Esc clears the
-    /// multi-selection; Space (Peek) waits for 2.7.
+    /// multi-selection, Space opens a permanent row's stored URL in Peek (2.7a).
     func outlineKeyDown(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         guard modifiers.isEmpty else { return false }
@@ -150,7 +150,7 @@ extension SidebarController {
         case 124: expandFocused()
         case 123: collapseFocused()
         case 36, 76: return activateFocused()
-        case 49: return focusedEntryID != nil
+        case 49: return peekFocused()
         case 51, 117: return closeFocused()
         case 53:
             let handled = !multiSelection.isEmpty || focusRingVisible
@@ -163,6 +163,13 @@ extension SidebarController {
     }
 
     var focusedEntryID: UUID? { focusedNode?.entryID }
+
+    /// Space (spec §I.13): a permanent row's stored URL in Peek.
+    private func peekFocused() -> Bool {
+        guard let id = focusedEntryID, let entry = sidebar.entry(id) else { return false }
+        if entry.kind.isPermanent, entry.storedURL != nil { host?.peek(entry) }
+        return true
+    }
 
     /// Moves keyboard focus; `ring`: draw it (keyboard use, not clicks).
     func setFocus(_ node: OutlineNode?, ring: Bool) {

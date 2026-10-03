@@ -135,6 +135,8 @@ typedef NS_ENUM(NSInteger, RoomCEFMediaType) {
 @property(nonatomic, readonly) RoomCEFTransition transition;
 @property(nonatomic, readonly) BOOL userGesture;
 @property(nonatomic, readonly) BOOL redirect;
+/// `TT_CLIENT_REDIRECT_FLAG`: `location.replace()`, a meta refresh, a script navigation during load.
+@property(nonatomic, readonly) BOOL clientRedirect;
 @end
 
 /// One row of a CEF context menu.

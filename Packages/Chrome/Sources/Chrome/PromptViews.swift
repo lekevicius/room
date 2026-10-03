@@ -606,6 +606,24 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         updatePermission()
     }
 
+    /// The focused page's prompt layer (the card's, Peek's; 2.7b: a pane's):
+    /// what is shown moves there, nothing is answered.
+    public func setHost(_ host: NSView) {
+        guard host !== self.host else { return }
+        shownCrash?.view.removeFromSuperview()
+        shownCrash = nil
+        shownDialog?.view.removeFromSuperview()
+        shownDialog = nil
+        if let shown = shownPermission {
+            closingPopover = true
+            shown.popover.close()
+            closingPopover = false
+            shownPermission = nil
+        }
+        self.host = host
+        update()
+    }
+
     /// The crashed-page view under any dialog, while the page in the card is crashed.
     private func updateCrash() {
         let page = prompts.currentPage

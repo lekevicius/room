@@ -151,6 +151,7 @@ NSWindow* ParkingWindow() {
 @property(nonatomic) RoomCEFTransition transition;
 @property(nonatomic) BOOL userGesture;
 @property(nonatomic) BOOL redirect;
+@property(nonatomic) BOOL clientRedirect;
 @end
 @implementation RoomCEFNavigationRequest
 @end
@@ -628,6 +629,7 @@ class RoomCEFClient : public CefClient,
     navigation.transition = ToTransition(request->GetTransitionType());
     navigation.userGesture = user_gesture;
     navigation.redirect = is_redirect;
+    navigation.clientRedirect = (static_cast<int>(request->GetTransitionType()) & TT_CLIENT_REDIRECT_FLAG) != 0;
     return [delegate() browser:owner_ shouldCancelNavigation:navigation];
   }
 

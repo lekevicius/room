@@ -63,6 +63,14 @@ private struct SettingsView: View {
                     Text("Sends what you type in the palette to the search engine. Off: nothing leaves Room while you type.")
                 }
             }
+            Section("Links") {
+                Toggle(isOn: Binding(
+                    get: { settings.settings.peekOffSiteLinks },
+                    set: { on in settings.update { $0.peekOffSiteLinks = on } })) {
+                    Text("Open links to other sites from pinned tabs in Peek")
+                    Text("Sign-in pages, form posts and redirects still open in the tab.")
+                }
+            }
             Section("Downloads") {
                 LabeledContent("Save downloads to") {
                     HStack {

@@ -48,6 +48,15 @@ public final class FindController {
     public var barView: NSView? { bar }
     public var countText: String { bar?.countLabel.stringValue ?? "" }
 
+    /// The focused page's tool layer (the card's, Peek's): the bar moves there.
+    public func setHost(_ host: NSView) {
+        guard host !== self.host else { return }
+        let wasShown = bar != nil
+        removeBar()
+        self.host = host
+        if wasShown { showBar(focus: false) }
+    }
+
     /// The card shows another page: its own bar, if it had one open.
     public func setPage(_ page: (any WebContents)?) {
         guard page !== self.page else { return }

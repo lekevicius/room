@@ -52,6 +52,13 @@ public final class ZoomIndicator {
     public func zoomOut(_ page: any WebContents) { apply(ZoomRules.zoomOut(from: page.zoomFactor), to: page) }
     public func reset(_ page: any WebContents) { apply(1, to: page) }
 
+    /// The focused page's tool layer (the card's, Peek's).
+    public func setHost(_ host: NSView) {
+        guard host !== self.host else { return }
+        hide()
+        self.host = host
+    }
+
     /// The card shows another page: the indicator belongs to the old one.
     public func setPage(_ page: (any WebContents)?) {
         guard page !== self.page else { return }

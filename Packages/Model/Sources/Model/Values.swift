@@ -308,12 +308,14 @@ public struct Settings: Hashable, Sendable, Codable {
     /// View ▸ Show Toolbar: the 36 pt bar with Back, Forward, Reload and the
     /// full URL across the card's top (spec §E); off by default.
     public var showsToolbar: Bool = false
+    /// Links ▸ "Open links to other sites from pinned tabs in Peek" (spec §A.4; on by default).
+    public var peekOffSiteLinks: Bool = true
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
-        case showsToolbar
+        case showsToolbar, peekOffSiteLinks
     }
 
     public init(from decoder: any Decoder) throws {
@@ -330,6 +332,7 @@ public struct Settings: Hashable, Sendable, Codable {
             ?? defaults.crossProfileMoveWarned
         downloadDirectory = (try? container.decodeIfPresent(String.self, forKey: .downloadDirectory)).flatMap { $0 }
         showsToolbar = (try? container.decodeIfPresent(Bool.self, forKey: .showsToolbar)).flatMap { $0 } ?? defaults.showsToolbar
+        peekOffSiteLinks = (try? container.decodeIfPresent(Bool.self, forKey: .peekOffSiteLinks)).flatMap { $0 } ?? defaults.peekOffSiteLinks
     }
 }
 

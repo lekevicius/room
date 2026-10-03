@@ -61,7 +61,8 @@ extension NavigationAction {
             transition: transition,
             disposition: .currentTab,
             isUserGesture: request.userGesture,
-            isRedirect: request.redirect
+            isRedirect: request.redirect,
+            isClientRedirect: request.clientRedirect
         )
     }
 }

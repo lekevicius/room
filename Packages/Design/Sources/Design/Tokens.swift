@@ -256,7 +256,7 @@ public enum Timing {
     public static let clusterFade: TimeInterval = 2
     /// `window.location` set by a page this soon after a user gesture
     /// navigates in place, never into Peek (spec §A.4: 2 s).
-    public static let peekGestureWindow: TimeInterval = 2
+    nonisolated public static let peekGestureWindow: TimeInterval = 2
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).

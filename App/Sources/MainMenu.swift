@@ -115,6 +115,11 @@ enum MainMenu {
         tabMenu.addItem(withTitle: "Add to Essentials", action: #selector(AppDelegate.toggleEssentials(_:)), keyEquivalent: "D")
         tabMenu.addItem(.separator())
         tabMenu.addItem(withTitle: "Clear Today Tabs", action: #selector(AppDelegate.clearTodayTabs(_:)), keyEquivalent: "K")
+        tabMenu.addItem(.separator())
+        // Peek (spec §I.6; docs/shortcuts.md: ⌘O, ⇧⌘O; Open File stays menu-only).
+        tabMenu.addItem(withTitle: "Open Peek as Tab", action: #selector(AppDelegate.expandPeek(_:)), keyEquivalent: "o")
+        let split = tabMenu.addItem(withTitle: "Open Peek in Split View", action: #selector(AppDelegate.splitPeek(_:)), keyEquivalent: "O")
+        split.toolTip = "Split view arrives in Phase 2.7b"
         main.addItem(submenu: tabMenu, title: "Tab")
 
         // Spaces (Phase 2.5, spec §B): ⌃1…⌃9 and ⌃0, ⌥⌘→ / ⌥⌘← wrapping.

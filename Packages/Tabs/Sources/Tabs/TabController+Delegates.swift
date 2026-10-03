@@ -5,16 +5,27 @@ import Model
 // MARK: - Navigation delegate
 
 extension TabController: NavigationDelegate {
-    /// Navigations proceed as the page asked: links from permanent entries
-    /// navigate in place this phase (Peek is 2.7); new-tab dispositions come
-    /// back through `didCreate`.
+    /// Navigations proceed as the page asked, but for Peek (spec §A.4): an
+    /// off-site click from a permanent entry, or a ⇧-click, is cancelled
+    /// and opens in Peek over the page. A Peek's own page navigates in place.
+    /// New-tab dispositions come back through `didCreate`.
     public func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition {
-        action.disposition
+        guard peekDecision(for: action, in: webContents) == .peek, let opener = entryID(for: webContents) else { return action.disposition }
+        // After the engine has finished with the cancelled navigation.
+        Task { @MainActor in self.openPeek(action.url, over: opener) }
+        return .ignore
     }
 
     /// Every committed main-frame navigation of an entry's page is a history
     /// visit (ROADMAP 2.4 task 4); the title follows when the page reports it.
     public func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
+        // Peek pages are history too, in the opener's profile.
+        if let page = peekOpener(of: webContents).flatMap({ peeks[$0] }) {
+            store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
+            page.historyTitle = nil
+            refreshHistoryTitle(page)
+            return
+        }
         guard let id = entryID(for: webContents), let page = pages[id] else { return }
         // Tagged with the profile the page lives in (history follows the profile, ROADMAP 2.5).
         store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
@@ -44,7 +55,8 @@ extension HistoryTransition {
 extension TabController: WebContentsUIDelegate {
     public func webContents(_ webContents: any WebContents, didCreate newContents: any WebContents, targetURL: URL?,
                             disposition: Disposition) {
-        guard let opener = entryID(for: webContents) else {
+        // A Peek's popups open under the entry the Peek is over.
+        guard let opener = entryID(for: webContents) ?? peekOpener(of: webContents) else {
             newContents.close()
             return
         }
@@ -55,6 +67,13 @@ extension TabController: WebContentsUIDelegate {
         // Its prompts are answered (the presentation forgets the page).
         pageUIDelegate?.webContentsDidClose(webContents)
         if closing.removeValue(forKey: ObjectIdentifier(webContents)) != nil { return }
+        if closingPeeks.remove(ObjectIdentifier(webContents)) != nil { return }
+        // A Peek's page closed itself (`window.close()`): the Peek goes.
+        if let opener = peekOpener(of: webContents) {
+            peeks.removeValue(forKey: opener)
+            if opener == currentEntryID { updatePeek(animated: true) }
+            return
+        }
         guard let id = entryID(for: webContents) else { return }
         // Quitting: the entry stays as it is, unloaded (it restores at the next launch).
         if engine?.isTerminating == true {
@@ -105,7 +124,8 @@ extension TabController: WebContentsUIDelegate {
     }
 
     public func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {
-        guard webContents === current else { return }
+        page(for: webContents)?.hoveredLink = text.flatMap(URL.init(string:))
+        guard webContents === focusedPage else { return }
         pageUIDelegate?.webContents(webContents, didChangeStatusText: text)
     }
 
@@ -197,6 +217,11 @@ extension TabController: WebContentsUIDelegate {
     }
 
     public func webContents(_ webContents: any WebContents, handleUnhandledKeyEvent event: NSEvent) -> Bool {
+        // Esc the page in Peek did not use closes the Peek (spec §I.6).
+        if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+           webContents === peekContents {
+            return closeShownPeek()
+        }
         if let pageUIDelegate { return pageUIDelegate.webContents(webContents, handleUnhandledKeyEvent: event) }
         return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }

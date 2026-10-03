@@ -41,6 +41,19 @@ public final class CardView: NSView {
 
     public override var mouseDownCanMoveWindow: Bool { false }
 
+    /// The card's corner (`CardMetrics.cornerRadius`; Peek's card is rounder).
+    public var cornerRadius: CGFloat = CardMetrics.cornerRadius {
+        didSet {
+            container.cornerRadius = cornerRadius
+            shadowView.cornerRadius = cornerRadius
+        }
+    }
+
+    /// Floats higher than the page card: a larger, darker shadow (Peek).
+    public var isElevated = false {
+        didSet { shadowView.isElevated = isElevated }
+    }
+
     /// Square, borderless and shadowless: a page in element fullscreen.
     public var isEdgeToEdge = false {
         didSet {
@@ -65,9 +78,13 @@ public final class CardContainerView: NSView {
 
     var isEdgeToEdge = false {
         didSet {
-            layer?.cornerRadius = isEdgeToEdge ? 0 : CardMetrics.cornerRadius
+            layer?.cornerRadius = isEdgeToEdge ? 0 : cornerRadius
             needsDisplay = true
         }
+    }
+
+    var cornerRadius: CGFloat = CardMetrics.cornerRadius {
+        didSet { if !isEdgeToEdge { layer?.cornerRadius = cornerRadius } }
     }
 
     public var contentView: NSView? {
@@ -159,12 +176,27 @@ final class ShadowBackingView: NSView {
     override var wantsUpdateLayer: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    var cornerRadius: CGFloat = CardMetrics.cornerRadius {
+        didSet { updateShadowPath() }
+    }
+
+    var isElevated = false {
+        didSet { needsDisplay = true }
+    }
+
     override func updateLayer() {
         guard let layer else { return }
         layer.shadowColor = Palette.cardShadow.cgColor
-        layer.shadowOpacity = effectiveAppearance.isDark ? CardMetrics.shadowOpacityDark : CardMetrics.shadowOpacityLight
-        layer.shadowRadius = CardMetrics.shadowRadius
-        layer.shadowOffset = CardMetrics.shadowOffset
+        let dark = effectiveAppearance.isDark
+        if isElevated {
+            layer.shadowOpacity = dark ? PeekMetrics.shadowOpacityDark : PeekMetrics.shadowOpacityLight
+            layer.shadowRadius = PeekMetrics.shadowRadius
+            layer.shadowOffset = CGSize(width: 0, height: -PeekMetrics.shadowRadius / 3)
+        } else {
+            layer.shadowOpacity = dark ? CardMetrics.shadowOpacityDark : CardMetrics.shadowOpacityLight
+            layer.shadowRadius = CardMetrics.shadowRadius
+            layer.shadowOffset = CardMetrics.shadowOffset
+        }
         updateShadowPath()
     }
 
@@ -174,7 +206,7 @@ final class ShadowBackingView: NSView {
     }
 
     private func updateShadowPath() {
-        let radius = min(CardMetrics.cornerRadius, bounds.width / 2, bounds.height / 2)
+        let radius = min(cornerRadius, bounds.width / 2, bounds.height / 2)
         layer?.shadowPath = CGPath(roundedRect: bounds, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }
 }
