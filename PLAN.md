@@ -180,7 +180,7 @@ Development is organized into Chapters (broad arcs) and Phases (units with exit 
 | # | Chapter | End state |
 |---|---|---|
 | 1 | Foundations | A page in a Dia-looking Room window on both CEF and a RoomCore embryo; spikes answered; build costs measured |
-| 2 | The sidebar browser (CEF) | Daily-drivable for light use with the full sidebar/spaces/palette/split model |
+| 2 | The sidebar browser (CEF) | Usable for light browsing with the full sidebar/spaces/palette/split model; dogfooded on RoomCore (3.9) |
 | 3 | RoomCore | The fork framework implements the whole `Engine` API; CEF deleted; scripted rebases |
 | 4 | A complete browser | Extensions UX, passwords, archive, routing, Peek, import, settings, multi-window |
 | 5 | Polish | Dia-level motion, visuals, accessibility, performance, input |
@@ -202,7 +202,7 @@ Re-ranked at the end of Chapter 1; the reasoning per row is in `research/notes/c
 | 4 | Keychain and signing identity (ad-hoc builds stall on prompts; notarization credentials) | Mock keychain for ad-hoc builds; Developer ID signing for keychain work (verified 2026-10-03: one prompt on first launch, none after); notarytool profile `room` stored |
 | 5 | Widevine CDM does not download or Netflix rejects playback | Verify in Chapter 3; manual CDM copy fallback; apply for the license early |
 | 6 | Chrome Web Store tightens access for non-Chrome brands | Keep unpacked/CRX install path and own management UI |
-| 7 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups or password prompts) | Stated in the Chapter 2 spec; avoid sensitive accounts while dogfooding on CEF |
+| 7 | CEF caps make Chapter 2 a weak daily driver (mock-keychain cookies, no extension popups or password prompts) | Stated in the Chapter 2 spec; Chapter 2 ends with a short check, not a dogfood week (2026-10-03); the week of exclusive use is on RoomCore (3.9) |
 | 8 | Passkey entitlement lead time | Request from Apple before Chapter 4 |
 | 9 | Sparkle update size (component bundle 917 MB; static release size unknown) | Measure the static release build in 3.1; full-app updates acceptable at first |
 | 10 | Crashpad → Sentry minidump format | One forced renderer crash test in Chapter 3 |

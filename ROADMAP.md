@@ -7,7 +7,7 @@ Chapter overview:
 | # | Chapter | End state | Engine |
 |---|---|---|---|
 | 1 | Foundations | A real web page inside a Room window that already looks like Dia, on both engines; architecture proven; build pipeline measured | CEF + RoomCore embryo |
-| 2 | The sidebar browser | Daily-drivable for light use: spaces, pinned/today entries, palette, split, hide/reveal, downloads, dialogs | CEF |
+| 2 | The sidebar browser | Usable for light browsing: spaces, pinned/today entries, palette, split, hide/reveal, downloads, dialogs | CEF |
 | 3 | RoomCore | Our own ADK: Chromium fork framework with the full `Engine` API; CEF deleted | RoomCore |
 | 4 | A complete browser | Everything a daily driver needs on RoomCore: extensions UX, passwords, archive, routing, Peek, import, settings, multi-window | RoomCore |
 | 5 | Polish | Dia-level motion, visuals, accessibility, performance, input details | RoomCore |
@@ -141,14 +141,14 @@ Chapter 1 exit: Phases 1.1–1.6 closed; `PLAN.md` §4 decisions updated with an
 
 ## Chapter 2 — The sidebar browser (on CEF)
 
-**End state.** You use Room all day for light browsing. All Arc/Zen interaction decisions are implemented and felt; the only complaints are the known CEF caps (below). Spec: `feature-spec.md` sections A–I minus items that need RoomCore; shortcuts: `docs/shortcuts.md`; tokens: `docs/design-tokens.md` (both frozen in Phase 1.6).
+**End state.** Room is usable for light browsing (the week of exclusive use is on RoomCore, 3.9). All Arc/Zen interaction decisions are implemented and felt; the only complaints are the known CEF caps (below). Spec: `feature-spec.md` sections A–I minus items that need RoomCore; shortcuts: `docs/shortcuts.md`; tokens: `docs/design-tokens.md` (both frozen in Phase 1.6).
 
 **Detailed spec written in Phase 1.6** (`research/notes/chapter-1-review.md` for the reasoning). Each phase below has tasks and exit criteria like Chapter 1; `docs/progress.md` carries the checklists.
 
 **New packages** (PLAN §2.2, `macos-ui-stack.md` §9.4): `Model` (GRDB), `Store`, `Sidebar`, `Palette`, `Omnibox`, `Chrome` (toasts, popovers, dialogs, downloads). The Chapter 1 throwaways (`DebugSession`, `DebugToolbar`, `OverlaySpike`, the flat page list) are deleted as their replacements land (2.3 at the latest); the DEBUG `SpikeRunner` stays.
 
 **CEF caps this chapter lives with** (from Phase 1.4; all lifted by RoomCore in Chapter 3):
-- Cookies and saved passwords are encrypted with the mock keychain key, not the login keychain: a Chapter 2 build is **not a safe daily driver for sensitive accounts**. Dogfooding (2.9) uses accounts you can afford to expose on disk.
+- Cookies and saved passwords are encrypted with the mock keychain key, not the login keychain: a Chapter 2 build is **not a safe daily driver for sensitive accounts**. The 2.9 check uses accounts you can afford to expose on disk.
 - No extension action popups, toolbar or `chrome://extensions`; content scripts and service workers work.
 - No password/address save prompts; the autocomplete dropdown works on http(s).
 - Docked DevTools needs the Debug-only 127.0.0.1 debugging port (default 9339; any local process can attach); Release builds get CEF's separate DevTools window.
@@ -283,14 +283,16 @@ Tasks:
 
 Exit criteria: every `docs/shortcuts.md` row is either working or a disabled menu item naming its chapter; Room set as default opens links from other apps into the right window; with all opt-ins declined, a launch + browse session makes no request we did not ask for (net-log check, excluding page traffic).
 
-### Phase 2.9 — Dogfood week
+### Phase 2.9 — Integration check and review
+
+The week of exclusive use moved to RoomCore (3.9) (user decision, 2026-10-03): on CEF it would mostly record the known caps (mock keychain, no extension popups, no password prompts) rather than interaction friction, and it would hold Chapter 3 back a week.
 
 Tasks:
-1. Use Room as the only browser for a week (accounts you can afford under the mock keychain); log friction in `docs/backlog.md` as it happens.
-2. Triage; fix the top 20.
-3. `research/notes/chapter-2-review.md`: what worked, CEF caps hit in practice, numbers (memory with real use, switching latency, launch time), re-ranked risks; confirm the order of Chapter 3 phases.
+1. A short pass over spec §A–I on one build with low-risk accounts (a day at most): every feature reached once from the UI, together; friction goes into `docs/backlog.md` for the 3.9 week.
+2. Fix what blocks Chapter 3 or makes a feature unusable; everything else waits for 3.9's triage.
+3. `research/notes/chapter-2-review.md`: what worked, CEF caps hit, numbers (memory, switching latency, launch time), re-ranked risks; confirm the order of Chapter 3 phases.
 
-Exit criteria: a week of exclusive use; top 20 fixed; review written; Chapter 3 spec drafted.
+Exit criteria: every §A–I feature reached once in one build; blockers fixed; review written; Chapter 3 spec drafted.
 
 ---
 
@@ -307,7 +309,7 @@ Phases:
 - **3.6 Extensions.** `ExtensionsContainer` implementation; toolbar actions with icons and pinned order; action popups delivered as `WebContents` → `NSPopover`; Web Store install with consent prompt; unpacked install; commands; `chrome://extensions` reachable; uninstall consent.
 - **3.7 Passwords, autofill, session, lifecycle, translate.** Keep Chromium's managers; save/update prompts to delegate; autofill popup via Views anchored to our view (native later); `SessionService` restore of navigation state; tab discarding/freezing policy hooks; Translate bubble delegate; spellcheck.
 - **3.8 Rebase automation.** `scripts/roomcore-rebase.sh` (fetch tag, rebase `room` branch, reapply patches, build, smoke test); first two rebases done by hand, third by script; decide Stable vs Extended Stable.
-- **3.9 Switch and delete CEF.** `EngineRoomCore` replaces `EngineCEF`; remove CEF scripts/dist; migrate the local history table away; dogfood on RoomCore for a week; `chapter-3-review.md`.
+- **3.9 Switch and delete CEF.** `EngineRoomCore` replaces `EngineCEF`; remove CEF scripts/dist; migrate the local history table away; dogfood on RoomCore for a week (Room as the only browser; moved here from 2.9), log friction in `docs/backlog.md`, triage and fix the top 20; `chapter-3-review.md`.
 
 ---
 

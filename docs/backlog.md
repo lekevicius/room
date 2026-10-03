@@ -2,8 +2,8 @@
 
 Open items that belong to no current phase, with where they are expected to
 land. Phases pull from here; when an item is done or dropped, strike it and
-say where (commit or progress-log date). Dogfooding friction (Phase 2.9)
-is appended at the end as it happens.
+say where (commit or progress-log date). Dogfooding friction (the 2.9 check,
+then the RoomCore week in 3.9) is appended at the end as it happens.
 
 Owner: **user** = needs a password, an Apple account or a decision only the
 user can make; otherwise any session.
@@ -20,7 +20,7 @@ user can make; otherwise any session.
 | B-8 | `scripts/quit-timing.sh` quits through an AppleEvent, which needs Automation permission for the calling process; give it the spike's `NSApp.terminate` path as an option (Phase 1.5 used a scratch script) | Phase 1.5 | next time quit is measured | |
 | B-9 | Own-window snapshots miss Chromium's GPU layer; page-in-card evidence needs an external capture (computer-use with Room granted, or Screen Recording for the shell) | Phase 1.4 | tooling, as needed | **user** grants |
 | B-10 | Chromium on an APFS sparse bundle on an exFAT USB SSD on the Mac mini: the userspace exFAT driver (`UVFSService`) and the image add I/O overhead; an APFS-formatted external volume would remove it | Phase 1.5 | when the drive can be reformatted | **user** |
-| B-11 | ⌘S is page-first (Phase 1.6) so web editors keep it; revisit after dogfooding if pages swallow it too often | Phase 1.6 | 2.9 review | |
+| B-11 | ⌘S is page-first (Phase 1.6) so web editors keep it; revisit after dogfooding if pages swallow it too often | Phase 1.6 | 3.9 dogfood week | |
 | ~~B-12~~ | ~~Suggestion defaults~~ — decided 2026-10-03 by the user: search suggestions on by default (off switch in Settings), default engine Google until the first-run choice; ROADMAP 2.4 updated | Phase 1.6 | — | |
 | B-13 | CEF discards lose back/forward history (no navigation-entry serialisation); RoomCore's session service fixes it. Confirmed in 2.3: a discarded page reloads at its URL and title with `canGoBack` false; the same holds for ⌘W's unload and ⇧⌘T (the reopened page starts a new history) | Phase 1.6 (2.3 spec) | 3.7 | |
 | B-14 | RoomCore's Crashpad database is `~/Library/Application Support/Chromium/Crashpad` (seen on the signed build's `chrome_crashpad_handler` command line): brand the crash-reporter paths with the rest of the user-data layout | Phase 1.5 follow-up | 3.1 | |

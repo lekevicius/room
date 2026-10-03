@@ -192,9 +192,9 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 - [ ] Fullscreen on a real Space (Chapter 1 carry-over)
 - [ ] Exit: every shortcut row works or is a disabled menu item; links from other apps open in Room; with opt-ins declined, no unrequested requests
 
-### Phase 2.9 — Dogfood week
-- [ ] A week of exclusive use; friction into `docs/backlog.md`
-- [ ] Top 20 fixed
+### Phase 2.9 — Integration check and review
+- [ ] Every spec §A–I feature reached once in one build (a day at most); friction into `docs/backlog.md` for 3.9
+- [ ] Blockers fixed
 - [ ] `research/notes/chapter-2-review.md`; Chapter 3 spec drafted
 - [ ] Exit: as listed
 
@@ -277,3 +277,4 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
   - For 2.4 (opening URLs): the palette replaces `TabController.onNewTab` / `onEditAddress` (set in `AppDelegate.installSidebar`, today the modal `URLPrompt`) and then deletes `URLPrompt` and the Debug ▸ Show Debug Toolbar panel (`DebugToolbar`, its builder in `AppDelegate.installDebugPanel`). To open a URL use `TabController.openNewTab(url:)` (a Today tab at the end of the active space's Today list, selected; §C's ⌥Enter background variant needs `loadInBackground(entry)` after adding the entry yourself) and `navigateSelected(to:)` (typed navigation in the selected page, or loads an unloaded entry at that URL); "Enter unchanged = reload" is `TabController.current?.reload()`. The header field calls `SidebarHost.editAddress()` and "New Tab" rows/double-clicks call `newTab()`; `TabController.current` / `currentEntryID` are observable for the palette's prefill. Committed main-frame navigations for history (2.4 task 4) are visible in `TabController.track` (every URL change of a page reaches `setLivePage`); a `didCommitNavigation` hook would be cleaner than diffing there. Text-to-URL is `URLFixup.url(from:) ?? URLFixup.searchURL(for:)` (Google) until the palette's engine setting.
   - Next: Phase 2.4 (palette v1), when the user says go.
 - 2026-10-03 — Phase 2.3 accepted (planner, laptop). Pulled 11 commits; Model 45, Store 26, Sidebar 26, Chrome 4, Tabs 23, Engine 53 tests pass here; CI green (2239107). The composites show a real page in the card, the empty state and the ⌃Tab list as specified. Deviations 1–13 accepted; `isTerminating` on the Engine protocol is the right fix for the quit-closes-everything bug. Open for the user: B-18 (one unlocked rerun of the timings) and the by-hand list. ROADMAP 2.4 split into 2.4a (palette UI, semantics, Omnibox skeleton, Debug panel deleted) and 2.4b (history, commands, site search, suggest, measurements); task 4 adds `didCommitNavigation` to the Engine protocol. Next: 2.4a, when the user says go.
+- 2026-10-03 — Plan change (user). Phase 2.9's week of exclusive use on CEF is dropped: it would mostly record the known CEF caps and delay Chapter 3 a week. 2.9 is now a short integration check (every §A–I feature once, a day at most, blockers fixed) and the Chapter 2 review; the dogfood week, with triage and the top 20 fixed, moves to 3.9 on RoomCore. ROADMAP 2.9/3.9, the Chapter 2 end state, PLAN §5 and §7 risk 7, and the backlog header updated; B-11 now lands at the 3.9 week. 2.4–2.8 unchanged.
