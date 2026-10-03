@@ -71,7 +71,8 @@ extension TabController {
     var discardCandidates: [DiscardPolicy.Page] {
         pages.compactMap { id, page in
             guard let entry = store.sidebar.entry(id) else { return nil }
-            return DiscardPolicy.Page(id: id, kind: entry.kind, isSelected: id == currentEntryID, isAudible: page.contents.isAudible,
+            // A split's panes are all on screen (spec §D), like the selected page.
+            return DiscardPolicy.Page(id: id, kind: entry.kind, isSelected: visibleEntryIDs.contains(id), isAudible: page.contents.isAudible,
                                       isAlive: page.contents.state == .alive, lastVisible: page.lastVisible)
         }
     }

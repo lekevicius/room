@@ -85,6 +85,23 @@ extension TabController {
         sidebar.select(entry.id)
     }
 
+    /// ⇧⌘O, Split (spec §I.6, Zen `cmd_zenGlanceSplit`): the Peek becomes a
+    /// Today tab under its entry, as Open as Tab, and the pane beside its
+    /// entry (in the entry's split if it has one), focused. A full split refuses.
+    public func splitShownPeek() {
+        guard let opener = currentEntryID, let page = peeks[opener], let sidebar else { return }
+        if let group = store.sidebar.splitGroup(of: opener), !SplitRules.canAdd(toCount: group.members.count) {
+            return sidebar.showSplitFullToast()
+        }
+        guard let entry = insertRelatedToday(url: page.contents.url?.absoluteString, openedBy: opener) else { return }
+        peeks.removeValue(forKey: opener)
+        updatePeek(animated: false)
+        pages[entry.id] = page
+        observe(page, entry: entry.id)
+        relatedChain = (opener, entry.id)
+        sidebar.joinIntoSplit(entry.id, with: opener)
+    }
+
     /// ⇧⌘T on a closed Peek (the sidebar selected its entry first).
     public func reopenPeek(url: String, over entry: UUID) {
         guard let url = URL(string: url) else { return }

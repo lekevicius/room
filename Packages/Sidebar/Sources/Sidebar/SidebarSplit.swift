@@ -59,6 +59,11 @@ extension SidebarController {
         select(pane)
     }
 
+    /// Peek ▸ Split (⇧⌘O): `id` (Peek's page, now a Today tab) becomes the pane after `other`, focused.
+    public func joinIntoSplit(_ id: UUID, with other: UUID) {
+        do throws(SidebarError) { try join(id, with: other) } catch { showRefusal(error) }
+    }
+
     /// Split With ▸ an entry: the clicked row joins it (spec §A.8).
     public func split(_ id: UUID, with other: UUID) {
         do throws(SidebarError) { try join(other, with: id) } catch { showRefusal(error) }
@@ -237,7 +242,7 @@ extension SidebarController {
         pageStateDidChange([id])
     }
 
-    func showSplitFullToast() {
+    public func showSplitFullToast() {
         NSSound.beep()
         toasts?.show(Toast(id: "split-full", symbol: .info, message: "Can't add more panes to the split view"))
     }

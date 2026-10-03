@@ -8,8 +8,33 @@ import Store
 /// Where the selected entry's page is shown: the window's card.
 public protocol PageDisplay: AnyObject {
     /// Shows `contents` in the card; `nil` shows the empty state
-    /// ("Press ⌘T…", spec §A.7).
+    /// ("Press ⌘T…", spec §A.7). In a split it is the focused pane's page.
     func show(_ contents: (any WebContents)?)
+    /// The split the card shows from now on (`nil`: one page), called before
+    /// `show` with the focused pane's page (spec §D).
+    func showSplit(_ split: SplitPresentation?)
+}
+
+public extension PageDisplay {
+    func showSplit(_ split: SplitPresentation?) {}
+}
+
+/// One pane of a split on screen.
+public struct SplitPane: Equatable {
+    public var entry: UUID
+    /// `nil` while the pane has no page (a new split's empty pane, an entry waiting for its profile).
+    public var contents: (any WebContents)?
+
+    public static func == (lhs: SplitPane, rhs: SplitPane) -> Bool { lhs.entry == rhs.entry && lhs.contents === rhs.contents }
+}
+
+/// A split as the card shows it (spec §D): its panes in order, their sizes, the focused one.
+public struct SplitPresentation: Equatable {
+    public var group: UUID
+    public var layout: SplitLayout
+    public var ratios: [Double]
+    public var panes: [SplitPane]
+    public var focused: UUID
 }
 
 /// One loaded entry's page.
@@ -137,8 +162,10 @@ public final class TabController: SidebarHost {
     public var focusedPage: (any WebContents)? { peekContents ?? current }
     /// The selected entry's Peek on screen (observable through `focusedPage` and `shownPeek`).
     var peekContents: (any WebContents)?
-    /// The entry whose page the card shows (or would, while it loads).
+    /// The entry whose page the card shows (or would, while it loads); in a split, the focused pane's.
     public private(set) var currentEntryID: UUID?
+    /// The split on screen, if the selected entry is a pane of one (spec §D).
+    @ObservationIgnored public private(set) var shownSplit: SplitPresentation?
 
     @ObservationIgnored var pages: [UUID: Page] = [:]
     /// Peek pages by the entry they opened over (spec §I.6).
@@ -176,6 +203,7 @@ public final class TabController: SidebarHost {
     /// engine profile that made it. Its page closes and the entry loads
     /// again at its URL in the new profile (spec §B), shown if it was.
     private func sidebarDidChange(_ change: SidebarChange) {
+        defer { refreshSplitIfChanged() }
         for id in change.entries {
             guard let page = pages[id], let entry = store.sidebar.entry(id),
                   ProfileRules.needsNewPage(pageProfile: page.profileID, entry: entry) else { continue }
@@ -251,23 +279,70 @@ public final class TabController: SidebarHost {
             show(nil)
             return
         }
-        guard let page = pages[entry.id] ?? makePage(for: entry, hidden: false) else {
-            show(nil)
+        let split = splitPresentation(focusing: entry)
+        // A split's empty pane has no page until the palette gives it one (spec §D).
+        guard let page = pages[entry.id] ?? (entry.currentURL == nil && split != nil ? nil : makePage(for: entry, hidden: false)) else {
+            show(nil, split: split)
             return
         }
         page.lastVisible = now()
         // A discarded page comes back at its URL (back/forward is lost on CEF, B-13).
         if page.contents.state == .discarded { page.contents.reload() }
-        show(page.contents)
+        show(page.contents, split: split)
         // Its Peek, if it had one, comes back with it.
         updatePeek(animated: false)
+    }
+
+    /// The split `entry` is a pane of, every pane with its page (made on
+    /// first show, all visible: spec §D "every pane stays active").
+    private func splitPresentation(focusing entry: Entry) -> SplitPresentation? {
+        guard let group = store.sidebar.splitGroup(of: entry.id) else { return nil }
+        var panes: [SplitPane] = []
+        for member in store.sidebar.splitMembers(group.id) {
+            var page = pages[member.id]
+            if page == nil, member.id != entry.id, member.currentURL != nil, engineProfiles[member.profileID] != nil {
+                page = makePage(for: member, hidden: false)
+            } else if page == nil, member.id != entry.id, member.currentURL != nil {
+                requestProfile(member.profileID)
+            }
+            if let page, member.id != entry.id {
+                page.lastVisible = now()
+                if page.contents.state == .discarded { page.contents.reload() }
+            }
+            // The focused pane's page is made by `activate` (after this).
+            panes.append(SplitPane(entry: member.id, contents: member.id == entry.id ? nil : page?.contents))
+        }
+        return SplitPresentation(group: group.id, layout: group.layout,
+                                 ratios: SplitRules.normalizedRatios(group.ratios, layout: group.layout, count: panes.count),
+                                 panes: panes, focused: entry.id)
+    }
+
+    /// The selected entry's split changed (a pane joined or left, a new
+    /// layout or sizes, it dissolved, it began): the card follows.
+    private func refreshSplitIfChanged() {
+        guard let id = currentEntryID, let entry = store.sidebar.entry(id) else { return }
+        let group = store.sidebar.splitGroup(of: id)
+        if let shown = shownSplit, let group {
+            let members = shown.panes.map(\.entry)
+            guard shown.group != group.id || members != group.members || shown.layout != group.layout
+                || shown.ratios != SplitRules.normalizedRatios(group.ratios, layout: group.layout, count: group.members.count) else { return }
+        } else if shownSplit == nil, group == nil {
+            return
+        }
+        activate(entry)
+    }
+
+    /// Pages on screen: the split's panes, or the card's page (never discarded, spec §H).
+    var visibleEntryIDs: Set<UUID> {
+        if let shownSplit { return Set(shownSplit.panes.map(\.entry)) }
+        return currentEntryID.map { [$0] } ?? []
     }
 
     public func deactivate() {
         if let previous = currentEntryID { pages[previous]?.lastVisible = now() }
         currentEntryID = nil
         relatedChain = nil
-        show(nil)
+        show(nil, split: nil)
         updatePeek(animated: false)
     }
 
@@ -277,7 +352,15 @@ public final class TabController: SidebarHost {
         closePeek(over: entry, recordForReopen: false, animated: true)
         guard let page = pages.removeValue(forKey: entry) else { return }
         page.generation += 1
-        if currentEntryID == entry { show(nil) }
+        if currentEntryID == entry {
+            show(nil, split: shownSplit)
+        } else if let split = shownSplit, let index = split.panes.firstIndex(where: { $0.entry == entry }) {
+            // A pane's page went (the pane stays, empty, until the split changes).
+            var panes = split.panes
+            panes[index].contents = nil
+            shownSplit?.panes = panes
+            display?.showSplit(shownSplit)
+        }
         guard page.contents.state != .closed else { return }
         closing[ObjectIdentifier(page.contents)] = (page.contents, entry)
         page.contents.close()
@@ -381,9 +464,15 @@ public final class TabController: SidebarHost {
 
     // MARK: Pages
 
-    private func show(_ contents: (any WebContents)?) {
+    private func show(_ contents: (any WebContents)?, split: SplitPresentation? = nil) {
         if contents !== current { updatePeekBeforeSwitch() }
+        var split = split
+        if let index = split?.panes.firstIndex(where: { $0.entry == split?.focused }) { split?.panes[index].contents = contents }
+        // Panes that leave the card are seen for the last time now (the idle clock, spec §H).
+        for id in visibleEntryIDs where !(split?.panes.contains { $0.entry == id } ?? (id == currentEntryID)) { pages[id]?.lastVisible = now() }
+        shownSplit = split
         current = contents
+        display?.showSplit(split)
         display?.show(contents)
     }
 

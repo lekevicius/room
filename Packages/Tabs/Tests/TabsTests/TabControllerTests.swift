@@ -11,11 +11,14 @@ import Testing
 final class RecordingDisplay: PageDisplay {
     private(set) var shown: (any WebContents)?
     private(set) var showCount = 0
+    private(set) var split: SplitPresentation?
 
     func show(_ contents: (any WebContents)?) {
         shown = contents
         showCount += 1
     }
+
+    func showSplit(_ split: SplitPresentation?) { self.split = split }
 }
 
 /// Answers beforeunload with a fixed choice.
