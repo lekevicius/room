@@ -257,6 +257,11 @@ public enum Timing {
     /// `window.location` set by a page this soon after a user gesture
     /// navigates in place, never into Peek (spec §A.4: 2 s).
     nonisolated public static let peekGestureWindow: TimeInterval = 2
+    /// A sidebar entry dragged onto another row's centre joins it into a
+    /// split after resting this long (spec §D: 500 ms).
+    public static let splitJoinDwell: TimeInterval = 0.5
+    /// A pane's header hides this long after the pointer left its band (chosen).
+    public static let paneHeaderHideDelay: TimeInterval = 0.3
 }
 
 /// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).
@@ -390,6 +395,36 @@ public enum PeekMetrics {
     /// The open animation starts at this scale around the click point (spec
     /// §I.1: "scale from the link's rect"; CEF reports no link rect, chosen).
     public static let openStartScale: CGFloat = 0.1
+}
+
+/// Split view (spec §D): up to four panes in the card.
+public enum SplitMetrics {
+    /// The visible line between panes; the card's fill shows through it (spec §D: 1 px).
+    public static let dividerWidth: CGFloat = 1
+    /// The resizer's hit area, centred on the line (spec §D: 7 px).
+    public static let resizerHitWidth: CGFloat = 7
+    /// No pane gets smaller than this share of the split along the dragged
+    /// axis (Zen `min-resize-width`: 7 percent) …
+    public static let minimumPaneFraction: CGFloat = 0.07
+    /// … nor smaller than this, while the split has room for it (chosen).
+    public static let minimumPaneLength: CGFloat = 120
+    /// The header a pane shows on hover: domain, grip, layout, × (spec §D: 24 px).
+    public static let paneHeaderHeight: CGFloat = 24
+    /// The header shows while the pointer is this close to the pane's top (chosen: the header and a little below).
+    public static let paneHeaderRevealBand: CGFloat = 36
+    public static let paneHeaderButtonSize: CGFloat = 20
+    /// Drop zones over a pane when an entry is dragged into the content area:
+    /// within this distance of an edge the entry splits to that side (spec
+    /// §D: 40 px), elsewhere it replaces the pane.
+    public static let dropEdgeBand: CGFloat = 40
+    /// An edge drop's preview covers this share of the pane on that side (chosen: the half the new pane gets).
+    public static let dropPreviewFraction: CGFloat = 0.5
+    /// The preview's fill and border (chosen).
+    public static let dropPreviewAlpha: CGFloat = 0.18
+    /// The sidebar's group row: each pane's segment shows its title when it is at least this wide (chosen).
+    public static let segmentTitleMinWidth: CGFloat = 64
+    /// The focused pane's segment is tinted with the accent at this alpha (spec §D "tinted", chosen).
+    public static let focusedSegmentAlpha: CGFloat = 0.16
 }
 
 /// The docked DevTools pane under the page (Phase 1.4; resizable in 2.6b).
