@@ -15,6 +15,27 @@ public enum Palette {
     /// Space tint when a space has no theme colors.
     public static var spaceTintDefault: NSColor { named("SpaceTintDefault") }
 
+    /// Accent marks: the changed-entry dot (spec §I.8), the drag insertion line (§A.9).
+    public static var accent: NSColor { .controlAccentColor }
+
+    /// Letter-tile backgrounds for pages without a favicon (spec §I.2), picked
+    /// by a stable hash of the domain (`letterTileColor(for:)`).
+    public static let letterTileColors: [NSColor] = [
+        .systemBlue, .systemPurple, .systemPink, .systemRed, .systemOrange,
+        .systemGreen, .systemTeal, .systemIndigo, .systemBrown, .systemMint,
+    ]
+
+    /// The same colour for the same domain in every launch (FNV-1a; Swift's
+    /// `Hasher` is seeded per process).
+    public static func letterTileColor(for domain: String) -> NSColor {
+        var hash: UInt32 = 2_166_136_261
+        for byte in domain.lowercased().utf8 {
+            hash ^= UInt32(byte)
+            hash &*= 16_777_619
+        }
+        return letterTileColors[Int(hash % UInt32(letterTileColors.count))]
+    }
+
     /// Every catalog color, for tests.
     public static let allNames = [
         "CardBackground", "CardBorder", "CardShadow", "SidebarSelection",

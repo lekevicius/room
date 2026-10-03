@@ -95,3 +95,32 @@ has a reduced-motion alternative (crossfade), spec §I.1.
 
 `Symbols.swift` names the SF Symbols the chrome uses (`Symbol` cases, 77 at
 the freeze); `DesignTests` checks each exists and renders as a template. Adding a symbol means adding a case there.
+
+## Added in Phase 2.2 (sidebar rows, toasts)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `SidebarMetrics.rowHeight` / `pillVerticalInset` | 36 / 1 | measured: Dia's selected pill is 34 pt tall, rows repeat every ~37 pt (`dia-window.jpg`, 1×) |
+| `SidebarMetrics.rowHorizontalInset` | 6 | measured: pill spans x 6…274 of a 280 pt sidebar (same as `CardMetrics.inset`) |
+| `SidebarMetrics.rowContentInset` / `faviconSize` / `faviconTitleGap` | 10 / 16 / 6 | measured: favicon at x 16, title at x 38 |
+| Selection pill corner | `Radius.medium` (10) | measured: Dia's pill corner reaches the fill ~5 px down at 1.5 px in |
+| `SidebarMetrics.pillShadowOpacity` / `Radius` / `Offset` | 0.08 / 1.5 / (0, −0.5), light only | chosen ("slightly elevated" pill) |
+| `SidebarMetrics.folderIndent` | 14 | chosen |
+| `SidebarMetrics.closeButtonSize` | 28 | spec §I.4 |
+| `SidebarMetrics.changedDotSize` | 6 | spec §I.8 |
+| `SidebarMetrics.unloadedIconAlpha` | 0.6 | spec §A.1 |
+| `SidebarMetrics.separatorRowHeight` / `spaceTitleRowHeight` | 24 / 36 | chosen |
+| `SidebarMetrics.essentialTileHeight` / `essentialIconSize` / `essentialTintAlpha` | 36 / 20 / 0.15 | spec §I.2 |
+| `SidebarMetrics.essentialTileMinWidth` / `essentialMaxColumns` / `essentialsGap` | 48 / 6 / 8 | chosen: tiles stretch to fill the row (4 per row at the default width) |
+| `SidebarMetrics.addressFieldHeight` | 28 | chosen |
+| `SidebarMetrics.footerHeight` | 40 | spec §F |
+| `SidebarMetrics.audioIndicatorWidth`, `tileBadgeSize`/`Inset`, `footerButtonSize`, `chevronSize`, `popoverFieldWidth` | 22, 11/3, 28, 20, 280 | chosen |
+| `Palette.accent` | `controlAccentColor` | changed dot, insertion line (spec §I.8, §A.9) |
+| `Palette.letterTileColors` / `letterTileColor(for:)` | 10 system colours, FNV-1a of the domain | spec §I.2 (stable across launches) |
+| `Motion.toastOut` | 0.2 s | spec §F |
+| `Motion.renamePulseScale` | 0.98 | spec §I.9 |
+| `Motion.clearStagger` / `clearStaggerMax` | 0.03 / 0.3 s | spec §A.7 (used in 2.2b) |
+| `Motion.resetCrossfade` | 0.15 s | spec §A.5 |
+| `Motion.reduceMotion` | `accessibilityDisplayShouldReduceMotion` | spec §I.1 |
+| `Timing.toast` / `toastWithAction` / `undoToast` | 2 / 5 / 8 s | spec §F, §A.7 |
+| `Timing.urlTooltipDelay` | 0.6 s | spec §C (app-wide `NSInitialToolTipDelay`) |
