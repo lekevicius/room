@@ -44,6 +44,9 @@ final class PaletteRowsModel {
 }
 
 /// The result list (SwiftUI leaf in an `NSHostingView`, PLAN §4 UI framework).
+/// Colours are dynamic `NSColor`s, resolved when drawn: the overlay is reused
+/// across opens, and SwiftUI's `.primary` kept the light appearance after a
+/// switch to dark while it was out of the window (2.4a capture).
 struct PaletteRowsView: View {
     let model: PaletteRowsModel
 
@@ -73,6 +76,7 @@ private struct PaletteRowView: View {
             icon.frame(width: PaletteMetrics.iconSize, height: PaletteMetrics.iconSize)
             Text(row.title)
                 .font(Font(Typography.row))
+                .foregroundStyle(Color(nsColor: .labelColor))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(1)
@@ -87,7 +91,7 @@ private struct PaletteRowView: View {
             if let space = row.spaceName {
                 Text(space)
                     .font(Font(Typography.secondary))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color(nsColor: Palette.sidebarHover)))
@@ -96,7 +100,7 @@ private struct PaletteRowView: View {
             if let hint = row.hint {
                 Text(hint)
                     .font(Font(Typography.secondary))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     .lineLimit(1)
                     .opacity(highlighted ? 1 : 0)
             }
@@ -120,7 +124,7 @@ private struct PaletteRowView: View {
         case .symbol(let symbol):
             Image(systemName: symbol.name)
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
         }
     }
 }
