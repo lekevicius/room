@@ -83,21 +83,46 @@ public enum URLFixup {
 /// A search engine's query URL (spec §C; the suggest endpoints and the
 /// Settings choice are 2.4b/2.8). Google is the default until the first-run
 /// choice (user decision, 2026-10-03).
-public struct SearchEngine: Hashable, Sendable {
+public struct SearchEngine: Hashable, Sendable, Identifiable {
+    /// Stable identifier (Settings stores it).
+    public var id: String
     public var name: String
     /// The query URL with `{query}` where the escaped text goes.
     public var template: String
+    /// The suggestion endpoint (OpenSearch JSON `["q", ["s1", …]]`), if the engine has one.
+    public var suggestTemplate: String?
 
-    public init(name: String, template: String) {
+    public init(id: String? = nil, name: String, template: String, suggestTemplate: String? = nil) {
+        self.id = id ?? name.lowercased()
         self.name = name
         self.template = template
+        self.suggestTemplate = suggestTemplate
     }
 
-    public static let google = SearchEngine(name: "Google", template: "https://www.google.com/search?q={query}")
-    public static let duckDuckGo = SearchEngine(name: "DuckDuckGo", template: "https://duckduckgo.com/?q={query}")
-    public static let kagi = SearchEngine(name: "Kagi", template: "https://kagi.com/search?q={query}")
+    // Suggest endpoints: `macos-ui-stack.md` §5.2.
+    public static let google = SearchEngine(id: "google", name: "Google", template: "https://www.google.com/search?q={query}",
+                                            suggestTemplate: "https://suggestqueries.google.com/complete/search?client=firefox&q={query}")
+    public static let duckDuckGo = SearchEngine(id: "duckduckgo", name: "DuckDuckGo", template: "https://duckduckgo.com/?q={query}",
+                                                suggestTemplate: "https://duckduckgo.com/ac/?q={query}&type=list")
+    public static let kagi = SearchEngine(id: "kagi", name: "Kagi", template: "https://kagi.com/search?q={query}",
+                                          suggestTemplate: "https://kagi.com/api/autosuggest?q={query}")
+
+    /// The engines Settings offers; Google is the default until the first-run choice (2.8).
+    public static let all: [SearchEngine] = [.google, .duckDuckGo, .kagi]
+
+    public static func named(_ id: String?) -> SearchEngine {
+        all.first { $0.id == id } ?? .google
+    }
 
     public func searchURL(for text: String) -> String {
+        Self.fill(template, with: text)
+    }
+
+    public func suggestURL(for text: String) -> URL? {
+        suggestTemplate.flatMap { URL(string: Self.fill($0, with: text)) }
+    }
+
+    private static func fill(_ template: String, with text: String) -> String {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&+=?#")
