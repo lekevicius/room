@@ -511,3 +511,51 @@ Network waits2061/567/1385ms. Thread queries260/277/254 cost0.548947/2.259341/
 0.862808s. Before comparison was also clean; live sites/load differ. Thus
 these runs support non-regression, not proof of a latency improvement or
 resolution of every B-16 path. Apply is idempotent:0applied/10already.
+
+## Existing blocked workers — deterministic callback probe
+
+The same isolated component executable now accepts --blocked-before-shutdown,
+optionally --single-thread and --skip-on-shutdown. A BEST_EFFORT/MayBlock task
+enters ScopedBlockingCall, signals readiness and waits on a pipe. A custom
+TaskTracker callback observes its Mach effective priority after ThreadPool has
+notified its groups of shutdown, then releases the pipe normally. No elapsed
+threshold determines pass/fail; a15s alarm only bounds a broken fixture.
+
+All four patch0010 variants (pooled/shared × BLOCK_SHUTDOWN/already-running
+SKIP_ON_SHUTDOWN) report normal-priority31, task-priority4 before shutdown and
+still4 at BeginCompleteShutdown; each diagnostic exits2 without hanging.
+Both task behaviors block shutdown once running. The existing priority update
+runs on the worker at GetWork/task boundaries or a new blocking scope, so an
+already-active blocking scope can miss it. This is separate from the new-worker
+startup case fixed by0010. It fits the retained background-policy/file-worker
+stacks but does not prove the duration/cause of each historical watchdog.
+
+A diagnostic-only --native-override control uses the SDK's
+pthread_override_qos_class_start_np on the known-live blocked thread, records
+priority and immediately ends that override before releasing the pipe. All four
+controls change observed priority4→31 and exit0. This verifies that the Mach
+priority measurement detects the intended effect and that a scoped external
+boost is possible; it is not a browser fix or a measured latency improvement.
+Evidence: feature-worker-start/blocked-pipe-before.json and
+blocked-native-control.json. Final fixture build7.45s/2steps before native
+control; the native-control build also succeeds. An initial shared fixture
+incorrectly requested WithBaseSyncPrimitives, causing its intended DCHECK;
+replaced with declared blocking pipe I/O. Those fixture aborts are not Room
+browser failures and are not counted as shutdown reproductions.
+
+Production synchronization is still to design/verify. Simply invoking
+WorkerThread::MaybeBoostPriorityForShutdown from another thread is unsafe:
+priority_boost_ construction/adoption/reset are currently worker-only.
+ScopedBoostablePriority explicitly requires external synchronization. Also
+review nested scope interactions: ScopedBoostPriorityBase constructors and
+Reset read previous_boost_scope_->target_thread_type_ without the worker lock.
+Do not claim that adding a lock only around WorkerThread's optional solves all
+possible accesses. A macOS override token independent of that scope state is a
+candidate, but must synchronize target lifetime, avoid recycled pthread handles,
+end exactly once and cover pooled and single-thread workers. No such production
+change has been applied. Watchdog/grace/data flushing remain unchanged.
+
+The exact patch0010 idle audit completes meanwhile:616sprocess,600requested
+idle,603.032977s marker interval,18events/601.581sspan,0HTTP/connections/DNS/TLS,
+exit0. Package was never replaced during the run. Further engine fixes require
+their own baseline; the new diagnostic source itself is not in the package.

@@ -162,3 +162,14 @@ This qualifies the current package separately from the prior engine 2a04498
 measurement. Network policy did not change during the intervening tab,
 activation, renderer-containment and host-fixture work. Original before list
 remains 62 HTTP / 86 connections / 9 DNS. CI e5ad547 passed 75 / 83 s.
+
+## Exact package after shutdown-worker-start correction (patch0010)
+
+netlog-idle-worker-start, browserPID16102,nice0, engine content3f091cb and
+Chromium7ac71cfacf83f. Fresh profile,600requested idle seconds,616s process,
+idle-start1791017322.9819632 to terminate1791017926.01494 =603.032977s.
+Completed marker present,exit0,no timeout. NetLog18events over601.581s:
+0HTTP attempts,0connections,0DNS,0TLS failures; request list empty. This run
+qualifies the exact package after the base worker-start change, independently
+of the earlier audits. No suppression switches were added. Evidence receipt,
+spike markers and complete summary inspected after managed session64273 ended.

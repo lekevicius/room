@@ -14,11 +14,11 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | Concurrent repetition | Three-browser exercise reproduced 2 watchdog exits after all ten pages loaded; third fixture rejected. Helper-capture repeat passed at 6.017 / 5.691 s but does not resolve the failure |
 | Surface coverage | Original 18 processes driven without crashes. 17 drives pass; fullscreen deliberately rejects and its driver fails. Added deterministic FedCM passive bubble / active modal probe passes. Native UI acceptance remains partial |
 | Network before | Fresh profile, 600 s idle, 608 s process: 62 HTTP / 86 connections / 9 DNS, 0 TLS errors |
-| Network last fully audited package | Engine 0f87b84 / host a4f8c25: fresh profile, 600 s requested idle, 614 s process; 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events over 600.419 s, exit 0 |
+| Network current package | Patch0010 / engine3f091cb: fresh profile, 600 s requested idle, 616 s process; 0 HTTP / 0 connections / 0 DNS / 0 TLS errors, 18 events over 601.581 s, exit 0 |
 | On-demand exception | Widevine 4.10.3050.0 installed only after EME request; MediaKeys created in 6.812 s; 3 external updater requests. Installed reuse and unrelated-key probe: 0 external requests. Forced updater DNS failure bounded at 60.163 s. Licensed playback unverified |
 | TLS B-3 | All 88 reproduced laptop failures attributed by host to local DNS sinkholes ([::]:443), TLS alert 80 / BoringSSL 1080. Exact historical mini ~220 still needs its original NetLog |
 | Crashpad B-14 | Both primary and monitor command lines verified at selected-root/Crashpad, prod=Room_Mac |
-| Patch/API scope | Original 0001–0005/public ObjC headers unchanged. New 0006 scheduler, 0007 demand-CDM, 0008 FedCM anchor and 0009 SadTab factory hooks, plus 0010 shutdown-worker-start correction, each justified; implementation remains in //room |
+| Patch/API scope | Original 0001–0005/public ObjC headers unchanged. New 0006 scheduler, 0007 demand-CDM, 0008 FedCM anchor and 0009 SadTab factory hooks, plus 0010 shutdown-worker-start correction, each justified; Room-specific implementation stays in //room, with the documented base startup correction in0010 |
 | Chapter 2 scope | Protected diff contains only App/RoomCore. No Packages, other App, ROADMAP edits; no main push or merge |
 
 Before request list: accounts.google.com 1 (Gaia), android.clients.google.com
@@ -129,10 +129,18 @@ Patch0010 corrects a separately demonstrated startup invariant: workers created
 after shutdown begins now enter at least default priority (probe QoS9 to25),
 while normal worker startup remains atQoS9. Build30.66s/15steps and required
 serial baseline pass. Existing blocked workers and all teardown deadlines are
-unchanged. B-16 is not claimed resolved. The fully audited idle package above
-predates this base-library correction; network policy source is unchanged.
+unchanged. B-16 is not claimed resolved. The new completed idle audit above qualifies this base-library correction;
+network policy source is unchanged.
 
 Concurrent follow-up on patch0010: all ten pages ready in each of three hosts;
 quits2.766/2.453/2.090s, zero helpers left/crash reports, exit0. Same observer as
 the preceding clean control; changing site/load conditions prevent performance
 or root-cause claims. Apply0applied/10already, Chromium7ac71cfacf83f.
+
+An isolated callback-based probe now demonstrates another remaining priority
+path: four already-blocked worker/task variants stay at effective priority4
+while the pool starts waiting for shutdown. A diagnostic-only native override
+raises all four to31 and they finish normally. This establishes a reproducible
+priority invariant and validates the observer; it does not establish the full
+cause of historical browser watchdogs. Safe production override lifetime and
+synchronization are not implemented, so B-16 remains open.

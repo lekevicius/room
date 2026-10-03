@@ -615,3 +615,19 @@ it or replace the packaged app while running; receipt/summary are pending.
 PR updated/attached;3f091cb CI pending. Compiler stopped. Next turn should first
 poll this exact session/process and qualify only its clean complete summary,
 then continue B-16 investigation with the retained narrow-fix boundaries.
+
+The exact patch0010 audit is complete: netlog-idle-worker-start,616s process,
+600requested idle/603.032977s marker interval,18events over601.581s,zeroHTTP/
+connections/DNS/TLS,exit0,no timeout. Managed session64273 ended normally;
+PID16102 is gone. This supersedes the pending status above. Production package
+was not replaced during the audit; only an independent diagnostic executable
+was rebuilt against the same libraries.
+
+Existing-worker probe checkpoint: pooled/shared BLOCK_SHUTDOWN and running
+SKIP_ON_SHUTDOWN tasks all remain priority4 at the pool's shutdown callback;
+a bounded diagnostic-only native override raises each to31, all controls exit0.
+The fixture uses actual blocking pipe I/O and callback ordering, not timing as
+its success criterion. B-16 remains open. Production external-boost lifetime
+and synchronization (including nested Chromium scope state) need resolution
+before a patch; no speculative scheduling or deadline change applied. Exact
+patch0010 package idle audit now passes as recorded above.
