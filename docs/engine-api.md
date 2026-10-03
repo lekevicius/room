@@ -147,3 +147,21 @@ RoomCore-side open points: certificate errors (interstitial vs. delegate), DevTo
 2026-10-02: every row checked against the CEF 154 headers/libcef source, the Chromium 154.0.8037.58 checkout and the ArcCore headers (a separate review pass, ~83 rows). 19 corrections applied (signatures, enum names, M154 renames such as `chrome_security_state::GetSecurityLevel`, and four CEF "not available" claims that turned out emulatable or partial). Not verified by reading code: runtime claims marked *emulated* (Phase 1.4 measures them) and DevTools hosting through `DevToolsUIBindings` (Chapter 3 design).
 
 2026-10-02 (Phase 1.4, implementation): five rows corrected from running code — `createProfile` cache path (must be a direct child of the root), `nativeView` (an owned host view), DevTools (no `SetAsChild`; docked front-end over the debugging port), `executeJavaScript` (message ids), `close()` (`DoClose` must return `true`). Also found: Alloy loads ⌘-click links in the current browser unless `OnOpenURLFromTab` cancels (the CEF engine opens new contents itself); `tryToTerminate` waits for every `OnBeforeClose` (including un-adopted popups, via `RoomCEFBrowser.didCloseNotification`).
+
+## RoomCore background hardening (2026-10-03 component build)
+
+The existing public ObjC headers remain unchanged. Private `-RoomSpike` host
+commands exercise Chrome find/zoom/print without becoming product API.
+RoomBrowserWindow now supplies a Views-backed modal parent, permission bubble
+anchor, and FindBarOwner; native product UI still needs the Chapter 3 contracts
+listed in research/notes/spike-results.md.
+
+RoomCore startup policy suppresses automatic Chrome-account, cloud-policy,
+component-update, Safe Browsing update, model/speech-download, search-preconnect
+and time-query traffic. Ordinary page networking remains active. Component
+registration and explicit update APIs remain available; Widevine first-use
+behavior is not yet runtime-verified. See roomcore-network-audit.md under
+research/notes for switches, hooks, measurements and scope limitations.
+Crashpad uses `<selected user-data directory>/Crashpad`; callers omitting the
+data directory retain Chromium's existing default. The Room host supplies its
+Room/RoomCore root.

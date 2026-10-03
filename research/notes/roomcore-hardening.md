@@ -244,3 +244,25 @@ The driver now waits for matching committed location + readyState complete.
 Rerun popup passes; download now verifies exact saved bytes through a CDP-
 selected destination. Actual fixture is 26 bytes, including newline; the
 previous 25-byte note was a counting error and is corrected in the plan.
+
+## Checkpoint — 2026-10-03 07:29 EEST
+
+- Full idle-after audit passed: 600.0275 s between host timer markers,
+  605 s process, exit 0, no watchdog; 0 requests/connections/DNS/TLS errors.
+  Before was 62 HTTP attempts, 86 connections and 9 DNS over 600 s idle.
+- Final18 regression: all processes exit 0 without watchdog or engine crash;
+  fullscreen remains rejected, and native UI completion/appearance/input
+  checks remain open under AGENTS.md. Exact 26-byte download verified.
+- Crashpad primary/monitor handlers both use selected-root/Crashpad.
+- Latest engine baseline: nav 19.676 s; ten loaded pages; quit 2.591 s;
+  26 helpers observed, 0 left, 0 new crash reports, exit 0.
+- Laptop B-3: all 88 TLS errors attributed by host; local DNS sinkholes and
+  fatal TLS alert 80. Historical mini ~220 cannot be mapped without its NetLog.
+- Original five patches and public ObjC headers unchanged. Sixth patch adds
+  only a justified component scheduler factory hook. Chromium HEAD
+  9fda24ebc9370. Main/origin/main remain 3c7fafc; protected diff only App/RoomCore.
+- Task is still partial: native feature acceptance, working fullscreen, and
+  runtime Widevine first-use behavior are not verified. Next independent work:
+  strengthen command-line permission/auth/find/extension completion probes
+  and measure Widevine first-use before declaring the feature gate complete.
+  Chapter 3 UI contracts are listed with the full surface matrix.

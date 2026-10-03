@@ -41,9 +41,24 @@ Observed zero network: False. Validate duration and clean shutdown against the r
 
 ## After
 
-Pending. A 60-second switch-only smoke run is in progress; it cannot qualify
-as the required final audit. Do not disable Widevine on-demand availability
-merely to remove startup component-update traffic.
+Completed 2026-10-03 07:28:58 EEST. Fixed-copy app with the committed network
+policy, fresh profile, about:blank, no CDP. Host idle markers span 600.0275 s
+and report idle-complete 600; whole process 605 s, exit 0, no watchdog.
+The complete flushed NetLog contains 18 events spanning 598.411 s (event span
+is not the idle timer). **0 HTTP requests, 0 connections, 0 DNS, 0 TLS errors.**
+The after host/component request list is empty. Raw netlog-idle-after evidence
+is retained locally; the fixed app copy predates only the Crashpad-path change
+and the host feature-readiness/download checks, which do not alter this policy.
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Required idle seconds completed | 600 | 600 |
+| Whole process seconds | 608 | 605 |
+| HTTP attempts / request sources | 62 / 62 | 0 / 0 |
+| Connection attempts | 86 | 0 |
+| DNS requests | 9 | 0 |
+| TLS errors | 0 | 0 |
+| Clean exit / watchdog | 0 / absent | 0 / absent |
 
 ### Suppression implementation and short verification
 
@@ -55,7 +70,7 @@ It caused SODA icnkogojpkfjeajonkmlplionaamopkf and English pack
 oegebmmcimckjhkhbggblnkjloogjdfg to download through explicit on-demand calls.
 Disabling it removed the last five requests from the 30-second policy smoke.
 Final short smoke: 0 requests, 0 connections, 0 DNS, 14 events, 28.764 s event
-span, 30 s idle, 43 s process, exit 0. The 600-second audit is still pending.
+span, 30 s idle, 43 s process, exit 0. The full audit result is above.
 
 Gaia browser-account networking uses a Room ChromeSigninClient through the
 existing per-profile factory seam. Chrome cloud-policy invalidation channels

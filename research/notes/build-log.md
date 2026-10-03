@@ -186,3 +186,20 @@ not print its WARNING messages in the initial captures.
 Post-modal-fix laptop baseline: nav 11.935 s; ten loaded pages, quit 0.442 s
 at load1 32.85, 28 helpers observed, 0 left, no new crash reports, exit 0.
 Raw evidence: `baseline-modal-final` and `roomcore-quit-auqwxlkm` in TMPDIR.
+
+## Background hardening follow-up — 2026-10-03 laptop
+
+Default jobs/nice 0 retained. Network-policy last incremental 16 s / 2 steps;
+Crashpad incremental 18 s / 2 steps. Ad-hoc packaging valid, 518 dylibs,
+916 MB framework, 918 MB host after feature driver additions. One pre-build
+apply-script failure was a pipefail/SIGPIPE false negative, not a compiler
+failure; corrected history consumption, one retry succeeded (0 applied,
+6 already). Original five patches unchanged; sixth scheduler hook justified
+in roomcore-network-audit.md. No outside-//room compiler failure/retry.
+
+Post-network baseline nav 23.598 s, ten-page quit 4.240 s, load1 38.39,
+26 helpers/0 remaining/0 crash reports. Post-Crashpad nav 19.676 s,
+ten-page quit 2.591 s, load1 43.40, 26 helpers/0 remaining/0 crash reports.
+Network before/after: 600 s idle each; 62→0 HTTP requests, 86→0 connections,
+9→0 DNS. Final feature regression has 18 clean process exits; fullscreen
+unsupported and native UI acceptance gaps remain (spike-results.md).
