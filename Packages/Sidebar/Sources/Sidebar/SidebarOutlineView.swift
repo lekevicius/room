@@ -4,9 +4,16 @@ import Design
 /// Mouse and key routing the outline hands to the controller.
 protocol SidebarOutlineEvents: AnyObject {
     func outlineMiddleClicked(row: Int)
-    func outlineReturnPressed() -> Bool
+    /// Keyboard focus keys (spec §I.13); `false` passes the event on.
+    func outlineKeyDown(_ event: NSEvent) -> Bool
     func outlineMenu(forRow row: Int) -> NSMenu?
     func outlineHoverChanged(row: Int?)
+    /// Double-click below the rows: a new tab (spec §F).
+    func outlineEmptyAreaDoubleClicked()
+    /// A drag left the outline (hide the insertion line).
+    func outlineDragExited()
+    /// The outline became or stopped being first responder (focus ring).
+    func outlineFocusChanged(_ focused: Bool)
 }
 
 /// The sidebar tree: a view-based outline with no AppKit selection drawing
@@ -38,13 +45,22 @@ final class SidebarOutlineView: NSOutlineView {
         autoresizesOutlineColumn = false
         columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         allowsEmptySelection = true
-        allowsMultipleSelection = false
+        // AppKit's selection mirrors the ⌘/⇧-click multi-selection, so a drag
+        // of a selected row carries the whole group (spec §A.9).
+        allowsMultipleSelection = true
+        draggingDestinationFeedbackStyle = .none
+        setDraggingSourceOperationMask([.move, .copy], forLocal: true)
+        setDraggingSourceOperationMask(.copy, forLocal: false)
         allowsTypeSelect = false
         focusRingType = .none
         floatsGroupRows = false
         setAccessibilityIdentifier("sidebar-outline")
         addSubview(pill, positioned: .below, relativeTo: nil)
+        addSubview(dropIndicator)
     }
+
+    /// The 2 pt accent insertion line while a drag is over the outline (spec §A.9).
+    let dropIndicator = DropIndicatorView()
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -57,7 +73,11 @@ final class SidebarOutlineView: NSOutlineView {
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if row(at: point) < 0 {
-            window?.performDrag(with: event)
+            if event.clickCount == 2 {
+                events?.outlineEmptyAreaDoubleClicked()
+            } else {
+                window?.performDrag(with: event)
+            }
             return
         }
         super.mouseDown(with: event)
@@ -73,11 +93,25 @@ final class SidebarOutlineView: NSOutlineView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 36 || event.keyCode == 76, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty,
-           events?.outlineReturnPressed() == true {
-            return
-        }
+        if events?.outlineKeyDown(event) == true { return }
         super.keyDown(with: event)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { events?.outlineFocusChanged(true) }
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { events?.outlineFocusChanged(false) }
+        return resigned
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        super.draggingExited(sender)
+        events?.outlineDragExited()
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -125,21 +159,43 @@ final class SidebarOutlineView: NSOutlineView {
     }
 }
 
-/// Row background: the 6% hover fill (spec §I.4), inset like the pill.
+/// Row background: the 6% hover fill (spec §I.4), inset like the pill; the
+/// multi-selection tint (§A.9); the drop-onto highlight (§A.6); the
+/// keyboard focus ring (§I.13).
 final class SidebarRowView: NSTableRowView {
     var isHovered = false { didSet { if isHovered != oldValue { needsDisplay = true } } }
     /// Rows that never show a hover fill (space title, separator).
     var showsHover = true
     /// The selected entry's row: the pill is drawn instead.
     var isSelectedEntry = false { didSet { if isSelectedEntry != oldValue { needsDisplay = true } } }
+    /// In the ⌘/⇧-click multi-selection.
+    var isMultiSelected = false { didSet { if isMultiSelected != oldValue { needsDisplay = true } } }
+    /// A drag will drop onto this row (into the folder, or a new folder with it).
+    var isDropTarget = false { didSet { if isDropTarget != oldValue { needsDisplay = true } } }
+    var showsFocusRing = false { didSet { if showsFocusRing != oldValue { needsDisplay = true } } }
 
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func drawBackground(in dirtyRect: NSRect) {
-        guard isHovered, showsHover, !isSelectedEntry else { return }
-        Palette.sidebarHover.setFill()
-        NSBezierPath(roundedRect: Self.pillRect(in: bounds), xRadius: Radius.medium, yRadius: Radius.medium).fill()
+        let shape = NSBezierPath(roundedRect: Self.pillRect(in: bounds), xRadius: Radius.medium, yRadius: Radius.medium)
+        if isDropTarget {
+            Palette.sidebarMultiSelection.setFill()
+            shape.fill()
+        } else if isMultiSelected && !isSelectedEntry {
+            Palette.sidebarMultiSelection.setFill()
+            shape.fill()
+        } else if isHovered, showsHover, !isSelectedEntry {
+            Palette.sidebarHover.setFill()
+            shape.fill()
+        }
+        if isDropTarget || showsFocusRing {
+            let ring = NSBezierPath(roundedRect: Self.pillRect(in: bounds).insetBy(dx: 1, dy: 1),
+                                    xRadius: Radius.medium - 1, yRadius: Radius.medium - 1)
+            ring.lineWidth = SidebarMetrics.insertionLineWidth
+            Palette.accent.setStroke()
+            ring.stroke()
+        }
     }
 
     override func drawSelection(in dirtyRect: NSRect) {}
@@ -147,6 +203,39 @@ final class SidebarRowView: NSTableRowView {
     /// The pill / hover shape inside a row's bounds.
     static func pillRect(in bounds: NSRect) -> NSRect {
         bounds.insetBy(dx: SidebarMetrics.rowHorizontalInset, dy: SidebarMetrics.pillVerticalInset)
+    }
+}
+
+/// The insertion line (spec §A.9): 2 pt, accent, rounded, indented to the
+/// depth the drop lands at.
+final class DropIndicatorView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        isHidden = true
+        setAccessibilityElement(false)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var wantsUpdateLayer: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func updateLayer() {
+        layer?.backgroundColor = Palette.accent.cgColor
+        layer?.cornerRadius = SidebarMetrics.insertionLineWidth / 2
+    }
+
+    /// Shows the line at `y` (outline coordinates) from `x` to `maxX`; `nil` hides it.
+    func show(y: CGFloat?, x: CGFloat, maxX: CGFloat) {
+        guard let y else {
+            isHidden = true
+            return
+        }
+        let width = SidebarMetrics.insertionLineWidth
+        frame = NSRect(x: x, y: y - width / 2, width: max(0, maxX - x), height: width)
+        isHidden = false
     }
 }
 

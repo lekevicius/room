@@ -10,7 +10,7 @@ import Store
 import SwiftUI
 import UIKitCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let engine: any EngineApplication
     private var store: RoomStore?
     private var windowController: RoomWindowController?
@@ -248,6 +248,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sidebarPages?.editAddress()
     }
 
+    /// ⌘D: pin / unpin the selected entry or the multi-selection.
+    @objc func togglePin(_ sender: Any?) { sidebar?.togglePin() }
+
+    /// ⇧⌘D: add to / remove from Essentials.
+    @objc func toggleEssentials(_ sender: Any?) { sidebar?.toggleEssentials() }
+
+    /// ⇧⌘K: Clear (staggered slide-out, Undo toast).
+    @objc func clearTodayTabs(_ sender: Any?) { sidebar?.clearTodayTabs() }
+
     @objc func navigateSelectedPage(_ sender: Any?) {
         sidebarPages?.navigateSelected()
     }
@@ -274,5 +283,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleDevTools(_ sender: Any?) {
         pageHost?.toggleDevTools()
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(togglePin(_:)):
+            menuItem.title = sidebar?.pinCommandTitle ?? CommandName.pinTab
+            return sidebar?.pinCommandTitle != nil
+        case #selector(toggleEssentials(_:)):
+            menuItem.title = sidebar?.essentialsCommandTitle ?? CommandName.addToEssentials
+            return sidebar?.essentialsCommandTitle != nil
+        case #selector(clearTodayTabs(_:)):
+            return sidebar?.canClearToday == true
+        default:
+            return true
+        }
     }
 }

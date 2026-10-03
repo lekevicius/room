@@ -135,6 +135,8 @@ final class SidebarFooterView: NSView {
     private let spaceIcons = NSStackView()
     /// Builds the "+" menu when it opens.
     var plusMenu: (() -> NSMenu)?
+    /// Double-click on the footer's empty area (a new tab, spec §F).
+    var onEmptyDoubleClick: (() -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -164,6 +166,14 @@ final class SidebarFooterView: NSView {
 
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            onEmptyDoubleClick?()
+        } else {
+            window?.performDrag(with: event)
+        }
+    }
 
     /// One dot (or the space's emoji) per space; hidden with ≤ 1 space (spec §B).
     func setSpaces(_ spaces: [Space], active: UUID?) {

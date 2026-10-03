@@ -38,6 +38,17 @@ public final class SidebarController: NSObject {
     var isCommandHeld = false {
         didSet { if isCommandHeld != oldValue { (hoveredCell as? EntryCellView)?.isCommandHeld = isCommandHeld } }
     }
+    /// The ⌘/⇧-click group (spec §A.9).
+    var multiSelection = MultiSelection()
+    /// A drag over the sidebar (`SidebarDragDrop`).
+    var drag: DragState?
+    /// The keyboard focus row (spec §I.13); its ring shows after keyboard use.
+    var focusedNode: OutlineNode?
+    var focusRingVisible = false
+    /// Clear's slide-out is running.
+    var isClearing = false
+    /// Stretches Clear's animation (DEBUG captures of the mid-Clear frame).
+    var clearSlowdown: Double = 1
 
     var sidebar: SidebarStore { store.sidebar }
 
@@ -56,6 +67,12 @@ public final class SidebarController: NSObject {
         outline.action = #selector(outlineClicked(_:))
         outline.doubleAction = #selector(outlineDoubleClicked(_:))
         grid.events = self
+        grid.dropEvents = self
+        outline.registerForDraggedTypes(Self.acceptedDragTypes)
+        grid.registerForDraggedTypes(Self.acceptedDragTypes)
+        bodyView.onEmptyDoubleClick = { [weak self] in self?.host?.newTab() }
+        bodyView.onOverflowClick = { [weak self] in self?.scrollToSelected() }
+        bodyView.onScroll = { [weak self] in self?.updateOverflow() }
         footer.plusMenu = { [weak self] in self?.makePlusMenu() ?? NSMenu() }
         addressField.onActivate = { [weak self] in self?.host?.editAddress() }
         addressField.onCopy = { [weak self] in
@@ -130,6 +147,9 @@ public final class SidebarController: NSObject {
             let row = outline.row(forItem: node)
             if row >= 0 { outline.scrollRowToVisible(row) }
         }
+        if let node = focusedNode, outline.row(forItem: node) < 0 { focusedNode = nil }
+        retainMultiSelection()
+        updateOverflow()
         if let space = tree.space { onSpaceChange?(space) }
     }
 
@@ -148,6 +168,10 @@ public final class SidebarController: NSObject {
         if !change.spaces.isEmpty || !change.removedSpaces.isEmpty { footer.setSpaces(sidebar.spaces, active: tree.spaceID) }
         if update.spaceChanged, let space = tree.space { onSpaceChange?(space) }
         updateAddressField()
+        retainMultiSelection()
+        if let node = focusedNode, outline.row(forItem: node) < 0 { focusedNode = nil }
+        updateFocusRing()
+        updateOverflow()
     }
 
     /// Applies row removals/insertions (150 ms ease-out fade, spec §I.1) and reconfigures.
@@ -217,6 +241,7 @@ public final class SidebarController: NSObject {
             if let tile = grid.tile(for: id) { configureTile(tile) }
         }
         updateAddressField()
+        updateOverflow()
     }
 
     func updatePill(animated: Bool) {
@@ -268,11 +293,13 @@ public final class SidebarController: NSObject {
             break
         case .entry(let id):
             guard let entry = sidebar.entry(id) else { return }
+            let gesture = Self.gesture(event)
+            setFocus(node, ring: false)
             if entry.kind == .folder {
-                try? sidebar.setFolderCollapsed(id, !entry.isCollapsed)
+                if gesture == .primary { try? sidebar.setFolderCollapsed(id, !entry.isCollapsed) }
                 return
             }
-            let gesture: ClickRules.Gesture = event?.modifierFlags.contains(.command) == true ? .command : .primary
+            if gesture == .primary { clearMultiSelection() }
             let outcome = ClickRules.outcome(gesture, kind: entry.kind, isSelected: id == selectedEntryID,
                                              isChanged: isChanged(entry), isLoaded: pageState(id).isLoaded)
             if outcome == .reset, let event, clickIsOnTitle(event, row: row) {
@@ -284,6 +311,13 @@ public final class SidebarController: NSObject {
                 perform(outcome, on: id)
             }
         }
+    }
+
+    static func gesture(_ event: NSEvent?) -> ClickRules.Gesture {
+        let flags = event?.modifierFlags ?? []
+        if flags.contains(.command) { return .command }
+        if flags.contains(.shift) { return .shift }
+        return .primary
     }
 
     @objc private func outlineDoubleClicked(_ sender: Any?) {
@@ -309,6 +343,8 @@ public final class SidebarController: NSObject {
         case .unload: unload(id)
         case .remove: removeEntry(id, undoable: true)
         case .close: close(id)
+        case .toggleSelection: toggleSelection(id)
+        case .extendSelection: extendSelection(id)
         case .none: break
         }
     }
@@ -369,29 +405,6 @@ public final class SidebarController: NSObject {
         let title = EntryLabel.title(entry)
         toasts?.show(Toast(id: "removed", symbol: .info, message: "Removed “\(title)”",
                            action: .init(title: "Undo") { [weak self] in self?.sidebar.restore([removed]) }))
-    }
-
-    // MARK: Clear (spec §A.7)
-
-    @objc func clearToday(_ sender: Any?) {
-        let space = tree.spaceID
-        let selected = selectedEntryID
-        let selectedWasToday = selected.flatMap(sidebar.entry)?.kind == .today
-        let removed = sidebar.clearToday(space: space)
-        guard !removed.isEmpty else { return }
-        for item in removed { host?.unload(item.entry.id) }
-        if selectedWasToday {
-            let next = sidebar.mruOrder(space: space).first { $0.kind != .folder && $0.lastActiveAt != nil }
-            select(next?.id)
-        }
-        let message = removed.count == 1 ? "1 tab closed" : "\(removed.count) tabs closed"
-        toasts?.show(Toast(id: "tabs-closed", symbol: .clearToday, message: message,
-                           action: .init(title: "Undo") { [weak self] in
-                               guard let self else { return }
-                               sidebar.restore(removed)
-                               if selectedWasToday, let selected, sidebar.entry(selected) != nil { select(selected) }
-                           },
-                           duration: Timing.undoToast))
     }
 
     // MARK: Rename (spec §I.9)
@@ -503,6 +516,43 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
         (item as? OutlineNode)?.entryID != nil
     }
 
+    /// AppKit never changes the selection by itself: it mirrors the
+    /// multi-selection, which clicks change through `ClickRules`.
+    public func outlineView(_ outlineView: NSOutlineView, selectionIndexesForProposedSelection proposed: IndexSet) -> IndexSet {
+        multiSelectionRows
+    }
+
+    // MARK: Drag and drop (SidebarDragDrop)
+
+    public func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
+        guard let id = (item as? OutlineNode)?.entryID, let entry = sidebar.entry(id), !isClearing else { return nil }
+        return pasteboardItem(for: entry)
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+                            forItems draggedItems: [Any]) {
+        session.animatesToStartingPositionsOnCancelOrFail = true
+        liftDraggingItems(session)
+        draggingSessionWillBegin(session, ids: draggedItems.compactMap { ($0 as? OutlineNode)?.entryID })
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                            operation: NSDragOperation) {
+        draggingSessionEnded()
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?,
+                            proposedChildIndex index: Int) -> NSDragOperation {
+        let operation = outlineDragUpdated(info)
+        // The target is ours (`DropRules`); AppKit only needs a valid one and draws nothing.
+        if !operation.isEmpty { outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex) }
+        return operation
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        outlineAcceptDrop(info)
+    }
+
     public func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
         let rowView = SidebarRowView()
         switch (item as? OutlineNode)?.kind {
@@ -516,6 +566,10 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
         guard let rowView = rowView as? SidebarRowView, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
         rowView.isSelectedEntry = node.entryID != nil && node.entryID == selectedEntryID
         rowView.isHovered = node === hoveredNode
+        rowView.isMultiSelected = node.entryID.map(multiSelection.contains) ?? false
+        rowView.showsFocusRing = focusRingVisible && node === focusedNode && outline.window?.firstResponder === outline
+        rowView.isDropTarget = false
+        rowView.alphaValue = node.entryID.map { drag?.ids.contains($0) == true } == true ? SidebarMetrics.draggedRowAlpha : 1
     }
 
     public func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -552,23 +606,18 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
 
 // MARK: - Row and tile events
 
-extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTileEvents {
+extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTileEvents, EssentialsDropEvents {
     func outlineMiddleClicked(row: Int) {
         guard let id = (outline.item(atRow: row) as? OutlineNode)?.entryID, let entry = sidebar.entry(id) else { return }
         perform(ClickRules.outcome(.middle, kind: entry.kind, isSelected: id == selectedEntryID, isChanged: isChanged(entry),
                                    isLoaded: pageState(id).isLoaded), on: id)
     }
 
-    func outlineReturnPressed() -> Bool {
-        let row = outline.selectedRow
-        guard row >= 0, let id = (outline.item(atRow: row) as? OutlineNode)?.entryID else { return false }
-        beginRename(id)
-        return true
-    }
+    func outlineEmptyAreaDoubleClicked() { host?.newTab() }
 
     func outlineMenu(forRow row: Int) -> NSMenu? {
         guard let id = (outline.item(atRow: row) as? OutlineNode)?.entryID else { return nil }
-        return menu(for: id)
+        return menu(forClicked: id)
     }
 
     func outlineHoverChanged(row: Int?) {
@@ -600,20 +649,34 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
 
     func tileClicked(_ id: UUID, gesture: ClickRules.Gesture) {
         guard let entry = sidebar.entry(id) else { return }
+        if gesture == .primary { clearMultiSelection() }
         perform(ClickRules.outcome(gesture, kind: entry.kind, isSelected: id == selectedEntryID, isChanged: isChanged(entry),
                                    isLoaded: pageState(id).isLoaded), on: id)
     }
 
     func tileResetClicked(_ id: UUID) { resetButtonClicked(id) }
 
-    func tileMenu(_ id: UUID) -> NSMenu? { menu(for: id) }
+    func tileMenu(_ id: UUID) -> NSMenu? { menu(forClicked: id) }
 }
 
-/// The sidebar below the header: Essentials, the outline, the footer.
+/// The sidebar below the header: Essentials, the outline (with the
+/// overflow indicators at its edges, spec §I.11), the footer. A
+/// double-click on its empty background is a new tab (spec §F).
 public final class SidebarBodyView: NSView {
     private(set) var grid: EssentialsGridView?
     private(set) var scrollView = NSScrollView()
     private(set) var footer: SidebarFooterView?
+    private let overflowTop = OverflowIndicatorView(edge: .top)
+    private let overflowBottom = OverflowIndicatorView(edge: .bottom)
+    var onEmptyDoubleClick: (() -> Void)?
+    var onOverflowClick: (() -> Void)? {
+        didSet {
+            overflowTop.onClick = onOverflowClick
+            overflowBottom.onClick = onOverflowClick
+        }
+    }
+    /// The list scrolled.
+    var onScroll: (() -> Void)?
 
     public override var isFlipped: Bool { true }
     public override var mouseDownCanMoveWindow: Bool { true }
@@ -630,9 +693,30 @@ public final class SidebarBodyView: NSView {
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.contentInsets = NSEdgeInsetsZero
         scrollView.verticalScrollElasticity = .allowed
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(clipViewScrolled(_:)),
+                                               name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        footer.onEmptyDoubleClick = { [weak self] in self?.onEmptyDoubleClick?() }
         addSubview(grid)
         addSubview(scrollView)
         addSubview(footer)
+        addSubview(overflowTop)
+        addSubview(overflowBottom)
+    }
+
+    @objc private func clipViewScrolled(_ notification: Notification) { onScroll?() }
+
+    func setOverflow(above: Bool, below: Bool) {
+        overflowTop.isHidden = !above
+        overflowBottom.isHidden = !below
+    }
+
+    public override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            onEmptyDoubleClick?()
+        } else {
+            window?.performDrag(with: event)
+        }
     }
 
     public override func layout() {
@@ -646,6 +730,10 @@ public final class SidebarBodyView: NSView {
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         scrollView.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - footerHeight - top))
         (scrollView.documentView as? NSOutlineView)?.sizeLastColumnToFit()
+        let hit = SidebarMetrics.overflowHitHeight
+        overflowTop.frame = NSRect(x: 0, y: scrollView.frame.minY, width: bounds.width, height: hit)
+        overflowBottom.frame = NSRect(x: 0, y: scrollView.frame.maxY - hit, width: bounds.width, height: hit)
+        onScroll?()
     }
 }
 

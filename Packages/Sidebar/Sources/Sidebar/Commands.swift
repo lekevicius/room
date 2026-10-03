@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Command names shared by the sidebar's menus and, from Phase 2.4, the
 /// palette's command list, so users learn one vocabulary (spec §I.10). Names
@@ -44,6 +44,16 @@ public enum CommandName {
     public static let unpack = "Unpack Folder"
     public static let deleteFolder = "Delete Folder…"
     public static let clearToday = "Clear Today Tabs"
+    // Multi-selection (spec §A.9, §A.6)
+    public static func pinTabs(_ count: Int) -> String { "Pin \(count) Tabs" }
+    public static func unpinTabs(_ count: Int) -> String { "Unpin \(count) Tabs" }
+    public static func addTabsToEssentials(_ count: Int) -> String { "Add \(count) Tabs to Essentials" }
+    public static func removeTabsFromEssentials(_ count: Int) -> String { "Remove \(count) Tabs from Essentials" }
+    public static func newFolderWithTabs(_ count: Int) -> String { "New Folder with \(count) Tabs" }
+    public static func copyURLs(_ count: Int) -> String { count == 1 ? "Copy URL" : "Copy \(count) URLs" }
+    public static func unloadTabs(_ count: Int) -> String { count == 1 ? "Unload Tab" : "Unload \(count) Tabs" }
+    public static func closeTabs(_ count: Int) -> String { "Close \(count) Tabs" }
+    public static func removeTabs(_ count: Int) -> String { "Remove \(count) Tabs" }
 }
 
 /// "Edit Pinned URL…" and "Paste URL as New Tab" input (spec §A.5): adds a
@@ -71,5 +81,31 @@ public enum URLFixup {
         guard isLocal || (labels.count >= 2 && labels.allSatisfy { !$0.isEmpty }) else { return nil }
         let scheme = isLocal ? "http://" : "https://"
         return scheme + trimmed
+    }
+
+    /// Plain text dropped on the sidebar becomes a search tab (spec §A.9).
+    /// Google until the palette's search engine setting (Phase 2.4, backlog B-12).
+    public static func searchURL(for text: String) -> String {
+        var components = URLComponents(string: "https://www.google.com/search")!
+        components.queryItems = [URLQueryItem(name: "q", value: text.trimmingCharacters(in: .whitespacesAndNewlines))]
+        return components.url!.absoluteString
+    }
+
+    /// What a drop from outside the window opens (spec §A.9, §I.7): every
+    /// URL or file on the pasteboard, else each line of text if all are
+    /// URLs, else one search for the text.
+    public static func dropURLs(from pasteboard: NSPasteboard) -> [String] {
+        let allowed: Set<String> = ["http", "https", "file"]
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let accepted = urls.filter { allowed.contains($0.scheme?.lowercased() ?? "") }.map(\.absoluteString)
+            if !accepted.isEmpty { return accepted }
+        }
+        guard let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return []
+        }
+        let lines = text.split(whereSeparator: \.isNewline).map { String($0) }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let urls = lines.compactMap(url(from:))
+        if !urls.isEmpty, urls.count == lines.count { return urls }
+        return [searchURL(for: text)]
     }
 }

@@ -216,6 +216,78 @@ struct OutlineSyncTests {
     }
 }
 
+@Suite("Sidebar drops and multi-selection (spec §A.6, §A.9)")
+struct SidebarDropTests {
+    @Test("A group drop converts across sections and the outline follows; the moved group leaves the multi-selection")
+    func groupDrop() throws {
+        let f = try SidebarFixture()
+        let s = f.sidebar, space = f.space.id
+        let tabs = try (0..<4).map { try s.addEntry(.today, url: "https://\($0).example", title: "T\($0)", space: space) }
+        f.controller.select(tabs[0].id)
+        f.controller.perform(.toggleSelection, on: tabs[2].id)
+        f.controller.perform(.toggleSelection, on: tabs[3].id)
+        #expect(f.controller.multiSelection.ids == [tabs[0].id, tabs[2].id, tabs[3].id])
+        #expect(f.controller.outline.selectedRowIndexes.count == 3, "AppKit's selection carries the group into a drag")
+        let ids = f.controller.commandTargets(tabs[2].id)
+        #expect(f.controller.performDrop(.insert(.pinned(space: space, folder: nil), index: 0, line: .init(boundary: 1, depth: 0)),
+                                         ids: ids, copy: false, external: []))
+        #expect(s.pinned(space: space).map(\.id) == ids)
+        #expect(s.today(space: space).map(\.id) == [tabs[1].id])
+        #expect(f.controller.multiSelection.isEmpty)
+        #expect(f.rows() == f.expectedRows())
+    }
+
+    @Test("Dropping onto a pinned entry after the hold makes a folder with both (§A.6); ⌥ copies; a full grid refuses")
+    func dropOnto() throws {
+        let f = try SidebarFixture()
+        let s = f.sidebar, space = f.space.id
+        let toasts = RecordingToasts()
+        f.controller.toasts = toasts
+        let pinned = try s.addEntry(.pinned, url: "https://p.example", title: "P", space: space)
+        let tab = try s.addEntry(.today, url: "https://t.example", title: "T", space: space)
+        #expect(f.controller.performDrop(.newFolder(with: pinned.id, row: 1), ids: [tab.id], copy: false, external: []))
+        let folder = try #require(s.pinned(space: space).first)
+        #expect(folder.kind == .folder && s.pinned(space: space).count == 1)
+        #expect(s.pinned(space: space, folder: folder.id).map(\.id) == [pinned.id, tab.id])
+        #expect(f.rows() == f.expectedRows())
+        // ⌥-drag back to Today: a copy, the original stays in the folder.
+        #expect(f.controller.performDrop(.insert(.today(space: space), index: .max, line: .init(boundary: 0, depth: 0)),
+                                         ids: [tab.id], copy: true, external: []))
+        #expect(s.today(space: space).count == 1 && s.entry(tab.id)?.folderID == folder.id)
+        // Twelve essentials: one more is refused with a toast, nothing moves.
+        for index in 0..<12 { try s.addEntry(.essential, url: "https://e\(index).example", space: space) }
+        let before = f.store.currentState()
+        #expect(!f.controller.performDrop(.insert(.essentials(profile: f.profile.id), index: 0, line: .init(boundary: 0, depth: 0)),
+                                          ids: [pinned.id], copy: false, external: []))
+        #expect(f.store.currentState() == before)
+        #expect(toasts.shown.last?.id == "essentials-full")
+    }
+
+    @Test("URLs dropped from outside open as entries of the target's kind at the drop position; text becomes a search")
+    func externalDrop() throws {
+        let f = try SidebarFixture()
+        let s = f.sidebar, space = f.space.id
+        let first = try s.addEntry(.today, url: "https://first.example", space: space)
+        #expect(f.controller.performDrop(.insert(.today(space: space), index: 0, line: .init(boundary: 0, depth: 0)), ids: [], copy: false,
+                                         external: ["https://a.example", "https://b.example"]))
+        #expect(s.today(space: space).map(\.liveURL) == ["https://a.example", "https://b.example", "https://first.example"])
+        #expect(f.controller.selectedEntryID == s.today(space: space).first?.id, "the first dropped tab opens")
+        #expect(f.host.activated.last == s.today(space: space).first?.id)
+        #expect(f.controller.performDrop(.insert(.pinned(space: space, folder: nil), index: .max, line: .init(boundary: 0, depth: 0)),
+                                         ids: [], copy: false, external: ["https://p.example"]))
+        #expect(s.pinned(space: space).first?.storedURL == "https://p.example")
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("RoomSidebarTests-\(UUID().uuidString)"))
+        pasteboard.clearContents()
+        pasteboard.setString("room browser", forType: .string)
+        #expect(URLFixup.dropURLs(from: pasteboard) == ["https://www.google.com/search?q=room%20browser"])
+        pasteboard.clearContents()
+        pasteboard.setString("example.com\nhttps://swift.org", forType: .string)
+        #expect(URLFixup.dropURLs(from: pasteboard) == ["https://example.com", "https://swift.org"])
+        pasteboard.releaseGlobally()
+        _ = first
+    }
+}
+
 final class RecordingToasts: ToastPresenting {
     var shown: [Toast] = []
     func show(_ toast: Toast) { shown.append(toast) }

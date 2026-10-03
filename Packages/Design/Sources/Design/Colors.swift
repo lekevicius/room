@@ -17,6 +17,8 @@ public enum Palette {
 
     /// Accent marks: the changed-entry dot (spec §I.8), the drag insertion line (§A.9).
     public static var accent: NSColor { .controlAccentColor }
+    /// Rows in the ⌘/⇧-click multi-selection and the drop-onto target (§A.9, §A.6).
+    public static var sidebarMultiSelection: NSColor { NSColor.controlAccentColor.withAlphaComponent(0.18) }
 
     /// Letter-tile backgrounds for pages without a favicon (spec §I.2), picked
     /// by a stable hash of the domain (`letterTileColor(for:)`).

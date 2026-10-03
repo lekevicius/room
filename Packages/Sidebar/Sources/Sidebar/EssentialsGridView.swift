@@ -2,11 +2,19 @@ import AppKit
 import Design
 import Model
 
-/// What a tile reports back (clicks, menus).
+/// What a tile reports back (clicks, menus, the start of a drag).
 protocol EssentialTileEvents: AnyObject {
     func tileClicked(_ entry: UUID, gesture: ClickRules.Gesture)
     func tileResetClicked(_ entry: UUID)
     func tileMenu(_ entry: UUID) -> NSMenu?
+    func tileDragStarted(_ entry: UUID, event: NSEvent)
+}
+
+/// Drags over the grid (spec §A.9).
+protocol EssentialsDropEvents: AnyObject {
+    func gridDragUpdated(_ info: any NSDraggingInfo) -> NSDragOperation
+    func gridPerformDrop(_ info: any NSDraggingInfo) -> Bool
+    func gridDragExited()
 }
 
 /// Layout of the Essentials grid (spec §I.2): tiles `essentialTileHeight`
@@ -51,11 +59,47 @@ public enum EssentialsLayout {
     }
 }
 
-/// The Essentials grid above the space title (≤ 12 tiles per profile).
+/// The Essentials grid above the space title (≤ 12 tiles per profile). It
+/// takes drops: a vertical insertion line between tiles; over a full grid
+/// a "12/12" badge, and a shake when the drop is refused (spec §A.9); with
+/// no essentials, a dashed drop slot while a sidebar drag is in progress
+/// (spec §I.15).
 final class EssentialsGridView: NSView {
     weak var events: EssentialTileEvents?
+    weak var dropEvents: EssentialsDropEvents?
     private(set) var tiles: [UUID: EssentialTileView] = [:]
-    private var order: [UUID] = []
+    private(set) var order: [UUID] = []
+    private let insertionLine = DropIndicatorView()
+    private let fullBadge = NSTextField(labelWithString: "")
+    private let dropSlot = EssentialsDropSlotView()
+
+    /// Shows the empty grid's drop slot (only while a sidebar drag is in progress).
+    var showsDropSlot = false {
+        didSet {
+            guard showsDropSlot != oldValue else { return }
+            dropSlot.isHidden = !(showsDropSlot && order.isEmpty)
+            needsLayout = true
+        }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        fullBadge.font = .systemFont(ofSize: 10, weight: .semibold)
+        fullBadge.textColor = .white
+        fullBadge.alignment = .center
+        fullBadge.wantsLayer = true
+        fullBadge.layer?.backgroundColor = NSColor.systemRed.cgColor
+        fullBadge.layer?.cornerRadius = SidebarMetrics.fullBadgeHeight / 2
+        fullBadge.isHidden = true
+        fullBadge.setAccessibilityIdentifier("essentials-full")
+        dropSlot.isHidden = true
+        addSubview(dropSlot)
+        addSubview(insertionLine)
+        addSubview(fullBadge)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
@@ -77,7 +121,7 @@ final class EssentialsGridView: NSView {
             let tile = EssentialTileView(entryID: id)
             tile.events = events
             tiles[id] = tile
-            addSubview(tile)
+            addSubview(tile, positioned: .below, relativeTo: insertionLine)
             if animated {
                 tile.alphaValue = 0
                 NSAnimationContext.runAnimationGroup { context in
@@ -87,20 +131,132 @@ final class EssentialsGridView: NSView {
             }
         }
         order = ids
+        dropSlot.isHidden = !(showsDropSlot && order.isEmpty)
         needsLayout = true
     }
 
     func tile(for id: UUID) -> EssentialTileView? { tiles[id] }
 
     func height(forWidth width: CGFloat) -> CGFloat {
-        EssentialsLayout.height(count: order.count, width: width)
+        if order.isEmpty { return showsDropSlot ? SidebarMetrics.essentialTileHeight : 0 }
+        return EssentialsLayout.height(count: order.count, width: width)
     }
+
+    var tileFrames: [CGRect] { EssentialsLayout.frames(count: order.count, width: bounds.width) }
 
     override func layout() {
         super.layout()
-        for (id, frame) in zip(order, EssentialsLayout.frames(count: order.count, width: bounds.width)) {
+        for (id, frame) in zip(order, tileFrames) {
             tiles[id]?.frame = frame
         }
+        dropSlot.frame = NSRect(x: 0, y: 0, width: bounds.width, height: SidebarMetrics.essentialTileHeight)
+        let size = fullBadge.cell?.cellSize ?? .zero
+        let badgeWidth = ceil(size.width) + 2 * Spacing.xs
+        fullBadge.frame = NSRect(x: bounds.width - badgeWidth, y: 0, width: badgeWidth, height: SidebarMetrics.fullBadgeHeight)
+    }
+
+    // MARK: Drop feedback
+
+    /// The insertion line beside tile `tile` (after it if `after`); `nil` hides it.
+    func showInsertion(_ drop: DropRules.GridDrop?) {
+        let frames = tileFrames
+        guard let drop, frames.indices.contains(drop.tile) else {
+            insertionLine.isHidden = true
+            return
+        }
+        let gap = SidebarMetrics.essentialsGap
+        let width = SidebarMetrics.insertionLineWidth
+        let tile = frames[drop.tile]
+        let x = drop.after ? tile.maxX + gap / 2 : tile.minX - gap / 2
+        insertionLine.frame = NSRect(x: min(max(x - width / 2, 0), bounds.width - width), y: tile.minY, width: width, height: tile.height)
+        insertionLine.isHidden = false
+    }
+
+    /// The "12/12" badge over a full grid (`nil` hides it).
+    func showFullBadge(_ text: String?) {
+        fullBadge.stringValue = text ?? ""
+        fullBadge.isHidden = text == nil
+        needsLayout = true
+    }
+
+    /// The refused-drop shake (spec §A.9); a flash under Reduce Motion.
+    func shake() {
+        wantsLayer = true
+        guard let layer else { return }
+        if Motion.reduceMotion {
+            let flash = CABasicAnimation(keyPath: "opacity")
+            flash.fromValue = 0.4
+            flash.toValue = 1
+            flash.duration = Motion.slow
+            layer.add(flash, forKey: "refused")
+            return
+        }
+        let shake = CAKeyframeAnimation(keyPath: "transform.translation.x")
+        let distance = SidebarMetrics.shakeDistance
+        shake.values = [0, -distance, distance, -distance * 0.6, distance * 0.6, -distance * 0.3, 0]
+        shake.duration = Motion.shake
+        layer.add(shake, forKey: "refused")
+    }
+
+    // MARK: NSDraggingDestination
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        dropEvents?.gridDragUpdated(sender) ?? []
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        dropEvents?.gridDragUpdated(sender) ?? []
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        dropEvents?.gridDragExited()
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        dropEvents?.gridPerformDrop(sender) ?? false
+    }
+
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        dropEvents?.gridDragExited()
+    }
+}
+
+/// The empty grid while dragging: "Drag a tab here to make it an Essential" (spec §I.15).
+final class EssentialsDropSlotView: NSView {
+    private let label = NSTextField(labelWithString: "Drag a tab here to make it an Essential")
+    private let border = CAShapeLayer()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        border.fillColor = nil
+        border.lineWidth = 1
+        border.lineDashPattern = [4, 3]
+        layer?.addSublayer(border)
+        label.font = Typography.secondary
+        label.textColor = .secondaryLabelColor
+        label.alignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(label)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        border.frame = bounds
+        border.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: Radius.medium, cornerHeight: Radius.medium,
+                             transform: nil)
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            border.strokeColor = NSColor.tertiaryLabelColor.cgColor
+        }
+        let height = ceil(label.cell?.cellSize.height ?? 14)
+        label.frame = NSRect(x: Spacing.s, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - 2 * Spacing.s),
+                             height: height)
     }
 }
 
@@ -119,6 +275,10 @@ final class EssentialTileView: NSView {
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
     private var isChanged = false
+    /// In the ⌘/⇧-click multi-selection (spec §A.9).
+    var isMultiSelected = false { didSet { if isMultiSelected != oldValue { needsDisplay = true } } }
+    private var mouseDownPoint: NSPoint?
+    private var didDrag = false
 
     init(entryID: UUID) {
         self.entryID = entryID
@@ -191,8 +351,8 @@ final class EssentialTileView: NSView {
         hoverLayer.frame = layer.bounds
         hoverLayer.cornerRadius = Radius.medium
         hoverLayer.cornerCurve = .continuous
-        hoverLayer.backgroundColor = Palette.sidebarHover.cgColor
-        hoverLayer.isHidden = !hovering || isSelected
+        hoverLayer.backgroundColor = (isMultiSelected ? Palette.sidebarMultiSelection : Palette.sidebarHover).cgColor
+        hoverLayer.isHidden = !(isMultiSelected || hovering) || (isSelected && !isMultiSelected)
         dot.layer?.backgroundColor = Palette.accent.cgColor
         dot.layer?.cornerRadius = SidebarMetrics.changedDotSize / 2
     }
@@ -222,11 +382,25 @@ final class EssentialTileView: NSView {
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false }
 
-    override func mouseDown(with event: NSEvent) {}
+    override func mouseDown(with event: NSEvent) {
+        mouseDownPoint = event.locationInWindow
+        didDrag = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownPoint, !didDrag else { return }
+        let distance = hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y)
+        guard distance >= SidebarMetrics.dragThreshold else { return }
+        didDrag = true
+        events?.tileDragStarted(entryID, event: event)
+    }
 
     override func mouseUp(with event: NSEvent) {
-        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
-        events?.tileClicked(entryID, gesture: event.modifierFlags.contains(.command) ? .command : .primary)
+        defer { mouseDownPoint = nil }
+        guard !didDrag, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        let flags = event.modifierFlags
+        let gesture: ClickRules.Gesture = flags.contains(.command) ? .command : flags.contains(.shift) ? .shift : .primary
+        events?.tileClicked(entryID, gesture: gesture)
     }
 
     override func otherMouseUp(with event: NSEvent) {

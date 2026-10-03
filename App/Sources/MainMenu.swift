@@ -48,6 +48,16 @@ enum MainMenu {
         devTools.keyEquivalentModifierMask = [.command, .option]
         main.addItem(submenu: viewMenu, title: "View")
 
+        // Sidebar commands (Phase 2.2); Phase 2.8 builds the full menu set.
+        let tabMenu = NSMenu(title: "Tab")
+        tabMenu.addItem(withTitle: "Pin Tab", action: #selector(AppDelegate.togglePin(_:)), keyEquivalent: "d")
+        let essentials = tabMenu.addItem(withTitle: "Add to Essentials", action: #selector(AppDelegate.toggleEssentials(_:)), keyEquivalent: "d")
+        essentials.keyEquivalentModifierMask = [.command, .shift]
+        tabMenu.addItem(.separator())
+        let clear = tabMenu.addItem(withTitle: "Clear Today Tabs", action: #selector(AppDelegate.clearTodayTabs(_:)), keyEquivalent: "k")
+        clear.keyEquivalentModifierMask = [.command, .shift]
+        main.addItem(submenu: tabMenu, title: "Tab")
+
         #if DEBUG
         // Phase 2.2: drives the FakeEngine pages behind the sidebar, and the
         // Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes).

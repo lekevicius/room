@@ -8,6 +8,13 @@ import Store
 /// menu. Commands that need a later phase are present and disabled, with
 /// the phase in their tooltip.
 extension SidebarController {
+    /// A right-click on `id`: the group's menu when it is part of a
+    /// multi-selection of two or more (spec §A.9), else its own.
+    func menu(forClicked id: UUID) -> NSMenu? {
+        let ids = commandTargets(id)
+        return ids.count >= 2 ? groupMenu(ids) : menu(for: id)
+    }
+
     func menu(for id: UUID) -> NSMenu? {
         guard let entry = sidebar.entry(id) else { return nil }
         let menu = NSMenu()
@@ -29,6 +36,91 @@ extension SidebarController {
         menu.addItem(later(CommandName.newSplit, symbol: .newSplit, phase: "2.7", key: "=", modifiers: [.command, .shift]))
         menu.addItem(later(CommandName.newSpace, symbol: .newSpace, phase: "2.5"))
         return menu
+    }
+
+    /// Commands on a multi-selection (one section, two or more entries).
+    func groupMenu(_ ids: [UUID]) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let entries = ids.compactMap(sidebar.entry)
+        let count = entries.count
+        let kind = entries.first?.kind ?? .today
+        let essentialsRoom = EntryRules.essentialsCap - essentialsCount
+        switch kind {
+        case .today, .pinned:
+            let title = kind == .today ? CommandName.pinTabs(count) : CommandName.unpinTabs(count)
+            menu.addItem(action(title, symbol: kind == .today ? .pin : .unpin, key: "d") { [weak self] in self?.togglePin() })
+            menu.addItem(action(CommandName.addTabsToEssentials(count), symbol: .essential, key: "d", modifiers: [.command, .shift],
+                                enabled: count <= essentialsRoom) { [weak self] in self?.toggleEssentials() })
+            let moveItem = NSMenuItem(title: CommandName.moveTo, action: nil, keyEquivalent: "")
+            moveItem.image = Symbol.moveTo.image()
+            let submenu = NSMenu()
+            submenu.autoenablesItems = false
+            let others = sidebar.spaces.filter { $0.id != tree.spaceID }
+            for space in others {
+                submenu.addItem(action(space.name) { [weak self] in for id in ids { self?.move(id, toSpace: space.id) } })
+            }
+            if others.isEmpty {
+                let none = NSMenuItem(title: "No Other Spaces", action: nil, keyEquivalent: "")
+                none.isEnabled = false
+                submenu.addItem(none)
+            }
+            moveItem.submenu = submenu
+            menu.addItem(moveItem)
+            menu.addItem(action(CommandName.newFolderWithTabs(count), symbol: .newFolder) { [weak self] in self?.newFolder(with: ids) })
+        case .essential:
+            menu.addItem(action(CommandName.removeTabsFromEssentials(count), symbol: .removeEssential, key: "d",
+                                modifiers: [.command, .shift]) { [weak self] in self?.toggleEssentials() })
+        case .folder:
+            break
+        }
+        menu.addItem(.separator())
+        let urls = entries.compactMap(\.currentURL)
+        menu.addItem(action(CommandName.copyURLs(urls.count), symbol: .copyURL, enabled: !urls.isEmpty) { [weak self] in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(urls.joined(separator: "\n"), forType: .string)
+            self?.toasts?.show(Toast(id: "copy-url", symbol: .copyURL, message: urls.count == 1 ? "Copied 1 link" : "Copied \(urls.count) links"))
+        })
+        let loaded = ids.filter { pageState($0).isLoaded }
+        menu.addItem(action(CommandName.unloadTabs(loaded.count), symbol: .unload, enabled: !loaded.isEmpty) { [weak self] in
+            for id in loaded { self?.unload(id) }
+        })
+        if kind == .today || kind == .pinned {
+            menu.addItem(.separator())
+            if kind == .today {
+                menu.addItem(action(CommandName.closeTabs(count), symbol: .closeTab, key: "w") { [weak self] in
+                    guard let self else { return }
+                    clearMultiSelection()
+                    closeToday(ids, keeping: nil)
+                })
+            } else {
+                menu.addItem(action(CommandName.removeTabs(count), symbol: .closeTab) { [weak self] in
+                    guard let self else { return }
+                    clearMultiSelection()
+                    for id in ids { removeEntry(id, undoable: true) }
+                })
+            }
+        }
+        return menu
+    }
+
+    /// "New Folder with N Tabs" (spec §A.6): a folder where the first entry
+    /// was (end of the pinned root for Today tabs) holding the entries.
+    func newFolder(with ids: [UUID]) {
+        guard let first = ids.first.flatMap(sidebar.entry) else { return }
+        let parent = first.kind == .pinned ? first.folderID : nil
+        let index = first.kind == .pinned ? first.position : nil
+        guard let folder = try? sidebar.addFolder(name: CommandName.newFolder, space: tree.spaceID, parent: parent, at: index) else { return }
+        do throws(SidebarError) {
+            try sidebar.move(ids, to: .pinned(space: tree.spaceID, folder: folder.id), insertingAt: 0)
+        } catch {
+            _ = try? sidebar.remove(folder.id)
+            showRefusal(error)
+            return
+        }
+        clearMultiSelection()
+        if tree.space?.pinnedCollapsed == true { togglePinnedCollapsed() }
+        beginRename(folder.id)
     }
 
     // MARK: Per kind
@@ -327,10 +419,18 @@ extension SidebarController {
         select(copy.id)
     }
 
-    /// Close Tabs Below / Close Other Tabs: removes Today tabs, Undo toast.
-    func closeToday(_ ids: [UUID], keeping kept: UUID) {
+    /// Close Tabs Below / Close Other Tabs / a group's Close: removes Today
+    /// tabs, Undo toast. The selection moves to `kept`, or the MRU fallback.
+    func closeToday(_ ids: [UUID], keeping kept: UUID?) {
         guard !ids.isEmpty else { return }
-        if let selected = selectedEntryID, ids.contains(selected) { select(kept) }
+        if let selected = selectedEntryID, ids.contains(selected) {
+            if let kept {
+                select(kept)
+            } else {
+                let next = sidebar.mruOrder(space: tree.spaceID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
+                select(next?.id)
+            }
+        }
         var removed: [RemovedEntry] = []
         for id in ids {
             host?.unload(id)

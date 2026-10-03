@@ -94,6 +94,22 @@ public enum SidebarMetrics {
     public static let addressFieldPadding: CGFloat = Spacing.xs
     /// Bottom bar (spec §F).
     public static let footerHeight: CGFloat = 40
+    /// Drag insertion line, drop-onto ring and keyboard focus ring (spec §A.9, §I.13).
+    public static let insertionLineWidth: CGFloat = 2
+    /// The lifted row under the pointer while dragging: scale and shadow (spec §A.9).
+    public static let dragLiftScale: CGFloat = 1.03
+    public static let dragShadowRadius: CGFloat = 8
+    public static let dragShadowOpacity: CGFloat = 0.25
+    /// Rows being dragged stay in place, dimmed (chosen).
+    public static let draggedRowAlpha: CGFloat = 0.35
+    /// The overflow indicator's line and its click target (spec §I.11).
+    public static let overflowLineWidth: CGFloat = 2
+    public static let overflowHitHeight: CGFloat = 10
+    /// The Essentials "12/12" badge and the refused-drop shake amplitude (spec §A.9; chosen sizes).
+    public static let fullBadgeHeight: CGFloat = 16
+    public static let shakeDistance: CGFloat = 6
+    /// Pointer travel before a press on a tile becomes a drag (AppKit's own is ~3 pt).
+    public static let dragThreshold: CGFloat = 3
 }
 
 /// The inset page card (PLAN §2.4).
@@ -178,6 +194,8 @@ public enum Motion {
     /// Clear's staggered slide-out: per row, and the cap on the whole stagger (spec §A.7).
     public static let clearStagger: TimeInterval = 0.03
     public static let clearStaggerMax: TimeInterval = 0.3
+    /// Refused drop on a full Essentials grid (spec §A.9; chosen).
+    public static let shake: TimeInterval = 0.4
     /// Favicon crossfade back to the stored icon on reset (spec §A.5).
     public static let resetCrossfade: TimeInterval = 0.15
 
