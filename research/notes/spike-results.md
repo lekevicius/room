@@ -320,10 +320,10 @@ interfaces required to repair a crash are named separately.
 | form | Blink form submit / Chrome password manager | C | HTTP GET submitted test fields, password-save IPH code reached, exit 0 in 8 s | Save prompt and stored autocomplete selection |
 | extension | Chrome extension loader / MV3 worker / content script | C | worker-installed console message; content-script-ran after reload, exit 0 in 10 s | chrome.tabs/windows, action popup, extension manager |
 | downloads | Browser download manager, local Content-Disposition | C | exact 26-byte fixture saved, exit 0 in 8 s; CDP selects destination | Native destination chooser and cancellation UI |
-| permissions | PermissionPromptBubble → bubble_anchor_util_views | C + modal host; LocationBar.GetChipAnchor | Views anchor fix; notification/geolocation trigger, exit 0 in 16 s | Native denial/dismissal callback and anchoring |
-| auth | HTTP login handler / constrained-window dialog | C + both modal-host getters | 401 Basic challenge, exit 0 in 10 s | Fixture credential submission/cancel callback |
+| permissions | PermissionPromptBubble → bubble_anchor_util_views | C + modal host; LocationBar.GetChipAnchor | Views anchor fix; 2 real Deny actions; notification denied + geolocation error 1; 19 s, exit 0 | Native prompt anchoring/focus and dismissal UI |
+| auth | HTTP login handler / constrained-window dialog | C + both modal-host getters | 401 challenge cancelled, then fixture credentials produce HTTP 200; serial 10 s, exit 0 | Native credential fields/focus; concurrent teardown failure retained below |
 | certificate | SSL blocking page / security interstitial | C | Privacy error title for self-signed fixture, exit 0 in 10 s | Back/leave action |
-| find | Chrome Find command / FindBarController / FindBarHost | C + CreateFindBar/modal host; FindBarOwner | Find owner fix; find/next exits 0 in 18 s | Match count and native focus/close |
+| find | Chrome Find command / FindBarController / FindBarHost | C + CreateFindBar/modal host; FindBarOwner | Find owner fix; 400 matches / 400 DOM rows; next and close commands; 17 s, exit 0 | Native focus and typing |
 | zoom | Chrome zoom commands / ZoomController | C | scale ratios 2.2 → 2 → 1.8 → 2; exit 0 in 23 s | Native zoom feedback UI |
 | print | Chrome print command / print preview / constrained-window | C + both modal-host getters | Print trigger and close survive, exit 0 in 9 s | Preview contents and native cancellation; no print job sent |
 | fullscreen | FullscreenController / ExclusiveAccessContext | C + IsTabStripEditable | Safe rejection: TypeError not granted; exit 0 in 6 s | Unsupported: RoomExclusiveAccessContext::CanUserEnterFullscreen returns false |
@@ -368,3 +368,27 @@ promise; this does not establish working fullscreen or close the native UI gaps.
 Last engine-change baseline: nav 19.676 s, ten loaded pages, quit 2.591 s,
 load1 43.40, 26 helpers observed, 0 left, 0 new crash reports, exit 0.
 The net-log parser's 8 regression tests pass. No public-header changes.
+
+### Stronger completion probes
+
+- Permissions: 2 Chrome PermissionRequestManager::Deny calls complete the
+  actual page promises: notification "denied", geolocation PERMISSION_DENIED
+  (1). 19 s process, exit 0. No synthetic Browser.setPermission override.
+- HTTP auth: LoginHandler cancel, reload, supply room/spike, then fixture HTTP
+  200 and expected H1. Serial repeats exit 0 in 13 s and 10 s. The first
+  concurrent run hit Chrome's teardown watchdog and exited 2 after completion;
+  this is a rejected sample, not a pass. Raw evidence retained.
+- Find: private helper starts "Row", waits for the current request ID and full
+  count; 400 DOM rows / 400 matches, then Find Next and Close Find. 17 s, exit 0.
+  Earlier probe reads of 0 and 189 were rejected; the first was a stale query,
+  and the second was sampled before the count settled. No DCHECK disabled.
+- New actions are private ObjC selectors, require -RoomSpike and a 127.0.0.1
+  active page, and use Chrome's real completion paths. Public headers unchanged.
+
+Post-probe baseline: nav 11.274 s; ten-page quits 1.209 s (load1 23.93) and
+0.742 s (load1 46.18), each 26 helpers / 0 left / 0 crash reports, exit 0.
+Third repeat rejected: Stack Overflow remained loading at 63 s, only 9/10
+pages loaded. Earlier concurrent sample quit 1.910 s but retained 9 helpers
+past the unchanged 5 s grace; helpers later exited. Do not include either
+rejected sample in successful quit statistics. HTTP-auth concurrent teardown
+watchdog is a known unresolved load-sensitive failure despite serial passes.

@@ -90,3 +90,15 @@ available; Widevine first-use download still needs runtime verification.
 Network-policy build 16 s (2 steps), ad-hoc package passed. Post-change nav
 23.598 s; ten loaded pages, quit 4.240 s at load1 38.39, 26 helpers observed,
 0 left after unchanged 5 s grace, 0 new crash reports, exit 0.
+
+### Widevine first-use probe — incomplete behavior
+
+Auxiliary -RoomSpike widevine requests com.widevine.alpha with cenc and H.264
+video capability on a trusted loopback page, fresh profile. It returns
+NotSupportedError (supported=false); 37 s process, exit 0. NetLog has only the
+2 loopback page/favicon requests, 4 connections, no external request or CDM
+fetch. Before-policy profile contains WidevineCdm/4.10.3112.0, so the original
+automatic updater did provision it. Registration is preserved but is not a
+first-use trigger. **Fresh-profile Widevine provisioning remains unfinished.**
+Next: a narrowly scoped request-driven CDM update hook, followed by repeat
+EME access and a fresh 600 s no-page audit. Do not restore startup downloading.

@@ -119,6 +119,15 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
         }
     }
 
+    func runSpikeAction(_ action: String) throws -> Int {
+        let selector = NSSelectorFromString("roomSpikeAction:")
+        guard let browser, browser.responds(to: selector),
+              let result = browser.perform(selector, with: action as NSString)?.takeUnretainedValue() as? NSNumber else {
+            throw HostCDP.Failure("missing private fixture action hook")
+        }
+        return result.intValue
+    }
+
     private func show(_ page: RoomWebContents?) {
         guard page !== current || windowController?.cardView.contentView !== page?.nativeView else { return }
         current = page

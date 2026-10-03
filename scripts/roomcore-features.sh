@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -35,6 +35,9 @@ port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); pr
 extra=()
 if [[ "$FEATURE" == extension ]]; then
   extra+=("--load-extension=$ROOT/research/spikes/phase-1.4/extension")
+fi
+if [[ "$FEATURE" == widevine ]]; then
+  extra+=("--log-net-log=$DEST/netlog.json" "--net-log-capture-mode=Default")
 fi
 start=$(date +%s)
 "$APP/Contents/MacOS/Room" -RoomSpike "$FEATURE" -RoomSpikeOutput "$DEST/spike.txt" \

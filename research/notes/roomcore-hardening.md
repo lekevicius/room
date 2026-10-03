@@ -266,3 +266,40 @@ previous 25-byte note was a counting error and is corrected in the plan.
   strengthen command-line permission/auth/find/extension completion probes
   and measure Widevine first-use before declaring the feature gate complete.
   Chapter 3 UI contracts are listed with the full surface matrix.
+
+### Completion probes in progress — 07:37 EEST
+
+Added private loopback-only actions (no public headers) to call Chrome's actual
+permission Deny, HTTP LoginHandler cancel/supply, and FindTabHelper query.
+Build 25 s / 2 steps; packaged. Permissions complete two denials: notification
+"denied", geolocation error 1; exit 0, 19 s. HTTP-auth cancellation and valid
+credentials both complete and load the fixture, but first process exits 2 via
+Chrome's 10 s teardown watchdog. Concurrent baseline nav 20.423 s; ten-page
+quit 1.910 s with 9 helpers left after 5 s (rejected). They disappeared by the
+next process check; no new macOS crash report. Keep both rejected samples.
+Repeat serially, diagnose if reproducible; never count watchdog exit as pass.
+
+Widevine probe confirms NotSupportedError and no CDM download on first use.
+Before-policy profile had Widevine 4.10.3112.0; explicit component registration
+alone does not implement demand-triggered provisioning. Idle silence passes,
+but first-use CDM behavior remains a real gap; see network audit next step.
+
+### Completion-probe checkpoint — 07:45 EEST
+
+Find now observes 400 DOM rows / 400 current-request matches, then next/close;
+17 s, exit 0. The probe had to reject stale/early counts (0 and 189).
+HTTP auth serial repeats complete cancel + credentials + HTTP 200 in 13 s
+and 10 s, exit 0. Native field/anchor/focus review remains.
+Latest private-hook build 19 s / 2 steps. Nav 11.274 s. Two serial ten-page
+quits pass: 1.209 s (load1 23.93) and 0.742 s (load1 46.18), both 26 helpers,
+0 left, 0 new crash reports, exit 0. A third repeat is rejected: Stack Overflow
+still loading after the host's 63 s wait, 9/10 loaded. Do not include it in quit
+statistics. The earlier concurrent auth watchdog and 9-helper sample remain
+known rejected results, not explained away as an engine success.
+
+Next continuation should start at the Widevine provisioning gap, not rebuild
+from scratch. The original rebuild, zero-network audit, and Crashpad path are
+complete. No compiler is running. Keep public headers and first five patches
+unchanged; preserve the original 600 s zero-network result and rerun it after
+any demand-update change. Private completion probes and native acceptance
+gaps are recorded in spike-results.md; PR remains draft/partial.

@@ -33,6 +33,8 @@ source_set("core") {
     "//chrome/browser/invalidation",
     "//chrome/browser/signin",
     "//components/component_updater",
+    "//components/find_in_page",
+    "//components/permissions",
     "//components/keyed_service/content",
     "//chrome/browser/ui",
     "//chrome/browser/ui/browser_window",

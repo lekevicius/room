@@ -8,7 +8,7 @@ import RoomCore
 enum HostFeatureSpike {
     static let names = ["popups", "dialogs", "keys", "audio", "scroll", "transparent",
                         "corners", "band", "form", "extension", "downloads", "permissions",
-                        "auth", "certificate", "find", "zoom", "print", "fullscreen"]
+                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
         guard names.contains(name) else { HostSpike.record("error", "unknown spike \(name)"); return }
@@ -27,8 +27,24 @@ enum HostFeatureSpike {
         }
         do {
             try await Task.sleep(for: .seconds(2))
-            // Cert/auth intentionally stop before a successful navigation.
-            if name == "auth" || name == "certificate" {
+            if name == "auth" {
+                for action in ["auth-cancel", "auth-supply"] {
+                    var handled = false
+                    for _ in 0..<100 {
+                        if try host.runSpikeAction(action) == 1 { handled = true; break }
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    guard handled else { throw HostCDP.Failure("no HTTP auth handler for \(action)") }
+                    for _ in 0..<100 {
+                        if !page.isLoading { break }
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    HostSpike.record(action, "loading=\(page.isLoading)")
+                    if action == "auth-cancel" { page.loadURL(url) }
+                }
+            }
+            // Certificate errors intentionally stop at the interstitial.
+            if name == "certificate" {
                 try await Task.sleep(for: .seconds(5))
                 HostSpike.record("prompt-observation", "url=\(page.url?.absoluteString ?? "nil") title=\(page.title) loading=\(page.isLoading)")
                 HostSpike.record("review-required", "verify native prompt/interstitial and cancellation; survival alone is not a pass")
@@ -127,19 +143,60 @@ enum HostFeatureSpike {
                 HostSpike.record("download-bytes", data.count)
                 HostSpike.record("review-required", "CDP selected the destination; native chooser and cancellation still need review")
             case "permissions":
-                try await cdp.evaluate("Notification.requestPermission(); navigator.geolocation.getCurrentPosition(()=>{},()=>{}); true", userGesture: true)
-                HostSpike.record("review-required", "native permission prompt must complete/cancel; no capture devices requested")
+                try await cdp.evaluate("window.permissionResults={}; Notification.requestPermission().then(x=>permissionResults.notification=x); navigator.geolocation.getCurrentPosition(()=>permissionResults.geo=0,e=>permissionResults.geo=e.code); true", userGesture: true)
+                var outcomes: [String: Any] = [:]
+                var denials = 0
+                for _ in 0..<100 {
+                    if try host.runSpikeAction("deny-permission") == 1 { denials += 1 }
+                    outcomes = try await cdp.evaluate("permissionResults") as? [String: Any] ?? [:]
+                    if outcomes.count == 2 { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                HostSpike.record("permission-denials", denials)
+                HostSpike.record("permission-results", outcomes)
+                guard outcomes["notification"] as? String == "denied", outcomes["geo"] as? Int == 1 else {
+                    throw HostCDP.Failure("permission callbacks did not deny both requests")
+                }
+                HostSpike.record("review-required", "native anchor/focus still needs review; callbacks used Chrome's real Deny path")
+            case "auth":
+                let body = try await cdp.evaluate("document.querySelector('h1').textContent")
+                HostSpike.record("auth-body", body)
+                guard body as? String == "RoomCore features" else { throw HostCDP.Failure("authenticated fixture did not load") }
+                HostSpike.record("review-required", "credential/cancel callbacks exercised; native field focus remains")
             case "find", "zoom", "print":
                 // Private spike entry point, deliberately absent from public
                 // headers. A missing hook is a failure, never a silent pass.
                 // Reset is correctly disabled at 100%; exercise it while
                 // zoomed in and out, not after opposite steps cancel out.
-                let commands = name == "find" ? [37000, 37001] : name == "zoom" ? [38001, 38002, 38003, 38002] : [35003]
+                let commands = name == "find" ? [37000] : name == "zoom" ? [38001, 38002, 38003, 38002] : [35003]
                 for command in commands {
                     try host.runSpikeCommand(command)
                     try await Task.sleep(for: .seconds(1))
                     if name == "zoom" { HostSpike.record("zoom-ratio", try await cdp.evaluate("devicePixelRatio")) }
                 }
+                if name == "find" {
+                    guard try host.runSpikeAction("find-row") == 1 else { throw HostCDP.Failure("find did not start") }
+                    HostSpike.record("find-dom-rows", try await cdp.evaluate("document.querySelectorAll('.row').length"))
+                    var count = -1
+                    var observed: [Int] = []
+                    for _ in 0..<100 {
+                        count = try host.runSpikeAction("find-count")
+                        if observed.last != count { observed.append(count) }
+                        if count == 400 { break }
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    HostSpike.record("find-count-updates", observed)
+                    HostSpike.record("find-matches", count)
+                    guard count == 400 else { throw HostCDP.Failure("expected 400 Row matches") }
+                    try host.runSpikeCommand(37001)
+                    try host.runSpikeCommand(37003)
+                }
+            case "widevine":
+                // Auxiliary audit: request the real web API on a fresh profile.
+                // A rejected key-system request is recorded, never a DRM pass.
+                HostSpike.record("widevine-access", try await cdp.evaluate("navigator.requestMediaKeySystemAccess('com.widevine.alpha',[{initDataTypes:['cenc'],videoCapabilities:[{contentType:'video/mp4; codecs=\"avc1.42E01E\"'}]}]).then(x=>({supported:true,keySystem:x.keySystem})).catch(e=>({supported:false,name:e.name,message:e.message}))"))
+                try await Task.sleep(for: .seconds(20))
+                HostSpike.record("review-required", "inspect NetLog for demand-only CDM update; access alone is not playback")
             case "fullscreen":
                 try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)
                 HostSpike.record("fullscreen", try await cdp.evaluate("!!document.fullscreenElement"))

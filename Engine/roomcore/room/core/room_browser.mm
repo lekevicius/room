@@ -12,6 +12,9 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/login/login_handler.h"
+#include "components/find_in_page/find_tab_helper.h"
+#include "components/permissions/permission_request_manager.h"
 #include "content/public/browser/web_contents.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/room_profile_internal.h"
@@ -163,6 +166,7 @@ class Client : public room::RoomBrowserWindowClient {
   switch (command_id) {
     case IDC_FIND:
     case IDC_FIND_NEXT:
+    case IDC_CLOSE_FIND_OR_STOP:
     case IDC_ZOOM_PLUS:
     case IDC_ZOOM_MINUS:
     case IDC_ZOOM_NORMAL:
@@ -174,6 +178,52 @@ class Client : public room::RoomBrowserWindowClient {
     default:
       return @NO;
   }
+}
+
+// Bounded fixture actions use Chrome's real completion paths, not synthetic
+// web permission overrides. Kept private and disabled outside spike runs.
+- (NSNumber*)roomSpikeAction:(NSString*)action {
+  if (!_browser ||
+      ![[NSProcessInfo processInfo].arguments containsObject:@"-RoomSpike"]) {
+    return @(-1);
+  }
+  auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
+  if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
+    return @(-1);
+  }
+  if ([action isEqualToString:@"deny-permission"]) {
+    auto* manager = permissions::PermissionRequestManager::FromWebContents(contents);
+    if (!manager || !manager->IsRequestInProgress()) {
+      return @0;
+    }
+    manager->Deny(std::monostate{});
+    return @1;
+  }
+  if ([action isEqualToString:@"auth-cancel"] ||
+      [action isEqualToString:@"auth-supply"]) {
+    for (auto* handler : LoginHandler::GetAllLoginHandlersForTest()) {
+      if (handler->web_contents() == contents) {
+        if ([action isEqualToString:@"auth-cancel"]) {
+          handler->CancelAuth(false);
+        } else {
+          handler->SetAuth(u"room", u"spike");
+        }
+        return @1;
+      }
+    }
+    return @0;
+  }
+  auto* find = find_in_page::FindTabHelper::FromWebContents(contents);
+  if (find && [action isEqualToString:@"find-row"]) {
+    find->StartFinding(u"Row", true, false, true);
+    return @1;
+  }
+  if (find && [action isEqualToString:@"find-count"]) {
+    return @(find->find_result().final_update() &&
+                     find->find_result().request_id() == find->current_find_request_id()
+                 ? find->find_result().number_of_matches() : -1);
+  }
+  return @(-1);
 }
 
 @end
