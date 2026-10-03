@@ -20,6 +20,7 @@ source_set("browser") {
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/views:bubble_anchor_util_views",
+    "//chrome/browser/ui/views:find_bar_owner",
     "//components/input",
     "//components/web_modal",
     "//content/public/browser",

@@ -190,3 +190,12 @@ so incremental packaging does not mutate the measured executable.
 
 Permission-anchor baseline passed: nav 13.694 s, ten-loaded-page quit 0.647 s
 at load1 18.40, 28 helpers observed, 0 left, 0 new crash reports, exit 0.
+
+Find initially exited 139 in FindBarPlatformHelperMac::
+UpdateFindBarControllerFromPasteboard because CreateFindBar returned null.
+A //room FindBarOwner now supplies the existing Chrome FindBarHost and its
+bounds/native parent. The anchor lives through BrowserWindowFeatures teardown
+because find widgets retain it. Build 26 s; find/next drive exits 0 in 18 s.
+Baseline nav 11.970 s, ten-page quit 2.262 s at load1 15.57, 27 helpers observed,
+0 left, 0 crash reports, exit 0. Keyboard/focus and actual matches remain to
+be measured; this verifies the formerly crashing command path.

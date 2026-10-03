@@ -16,6 +16,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/views/find_bar_host.h"
+#include "chrome/browser/ui/views/find_bar_owner.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
@@ -114,6 +117,37 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   base::ObserverList<web_modal::ModalDialogHostObserver> observers_;
 };
 
+// Chrome's find implementation is decoupled from BrowserView by this owner.
+class RoomFindBarOwner : public FindBarOwner {
+ public:
+  explicit RoomFindBarOwner(RoomBrowserWindow* window)
+      : FindBarOwner(window->browser()->GetUnownedUserDataHost()),
+        window_(window) {}
+  views::Widget* GetOwnerWidget() override {
+    return window_->GetBubbleAnchor()->GetWidget();
+  }
+  gfx::Rect GetFindBarBoundingBox() override {
+    return GetOwnerWidget()->GetContentsView()->GetLocalBounds();
+  }
+  gfx::Rect GetFindBarClippingBox() override {
+    return GetFindBarBoundingBox();
+  }
+  bool IsOffTheRecord() const override {
+    return window_->browser()->GetProfile()->IsOffTheRecord();
+  }
+  views::Widget* GetWidgetForAnchoring() override { return GetOwnerWidget(); }
+  std::u16string GetFindBarAccessibleWindowTitle() override {
+    return u"Find in page";
+  }
+  void OnFindBarVisibilityChanged(gfx::Rect) override {
+    window_->browser()->GetFeatures().GetFindBarController()
+        ->OnFindBarVisibilityChanged();
+  }
+  void CloseOverlappingBubbles() override {}
+ private:
+  raw_ptr<RoomBrowserWindow> window_;
+};
+
 struct PendingHostWindow {
   NSWindow* __weak window = nil;
   raw_ptr<room::RoomBrowserWindowClient> client = nullptr;
@@ -160,6 +194,7 @@ ScopedPendingHostWindow::~ScopedPendingHostWindow() {
 struct RoomBrowserWindow::ObjCMembers {
   NSWindow* __weak window;
   std::unique_ptr<RoomModalDialogHost> modal_host;
+  std::unique_ptr<RoomFindBarOwner> find_owner;
 };
 
 RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
@@ -167,7 +202,7 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
                                      room::RoomBrowserWindowClient* client)
     : browser_(browser),
       client_(client),
-      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr})),
+      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr, nullptr})),
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser)) {}
 
@@ -249,9 +284,6 @@ void RoomBrowserWindow::Close() {
     return;
   }
   destroy_posted_ = true;
-  // Close the auxiliary Views window before closing the host NSWindow and
-  // stopping the native run loop, while its AppKit parent is still valid.
-  objc_->modal_host.reset();
   if (client_) {
     client_->OnBrowserWindowWillClose();
   }
@@ -358,4 +390,12 @@ RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents*) {
 views::View* RoomBrowserWindow::GetBubbleAnchor() {
   GetWebContentsModalDialogHost();
   return objc_->modal_host->GetBubbleAnchor();
+}
+
+std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
+  RoomStubHit("CreateFindBar");
+  if (!objc_->find_owner) {
+    objc_->find_owner = std::make_unique<RoomFindBarOwner>(this);
+  }
+  return std::make_unique<FindBarHost>(objc_->find_owner.get());
 }

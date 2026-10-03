@@ -283,3 +283,11 @@ Permission-anchor baseline: nav **13.694 s**, ten-loaded-page quit **0.647 s**
 at load1 **18.40**; 28 helpers observed, **0 left**, **0 new crash reports**,
 exit **0**. Evidence `feature-permissions-anchor`, `baseline-permissions`,
 TMPDIR `roomcore-quit-7h1b5zin`. No raw patch or public header changes.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| find | chrome::Find → BrowserWindowFeatures::GetFindBarController → FindBarPlatformHelperMac::UpdateFindBarControllerFromPasteboard | CreateFindBar, native Views owner/bounds | Null FindBar caused SIGSEGV, exit 139. //room FindBarOwner returns Chrome FindBarHost; find and next survive, exit 0 in 18 s. Native keyboard/focus and match counts pending. |
+
+Find baseline: nav **11.970 s**, ten loaded pages, quit **2.262 s**, load1
+**15.57**, 27 helpers observed, **0 left**, **0 crash reports**, exit **0**.
+Evidence `feature-find-owner`, `baseline-find`, TMPDIR `roomcore-quit-99uooayy`.

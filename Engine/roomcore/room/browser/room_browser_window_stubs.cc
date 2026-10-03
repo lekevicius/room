@@ -240,11 +240,6 @@ void RoomBrowserWindow::HandleDragEnded() {
   RoomStubHit("HandleDragEnded");
 }
 
-std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
-  RoomStubHit("CreateFindBar");
-  return nullptr;
-}
-
 void RoomBrowserWindow::ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) {
   RoomStubHit("ShowAvatarBubbleFromAvatarButton");
 }
