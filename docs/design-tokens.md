@@ -124,3 +124,22 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Motion.reduceMotion` | `accessibilityDisplayShouldReduceMotion` | spec §I.1 |
 | `Timing.toast` / `toastWithAction` / `undoToast` | 2 / 5 / 8 s | spec §F, §A.7 |
 | `Timing.urlTooltipDelay` | 0.6 s | spec §C (app-wide `NSInitialToolTipDelay`) |
+
+## Added in Phase 2.2b (drag and drop, keyboard, Clear, review polish)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `SidebarMetrics.headerTrailingInset` | 6 (`rowHorizontalInset`) | 2.2a review: the address field ends where the pill ends (was 16, the domain truncated) |
+| `SidebarMetrics.addressFieldPadding` | 4 (`Spacing.xs`) | 2.2a review: padding around the site icon and domain trimmed from 8 |
+| Essentials rows | rows = ceil(count / columns), tiles spread evenly | 2.2a review: five tiles are 3 + 2, never 4 + 1 |
+| `SidebarMetrics.insertionLineWidth` | 2 | spec §A.9 (insertion line); also the drop-onto ring and the keyboard focus ring (§I.13) |
+| `SidebarMetrics.dragLiftScale` / `dragShadowRadius` / `dragShadowOpacity` | 1.03 / 8 / 0.25 | spec §A.9 (scale 1.03, shadow); shadow values chosen |
+| `SidebarMetrics.draggedRowAlpha` | 0.35 | chosen: rows being dragged stay in place, dimmed |
+| `SidebarMetrics.overflowLineWidth` / `overflowHitHeight` | 2 / 10 | spec §I.11 (2 px line); hit height chosen |
+| `SidebarMetrics.fullBadgeHeight` / `shakeDistance` | 16 / 6 | chosen ("12/12" badge, refused-drop shake, spec §A.9) |
+| `SidebarMetrics.dragThreshold` | 3 | AppKit's own drag distance, for tiles |
+| `Motion.shake` | 0.4 s | chosen (refused drop on a full grid) |
+| `DropRules.edgeZone` / `holdDelay` | 0.2 / 0.5 s | spec §A.6 (20% edges reorder, middle 60% drops onto, 500 ms) |
+| `Palette.sidebarMultiSelection` | accent α 0.18 | chosen: multi-selected rows and the drop-onto target |
+| Clear stagger | step = min(30 ms, 300 ms / (rows − 1)) over the visible rows, 150 ms slide + fade each, ease-in | spec §A.7 (`Motion.clearStagger`, `clearStaggerMax`) |
+| Folder preview | 280 pt wide (`popoverFieldWidth`), rows 28 pt, 8 visible | chosen; behaviour spec §A.6 |
