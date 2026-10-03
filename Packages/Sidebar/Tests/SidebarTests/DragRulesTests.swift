@@ -23,8 +23,8 @@ struct DropRulesTests {
         ]
     }
 
-    func target(_ row: Int?, _ fraction: CGFloat, held: Bool = false, single: Bool = true) -> DropRules.Target {
-        DropRules.target(rows: rows, row: row, fraction: fraction, held: held, space: space, single: single)
+    func target(_ row: Int?, _ fraction: CGFloat, held: Bool = false, single: Bool = true, dragged: EntryKind? = nil) -> DropRules.Target {
+        DropRules.target(rows: rows, row: row, fraction: fraction, held: held, space: space, single: single, draggedKind: dragged)
     }
 
     @Test("Edges reorder before or after the row, in the row's own list")
@@ -43,7 +43,18 @@ struct DropRulesTests {
         #expect(target(1, 0.15, held: true).container != nil, "the edge zone never drops into the folder")
         #expect(target(3, 0.5, held: true) == .newFolder(with: pinned, row: 3))
         #expect(target(3, 0.5, held: true, single: false).container != nil, "a group drag makes no folder")
-        #expect(target(5, 0.5, held: true).container == .today(space: space), "Today rows never make folders")
+        #expect(target(5, 0.5, held: true) == .join(with: tab, row: 5), "Today rows never make folders")
+    }
+
+    @Test("Join (spec §D): a single entry held on a tab's centre splits with it; a pinned entry onto a pinned one still makes a folder (§A.6)")
+    func join() {
+        #expect(target(5, 0.5, held: true, dragged: .pinned) == .join(with: tab, row: 5))
+        #expect(target(3, 0.5, held: true, dragged: .today) == .join(with: pinned, row: 3))
+        #expect(target(3, 0.5, held: true, dragged: .pinned) == .newFolder(with: pinned, row: 3))
+        #expect(target(5, 0.5, held: false).container != nil, "no join before the 500 ms rest")
+        #expect(target(5, 0.15, held: true).container != nil, "the edge zones reorder")
+        #expect(target(5, 0.5, held: true, single: false).container != nil, "a group drag joins nothing")
+        #expect(DropRules.holdDelay == 0.5)
     }
 
     @Test("Section boundaries: under the space title, either side of the separator, New Tab and the empty area")

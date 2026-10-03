@@ -66,11 +66,12 @@ public struct MultiSelection: Equatable, Sendable {
     }
 }
 
-/// Where a drag over the outline lands (spec §A.6, §A.9), as a pure
+/// Where a drag over the outline lands (spec §A.6, §A.9, §D), as a pure
 /// function of the rows and the pointer. The top and bottom 20% of an entry
 /// row reorder; the middle 60% drops onto it once the pointer has rested
-/// there for `holdDelay` (onto a folder: into it; onto a pinned entry: a new
-/// folder with both). Before that the middle splits at half height.
+/// there for `holdDelay` (onto a folder: into it; a pinned entry onto a
+/// pinned entry: a new folder with both, §A.6; any other single entry onto
+/// a tab: a split with it, §D "Join"). Before that the middle splits at half height.
 public enum DropRules {
     /// The reorder zone at each edge of a row (Zen: 20% top and bottom).
     public static let edgeZone: CGFloat = 0.2
@@ -101,6 +102,8 @@ public enum DropRules {
         case intoFolder(UUID, row: Int)
         /// A new folder holding this pinned entry and the dragged one.
         case newFolder(with: UUID, row: Int)
+        /// A split of this entry (or its split) and the dragged one (spec §D).
+        case join(with: UUID, row: Int)
 
         public var container: Container? {
             if case .insert(let container, _, _) = self { container } else { nil }
@@ -110,17 +113,19 @@ public enum DropRules {
     /// The target for a pointer over `row` (nil: below the rows) at
     /// `fraction` of its height from the top. `held`: the pointer has rested
     /// on this row for `holdDelay`. `single`: one non-folder entry is dragged
-    /// (the only drag that can make a folder).
-    public static func target(rows: [Row], row: Int?, fraction: CGFloat, held: Bool, space: UUID, single: Bool) -> Target {
+    /// (the only drag that can make a folder or a split), of `draggedKind`
+    /// (`nil`: taken as pinned).
+    public static func target(rows: [Row], row: Int?, fraction: CGFloat, held: Bool, space: UUID, single: Bool,
+                              draggedKind: EntryKind? = nil) -> Target {
         let index = row.flatMap { rows.indices.contains($0) ? $0 : nil }
         return target(index.map { rows[$0] }, at: index ?? rows.count, rowCount: rows.count, fraction: fraction, held: held,
-                      space: space, single: single)
+                      space: space, single: single, draggedKind: draggedKind)
     }
 
     /// The same for one row (`nil`: below the last of `rowCount` rows), so a
     /// drag update need not describe every row.
     public static func target(_ row: Row?, at index: Int, rowCount: Int, fraction: CGFloat, held: Bool, space: UUID,
-                              single: Bool) -> Target {
+                              single: Bool, draggedKind: EntryKind? = nil) -> Target {
         let today = Container.today(space: space)
         let pinnedRoot = Container.pinned(space: space, folder: nil)
         guard let row else {
@@ -139,7 +144,8 @@ public enum DropRules {
         case .entry(let id, let kind, let container, let position, let depth, let showsChildren):
             if isMiddle(fraction) && held {
                 if kind == .folder { return .intoFolder(id, row: index) }
-                if kind == .pinned && single { return .newFolder(with: id, row: index) }
+                if kind == .pinned && single && (draggedKind ?? .pinned) == .pinned { return .newFolder(with: id, row: index) }
+                if single && (kind == .pinned || kind == .today) { return .join(with: id, row: index) }
             }
             if upper { return .insert(container, index: position, line: Line(boundary: index, depth: depth)) }
             if kind == .folder && showsChildren {

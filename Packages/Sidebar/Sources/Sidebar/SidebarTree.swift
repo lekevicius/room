@@ -93,9 +93,21 @@ final class SidebarTree {
         return node
     }
 
-    /// The node if it is in the outline now.
+    /// The node if it is in the outline now; a split's pane is shown by its group row.
     func displayedNode(for id: UUID) -> OutlineNode? {
-        parentOf[id] == nil ? nil : entryNodes[id]
+        let row = rowEntry(for: id)
+        return parentOf[row] == nil ? nil : entryNodes[row]
+    }
+
+    /// The entry whose row shows `id`: its split's anchor (spec §D, one row per split), else itself.
+    func rowEntry(for id: UUID) -> UUID {
+        guard let group = store.splitGroup(of: id) else { return id }
+        return SplitRules.anchor(of: store.splitMembers(group.id)) ?? id
+    }
+
+    /// A split's pane that another pane's group row stands for (not listed).
+    private func isHiddenPane(_ entry: Entry) -> Bool {
+        entry.splitGroupID != nil && rowEntry(for: entry.id) != entry.id
     }
 
     func entry(_ node: OutlineNode) -> Entry? { node.entryID.flatMap(store.entry) }
@@ -280,22 +292,22 @@ final class SidebarTree {
         guard let space else { return [] }
         switch key {
         case .root:
-            return [spaceTitle, separator] + store.today(space: spaceID).map { node(for: $0.id) } + [newTab]
+            return [spaceTitle, separator] + store.today(space: spaceID).filter { !isHiddenPane($0) }.map { node(for: $0.id) } + [newTab]
         case .pinnedRoot:
-            let entries = store.pinned(space: spaceID)
+            let entries = store.pinned(space: spaceID).filter { !isHiddenPane($0) }
             return (space.pinnedCollapsed ? peek(in: entries) : entries).map { node(for: $0.id) }
         case .folder(let id):
-            let entries = store.pinned(space: spaceID, folder: id)
+            let entries = store.pinned(space: spaceID, folder: id).filter { !isHiddenPane($0) }
             let collapsed = store.entry(id)?.isCollapsed == true
             return (collapsed ? peek(in: entries) : entries).map { node(for: $0.id) }
         }
     }
 
-    /// The selected entry if it is somewhere under `entries` (a collapsed list shows only it).
+    /// The selected entry if it is somewhere under `entries` (a collapsed list shows only it; a split's pane, its group row).
     private func peek(in entries: [Entry]) -> [Entry] {
-        guard let selectedEntry, let selected = store.entry(selectedEntry) else { return [] }
+        guard let selectedEntry, let selected = store.entry(rowEntry(for: selectedEntry)) else { return [] }
         func contains(_ list: [Entry]) -> Bool {
-            list.contains { $0.id == selectedEntry || ($0.kind == .folder && contains(store.pinned(space: spaceID, folder: $0.id))) }
+            list.contains { $0.id == selected.id || ($0.kind == .folder && contains(store.pinned(space: spaceID, folder: $0.id))) }
         }
         return contains(entries) ? [selected] : []
     }

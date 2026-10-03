@@ -416,11 +416,26 @@ public final class SidebarController: NSObject {
     private func reconfigure(_ node: OutlineNode, in target: SpacePane) {
         let row = target.outline.row(forItem: node)
         guard row >= 0, let view = target.outline.view(atColumn: 0, row: row, makeIfNecessary: false) else { return }
+        // A row that became a split's group row (or stopped being one) needs the other cell.
+        if case .entry(let id) = node.kind, (view is SplitGroupCellView) != (sidebar.splitGroup(of: id) != nil) {
+            target.outline.reloadData(forRowIndexes: [row], columnIndexes: [0])
+            return
+        }
         configure(view, for: node, in: target)
     }
 
     private func configure(_ view: NSView, for node: OutlineNode, in target: SpacePane) {
         switch (node.kind, view) {
+        case (.entry(let id), let cell as SplitGroupCellView):
+            guard let group = sidebar.splitGroup(of: id) else { return }
+            let selected = selectedEntry(in: target)
+            let segments = sidebar.splitMembers(group.id).map { member in
+                SplitSegmentModel(entry: member, page: pageState(member.id), isChanged: isChanged(member))
+            }
+            let level = target.outline.level(forItem: node)
+            let depth = sidebar.entry(id)?.kind == .today ? 0 : max(0, level - 1)
+            cell.configure(SplitRowModel(group: group.id, segments: segments,
+                                         focused: selected.flatMap { group.members.contains($0) ? $0 : nil }, depth: depth))
         case (.entry, let cell as EntryCellView):
             guard let entry = target.tree.entry(node) else { return }
             let level = target.outline.level(forItem: node)
@@ -522,8 +537,11 @@ public final class SidebarController: NSObject {
             }
         case .separator:
             break
-        case .entry(let id):
+        case .entry(let rowID):
+            // A split's row: the segment under the pointer is the pane clicked (spec §D).
+            let id = splitMember(atRow: row, event: event) ?? rowID
             guard let entry = sidebar.entry(id) else { return }
+            if event?.modifierFlags.contains(.option) == true, altClick(id) { return }
             let gesture = Self.gesture(event)
             setFocus(node, ring: false)
             if entry.kind == .folder {
@@ -608,6 +626,8 @@ public final class SidebarController: NSObject {
     /// entry's page (its URL before the reset).
     public func close(_ id: UUID, behavior: PermanentCloseBehavior? = nil) {
         let behavior = behavior ?? store.settings.settings.permanentCloseBehavior
+        // A split's pane: only that pane closes (spec §D).
+        if let group = sidebar.splitGroup(of: id) { return closePane(id, group: group, behavior: behavior) }
         guard let before = sidebar.entry(id),
               let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID) else { return }
         let hadPage = pageState(id).isLoaded
@@ -803,6 +823,7 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
 
     public func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
         guard let id = (item as? OutlineNode)?.entryID, let entry = sidebar.entry(id), !isClearing else { return nil }
+        if let group = sidebar.splitGroup(of: id) { return pasteboardItem(forSplit: group) }
         return pasteboardItem(for: entry)
     }
 
@@ -844,7 +865,8 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
     public func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
         guard let rowView = rowView as? SidebarRowView, let node = outlineView.item(atRow: row) as? OutlineNode else { return }
         let isActive = pane(for: outlineView) === pane
-        rowView.isSelectedEntry = node.entryID != nil && node.entryID == selectedEntry(in: pane(for: outlineView))
+        let target = pane(for: outlineView)
+        rowView.isSelectedEntry = node.entryID != nil && node.entryID == selectedEntry(in: target).map(target.tree.rowEntry)
         rowView.isHovered = isActive && node === hoveredNode
         rowView.isMultiSelected = isActive && (node.entryID.map(multiSelection.contains) ?? false)
         rowView.showsFocusRing = isActive && focusRingVisible && node === focusedNode && outlineView.window?.firstResponder === outlineView
@@ -857,6 +879,8 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
         guard let node = item as? OutlineNode else { return nil }
         let view: NSView
         switch node.kind {
+        case .entry(let id) where sidebar.splitGroup(of: id) != nil:
+            view = outlineView.makeView(withIdentifier: SplitGroupCellView.identifier, owner: self) as? SplitGroupCellView ?? SplitGroupCellView()
         case .entry:
             let cell = outlineView.makeView(withIdentifier: EntryCellView.identifier, owner: self) as? EntryCellView ?? EntryCellView()
             cell.actions = self
@@ -891,7 +915,9 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
 
 extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTileEvents, EssentialsDropEvents {
     func outlineMiddleClicked(row: Int) {
-        guard let id = (outline.item(atRow: row) as? OutlineNode)?.entryID, let entry = sidebar.entry(id) else { return }
+        guard let rowID = (outline.item(atRow: row) as? OutlineNode)?.entryID else { return }
+        let id = splitMember(atRow: row, event: NSApp.currentEvent) ?? rowID
+        guard let entry = sidebar.entry(id) else { return }
         perform(ClickRules.outcome(.middle, kind: entry.kind, isSelected: id == selectedEntryID, isChanged: isChanged(entry),
                                    isLoaded: pageState(id).isLoaded), on: id)
     }
@@ -901,8 +927,8 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
     func outlineMenu(forRow row: Int) -> NSMenu? {
         guard let node = outline.item(atRow: row) as? OutlineNode else { return nil }
         if node.kind == .spaceTitle { return spaceMenu(tree.spaceID) }
-        guard let id = node.entryID else { return nil }
-        return menu(forClicked: id)
+        guard let rowID = node.entryID else { return nil }
+        return menu(forClicked: splitMember(atRow: row, event: NSApp.currentEvent) ?? rowID)
     }
 
     func outlineHoverChanged(row: Int?) {

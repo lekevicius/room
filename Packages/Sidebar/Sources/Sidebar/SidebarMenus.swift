@@ -26,6 +26,7 @@ extension SidebarController {
         case .essential: buildEssentialMenu(menu, entry)
         case .folder: buildFolderMenu(menu, entry)
         }
+        addSplitItems(menu, entry)
         return menu
     }
 
@@ -34,7 +35,9 @@ extension SidebarController {
         menu.autoenablesItems = false
         menu.addItem(action(CommandName.newTab, symbol: .newTab, key: "t") { [weak self] in self?.host?.newTab() })
         menu.addItem(action(CommandName.newFolder, symbol: .newFolder) { [weak self] in self?.newFolder(parent: nil) })
-        menu.addItem(later(CommandName.newSplit, symbol: .newSplit, phase: "2.7", key: "=", modifiers: [.command, .shift]))
+        menu.addItem(action(CommandName.newSplit, symbol: .newSplit, key: "+", enabled: selectedEntryID != nil) { [weak self] in
+            self?.newSplitPane()
+        })
         menu.addItem(action(CommandName.newSpace, symbol: .newSpace) { [weak self] in self?.newSpace() })
         return menu
     }
@@ -69,6 +72,9 @@ extension SidebarController {
             moveItem.submenu = submenu
             menu.addItem(moveItem)
             menu.addItem(action(CommandName.newFolderWithTabs(count), symbol: .newFolder) { [weak self] in self?.newFolder(with: ids) })
+            menu.addItem(action(CommandName.joinTabs(count), symbol: .newSplit, enabled: count <= SplitRules.maxPanes) { [weak self] in
+                self?.joinSelection(ids)
+            })
         case .essential:
             menu.addItem(action(CommandName.removeTabsFromEssentials(count), symbol: .removeEssential, key: "d",
                                 modifiers: [.command, .shift]) { [weak self] in self?.toggleEssentials() })
@@ -132,7 +138,7 @@ extension SidebarController {
         menu.addItem(addToEssentialsItem(entry))
         menu.addItem(moveToSpaceItem(entry))
         menu.addItem(action(CommandName.newFolderWithTab, symbol: .newFolder) { [weak self] in self?.newFolderWithTab(id) })
-        menu.addItem(later(CommandName.splitWith, symbol: .newSplit, phase: "2.7"))
+        menu.addItem(splitWithItem(entry))
         menu.addItem(.separator())
         addCommonItems(menu, entry)
         menu.addItem(.separator())
@@ -157,7 +163,7 @@ extension SidebarController {
         menu.addItem(moveToSpaceItem(entry))
         menu.addItem(moveToFolderItem(entry))
         menu.addItem(pinnedURLItem(entry))
-        menu.addItem(later(CommandName.splitWith, symbol: .newSplit, phase: "2.7"))
+        menu.addItem(splitWithItem(entry))
         menu.addItem(.separator())
         addCommonItems(menu, entry)
         menu.addItem(.separator())

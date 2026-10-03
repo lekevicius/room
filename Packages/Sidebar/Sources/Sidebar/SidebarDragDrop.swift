@@ -55,10 +55,24 @@ extension SidebarController {
         return item
     }
 
+    /// A split's row carries all its panes, in order (spec §D: the split moves as one row).
+    static let splitPanesPasteboardType = NSPasteboard.PasteboardType("com.lekevicius.room.split-panes")
+
+    func pasteboardItem(forSplit group: SplitGroup) -> NSPasteboardItem {
+        let members = sidebar.splitMembers(group.id)
+        let anchor = SplitRules.anchor(of: members).flatMap(sidebar.entry) ?? members[0]
+        let item = pasteboardItem(for: anchor)
+        item.setString(members.map(\.id.uuidString).joined(separator: ","), forType: Self.splitPanesPasteboardType)
+        return item
+    }
+
     /// The sidebar entries on a drag's pasteboard (none if it came from elsewhere).
     func draggedEntryIDs(_ info: any NSDraggingInfo) -> [UUID] {
-        (info.draggingPasteboard.pasteboardItems ?? []).compactMap { item in
-            item.string(forType: Self.entryPasteboardType).flatMap(UUID.init(uuidString:))
+        (info.draggingPasteboard.pasteboardItems ?? []).flatMap { item -> [UUID] in
+            if let panes = item.string(forType: Self.splitPanesPasteboardType) {
+                return panes.split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            }
+            return item.string(forType: Self.entryPasteboardType).flatMap(UUID.init(uuidString:)).map { [$0] } ?? []
         }.filter { sidebar.entry($0) != nil }
     }
 
@@ -155,9 +169,10 @@ extension SidebarController {
         }
         let held = key.middle && now - (drag?.hoverSince ?? now) >= DropRules.holdDelay
         let single = ids.count == 1 && sidebar.entry(ids[0])?.kind != .folder
+        let draggedKind = single ? sidebar.entry(ids[0])?.kind : nil
         func target(held: Bool) -> DropRules.Target {
             DropRules.target(row.map(dropRow), at: row ?? outline.numberOfRows, rowCount: outline.numberOfRows, fraction: fraction,
-                             held: held, space: tree.spaceID, single: single)
+                             held: held, space: tree.spaceID, single: single, draggedKind: draggedKind)
         }
         let copy = isCopy(info)
         var chosen = target(held: held)
@@ -213,6 +228,8 @@ extension SidebarController {
         case .newFolder(let other, _):
             guard ids.count == 1, ids[0] != other, !copy, let entry = sidebar.entry(other) else { return false }
             return (try? FolderRules.validateNewFolder(in: entry.folderID, in: sidebar.entries)) != nil
+        case .join(let other, _):
+            return canJoin(ids, with: other) && !copy
         }
     }
 
@@ -303,7 +320,7 @@ extension SidebarController {
             let x = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset + CGFloat(line.depth) * SidebarMetrics.folderIndent
             outline.dropIndicator.show(y: y, x: x, maxX: outline.bounds.width - SidebarMetrics.rowHorizontalInset)
             tick(.line(line))
-        case .intoFolder(_, let row), .newFolder(_, let row):
+        case .intoFolder(_, let row), .newFolder(_, let row), .join(_, let row):
             outline.dropIndicator.show(y: nil, x: 0, maxX: 0)
             setDropTargetRow(row)
             tick(.row(row))
@@ -357,6 +374,9 @@ extension SidebarController {
                     throw error
                 }
                 beginRename(folder.id)
+            case .join(let other, _):
+                guard let id = ids.first else { return false }
+                try join(id, with: other)
             }
         } catch {
             showRefusal(error)
@@ -402,6 +422,8 @@ extension SidebarController {
             toasts?.show(Toast(id: "essentials-full", symbol: .info, message: "Essentials are full (\(cap)/\(cap))"))
         case .folder(.tooDeep(let max)):
             toasts?.show(Toast(id: "folder-depth", symbol: .info, message: "Folders nest at most \(max) deep"))
+        case .splitFull:
+            showSplitFullToast()
         default:
             NSSound.beep()
         }

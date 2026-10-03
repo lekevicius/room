@@ -51,9 +51,12 @@ public protocol SidebarHost: AnyObject {
     func peek(_ entry: Entry)
     /// ⇧⌘T on a closed Peek: it opens again over `entry`'s page (spec §I.6).
     func reopenPeek(url: String, over entry: UUID)
+    /// ⌘L: the palette on the selected entry (a new split's empty pane, spec §D).
+    func openLocation()
 }
 
 public extension SidebarHost {
+    func openLocation() { editAddress() }
     func peek(_ entry: Entry) {}
     func reopenPeek(url: String, over entry: UUID) {}
 }
