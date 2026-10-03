@@ -23,10 +23,16 @@ public final class FakeApplication: EngineApplication {
         isRunning = false
     }
 
+    public private(set) var isTerminating = false
+
     public func tryToTerminate(_ completion: @escaping (Bool) -> Void) {
         let open = fakeProfiles.flatMap(\.openWebContents)
+        isTerminating = true
         Self.confirmUnload(open[...]) { [weak self] proceed in
-            guard proceed else { return completion(false) }
+            guard proceed else {
+                self?.isTerminating = false
+                return completion(false)
+            }
             for contents in open { contents.closeNow() }
             completion(true)
             if self?.isRunning == true { NSApplication.shared.stop(nil) }

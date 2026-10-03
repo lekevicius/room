@@ -15,6 +15,8 @@ final class NoEngineApplication: EngineApplication {
         NSApplication.shared.stop(nil)
     }
 
+    var isTerminating: Bool { false }
+
     var features: EngineFeatures { EngineFeatures() }
 
     var profiles: [any Profile] { [] }

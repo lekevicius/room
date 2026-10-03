@@ -331,6 +331,11 @@ public final class FakeWebContents: WebContents {
         uiDelegate?.webContents(self, processGone: status)
     }
 
+    /// The page reports a favicon (FakeEngine's own is a template globe).
+    public func simulateFavicon(_ image: NSImage?) {
+        favicon = image
+    }
+
     /// The page's `theme-color` meta tag and root background.
     public func simulateColors(theme: NSColor?, rootBackground: NSColor?) {
         themeColor = theme

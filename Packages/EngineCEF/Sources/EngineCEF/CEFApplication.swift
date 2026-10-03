@@ -62,6 +62,8 @@ public final class CEFApplication: EngineApplication {
     /// Closes every browser (beforeunload handlers run), then leaves the
     /// message loop once the last `OnBeforeClose` arrived (cefsimple's order:
     /// CefQuitMessageLoop only after all browsers closed).
+    public var isTerminating: Bool { !terminationCompletions.isEmpty }
+
     public func tryToTerminate(_ completion: @escaping (Bool) -> Void) {
         terminationCompletions.append(completion)
         guard terminationCompletions.count == 1 else { return }

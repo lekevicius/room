@@ -65,6 +65,12 @@ public protocol EngineApplication: AnyObject {
     /// `completion(false)` means termination was cancelled (e.g. a beforeunload handler).
     func tryToTerminate(_ completion: @escaping (Bool) -> Void)
 
+    /// A termination is under way: pages closing now are closed by the
+    /// engine, not by the user or the page (Chromium
+    /// `browser_shutdown::IsTryingToQuit()`). Becomes `false` again when a
+    /// beforeunload handler cancels it.
+    var isTerminating: Bool { get }
+
     /// Feature overrides in effect for this run.
     var features: EngineFeatures { get }
 
