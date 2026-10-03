@@ -54,7 +54,11 @@ def main():
     parser.add_argument('--diagnose-shutdown', action='store_true',
                         help='sample network teardown; timings include diagnostic overhead')
     parser.add_argument('--urls-json', type=Path, help='ten loopback fixture URLs; diagnostic only')
+    parser.add_argument('--process-snapshot-ms', type=int, default=0,
+                        help='diagnostic census interval; 0 preserves a full census every poll')
     args = parser.parse_args()
+    if not 0 <= args.process_snapshot_ms <= 1000:
+        parser.error('process snapshot interval must be between 0 and 1000 ms')
     executable = args.app.resolve() / 'Contents/MacOS/Room'
     if not executable.is_file() or args.runs < 1:
         parser.error('a packaged RoomCore host and positive run count are required')
@@ -69,6 +73,10 @@ def main():
         observed = {}
         samplers = []
         sampled = False
+        next_snapshot = 0.0
+        snapshot_count = 0
+        snapshot_seconds = 0.0
+        current_helpers = {}
         load = os.getloadavg()[0]
         fixture_args = (['-RoomSpikeURLsJSON', str(args.urls_json.resolve())]
                         if args.urls_json else [])
@@ -82,9 +90,14 @@ def main():
             deadline = time.monotonic() + 120
             try:
                 while process.poll() is None:
-                    rows = processes()
-                    current_helpers = helpers_under(process.pid, rows)
-                    observed.update(current_helpers)
+                    if time.monotonic() >= next_snapshot:
+                        census_start = time.monotonic()
+                        rows = processes()
+                        current_helpers = helpers_under(process.pid, rows)
+                        observed.update(current_helpers)
+                        snapshot_count += 1
+                        snapshot_seconds += time.monotonic() - census_start
+                        next_snapshot = time.monotonic() + args.process_snapshot_ms / 1000
                     if args.diagnose_shutdown and not sampled:
                         state = markers(spike)
                         if 'terminate-request-time' in state:
@@ -127,6 +140,9 @@ def main():
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
                     'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}
+                receipt['process_snapshot_ms'] = args.process_snapshot_ms
+                receipt['live_process_snapshots'] = snapshot_count
+                receipt['live_process_snapshot_seconds'] = round(snapshot_seconds, 3)
                 receipt['diagnostic_sampling'] = args.diagnose_shutdown
                 receipt['samplers_running_at_browser_exit'] = samplers_at_exit
                 (run_dir / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
@@ -148,6 +164,9 @@ def main():
                     'error': str(error), 'exit_status': process.poll(),
                     'diagnostic_sampling': args.diagnose_shutdown,
                     'browser_pid': process.pid, 'load1': load,
+                    'process_snapshot_ms': args.process_snapshot_ms,
+                    'live_process_snapshots': snapshot_count,
+                    'live_process_snapshot_seconds': round(snapshot_seconds, 3),
                     'markers': markers(spike), 'observed_helpers': observed,
                     'remaining_helpers': {
                         pid: cmd for pid, cmd in observed.items()

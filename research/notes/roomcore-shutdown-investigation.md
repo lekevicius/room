@@ -273,3 +273,63 @@ and therefore supplies no basis for changing shutdown scheduling or limits.
 Retain B-16 open. Further repetition of this same corpus is not useful without
 an additional discriminating hypothesis. The real-site failures remain valid
 and their retained minidumps/helper stacks are the next source of evidence.
+
+
+## Process-census overhead and fresh watchdogs — 10:36–10:43 EEST
+
+A concrete observer concern: the original Room runner invokes ps -axo
+pid=,ppid=,command= over the whole machine on every loop, then sleeps 20 ms.
+Thirty isolated censuses took 1.771 s wall / 0.519475 s child user CPU /
+1.197847 s child system CPU; median 58.790 ms, max 65.939 ms. Thus the
+original actual cadence is census time plus 20 ms, not 50 snapshots/s.
+Three concurrent runners add substantial process-enumeration work.
+
+Added diagnostic-only --process-snapshot-ms (default 0 preserves the original
+behavior), plus measured census count/wall time in success and failure
+receipts. It does not alter the 120 s run deadline, 10 s Chrome watchdog,
+5 s helper grace or the normal 20 ms exit poll between censuses.
+
+One bounded paired comparison used current engine 0f87b84 / host a4f8c25,
+fresh profiles and the same ten external URLs, without stack sampling:
+
+| Cadence | Outcome | Census count / cumulative census wall seconds per runner |
+|---|---|---|
+| 250 ms after each census | Three loaded-page quits 5.010 / 3.331 / 3.930 s; 26 / 26 / 24 helpers observed, 0 left, 0 crash reports, exit 0; whole exercise 59.551 s | 107/27.227; 102/27.177; 103/26.964 |
+| Original (0 ms additional interval) | Three browser watchdog exits 2; runners correctly exit 1; whole exercise 57.317 s. Groups 2/3 show 10 pages and 0 loading; group 1 still loading and independently rejected | 255/48.490; 267/49.827; 239/47.607 |
+
+The runs are sequential, not randomized, and live sites differ: Stack Overflow
+returned a challenge in the second run (including the two non-loading pages).
+Before the first: load 8.54/15.46/21.27, CPU 60.39% idle, 63G physical used,
+31G compressor, swap 2453.69M. Before the second: load 97.40/57.80/37.93,
+CPU 54.14% idle, 61G used, 21G compressor, swap 5719.00M. These are confounders.
+The pass/failure contrast does not prove census overhead causes the watchdog,
+and no engine or default-runner workaround is adopted.
+
+Fresh minidumps are symbolized with the immutable audit-sadtab Room.app.
+Content UUID 4C4C44F9-5555-3144-A1C5-85BCC71FC018;
+Chrome UUID 4C4C44C6-5555-3144-A108-51D1A4AC6AE8. Groups 1/3 main threads wait
+in BrowserProcessIOThread::ProcessHostCleanUp for the network service.
+Group 2 waits in ThreadPoolImpl::Shutdown; one background worker is in
+ScopedBoostPriorityBase::AdoptAsLease via MaybeUpdateThreadType, but one
+snapshot gives no duration and does not establish that worker as the cause.
+Unlike an older dump, this group 2 trace does not identify WaitForChildToDie.
+All three include TearDownWatchdog::ThreadMain. Some system-library frames
+have shared-cache mapping warnings; named Chromium modules match UUIDs.
+
+Dumps under baseline-shutdown-default-census/group-{1,2,3}/run-1/profile/
+Crashpad/pending: 1c069b42-a00a-40a3-b36e-b8928247b9ee,
+da634815-8795-4558-b9da-32c9f7c2981e, 821c349d-d578-4610-b623-6b8fcc7ffc8a.
+Complete backtraces, failure receipts, process lists and machine snapshots
+are retained; all helpers later exited. Low-census evidence is under
+baseline-shutdown-low-census. This reproduces B-16 on the latest engine
+without live stack sampling, rather than resolving it.
+
+Next discriminating step: reduce observer work itself before more stress.
+A diagnostic observer can use macOS libproc child-PID enumeration and process
+identity, obtaining command lines only for newly observed children; validate
+it against known child creation/exit and PID identity before using it on a
+browser. The installed SDK exposes proc_listchildpids, proc_pidpath and
+proc_pidinfo/PROC_PIDTBSDINFO including start time. Do not silently weaken
+helper detection, change default baselines, or attribute failures solely to
+ps without an adequately controlled observation. No further unqualified
+repetition of the real-site/census pair is useful.

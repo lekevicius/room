@@ -553,3 +553,14 @@ commands again point into this selected profile's Crashpad directory.
 18 NetLog events / 600.419 s span, 0 HTTP / connections / DNS / TLS, exit0.
 No compiler/test/helper remains. CI e5ad547 passed75/83s. Engine0f87b84 and
 hosta4f8c25 are now covered by this complete fresh-profile measurement.
+
+10:43 EEST: process-census diagnostic checkpoint. Thirty full ps listings
+cost 1.771 s wall / 1.717322 s child CPU. Optional 250 ms census interval passed three
+real-site quits 5.010/3.331/3.930 s; original cadence on the same package then
+reproduced three watchdogs (two non-loading ten-page fixtures, one still loading).
+Census cost 27 s versus48–50s per runner; load/swap/live-site differences forbid
+causal attribution. Preserved exact audit-sadtab package and symbolized all
+three dumps: two network-service waits, one ThreadPool shutdown. No engine,
+network, public API, patch, timeout, grace or default cadence change. B-16
+remains open; next useful work is a lower-overhead process observer validated
+against child/PID lifecycle, not another blind stress loop.

@@ -92,3 +92,12 @@ or fix the real-site shutdown failure. Different setup/termination paths and
 load prevent a performance ranking. The final current-package 600-second idle
 audit (netlog-idle-sadtab-final) passes: 614 s process, 18 events, zero traffic,
 exit 0. CI e5ad547 passes 75/83 s.
+
+The latest engine also reproduced three watchdog exits without live stack
+sampling at the original process-census cadence (two non-loading ten-page
+fixtures; one incomplete fixture rejected). A preceding optional 250 ms census
+run passed 5.010/3.331/3.930 s with no helpers/crashes. Census wall time was about
+27 s versus 48–50 s per runner, but load, swap and site challenges differed.
+This supports reducing diagnostic overhead, not declaring an engine fix.
+Exact current-library minidumps again show network-service waits or ThreadPool
+shutdown; all raw failures remain rejected. B-16 remains open.
