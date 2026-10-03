@@ -37,6 +37,18 @@ enum HostFeatureSpike {
             let cdp = try await HostCDP.connect(port: defaults.integer(forKey: "RoomSpikeCDPPort"), pageURL: address)
             defer { cdp.close() }
             try await cdp.call("Page.enable")
+            // A target can report its pending URL while its old document is
+            // still active. Wait for the committed fixture before using DOM.
+            let quotedAddress = String(decoding: try JSONSerialization.data(withJSONObject: address, options: .fragmentsAllowed), as: UTF8.self)
+            var ready = false
+            for _ in 0..<100 {
+                if (try? await cdp.evaluate("location.href === \(quotedAddress) && document.readyState === 'complete'")) as? Bool == true {
+                    ready = true
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            guard ready else { throw HostCDP.Failure("fixture did not finish loading") }
             switch name {
             case "popups":
                 try await cdp.evaluate("document.querySelector('#blank').click(); true", userGesture: true)
@@ -93,7 +105,27 @@ enum HostFeatureSpike {
                 guard marker as? String == "content-script-ran" else { throw HostCDP.Failure("extension content script did not run") }
                 HostSpike.record("review-required", "extension worker, chrome.tabs, action popup and chrome://extensions")
             case "downloads":
+                guard let output = defaults.string(forKey: "RoomSpikeOutput") else {
+                    throw HostCDP.Failure("download evidence path missing")
+                }
+                let directory = URL(fileURLWithPath: output).deletingLastPathComponent()
+                    .appendingPathComponent("downloads", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try await cdp.call("Browser.setDownloadBehavior", [
+                    "behavior": "allow", "downloadPath": directory.path, "eventsEnabled": true,
+                ])
                 try await cdp.evaluate("document.querySelector('#download').click(); true", userGesture: true)
+                let file = directory.appendingPathComponent("roomcore-spike.txt")
+                for _ in 0..<100 {
+                    if FileManager.default.fileExists(atPath: file.path) { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                let data = try Data(contentsOf: file)
+                guard data == Data("RoomCore download fixture\n".utf8) else {
+                    throw HostCDP.Failure("download bytes differ: \(data.count)")
+                }
+                HostSpike.record("download-bytes", data.count)
+                HostSpike.record("review-required", "CDP selected the destination; native chooser and cancellation still need review")
             case "permissions":
                 try await cdp.evaluate("Notification.requestPermission(); navigator.geolocation.getCurrentPosition(()=>{},()=>{}); true", userGesture: true)
                 HostSpike.record("review-required", "native permission prompt must complete/cancel; no capture devices requested")

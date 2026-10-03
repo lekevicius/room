@@ -232,3 +232,15 @@ nav 23.598 s, ten-page quit 4.240 s, 0 helpers left/0 crash reports).
 The last requests were SODA preemptive downloads enabled by developer field
 trials. A 30 s smoke with PreemptiveSodaDownload disabled has zero requests,
 connections and DNS. Fixed-copy 600 s audit started 07:18 EEST; result pending.
+
+Crashpad checkpoint: build 18 s; both primary and monitor handler commands
+use the selected profile/Crashpad directory. Post-fix nav 19.676 s, ten-page
+quit 2.591 s, 0 helpers left, 0 new crash reports. B-14 closed for component
+build; see roomcore-crashpad-draft.md for the two captured handler PIDs.
+
+Final regression initially stopped on a harness race: the popup CDP target
+reported a pending URL before the committed DOM existed. No engine crash.
+The driver now waits for matching committed location + readyState complete.
+Rerun popup passes; download now verifies exact saved bytes through a CDP-
+selected destination. Actual fixture is 26 bytes, including newline; the
+previous 25-byte note was a counting error and is corrected in the plan.

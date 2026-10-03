@@ -298,7 +298,7 @@ All 18 feature triggers have run on the component build. The 17 completed
 drives below exit 0 without watchdog intervention; fullscreen exits 0 but its
 promise is rejected, so the driver correctly reports an error. This is **not**
 a claim that all 18 functional acceptance checks are complete. Native UI gaps
-are listed explicitly and the final all-feature regression is still pending.
+are listed explicitly. The final regression is recorded below.
 
 `C` below is the common first-hit set observed in every feature process:
 `GetCanResize GetRestoredState GetStatusBubbles GetWindowShowState GetWorkspace
@@ -319,7 +319,7 @@ interfaces required to repair a crash are named separately.
 | band | CDP Input.dispatchMouseEvent | C | page coordinates [200,8], [200,34], exit 0 in 9 s | Native toolbar hit testing |
 | form | Blink form submit / Chrome password manager | C | HTTP GET submitted test fields, password-save IPH code reached, exit 0 in 8 s | Save prompt and stored autocomplete selection |
 | extension | Chrome extension loader / MV3 worker / content script | C | worker-installed console message; content-script-ran after reload, exit 0 in 10 s | chrome.tabs/windows, action popup, extension manager |
-| downloads | Browser download manager, local Content-Disposition | C | attachment trigger survives, exit 0 in 8 s | Verify saved bytes and completion/cancel UI |
+| downloads | Browser download manager, local Content-Disposition | C | exact 26-byte fixture saved, exit 0 in 8 s; CDP selects destination | Native destination chooser and cancellation UI |
 | permissions | PermissionPromptBubble → bubble_anchor_util_views | C + modal host; LocationBar.GetChipAnchor | Views anchor fix; notification/geolocation trigger, exit 0 in 16 s | Native denial/dismissal callback and anchoring |
 | auth | HTTP login handler / constrained-window dialog | C + both modal-host getters | 401 Basic challenge, exit 0 in 10 s | Fixture credential submission/cancel callback |
 | certificate | SSL blocking page / security interstitial | C | Privacy error title for self-signed fixture, exit 0 in 10 s | Back/leave action |
@@ -335,3 +335,36 @@ fullscreen state machine with visible origin/escape affordance. Null-returning
 stubs cannot provide those contracts. A safe rejection is recorded as an
 unsupported surface, never as successful fullscreen. Native composition and
 input checks need reviewer interaction under the current AGENTS.md rule.
+
+### Final regression after network and Crashpad changes
+
+2026-10-03, feature-final2-* evidence, ad-hoc packaged component build.
+The first final attempt found a driver race (pending URL before committed DOM),
+not an engine crash. After adding explicit document readiness, all 18 processes
+exit 0 without watchdog intervention. Fullscreen remains an explicit refused
+promise; this does not establish working fullscreen or close the native UI gaps.
+
+| Feature | Process seconds | Result |
+|---|---:|---|
+| popups | 16 | 2 windowOpen events; host-owned page count 1 |
+| dialogs | 9 | 3 dialogs dismissed through Chrome callbacks |
+| keys | 8 | a/KeyA received |
+| audio | 11 | Playback clock advanced |
+| scroll | 11 | rAF scrolling completed |
+| transparent | 8 | rgba(0,0,0,0) |
+| corners | 9 | Fixture loaded |
+| band | 8 | Both page coordinates received |
+| form | 8 | Form submitted |
+| extension | 10 | content-script-ran |
+| downloads | 8 | Exact 26 bytes saved; native chooser bypassed by CDP |
+| permissions | 8 | Prompt trigger survived |
+| auth | 10 | Challenge observed |
+| certificate | 10 | Privacy error interstitial observed |
+| find | 10 | Find/next commands survived |
+| zoom | 12 | Plus/reset/minus/reset completed |
+| print | 9 | Chrome print command survived |
+| fullscreen | 5 | Unsupported safe rejection; no functional pass |
+
+Last engine-change baseline: nav 19.676 s, ten loaded pages, quit 2.591 s,
+load1 43.40, 26 helpers observed, 0 left, 0 new crash reports, exit 0.
+The net-log parser's 8 regression tests pass. No public-header changes.

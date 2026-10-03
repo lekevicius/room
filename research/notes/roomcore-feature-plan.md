@@ -30,13 +30,13 @@ have no CDP port, HTTP fixture, extension, or externally loaded start page.
 | `band` | HTTP `band.html`; page clicks at y=8 and 34 | native pointer test in 52 pt toolbar band; recorded page coordinates | CDP page coordinates only; native hit testing pending |
 | `form` | HTTP `form.html`; fill name/email/street/test credentials and submit | save prompt path, completion/cancel; revisit form, type R, inspect autocomplete anchoring | submit prepared; bubbles/dropdown pending |
 | `extension` | --load-extension original MV3 fixture; load HTTP form | content marker, service worker, chrome.tabs/windows, action popup, chrome://extensions; any unsupported surface named | content-marker prepared; browser surfaces pending |
-| `downloads` | local attachment with Content-Disposition | actual file byte count (25 bytes), completion/cancel, download surface stub hits | attachment click prepared |
+| `downloads` | local attachment with Content-Disposition | actual file byte count (26 bytes), completion/cancel, download surface stub hits | attachment click prepared |
 | `permissions` | Notification.requestPermission and geolocation on trusted loopback | prompt shown, denial/dismissal completes request; camera/mic policy separately without granting capture | request trigger prepared; native cancellation pending |
 | `auth` | /auth sends HTTP 401 Basic challenge; fixture credentials room/spike | native auth UI and cancel path; supplied fixture credentials load page | navigation/prompt observation prepared |
 | `certificate` | HTTPS fixture with untrusted self-signed local cert (no ignore-certificate-errors) | security interstitial rendered; leave/back works; error attributed to fixture | navigation/interstitial observation prepared |
-| `find` | private spike selector dispatches IDC_FIND, IDC_FIND_NEXT to owned BrowserWindowInterface | real Chrome find path, nonnull find UI/helper, matches and close | host prepared; //room hook drafted, not applied |
-| `zoom` | private selector IDC_ZOOM_PLUS/MINUS/NORMAL | page scale changes then resets; no crash in location/zoom bubble | host prepared; hook drafted |
-| `print` | private selector IDC_PRINT (not Page.printToPDF) | Chrome print/preview/native dialog and cancel completes | host prepared; hook drafted |
+| `find` | private spike selector dispatches IDC_FIND, IDC_FIND_NEXT to owned BrowserWindowInterface | real Chrome find path, nonnull find UI/helper, matches and close | private hook and FindBarOwner implemented; drive survives |
+| `zoom` | private selector IDC_ZOOM_PLUS/MINUS/NORMAL | page scale changes then resets; no crash in location/zoom bubble | private command hook implemented |
+| `print` | private selector IDC_PRINT (not Page.printToPDF) | Chrome print/preview/native dialog and cancel completes | private command hook implemented |
 | `fullscreen` | requestFullscreen with user gesture, then exitFullscreen | fullscreen element + real native window transition, toolbar restored, exit callback | page driver prepared; current context may reject |
 
 `review-required` and `prompt-observation` are deliberately unresolved
