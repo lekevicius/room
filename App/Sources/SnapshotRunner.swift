@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import Tabs
 import UIKitCore
 
 /// `Room -RoomSnapshotDirectory <dir>` (Debug builds): captures the window in
@@ -27,7 +28,7 @@ enum SnapshotRunner {
         UserDefaults.standard.string(forKey: "RoomSnapshotPageURL").flatMap(URL.init(string:))
     }
 
-    static func run(_ controller: RoomWindowController, session: DebugSession?, into directory: URL) async {
+    static func run(_ controller: RoomWindowController, tabs: TabController, into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         // The window as Dia's reference capture frames it: 1244×818 pt, 280 pt sidebar.
         let dia = NSSize(width: 1244, height: 818)
@@ -51,7 +52,7 @@ enum SnapshotRunner {
             report.append(await captureActive(state, controller, directory))
         }
         // The page in the card (Phase 1.4), Dia's framing and the default size.
-        if let session, let pageURL, let page = session.newPage(pageURL) {
+        if let pageURL, let id = tabs.openNewTab(url: pageURL.absoluteString), let page = tabs.contents(for: id) {
             for _ in 0..<300 where page.isLoading || page.url == nil {
                 try? await Task.sleep(for: .milliseconds(100))
             }

@@ -5,6 +5,7 @@ import FakeEngine
 import Model
 import Sidebar
 import Store
+import Tabs
 import UIKitCore
 
 /// `Room -RoomSidebarFixture demo|500 -RoomSnapshotDirectory <dir>` (Debug
@@ -20,7 +21,7 @@ enum SidebarSnapshotRunner {
     static let windowSize = NSSize(width: 1100, height: 760)
     static let sidebarWidth: CGFloat = 260
 
-    static func run(_ controller: RoomWindowController, sidebar: SidebarController, pages: SidebarPages, into directory: URL) async {
+    static func run(_ controller: RoomWindowController, sidebar: SidebarController, tabs: TabController, into directory: URL) async {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var report: [String] = []
         let store = sidebar.store
@@ -32,7 +33,7 @@ enum SidebarSnapshotRunner {
             report += timings(sidebar: sidebar, store: store, space: space.id)
             report += await ScrollProbe(outline: sidebar.debugOutline).measure()
         } else {
-            report += await rowStates(sidebar: sidebar, pages: pages, store: store, space: space, shooter: shooter)
+            report += await rowStates(sidebar: sidebar, tabs: tabs, store: store, space: space, shooter: shooter)
         }
         try? report.joined(separator: "\n").appending("\n")
             .write(to: directory.appending(path: "states.txt"), atomically: true, encoding: .utf8)
@@ -40,7 +41,7 @@ enum SidebarSnapshotRunner {
 
     // MARK: Row states (demo fixture)
 
-    private static func rowStates(sidebar: SidebarController, pages: SidebarPages, store: RoomStore, space: Space,
+    private static func rowStates(sidebar: SidebarController, tabs: TabController, store: RoomStore, space: Space,
                                   shooter: Shooter) async -> [String] {
         var report: [String] = []
         // By fixture title or URL host (FakeEngine replaces live titles with the host).
@@ -49,20 +50,20 @@ enum SidebarSnapshotRunner {
                 $0.storedTitle == key || $0.customLabel == key || $0.currentURL.flatMap { URL(string: $0)?.host() } == key
             }
         }
-        func fake(_ key: String) -> FakeWebContents? { entry(key).flatMap { pages.page($0.id) as? FakeWebContents } }
+        func fake(_ key: String) -> FakeWebContents? { entry(key).flatMap { tabs.contents(for: $0.id) as? FakeWebContents } }
 
         // Every row state at once: the selected pinned entry changed (dot), a
         // Today tab audible, one muted, one loading, unloaded rows, an
         // essential changed, another audible, two Today tabs multi-selected,
         // the keyboard focus ring on a pinned row.
-        pages.navigateSelected()
+        tabs.debugNavigateSelected()
         for key in ["en.wikipedia.org", "arc.net", "Mail", "GitHub", "Hacker News"] {
-            if let id = entry(key)?.id { pages.debugLoad(id) }
+            if let id = entry(key)?.id { tabs.debugLoad(id) }
         }
-        if let id = entry("www.swift.org")?.id { pages.debugLoad(id, stalled: true) }
+        if let id = entry("www.swift.org")?.id { tabs.debugLoad(id, stalled: true) }
         fake("en.wikipedia.org")?.simulateAudio(true)
         fake("arc.net")?.simulateAudio(true)
-        if let id = entry("arc.net")?.id { pages.setMuted(true, entry: id) }
+        if let id = entry("arc.net")?.id { tabs.setMuted(true, entry: id) }
         fake("GitHub")?.simulateAudio(true)
         fake("Mail")?.simulateLinkClick(to: URL(string: "https://mail.google.com/mail/u/0/#inbox/1")!)
         sidebar.pageStateDidChange(Set(store.sidebar.entries.keys))

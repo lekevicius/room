@@ -26,7 +26,7 @@ enum SpikeRunner {
 
     static func page(_ name: String) -> URL { pagesDirectory.appending(path: name) }
 
-    static func run(_ name: String, session: DebugSession, controller: RoomWindowController, overlays: OverlaySpike?) async {
+    static func run(_ name: String, session: SpikeSession, controller: RoomWindowController, overlays: OverlaySpike?) async {
         try? FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
         let context = Context(session: session, controller: controller)
         record("spike", name)
@@ -78,10 +78,10 @@ enum SpikeRunner {
 
     @MainActor
     final class Context {
-        let session: DebugSession
+        let session: SpikeSession
         let controller: RoomWindowController
 
-        init(session: DebugSession, controller: RoomWindowController) {
+        init(session: SpikeSession, controller: RoomWindowController) {
             self.session = session
             self.controller = controller
         }
@@ -405,7 +405,7 @@ enum SpikeRunner {
                 }
             }
 
-            // JavaScript dialogs reach the delegate (DebugSession shows sheets).
+            // JavaScript dialogs reach the delegate (PageUIDelegate shows sheets).
             Task { await self.click(page, "#alert") }
             let sheet = await waitUntil(5) { self.window.attachedSheet != nil }
             SpikeRunner.record("alert_sheet", sheet)
@@ -492,13 +492,10 @@ enum SpikeRunner {
                 focusPage(page)
                 var results: [String] = []
                 // Reserved: ⌘T (New Page), ⌘L (Open Location). Key codes are where the layout puts the letter.
-                let pagesBefore = session.pages.count
+                let newTabsBefore = session.newTabRequests
                 if let code = layout.keyCode(for: "t") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(400))
-                let newPage = session.pages.count > pagesBefore
-                if newPage, let extra = session.pages.last { extra.close() }
-                try? await Task.sleep(for: .milliseconds(300))
-                session.select(session.pages.firstIndex { $0 === page } ?? 0)
+                let newPage = session.newTabRequests > newTabsBefore
                 focusPage(page)
                 let focusBefore = session.addressFocusRequest
                 if let code = layout.keyCode(for: "l") { send(layout, code, [.command]) }

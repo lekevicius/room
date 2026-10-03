@@ -3,79 +3,22 @@ import Engine
 import UIKitCore
 import Observation
 
-/// Chapter 1 throwaway: a flat list of pages in one window, driven by the
-/// debug toolbar, acting as every page's UI and navigation delegate with
-/// minimal AppKit UI. Chapter 2 replaces it with the sidebar model.
+/// The page presentation the tab controller hands on (Phase 2.3): JS
+/// dialogs, permission prompts, auth, certificate errors, file choosers and
+/// context menus as minimal AppKit UI, the reserved-key routing, and the
+/// profile's downloads. Chapter 1's `DebugSession` without its page list;
+/// Phase 2.6 replaces it with the real chrome surfaces.
 @Observable
-final class DebugSession {
-    let profile: any Profile
+final class PageUIDelegate {
     @ObservationIgnored let host: PageHost
-
-    private(set) var pages: [any WebContents] = []
-    private(set) var currentIndex: Int?
+    /// The selected page's status text (link hover), for the debug panel.
     var statusText: String?
-    /// Bumped by ⌘L; the toolbar focuses its address field.
-    var addressFocusRequest = 0
     /// Every key the engine reported as reserved or unhandled, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
     @ObservationIgnored private(set) var downloads: [DownloadItem.ID: DownloadItem] = [:]
 
-    init(profile: any Profile, host: PageHost) {
-        self.profile = profile
+    init(host: PageHost) {
         self.host = host
-        profile.downloadsDelegate = self
-    }
-
-    var current: (any WebContents)? { currentIndex.map { pages[$0] } }
-
-    // MARK: Pages
-
-    @discardableResult
-    func newPage(_ url: URL?, hidden: Bool = false, select: Bool = true) -> (any WebContents)? {
-        do {
-            let contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden))
-            adopt(contents, select: select)
-            if let url { contents.load(url) }
-            return contents
-        } catch {
-            NSLog("Room: createWebContents failed: \(error)")
-            return nil
-        }
-    }
-
-    func select(_ index: Int) {
-        guard pages.indices.contains(index) else { return }
-        currentIndex = index
-        host.show(pages[index])
-    }
-
-    func open(_ text: String) {
-        guard let url = Self.url(from: text) else { return }
-        if let current { current.load(url, transition: .typed, fromAddressBar: true) } else { newPage(url) }
-    }
-
-    func closeCurrent() {
-        current?.close()
-    }
-
-    private func adopt(_ contents: any WebContents, select: Bool) {
-        contents.uiDelegate = self
-        contents.navigationDelegate = self
-        pages.append(contents)
-        if select || currentIndex == nil { self.select(pages.count - 1) }
-    }
-
-    /// Typed text → URL: a scheme or a dot means a URL, anything else a search.
-    static func url(from text: String) -> URL? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        if trimmed.contains("://") || trimmed.hasPrefix("about:") || trimmed.hasPrefix("data:") || trimmed.hasPrefix("file:") {
-            return URL(string: trimmed)
-        }
-        if trimmed.contains("."), !trimmed.contains(" ") { return URL(string: "https://" + trimmed) }
-        var components = URLComponents(string: "https://duckduckgo.com/")!
-        components.queryItems = [URLQueryItem(name: "q", value: trimmed)]
-        return components.url
     }
 
     private func logKey(_ kind: String, _ event: NSEvent) {
@@ -86,28 +29,9 @@ final class DebugSession {
 
 // MARK: - UI delegate
 
-extension DebugSession: WebContentsUIDelegate {
-    func webContents(_ webContents: any WebContents, didCreate newContents: any WebContents, targetURL: URL?, disposition: Disposition) {
-        adopt(newContents, select: disposition != .newBackgroundTab)
-    }
-
-    func webContentsDidClose(_ webContents: any WebContents) {
-        guard let index = pages.firstIndex(where: { $0 === webContents }) else { return }
-        pages.remove(at: index)
-        if pages.isEmpty {
-            currentIndex = nil
-            host.show(nil)
-        } else if let currentIndex {
-            if currentIndex == index {
-                select(min(index, pages.count - 1))
-            } else if currentIndex > index {
-                self.currentIndex = currentIndex - 1
-            }
-        }
-    }
-
+extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {
-        if webContents === current { statusText = text }
+        statusText = text
     }
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
@@ -193,17 +117,9 @@ extension DebugSession: WebContentsUIDelegate {
     }
 }
 
-// MARK: - Navigation delegate
-
-extension DebugSession: NavigationDelegate {
-    func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition {
-        action.disposition
-    }
-}
-
 // MARK: - Downloads
 
-extension DebugSession: DownloadsDelegate {
+extension PageUIDelegate: DownloadsDelegate {
     func profile(_ profile: any Profile, willBeginDownload item: DownloadItem, completion: @escaping (URL?) -> Void) {
         let folder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         var destination = folder.appending(path: item.suggestedFilename)

@@ -1,11 +1,16 @@
 import AppKit
 import Engine
 import SwiftUI
+import Tabs
 
-/// Chapter 1 throwaway toolbar in the sidebar placeholder: address field,
-/// navigation, hidden pages, DevTools and the overlay spikes.
+/// Chapter 1 throwaway, in the Debug ▸ Show Debug Toolbar panel until the
+/// palette (Phase 2.4): an address field and navigation for the selected
+/// tab, DevTools, and the overlay spikes. The flat page list it had is gone
+/// (Phase 2.3): pages are the sidebar's entries.
 struct DebugToolbar: View {
-    @Bindable var session: DebugSession
+    let tabs: TabController
+    let pageHost: PageHost
+    let pageDelegate: PageUIDelegate
     let overlays: OverlaySpike
     @State private var address = ""
     @FocusState private var addressFocused: Bool
@@ -15,31 +20,30 @@ struct DebugToolbar: View {
             TextField("Search or enter address", text: $address)
                 .textFieldStyle(.roundedBorder)
                 .focused($addressFocused)
-                .onSubmit { session.open(address) }
-                .onChange(of: session.addressFocusRequest) { addressFocused = true }
-                .onChange(of: session.current?.url, initial: true) { _, url in
+                .onSubmit {
+                    let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    tabs.navigateSelected(to: URLPrompt.url(from: trimmed))
+                }
+                .onChange(of: tabs.current?.url, initial: true) { _, url in
                     if !addressFocused { address = url?.absoluteString ?? "" }
                 }
 
             HStack(spacing: 4) {
-                button("chevron.left", "Back") { session.current?.goBack() }
-                    .disabled(session.current?.canGoBack != true)
-                button("chevron.right", "Forward") { session.current?.goForward() }
-                    .disabled(session.current?.canGoForward != true)
-                if session.current?.isLoading == true {
-                    button("xmark", "Stop") { session.current?.stop() }
+                button("chevron.left", "Back") { tabs.current?.goBack() }
+                    .disabled(tabs.current?.canGoBack != true)
+                button("chevron.right", "Forward") { tabs.current?.goForward() }
+                    .disabled(tabs.current?.canGoForward != true)
+                if tabs.current?.isLoading == true {
+                    button("xmark", "Stop") { tabs.current?.stop() }
                 } else {
-                    button("arrow.clockwise", "Reload") { session.current?.reload() }
+                    button("arrow.clockwise", "Reload") { tabs.current?.reload() }
                 }
                 Spacer()
-                button("plus", "New page") { session.newPage(DebugSession.url(from: "duckduckgo.com")) }
-                button("eye.slash", "New hidden page") {
-                    session.newPage(DebugSession.url(from: "en.wikipedia.org"), hidden: true, select: false)
-                }
-                button("hammer", "DevTools") { session.host.toggleDevTools() }
+                button("hammer", "DevTools") { pageHost.toggleDevTools() }
             }
 
-            if let current = session.current, current.isLoading {
+            if let current = tabs.current, current.isLoading {
                 ProgressView(value: current.loadProgress).controlSize(.small)
             }
 
@@ -55,19 +59,9 @@ struct DebugToolbar: View {
                     .accessibilityIdentifier("overlay-counters")
             }
 
-            Divider()
+            Spacer(minLength: 0)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(session.pages.enumerated()), id: \.offset) { index, page in
-                        PageRow(page: page, selected: index == session.currentIndex)
-                            .contentShape(Rectangle())
-                            .onTapGesture { session.select(index) }
-                    }
-                }
-            }
-
-            if let status = session.statusText {
+            if let status = pageDelegate.statusText {
                 Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
         }
@@ -80,27 +74,5 @@ struct DebugToolbar: View {
             .buttonStyle(.borderless)
             .help(label)
             .accessibilityLabel(label)
-    }
-}
-
-private struct PageRow: View {
-    let page: any WebContents
-    let selected: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            if let favicon = page.favicon {
-                Image(nsImage: favicon).resizable().frame(width: 16, height: 16)
-            } else {
-                Image(systemName: "globe").frame(width: 16, height: 16)
-            }
-            Text(page.title ?? page.url?.host() ?? "New page").lineLimit(1)
-            Spacer()
-            if page.isAudible { Image(systemName: "speaker.wave.2.fill").font(.caption) }
-            if page.state != .alive { Text(String(describing: page.state)).font(.caption2).foregroundStyle(.secondary) }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(selected ? Color.primary.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 }

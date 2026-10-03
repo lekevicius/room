@@ -43,6 +43,8 @@ packages:
     path: Packages/Sidebar
   Chrome:
     path: Packages/Chrome
+  Tabs:
+    path: Packages/Tabs
 targets:
   Room:
     type: application
@@ -70,7 +72,8 @@ targets:
       - package: Store
       - package: Sidebar
       - package: Chrome
-      # Pages behind the sidebar until Phase 2.3 (FakeEngine).
+      - package: Tabs
+      # DEBUG sidebar captures run the tab controller on FakeEngine pages.
       - package: Engine
         product: FakeEngine
 schemes:
@@ -92,5 +95,6 @@ schemes:
         - package: Store/StoreTests
         - package: Sidebar/SidebarTests
         - package: Chrome/ChromeTests
+        - package: Tabs/TabsTests
     archive:
       config: Release

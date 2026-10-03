@@ -1,13 +1,16 @@
 import AppKit
+import Card
 import Design
 import Engine
 import Observation
+import Tabs
 import UIKitCore
 
 /// Shows one page in the window's card and keeps the card's fill on the
 /// page's root background, so live resize and loading never expose the
-/// window material at the card edges.
-final class PageHost {
+/// window material at the card edges. With no page it shows the empty
+/// state ("Press ⌘T…", spec §A.7).
+final class PageHost: PageDisplay {
     let container = PageContainerView()
     private weak var controller: RoomWindowController?
     private(set) var contents: (any WebContents)?
@@ -18,11 +21,11 @@ final class PageHost {
     }
 
     func show(_ contents: (any WebContents)?) {
-        guard contents !== self.contents else { return }
+        guard contents !== self.contents || container.pageView == nil else { return }
         self.contents?.devTools?.close()
         container.isDevToolsOpen = false
         self.contents = contents
-        container.pageView = contents?.nativeView
+        container.pageView = contents?.nativeView ?? container.emptyState
         trackBackground()
     }
 
@@ -59,6 +62,8 @@ final class PageHost {
 final class PageContainerView: NSView {
     /// CEF renders DevTools as a child view of this pane (`ShowDevTools` + `SetAsChild`).
     let devToolsPane = FlippedPaneView()
+    /// Shown in place of a page when nothing is selected.
+    let emptyState = CardEmptyStateView()
     private let separator = NSBox()
 
     var pageView: NSView? {

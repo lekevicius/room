@@ -8,6 +8,7 @@ import Model
 import Sidebar
 import Store
 import SwiftUI
+import Tabs
 import UIKitCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -15,14 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var store: RoomStore?
     private var windowController: RoomWindowController?
     private var pageHost: PageHost?
-    private(set) var session: DebugSession?
+    private(set) var pageDelegate: PageUIDelegate?
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
-    private(set) var sidebarPages: SidebarPages?
+    /// The window's pages: entries on the engine (Phase 2.3).
+    private(set) var tabs: TabController?
+    private var switcher: TabSwitcher?
     private var toastCenter: ToastCenter?
-    /// Pages behind the sidebar until Phase 2.3 puts entries on CEF.
-    private let fakeEngine = FakeApplication()
     private var debugPanel: NSPanel?
+    #if DEBUG
+    /// Sidebar captures run on FakeEngine pages (no network, stable states).
+    private let fakeEngine = FakeApplication()
+    #endif
 
     init(engine: any EngineApplication) {
         self.engine = engine
@@ -42,31 +47,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { await startSession() }
     }
 
-    /// The default profile and the debug session in the window (Chapter 1).
+    /// The default profile: the tab controller loads the selected entry once
+    /// it exists. Then the debug panel, and DEBUG runners.
     private func startSession() async {
-        guard let controller = windowController, let pageHost else { return }
+        guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
         do {
             let profile = try await engine.createProfile(name: "Default")
-            let session = DebugSession(profile: profile, host: pageHost)
+            profile.downloadsDelegate = pageDelegate
+            if tabs.profile == nil { tabs.profile = profile }
             let overlays = OverlaySpike(rootView: controller.rootView)
-            self.session = session
             self.overlays = overlays
-            installDebugPanel(DebugToolbar(session: session, overlays: overlays))
+            installDebugPanel(DebugToolbar(tabs: tabs, pageHost: pageHost, pageDelegate: pageDelegate, overlays: overlays))
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
-                session.newPage(DebugSession.url(from: start))
+                tabs.openNewTab(url: URLPrompt.url(from: start))
             }
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
         }
         #if DEBUG
+        guard let sidebar, let profile = tabs.profile else { return }
         if let directory = SnapshotRunner.directory {
-            if SidebarFixtures.requested != nil, let sidebar, let sidebarPages {
-                await SidebarSnapshotRunner.run(controller, sidebar: sidebar, pages: sidebarPages, into: directory)
+            if SidebarFixtures.requested != nil {
+                await SidebarSnapshotRunner.run(controller, sidebar: sidebar, tabs: tabs, into: directory)
             } else {
-                await SnapshotRunner.run(controller, session: session, into: directory)
+                await SnapshotRunner.run(controller, tabs: tabs, into: directory)
             }
             NSApp.terminate(nil)
-        } else if let session, let spike = SpikeRunner.requested {
+        } else if let spike = SpikeRunner.requested {
+            let session = SpikeSession(tabs: tabs, sidebar: sidebar, host: pageHost, profile: profile, pageDelegate: pageDelegate)
             await SpikeRunner.run(spike, session: session, controller: controller, overlays: overlays)
         }
         #endif
@@ -129,7 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             directory = URL(fileURLWithPath: override, isDirectory: true)
         }
         #if DEBUG
-        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
+        // An explicit `-RoomStateDirectory` wins (the relaunch measurement reuses one).
+        if UserDefaults.standard.string(forKey: "RoomStateDirectory") == nil,
+           SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
             directory = FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
         }
         #endif
@@ -187,21 +197,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return windowID
     }
 
-    /// The sidebar tree (Phase 2.2) with FakeEngine pages behind it, and toasts.
+    /// The sidebar tree (Phase 2.2), the tab controller behind it (2.3), the
+    /// ⌃Tab switcher and toasts.
     private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
         #if DEBUG
         if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
-        do {
-            try fakeEngine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
-        } catch {
-            NSLog("Room: FakeEngine: \(error)")
+        let tabs = TabController(store: store)
+        tabs.engine = engine
+        let pageDelegate = PageUIDelegate(host: pageHost)
+        tabs.display = pageHost
+        tabs.sidebar = sidebar
+        tabs.pageUIDelegate = pageDelegate
+        tabs.onNewTab = { [weak tabs] in
+            guard let text = URLPrompt.run(title: "New Tab", message: "Search or enter a URL (the palette arrives in Phase 2.4).", text: "")
+            else { return }
+            tabs?.openNewTab(url: URLPrompt.url(from: text))
         }
-        guard let profile = try? fakeEngine.profile(named: "Default") else { return }
-        let pages = SidebarPages(profile: profile, pageHost: pageHost, store: store)
-        pages.sidebar = sidebar
-        sidebar.host = pages
+        tabs.onEditAddress = { [weak tabs, weak store] in
+            guard let tabs, let id = tabs.currentEntryID, let entry = store?.sidebar.entry(id) else {
+                tabs?.newTab()
+                return
+            }
+            guard let text = URLPrompt.run(title: "Open Location", message: "Navigate the selected tab (the palette arrives in Phase 2.4).",
+                                           text: entry.currentURL ?? "") else { return }
+            tabs.navigateSelected(to: URLPrompt.url(from: text))
+        }
+        #if DEBUG
+        if SidebarFixtures.requested != nil, SnapshotRunner.directory != nil {
+            do {
+                try fakeEngine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+                tabs.profile = try fakeEngine.profile(named: "Default")
+            } catch {
+                NSLog("Room: FakeEngine: \(error)")
+            }
+        }
+        #endif
+        sidebar.host = tabs
         controller.sidebarView.headerView = sidebar.addressField
         controller.sidebarView.bodyView = sidebar.bodyView
         sidebar.onSpaceChange = { [weak controller] space in controller?.spaceTitle = space.name }
@@ -221,10 +254,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         rootView.onLayout = { [weak toasts] in toasts?.updateAnchor() }
         sidebar.toasts = toasts
+        if let window = controller.window {
+            switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
+        }
         self.sidebar = sidebar
-        sidebarPages = pages
+        self.tabs = tabs
+        self.pageDelegate = pageDelegate
         toastCenter = toasts
-        if let id = sidebar.selectedEntryID, let entry = store.sidebar.entry(id) { pages.activate(entry) }
+        tabs.startLifecycle()
+        // Only the selected entry loads at launch (spec §H); it waits for the profile.
+        tabs.showSelection()
     }
 
     /// Final state write; called at quit (both termination paths).
@@ -240,13 +279,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// ⌘T: a new Today tab (a URL prompt until the palette, Phase 2.4).
     @objc func newPage(_ sender: Any?) {
-        sidebarPages?.newTab()
+        tabs?.newTab()
     }
 
     /// ⌘L: navigate the selected tab (a URL prompt until the palette, Phase 2.4).
     @objc func openLocation(_ sender: Any?) {
-        sidebarPages?.editAddress()
+        tabs?.editAddress()
     }
+
+    /// ⌘W: the multi-selection or the selected entry, per spec §A.3.
+    @objc func closeTab(_ sender: Any?) { sidebar?.closeCommandTargets() }
+
+    /// ⇧⌘T.
+    @objc func reopenClosedTab(_ sender: Any?) { sidebar?.reopenClosedTab() }
+
+    /// ⌘1…⌘9 (the item's tag is the digit).
+    @objc func selectTabByNumber(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.selectTab(digit: item.tag)
+    }
+
+    /// ⇧⌘] and ⌥⌘↓ (tag 1), ⇧⌘[ and ⌥⌘↑ (tag −1).
+    @objc func selectAdjacentTab(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.selectAdjacentTab(item.tag)
+    }
+
+    /// ⇧⌘M.
+    @objc func toggleMute(_ sender: Any?) { sidebar?.toggleMuteSelected() }
 
     /// ⌘D: pin / unpin the selected entry or the multi-selection.
     @objc func togglePin(_ sender: Any?) { sidebar?.togglePin() }
@@ -257,32 +317,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⇧⌘K: Clear (staggered slide-out, Undo toast).
     @objc func clearTodayTabs(_ sender: Any?) { sidebar?.clearTodayTabs() }
 
-    @objc func navigateSelectedPage(_ sender: Any?) {
-        sidebarPages?.navigateSelected()
-    }
-
-    @objc func toggleAudioInSelectedPage(_ sender: Any?) {
-        sidebarPages?.toggleAudioInSelected()
-    }
-
-    @objc func closePage(_ sender: Any?) {
-        session?.closeCurrent()
-    }
-
     @objc func reloadPage(_ sender: Any?) {
-        pageHost?.contents?.reload()
+        tabs?.current?.reload()
     }
 
     @objc func goBack(_ sender: Any?) {
-        pageHost?.contents?.goBack()
+        tabs?.current?.goBack()
     }
 
     @objc func goForward(_ sender: Any?) {
-        pageHost?.contents?.goForward()
+        tabs?.current?.goForward()
     }
 
     @objc func toggleDevTools(_ sender: Any?) {
         pageHost?.toggleDevTools()
+    }
+
+    // Debug menu: the lifecycle checks on CEF (spec §H), results in the log.
+
+    @objc func simulateMemoryPressure(_ sender: Any?) {
+        let ids = tabs?.handleMemoryPressure(critical: false) ?? []
+        NSLog("Room: simulated memory pressure discarded \(ids.count) page(s)")
+    }
+
+    @objc func discardBackgroundPages(_ sender: Any?) {
+        let ids = tabs?.discardBackgroundPages() ?? []
+        NSLog("Room: discarded \(ids.count) background page(s)")
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -295,6 +355,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return sidebar?.essentialsCommandTitle != nil
         case #selector(clearTodayTabs(_:)):
             return sidebar?.canClearToday == true
+        case #selector(closeTab(_:)):
+            return sidebar?.canCloseCommandTargets == true
+        case #selector(reopenClosedTab(_:)):
+            return sidebar?.canReopenClosedTab == true
+        case #selector(toggleMute(_:)):
+            let muted = sidebar?.selectedEntryID.flatMap { tabs?.pageState(for: $0).isMuted } ?? false
+            menuItem.title = muted ? CommandName.unmuteTab : CommandName.muteTab
+            return sidebar?.selectedHasPage == true
+        case #selector(reloadPage(_:)):
+            return tabs?.current != nil
+        case #selector(goBack(_:)):
+            return tabs?.current?.canGoBack == true
+        case #selector(goForward(_:)):
+            return tabs?.current?.canGoForward == true
         default:
             return true
         }

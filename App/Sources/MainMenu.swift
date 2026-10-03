@@ -1,4 +1,5 @@
 import AppKit
+import Sidebar
 import UIKitCore
 
 /// The main menu, built in code. Phase 2.8 replaces this with the full command set.
@@ -21,7 +22,10 @@ enum MainMenu {
         fileMenu.addItem(withTitle: "New Tab", action: #selector(AppDelegate.newPage(_:)), keyEquivalent: "t")
         fileMenu.addItem(withTitle: "Open Location…", action: #selector(AppDelegate.openLocation(_:)), keyEquivalent: "l")
         fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: "Close Page", action: #selector(AppDelegate.closePage(_:)), keyEquivalent: "w")
+        fileMenu.addItem(withTitle: CommandName.closeTab, action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
+        let reopen = fileMenu.addItem(withTitle: CommandName.reopenClosedTab, action: #selector(AppDelegate.reopenClosedTab(_:)),
+                                      keyEquivalent: "t")
+        reopen.keyEquivalentModifierMask = [.command, .shift]
         let closeWindow = fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         closeWindow.keyEquivalentModifierMask = [.command, .shift]
         main.addItem(submenu: fileMenu, title: "File")
@@ -48,8 +52,33 @@ enum MainMenu {
         devTools.keyEquivalentModifierMask = [.command, .option]
         main.addItem(submenu: viewMenu, title: "View")
 
-        // Sidebar commands (Phase 2.2); Phase 2.8 builds the full menu set.
+        // Sidebar and tab commands (Phases 2.2, 2.3); Phase 2.8 builds the full menu set.
         let tabMenu = NSMenu(title: "Tab")
+        // ⇧⌘] / ⇧⌘[: AppKit matches the shifted character, as Safari's menu does.
+        let next = tabMenu.addItem(withTitle: CommandName.nextTab, action: #selector(AppDelegate.selectAdjacentTab(_:)), keyEquivalent: "}")
+        next.tag = 1
+        let previous = tabMenu.addItem(withTitle: CommandName.previousTab, action: #selector(AppDelegate.selectAdjacentTab(_:)),
+                                       keyEquivalent: "{")
+        previous.tag = -1
+        let down = String(UnicodeScalar(NSDownArrowFunctionKey)!), up = String(UnicodeScalar(NSUpArrowFunctionKey)!)
+        let nextInSidebar = tabMenu.addItem(withTitle: "Next Tab in Sidebar", action: #selector(AppDelegate.selectAdjacentTab(_:)),
+                                            keyEquivalent: down)
+        nextInSidebar.keyEquivalentModifierMask = [.command, .option]
+        nextInSidebar.tag = 1
+        let previousInSidebar = tabMenu.addItem(withTitle: "Previous Tab in Sidebar", action: #selector(AppDelegate.selectAdjacentTab(_:)),
+                                                keyEquivalent: up)
+        previousInSidebar.keyEquivalentModifierMask = [.command, .option]
+        previousInSidebar.tag = -1
+        tabMenu.addItem(.separator())
+        for digit in 1...9 {
+            let item = tabMenu.addItem(withTitle: digit == 9 ? "Last Tab" : "Tab \(digit)", action: #selector(AppDelegate.selectTabByNumber(_:)),
+                                       keyEquivalent: "\(digit)")
+            item.tag = digit
+        }
+        tabMenu.addItem(.separator())
+        let mute = tabMenu.addItem(withTitle: CommandName.muteTab, action: #selector(AppDelegate.toggleMute(_:)), keyEquivalent: "m")
+        mute.keyEquivalentModifierMask = [.command, .shift]
+        tabMenu.addItem(.separator())
         tabMenu.addItem(withTitle: "Pin Tab", action: #selector(AppDelegate.togglePin(_:)), keyEquivalent: "d")
         let essentials = tabMenu.addItem(withTitle: "Add to Essentials", action: #selector(AppDelegate.toggleEssentials(_:)), keyEquivalent: "d")
         essentials.keyEquivalentModifierMask = [.command, .shift]
@@ -59,13 +88,13 @@ enum MainMenu {
         main.addItem(submenu: tabMenu, title: "Tab")
 
         #if DEBUG
-        // Phase 2.2: drives the FakeEngine pages behind the sidebar, and the
-        // Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes).
+        // The Chapter 1 debug toolbar (URL field, navigation, DevTools, overlay
+        // spikes) until the palette (2.4), and the page lifecycle checks (2.3).
         let debugMenu = NSMenu(title: "Debug")
         debugMenu.addItem(withTitle: "Show Debug Toolbar", action: #selector(AppDelegate.showDebugToolbar(_:)), keyEquivalent: "")
         debugMenu.addItem(.separator())
-        debugMenu.addItem(withTitle: "Navigate Selected Page", action: #selector(AppDelegate.navigateSelectedPage(_:)), keyEquivalent: "")
-        debugMenu.addItem(withTitle: "Toggle Audio in Selected Page", action: #selector(AppDelegate.toggleAudioInSelectedPage(_:)), keyEquivalent: "")
+        debugMenu.addItem(withTitle: "Simulate Memory Pressure", action: #selector(AppDelegate.simulateMemoryPressure(_:)), keyEquivalent: "")
+        debugMenu.addItem(withTitle: "Discard Background Pages", action: #selector(AppDelegate.discardBackgroundPages(_:)), keyEquivalent: "")
         main.addItem(submenu: debugMenu, title: "Debug")
         #endif
 
