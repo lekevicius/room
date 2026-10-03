@@ -509,3 +509,18 @@ unsupported and must be supplied by Chapter 3. Source path:
 NativeWidgetNSWindowBridge::SetVisibilityState and ActionOpenPopupFunction.
 No patch/public ObjC change. Baseline nav 11.419 s; ten-page quit 0.549 s,
 26 helpers / 0 left / 0 new crashes, exit 0.
+
+### Completion probes on activation engine eb55062 — 2026-10-03
+
+| Feature | Measured result | Remaining boundary |
+|---|---|---|
+| Download completion/cancel | Exact 26-byte attachment; real Browser.cancelDownload yields canceled event for its GUID; server disconnect after 131,072 / 33,554,432 bytes; no finalized/partial slow file remains; 17 s process, exit 0 | Native chooser/cancel button and product status UI |
+| Certificate leave | net::ERR_CERT_AUTHORITY_INVALID, Privacy error page, real primary-button handler returns to committed safe HTTP fixture; 11 s process, exit 0 | Native pointer/focus; no certificate override used |
+| beforeunload | Actual Page.javascriptDialogOpening type beforeunload; Chrome cancellation callback preserves original page; handler cleared for cleanup; 16 s process including alert/confirm/prompt, exit 0 | Native focus/keyboard; window-close-specific prompt |
+| Web Audio | Muted oscillator, state running, 48,000 Hz, render clock advances 0.261333 s, AudioContext closes; media element also advances 0.120587 s; 11 s process, exit 0 | Audible output still needs listening |
+
+Raw feature-download-cancel, feature-certificate-leave, feature-beforeunload,
+feature-web-audio evidence retained locally. No additional engine fix was
+needed for these stronger probes. Probe receipts name engine commit eb55062;
+the tested host additions are committed separately. Destination selection and
+callback execution are never presented as native click acceptance.

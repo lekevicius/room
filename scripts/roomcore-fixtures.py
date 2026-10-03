@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import ssl
 import threading
+import time
 
 PAGE = b'''<!doctype html><meta charset="utf-8"><title>RoomCore features</title>
 <style>body{font:16px -apple-system;margin:30px}button,a{display:block;margin:16px}</style>
@@ -36,6 +37,24 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        elif self.path == '/download-slow':
+            total = 32 * 1024 * 1024
+            chunk = b'RoomCore cancellation fixture\n'.ljust(65536, b'.')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', 'attachment; filename="roomcore-slow.bin"')
+            self.send_header('Content-Length', str(total))
+            self.end_headers()
+            sent = 0
+            try:
+                while sent < total:
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                    sent += len(chunk)
+                    time.sleep(0.1)
+            except (BrokenPipeError, ConnectionResetError):
+                print(f'download-slow disconnected after {sent} of {total} bytes', flush=True)
             return
         elif self.path.startswith('/phase-1.4/'):
             return super().do_GET()

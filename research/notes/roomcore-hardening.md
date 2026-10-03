@@ -464,3 +464,12 @@ remaining error: "Browser window has no toolbar." No dummy toolbar is added;
 Chapter 3 must own the action UI. Tabs 1→2→1 and popup create/remove still pass.
 Baseline nav 11.419 s; ten-page quit 0.549 s, load1 11.05, 26 helpers / 0 left /
 0 new crashes, exit 0. CI checks for prior checkpoint both pass (74/92 s).
+
+08:58 EEST: stronger completion probes all pass on eb55062. Download cancelled
+after server sent 131,072 / 33,554,432 bytes; canceled GUID event, only the
+26-byte completed fixture remains (17 s process). Certificate authority error
+and real interstitial leave back to safe fixture (11 s). Beforeunload canceled
+and original page preserved (16 s). Muted Web Audio oscillator advances
+0.261333 s at 48 kHz and closes (11 s). All exit 0; native interaction boundaries
+remain. Corrected consolidated report's stale latest-baseline row to 11.419 s
+nav / 0.549 s quit. No new network policy or patch changes.

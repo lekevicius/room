@@ -10,7 +10,7 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | Laptop build | Complete: M1 Max 64 GB, nice 0, default 10 jobs, existing out/dev. Resumed 11,610 s; cumulative with prior partial 14,620 s. Original build retry 0. Final load 404.72 / 462.97 / 478.30 |
 | Package | Ad-hoc strict signature valid; 518 component dylibs, 916 MB framework, latest host 918 MB; mock keychain |
 | Initial baseline | nav 14.209 s; open10 ready 15 s; valid ten-page quits 0.493 / 0.471 s, 0 helpers left / 0 new crashes |
-| Latest serial baseline | After FedCM fix: nav 12.447 s; ten loaded pages, quit 0.635 s, load1 28.40, 27 helpers / 0 left / 0 new crashes, exit 0 |
+| Latest serial baseline | After activation fix: nav 11.419 s; ten loaded pages, quit 0.549 s, load1 11.05, 26 helpers / 0 left / 0 new crashes, exit 0 |
 | Concurrent repetition | After FedCM fix: auth 20 s; ten-page quit 1.881 s, 26 helpers / 0 left / 0 crashes, exit 0. Does not resolve the retained older watchdog |
 | Surface coverage | Original 18 processes driven without crashes. 17 drives pass; fullscreen deliberately rejects and its driver fails. Added deterministic FedCM passive bubble / active modal probe passes. Native UI acceptance remains partial |
 | Network before | Fresh profile, 600 s idle, 608 s process: 62 HTTP / 86 connections / 9 DNS, 0 TLS errors |

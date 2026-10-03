@@ -20,8 +20,7 @@ enum HostFeatureSpike {
         }
         let pageName = ["dialogs": "popups", "extension": "form", "find": "scroll", "zoom": "scroll"] [name] ?? name
         let original = ["popups", "keys", "audio", "scroll", "transparent", "corners", "band", "form"]
-        let address = name == "certificate" ? secure + "/features" :
-            base + (name == "auth" ? "/auth" : original.contains(pageName) ? "/phase-1.4/\(pageName).html" : "/features")
+        let address = base + (name == "auth" ? "/auth" : original.contains(pageName) ? "/phase-1.4/\(pageName).html" : "/features")
         guard let url = URL(string: address), let page = host.open(url, in: profile, activate: true) else {
             HostSpike.record("error", "failed to create page"); return
         }
@@ -42,13 +41,6 @@ enum HostFeatureSpike {
                     HostSpike.record(action, "loading=\(page.isLoading)")
                     if action == "auth-cancel" { page.loadURL(url) }
                 }
-            }
-            // Certificate errors intentionally stop at the interstitial.
-            if name == "certificate" {
-                try await Task.sleep(for: .seconds(5))
-                HostSpike.record("prompt-observation", "url=\(page.url?.absoluteString ?? "nil") title=\(page.title) loading=\(page.isLoading)")
-                HostSpike.record("review-required", "verify native prompt/interstitial and cancellation; survival alone is not a pass")
-                return
             }
             let cdp = try await HostCDP.connect(port: defaults.integer(forKey: "RoomSpikeCDPPort"), pageURL: address)
             defer { cdp.close() }
@@ -75,6 +67,16 @@ enum HostFeatureSpike {
                 for expression in ["alert('Room spike')", "confirm('Room spike')", "prompt('Room spike', 'value')"] {
                     HostSpike.record("dialog-result", try await cdp.evaluate(expression, userGesture: true))
                 }
+                try await cdp.evaluate("window.onbeforeunload=()=>'';true", userGesture: true)
+                _ = try await cdp.call("Page.navigate", ["url": base + "/features"])
+                let beforeUnload = cdp.events.contains {
+                    ($0["method"] as? String) == "Page.javascriptDialogOpening" &&
+                    ($0["params"] as? [String: Any])?["type"] as? String == "beforeunload"
+                }
+                let stayed = try await cdp.evaluate("location.href === \(quotedAddress)") as? Bool == true
+                HostSpike.record("beforeunload-cancelled", beforeUnload && stayed)
+                guard beforeUnload && stayed else { throw HostCDP.Failure("beforeunload cancellation did not preserve the page") }
+                try await cdp.evaluate("window.onbeforeunload=null;true")
             case "keys":
                 try await cdp.evaluate("document.querySelector('#t').focus(); true")
                 try await cdp.call("Input.dispatchKeyEvent", ["type": "keyDown", "key": "a", "code": "KeyA", "text": "a"])
@@ -92,6 +94,14 @@ enum HostFeatureSpike {
                       let time = state["time"] as? Double, time > 0.05 else {
                     throw HostCDP.Failure("audio playback clock did not advance")
                 }
+                let webAudio = try await cdp.evaluate("""
+                (async()=>{const ctx=new AudioContext();await ctx.resume();const osc=ctx.createOscillator();const gain=ctx.createGain();gain.gain.value=0;osc.connect(gain).connect(ctx.destination);const start=ctx.currentTime;osc.start();await new Promise(r=>setTimeout(r,300));const result={state:ctx.state,elapsed:ctx.currentTime-start,sampleRate:ctx.sampleRate};osc.stop();await ctx.close();return {...result,closed:ctx.state==='closed'};})()
+                """, userGesture: true)
+                HostSpike.record("web-audio", webAudio)
+                guard let audio = webAudio as? [String: Any], audio["state"] as? String == "running",
+                      let elapsed = audio["elapsed"] as? Double, elapsed > 0.05,
+                      audio["closed"] as? Bool == true else { throw HostCDP.Failure("Web Audio did not run and close") }
+                HostSpike.record("review-required", "muted oscillator verifies Web Audio lifecycle; audible output remains a listening check")
             case "scroll":
                 HostSpike.record("scroll", try await cdp.evaluate("new Promise(resolve=>{let start=performance.now(), frames=0; function step(t){scrollBy(0,8);frames++;if(t-start<3000)requestAnimationFrame(step);else resolve({frames,ms:t-start,y:scrollY})}requestAnimationFrame(step)})"))
             case "transparent":
@@ -137,6 +147,7 @@ enum HostFeatureSpike {
                 })()
                 """, userGesture: true)
                 HostSpike.record("extension-operations", operations)
+                HostSpike.record("activation", host.activationSnapshot())
                 guard let result = operations as? [String: Any],
                       let before = result["before"] as? Int,
                       result["afterCreate"] as? Int == before + 1,
@@ -145,6 +156,30 @@ enum HostFeatureSpike {
                     throw HostCDP.Failure("extension tabs/windows lifecycle did not complete")
                 }
                 HostSpike.record("review-required", "native extension action UI and popup ownership remain; action API outcome recorded")
+            case "certificate":
+                let navigation = try await cdp.call("Page.navigate", ["url": secure + "/features"])
+                HostSpike.record("certificate-error", navigation["errorText"] ?? "missing")
+                guard (navigation["errorText"] as? String)?.contains("ERR_CERT_AUTHORITY_INVALID") == true else {
+                    throw HostCDP.Failure("self-signed certificate was not rejected")
+                }
+                var interstitial = false
+                for _ in 0..<100 {
+                    interstitial = (try? await cdp.evaluate("!!document.querySelector('#primary-button')")) as? Bool == true
+                    if interstitial { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                guard interstitial else { throw HostCDP.Failure("certificate interstitial button absent") }
+                HostSpike.record("certificate-title", try await cdp.evaluate("document.title"))
+                try await cdp.evaluate("document.querySelector('#primary-button').click();true", userGesture: true)
+                var returned = false
+                for _ in 0..<100 {
+                    returned = (try? await cdp.evaluate("location.href === \(quotedAddress) && document.readyState === 'complete'")) as? Bool == true
+                    if returned { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                HostSpike.record("certificate-left", returned)
+                guard returned else { throw HostCDP.Failure("certificate leave did not restore safe page") }
+                HostSpike.record("review-required", "real interstitial leave callback exercised; native pointer/focus remains")
             case "downloads":
                 guard let output = defaults.string(forKey: "RoomSpikeOutput") else {
                     throw HostCDP.Failure("download evidence path missing")
@@ -166,6 +201,37 @@ enum HostFeatureSpike {
                     throw HostCDP.Failure("download bytes differ: \(data.count)")
                 }
                 HostSpike.record("download-bytes", data.count)
+                try await cdp.evaluate("const a=document.createElement('a');a.href='/download-slow';a.download='roomcore-slow.bin';document.body.append(a);a.click();true", userGesture: true)
+                var downloadGUID: String?
+                for _ in 0..<100 {
+                    _ = try await cdp.evaluate("true")
+                    if let event = cdp.events.last(where: {
+                        ($0["method"] as? String)?.hasSuffix("downloadWillBegin") == true &&
+                        (($0["params"] as? [String: Any])?["url"] as? String)?.hasSuffix("/download-slow") == true
+                    }) {
+                        downloadGUID = (event["params"] as? [String: Any])?["guid"] as? String
+                        break
+                    }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                guard let downloadGUID else { throw HostCDP.Failure("slow download did not begin") }
+                try await cdp.call("Browser.cancelDownload", ["guid": downloadGUID])
+                var cancelled = false
+                for _ in 0..<100 {
+                    _ = try await cdp.evaluate("true")
+                    cancelled = cdp.events.contains {
+                        guard let params = $0["params"] as? [String: Any] else { return false }
+                        return ($0["method"] as? String)?.hasSuffix("downloadProgress") == true &&
+                            params["guid"] as? String == downloadGUID && params["state"] as? String == "canceled"
+                    }
+                    if cancelled { break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                HostSpike.record("download-cancelled", cancelled)
+                guard cancelled else { throw HostCDP.Failure("download cancellation did not complete") }
+                guard !FileManager.default.fileExists(atPath: directory.appendingPathComponent("roomcore-slow.bin").path) else {
+                    throw HostCDP.Failure("cancelled file was finalized")
+                }
                 HostSpike.record("review-required", "CDP selected the destination; native chooser and cancellation still need review")
             case "permissions":
                 try await cdp.evaluate("window.permissionResults={}; Notification.requestPermission().then(x=>permissionResults.notification=x); navigator.geolocation.getCurrentPosition(()=>permissionResults.geo=0,e=>permissionResults.geo=e.code); true", userGesture: true)
