@@ -222,3 +222,8 @@ Tab-editability fix: 22 s / 6 steps at load 14.85 / 16.81 / 19.68; GN check
 all //room targets passes. Extension tabs count 1→2→1 and popup create/remove
 pass (24 s process, exit 0). Post-change nav 11.570 s; ten-page quit 0.534 s,
 load1 12.39, 24 helpers / 0 left / 0 new crash reports, exit 0.
+
+Explicit native activation: 20 s / 2 steps, load 9.42 / 14.28 / 17.62.
+Extension lifecycle/action probe 18 s, exit 0; AppKit active/key/main true.
+Post-change nav 11.419 s; ten-page quit 0.549 s, load1 11.05, 26 helpers /
+0 remaining / 0 new crashes, exit 0.

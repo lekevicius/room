@@ -448,3 +448,19 @@ returns an inactive-window error even after awaiting windows.update(focused).
 Do not call the action UI verified. Next independent work can inspect the
 native activation/BrowserActiveStateManager handoff, then download cancellation
 and certificate-leave callbacks; retain the old teardown failure separately.
+
+### Explicit native activation — 08:54 EEST
+
+Chromium's NativeWidgetNSWindowBridge activates NSApp before making a window
+key; its source documents why the reversed/incomplete sequence can leave
+Widget::IsActive false. Room Activate lacked the application step. Add the
+same activation before makeKeyAndOrderFront, retaining the existing active
+browser manager notification. No patch/public API changes.
+
+Build 20 s / 2 steps; extension process 18 s, exit 0. AppKit now reports
+applicationActive/windowKey/windowMain/canBecomeKey/visible all true. Actual
+chrome.action.openPopup advances from inactive-window failure to the precise
+remaining error: "Browser window has no toolbar." No dummy toolbar is added;
+Chapter 3 must own the action UI. Tabs 1→2→1 and popup create/remove still pass.
+Baseline nav 11.419 s; ten-page quit 0.549 s, load1 11.05, 26 helpers / 0 left /
+0 new crashes, exit 0. CI checks for prior checkpoint both pass (74/92 s).

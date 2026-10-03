@@ -498,3 +498,14 @@ remaining Room/Chapter 3 work, not hidden by a passing process exit.
 
 Post-tab-edit baseline: nav 11.570 s; ten loaded pages, quit 0.534 s at load1
 12.39, 24 helpers / 0 left / 0 new crashes, exit 0.
+
+### Explicit activation for extension action requests
+
+Room Activate now matches Chromium's application-before-key-window ordering.
+The 18 s extension run exits 0, with NSApp active and Room window key/main.
+Tabs/windows lifecycle still passes. The action API now reaches toolbar
+availability and returns "Browser window has no toolbar"; action UI is still
+unsupported and must be supplied by Chapter 3. Source path:
+NativeWidgetNSWindowBridge::SetVisibilityState and ActionOpenPopupFunction.
+No patch/public ObjC change. Baseline nav 11.419 s; ten-page quit 0.549 s,
+26 helpers / 0 left / 0 new crashes, exit 0.

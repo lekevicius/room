@@ -323,6 +323,9 @@ void RoomBrowserWindow::DestroyBrowser() {
 }
 
 void RoomBrowserWindow::Activate() {
+  // Match NativeWidgetNSWindowBridge: AppKit must activate the application
+  // before making its window key, or an inactive app can retain no key window.
+  [NSApp activateIgnoringOtherApps:YES];
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   [objc_->window makeKeyAndOrderFront:nil];
 }

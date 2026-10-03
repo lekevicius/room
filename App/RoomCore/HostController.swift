@@ -85,6 +85,15 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
         browser.close()
     }
 
+    func activationSnapshot() -> [String: Bool] {
+        let window = windowController?.window
+        return ["applicationActive": NSApp.isActive,
+                "windowKey": window?.isKeyWindow ?? false,
+                "windowMain": window?.isMainWindow ?? false,
+                "canBecomeKey": window?.canBecomeKey ?? false,
+                "visible": window?.isVisible ?? false]
+    }
+
     // MARK: Pages
 
     @discardableResult
