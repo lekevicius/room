@@ -16,6 +16,8 @@ BUNDLE_ID="com.lekevicius.room"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 mkdir -p "$OUT"
+# Room instances without arguments that were already running (the user's own).
+before=$(pgrep -f "Room.app/Contents/MacOS/Room$" || true)
 rm -f "$OUT/states.txt"
 open -n "$APP" --args -RoomSnapshotDirectory "$OUT" -RoomSidebarFixture "$FIXTURE"
 sleep 2
@@ -28,4 +30,10 @@ while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   sleep 1
 done
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do sleep 0.5; done
+# An activate that lands just after the quit relaunches Room without
+# arguments (on the real state directory); stop any such stray.
+sleep 2
+for stray in $(pgrep -f "Room.app/Contents/MacOS/Room$" || true); do
+  grep -qx "$stray" <<<"$before" || { echo "stopping stray relaunch $stray" >&2; kill -TERM "$stray"; }
+done
 cat "$OUT/states.txt"
