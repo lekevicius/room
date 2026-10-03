@@ -23,17 +23,14 @@ enum MainMenu {
         fileMenu.addItem(withTitle: "Open Location…", action: #selector(AppDelegate.openLocation(_:)), keyEquivalent: "l")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: CommandName.closeTab, action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
-        let reopen = fileMenu.addItem(withTitle: CommandName.reopenClosedTab, action: #selector(AppDelegate.reopenClosedTab(_:)),
-                                      keyEquivalent: "t")
-        reopen.keyEquivalentModifierMask = [.command, .shift]
-        let closeWindow = fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        closeWindow.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(withTitle: CommandName.reopenClosedTab, action: #selector(AppDelegate.reopenClosedTab(_:)),
+                         keyEquivalent: "T")
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "W")
         main.addItem(submenu: fileMenu, title: "File")
 
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
-        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
         editMenu.addItem(.separator())
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
@@ -54,7 +51,8 @@ enum MainMenu {
 
         // Sidebar and tab commands (Phases 2.2, 2.3); Phase 2.8 builds the full menu set.
         let tabMenu = NSMenu(title: "Tab")
-        // ⇧⌘] / ⇧⌘[: AppKit matches the shifted character, as Safari's menu does.
+        // Shifted shortcuts name the shifted character (⇧⌘] is "}", ⇧⌘T is "T"): AppKit matches the
+        // event's characters, so "t" with a Shift mask never matches a real ⇧⌘T (checked in 2.3).
         let next = tabMenu.addItem(withTitle: CommandName.nextTab, action: #selector(AppDelegate.selectAdjacentTab(_:)), keyEquivalent: "}")
         next.tag = 1
         let previous = tabMenu.addItem(withTitle: CommandName.previousTab, action: #selector(AppDelegate.selectAdjacentTab(_:)),
@@ -76,15 +74,12 @@ enum MainMenu {
             item.tag = digit
         }
         tabMenu.addItem(.separator())
-        let mute = tabMenu.addItem(withTitle: CommandName.muteTab, action: #selector(AppDelegate.toggleMute(_:)), keyEquivalent: "m")
-        mute.keyEquivalentModifierMask = [.command, .shift]
+        tabMenu.addItem(withTitle: CommandName.muteTab, action: #selector(AppDelegate.toggleMute(_:)), keyEquivalent: "M")
         tabMenu.addItem(.separator())
         tabMenu.addItem(withTitle: "Pin Tab", action: #selector(AppDelegate.togglePin(_:)), keyEquivalent: "d")
-        let essentials = tabMenu.addItem(withTitle: "Add to Essentials", action: #selector(AppDelegate.toggleEssentials(_:)), keyEquivalent: "d")
-        essentials.keyEquivalentModifierMask = [.command, .shift]
+        tabMenu.addItem(withTitle: "Add to Essentials", action: #selector(AppDelegate.toggleEssentials(_:)), keyEquivalent: "D")
         tabMenu.addItem(.separator())
-        let clear = tabMenu.addItem(withTitle: "Clear Today Tabs", action: #selector(AppDelegate.clearTodayTabs(_:)), keyEquivalent: "k")
-        clear.keyEquivalentModifierMask = [.command, .shift]
+        tabMenu.addItem(withTitle: "Clear Today Tabs", action: #selector(AppDelegate.clearTodayTabs(_:)), keyEquivalent: "K")
         main.addItem(submenu: tabMenu, title: "Tab")
 
         #if DEBUG
