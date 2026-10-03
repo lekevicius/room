@@ -36,13 +36,14 @@ extra=()
 if [[ "$FEATURE" == extension ]]; then
   extra+=("--load-extension=$ROOT/research/spikes/phase-1.4/extension")
 fi
+start=$(date +%s)
 "$APP/Contents/MacOS/Room" -RoomSpike "$FEATURE" -RoomSpikeOutput "$DEST/spike.txt" \
   -RoomSpikeBaseURL "$http" -RoomSpikeSecureURL "$https" -RoomSpikeCDPPort "$port" \
   -RoomUserDataDir "$DEST/profile" --use-mock-keychain \
   --remote-debugging-port="$port" --remote-debugging-address=127.0.0.1 \
   ${extra[@]+"${extra[@]}"} > "$DEST/host.log" 2>&1 &
 pid=$!
-python3 -c 'import os,signal,sys,time; time.sleep(90); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" &
+python3 -c 'import os,signal,sys,time; from pathlib import Path; time.sleep(90); Path(sys.argv[2]).write_text("watchdog fired\n"); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$DEST/timeout.txt" &
 watchdog=$!
 status=0
 wait "$pid" || status=$?
@@ -50,6 +51,6 @@ pid=''
 kill "$watchdog" 2>/dev/null || true
 wait "$watchdog" 2>/dev/null || true
 watchdog=''
-printf 'feature=%s\nexit_status=%s\n' "$FEATURE" "$status" > "$DEST/receipt.txt"
+printf 'feature=%s\nexit_status=%s\nelapsed_seconds=%s\nsource_commit=%s\n' "$FEATURE" "$status" "$(( $(date +%s) - start ))" "$(git -C "$ROOT" rev-parse HEAD)" > "$DEST/receipt.txt"
 cat "$DEST/receipt.txt" "$DEST/spike.txt"
-[[ "$status" -eq 0 ]] && ! grep -q '^error:' "$DEST/spike.txt" && grep -q "^end: $FEATURE$" "$DEST/spike.txt"
+[[ "$status" -eq 0 && ! -e "$DEST/timeout.txt" ]] && ! grep -q '^error:' "$DEST/spike.txt" && grep -q "^end: $FEATURE$" "$DEST/spike.txt"

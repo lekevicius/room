@@ -15,6 +15,19 @@ final class HostCDP {
 
     func close() { socket.cancel(with: .goingAway, reason: nil) }
 
+    static func closeBrowser(port: Int) async throws {
+        // With no-startup-window, Chrome deliberately holds a remote-debugging
+        // keep-alive until Browser.close. NSApp.terminate cannot release it.
+        let endpoint = URL(string: "http://127.0.0.1:\(port)/json/version")!
+        let (data, _) = try await URLSession.shared.data(from: endpoint)
+        guard let version = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let address = version["webSocketDebuggerUrl"] as? String,
+              let url = URL(string: address) else { throw Failure("no browser CDP endpoint") }
+        let cdp = HostCDP(url: url)
+        defer { cdp.close() }
+        try await cdp.call("Browser.close")
+    }
+
     static func connect(port: Int, pageURL: String) async throws -> HostCDP {
         let endpoint = URL(string: "http://127.0.0.1:\(port)/json/list")!
         for _ in 0..<100 {

@@ -45,7 +45,15 @@ enum HostSpike {
             }
             record("end", name)
             record("terminate-request-time", Date().timeIntervalSince1970)
-            if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") { NSApp.terminate(nil) }
+            if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") {
+                let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
+                if port > 0 {
+                    do { try await HostCDP.closeBrowser(port: port) }
+                    catch { record("error", "CDP shutdown: \(error)"); NSApp.terminate(nil) }
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
         }
     }
 

@@ -24,7 +24,7 @@ start=$(date +%s)
   "$@" > "$DEST/host.log" 2>&1 &
 pid=$!
 # Bound a hung startup/quit. Watchdog targets only the child we launched.
-python3 -c 'import os,signal,sys,time; time.sleep(int(sys.argv[2])); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$((SECONDS_IDLE + 120))" &
+python3 -c 'import os,signal,sys,time; from pathlib import Path; time.sleep(int(sys.argv[2])); Path(sys.argv[3]).write_text("watchdog fired\n"); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$((SECONDS_IDLE + 120))" "$DEST/timeout.txt" &
 watchdog=$!
 trap 'kill "$watchdog" 2>/dev/null || true; kill -TERM "$pid" 2>/dev/null || true' INT TERM EXIT
 status=0
@@ -35,7 +35,7 @@ trap - INT TERM EXIT
 elapsed=$(( $(date +%s) - start ))
 printf 'pid=%s\nexit_status=%s\nelapsed_seconds=%s\nrequested_idle_seconds=%s\n' \
   "$pid" "$status" "$elapsed" "$SECONDS_IDLE" > "$DEST/receipt.txt"
-[[ "$status" -eq 0 ]] && grep -q '^idle-complete:' "$DEST/spike.txt" || {
+[[ "$status" -eq 0 && ! -e "$DEST/timeout.txt" ]] && grep -q '^idle-complete:' "$DEST/spike.txt" || {
   echo "incomplete run; see $DEST/receipt.txt and host.log" >&2; exit 1;
 }
 python3 "$ROOT/scripts/roomcore-netlog-summary.py" "$DEST/netlog.json" \
