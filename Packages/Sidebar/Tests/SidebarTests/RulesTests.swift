@@ -25,8 +25,15 @@ struct ClickRulesTests {
     func commandClick() {
         #expect(ClickRules.outcome(.command, kind: .pinned, isSelected: true, isChanged: true, isLoaded: true) == .separate)
         #expect(ClickRules.outcome(.command, kind: .essential, isSelected: true, isChanged: true, isLoaded: true) == .separate)
-        #expect(ClickRules.outcome(.command, kind: .today, isSelected: true, isChanged: false, isLoaded: true) == .none)
-        #expect(ClickRules.outcome(.command, kind: .pinned, isSelected: false, isChanged: true, isLoaded: true) == .select)
+    }
+
+    @Test("Otherwise ⌘-click toggles the multi-selection and ⇧-click extends it (§A.9)")
+    func multiSelectClicks() {
+        #expect(ClickRules.outcome(.command, kind: .today, isSelected: true, isChanged: false, isLoaded: true) == .toggleSelection)
+        #expect(ClickRules.outcome(.command, kind: .pinned, isSelected: false, isChanged: true, isLoaded: true) == .toggleSelection)
+        #expect(ClickRules.outcome(.command, kind: .essential, isSelected: true, isChanged: false, isLoaded: true) == .toggleSelection)
+        #expect(ClickRules.outcome(.shift, kind: .today, isSelected: false, isChanged: false, isLoaded: false) == .extendSelection)
+        #expect(ClickRules.outcome(.shift, kind: .pinned, isSelected: true, isChanged: true, isLoaded: true) == .extendSelection)
     }
 
     @Test("Middle-click: unload if loaded; an unloaded pinned entry is removed, an essential never; Today closes")

@@ -1,11 +1,13 @@
 import Model
 
-/// The click table of spec §A.2 as a pure function.
+/// The click table of spec §A.2 (and §A.9's multi-select clicks) as a pure function.
 public enum ClickRules {
     public enum Gesture: Equatable, Sendable {
         case primary
         /// ⌘-click.
         case command
+        /// ⇧-click.
+        case shift
         case middle
     }
 
@@ -22,6 +24,10 @@ public enum ClickRules {
         case remove
         /// Close a Today tab.
         case close
+        /// Add to or take out of the multi-selection (⌘-click, §A.9).
+        case toggleSelection
+        /// Select the range from the anchor (⇧-click, §A.9).
+        case extendSelection
         case none
     }
 
@@ -35,8 +41,9 @@ public enum ClickRules {
             return .select
         case .command:
             if isSelected && permanentTab && isChanged && isLoaded { return .separate }
-            // Multi-select toggling is Phase 2.2b; until then ⌘-click selects.
-            return isSelected ? .none : .select
+            return kind == .folder ? .none : .toggleSelection
+        case .shift:
+            return kind == .folder ? .none : .extendSelection
         case .middle:
             switch kind {
             case .today: return .close
