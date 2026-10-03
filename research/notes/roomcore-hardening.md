@@ -574,3 +574,13 @@ No engine/patch/network/public API/default baseline change. CI e19e4d5 passed
 74/87s. User requested replacing the 25-minute heartbeat with a Goal: the
 schedule was deleted and the remaining original hardening objective is active
 as a Goal. B-16 remains unresolved; detailed evidence is in the investigation.
+
+11:18 EEST diagnostic: read-only network thread queries accompany two valid
+quits1.148/2.193s and another watchdogexit2 whose ten-page fixture is separately
+rejected for a still-loading page. Network wait3831ms completes before main
+waits in TaskTracker::CompleteShutdown; the final dump shows policy-loader
+filesystem watching still in open. No duration/root-cause conclusion follows.
+Thread handle reuse is verified and explicitly labeled in diagnostic output;
+16-thread lifecycle fixture passes. B-16 remains open; no engine, patch, public
+API, network policy or default baseline change. Details and next discriminating
+measurement are in roomcore-shutdown-investigation.md.

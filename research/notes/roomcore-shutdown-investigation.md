@@ -377,3 +377,65 @@ sites and machine state differ. The 7.723 s quit is still close to the 10 s
 watchdog. B-16 is not fixed, and no causality is assigned to ps. Future bounded
 diagnostics can use this validated observer while retaining failed samples;
 there is no reason to repeat the observer lifecycle or earlier control runs.
+
+## Read-only network thread states — 11:18 EEST
+
+Added opt-in --network-thread-states (requires --process-observer libproc).
+It queries libproc thread information every 250 ms, without suspending the
+process or collecting live stacks. The original default observer, polling,
+watchdog and helper grace remain unchanged. Receipt counts and query wall time
+make the added observer work visible. Process start identity is checked before
+and after reading threads; unexpected errors fail the run.
+
+Bounded three-browser exercise, existing engine0f87b84/hosta4f8c25, total87.791s:
+
+| Group | Outcome | Network wait | Thread queries / wall seconds |
+|---|---|---|---|
+| 1 | Ten non-loading pages, quit1.148s,27helpers/0left/0crashes,exit0 | 582ms | 129 /0.705172 |
+| 2 | Ten non-loading pages, quit2.193s,25helpers/0left/0crashes,exit0 | 1668ms | 129 /1.041409 |
+| 3 | Watchdog exit2; independently rejected for Stack Overflow still loading at63s | 3831ms | 237 /0.144527 |
+
+Evidence: baseline-shutdown-thread-states. Group3 dump
+42a738ab-9ce4-43c6-9241-ea3119b6f79a is symbolized against the matching retained
+audit-sadtab component libraries. At the watchdog deadline, main is in
+TaskTracker::CompleteShutdown, not ProcessHostCleanUp. Thread38 is executing
+PolicyLoaderMac::InitOnBackgroundThread → FilePathWatcher::Watch →
+FilePathWatcherKQueue::FileDescriptorForPath → open. The task uses Chrome's
+BEST_EFFORT/MayBlock policy-loader sequence, and its stack is RunSkipOnShutdown.
+An already-running SKIP_ON_SHUTDOWN task still contributes to shutdown waiting.
+This snapshot identifies unfinished work; it does not measure the duration of
+open or prove why it was delayed. No policy-loader or scheduling change follows.
+
+Group3 network-helper teardown has18 snapshots over4.436898s. Two entries
+named ThreadPoolBackgroundWorker stay at priority4; each has3 waiting and15
+running-state samples with unchanged exported CPU counters. Thus these entries
+had reached thread naming, unlike the earlier unnamed initial-QoS stacks. The
+running-state classification is not evidence of CPU execution, and these raw
+observations do not prove starvation. The helper exits before the browser's
+later watchdog. Capturing only network threads cannot explain the entire wait.
+
+Observer qualification: PROC_PIDLISTTHREADS returns reusable thread handles,
+not unique thread IDs. The installed mach/thread_info.h calls the corresponding
+THREAD_IDENTIFIER_INFO field thread_handle. Apple's kernel dispatch separately
+selects unique IDs for other flavors:
+https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/proc_info.c.
+The raw experiment's preliminary field named id contains handles, including
+zero entries; do not aggregate CPU counters across a handle's lifetime.
+Committed output labels thread_handle/identity_kind explicitly, counts omitted
+zero handles, and records process identity. No private libproc flavor is used.
+
+Local fixture cross-checks each libproc handle/name against its own Mach
+THREAD_IDENTIFIER_INFO and observes creation/exit. Sixteen sequential threads
+reuse one handle;38 snapshots take0.000940s query time,0.010632s fixture wall.
+Two fixture corrections were required: a pthread_self pointer differs from the
+libproc handle, and Python join returns before OS teardown fully finishes.
+The fixture now uses the SDK-defined identity structure and bounded exit
+observation. Neither fixture failure was a Room failure. Python compilation and
+whitespace checks pass; CI5a34664 build passed89s.
+
+B-16 remains open. The next discriminating measurement should cover browser
+workers as well as the network service during teardown, with duration evidence
+for the policy-loader file operation versus runnable worker delay. Existing
+network-only captures and one final stack cannot justify a priority workaround,
+skipping policy work, or changing the watchdog. Preserve failed samples and
+avoid another unqualified stress loop.

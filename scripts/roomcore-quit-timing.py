@@ -58,7 +58,11 @@ def main():
                         help='diagnostic census interval; 0 preserves a full census every poll')
     parser.add_argument('--process-observer', choices=['ps', 'libproc'], default='ps',
                         help='opt-in native child observer; default retains whole-system ps')
+    parser.add_argument('--network-thread-states', action='store_true',
+                        help='native read-only thread states for the network helper; requires libproc')
     args = parser.parse_args()
+    if args.network_thread_states and args.process_observer != 'libproc':
+        parser.error('network thread states require --process-observer libproc')
     if not 0 <= args.process_snapshot_ms <= 1000:
         parser.error('process snapshot interval must be between 0 and 1000 ms')
     executable = args.app.resolve() / 'Contents/MacOS/Room'
@@ -80,12 +84,14 @@ def main():
         snapshot_seconds = 0.0
         current_helpers = {}
         native = None
+        thread_observer = None
+        thread_output = None
         load = os.getloadavg()[0]
         fixture_args = (['-RoomSpikeURLsJSON', str(args.urls_json.resolve())]
                         if args.urls_json else [])
         diagnostic_args = (['--enable-logging=stderr',
                             '--vmodule=browser_process_io_thread=1']
-                           if args.diagnose_shutdown else [])
+                           if args.diagnose_shutdown or args.network_thread_states else [])
         with (run_dir / 'host.log').open('w') as log:
             process = subprocess.Popen([str(executable), '-RoomSpike', 'open10',
                 '-RoomSpikeOutput', str(spike), '-RoomUserDataDir', str(run_dir / 'profile'),
@@ -95,6 +101,10 @@ def main():
                 if args.process_observer == 'libproc':
                     from roomcore_process_observer import ProcessObserver
                     native = ProcessObserver(process.pid)
+                    if args.network_thread_states:
+                        from roomcore_thread_observer import ThreadObserver
+                        thread_output = (run_dir / 'network-thread-states.jsonl').open('w')
+                        thread_observer = ThreadObserver(native, thread_output)
                 while process.poll() is None:
                     if time.monotonic() >= next_snapshot:
                         census_start = time.monotonic()
@@ -107,6 +117,8 @@ def main():
                         snapshot_count += 1
                         snapshot_seconds += time.monotonic() - census_start
                         next_snapshot = time.monotonic() + args.process_snapshot_ms / 1000
+                    if thread_observer is not None:
+                        thread_observer.snapshot(current_helpers, 'terminate-request-time' in markers(spike))
                     if args.diagnose_shutdown and not sampled:
                         state = markers(spike)
                         if 'terminate-request-time' in state:
@@ -153,6 +165,9 @@ def main():
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
                     'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}
+                if thread_observer is not None:
+                    receipt['network_thread_snapshots'] = thread_observer.snapshots
+                    receipt['network_thread_query_seconds'] = round(thread_observer.query_seconds, 6)
                 receipt['process_observer'] = args.process_observer
                 if native is not None:
                     receipt['targeted_command_queries'] = native.command_queries
@@ -205,10 +220,15 @@ def main():
                 if native is not None:
                     failure['targeted_command_queries'] = native.command_queries
                     failure['helper_start_times'] = {pid: native.identities[pid] for pid in native.commands}
+                if thread_observer is not None:
+                    failure['network_thread_snapshots'] = thread_observer.snapshots
+                    failure['network_thread_query_seconds'] = round(thread_observer.query_seconds, 6)
                 (run_dir / 'failure.json').write_text(
                     json.dumps(failure, indent=2) + '\n')
                 raise
             finally:
+                if thread_output is not None:
+                    thread_output.close()
                 if process.poll() is None:
                     process.terminate()
                     try:

@@ -109,3 +109,12 @@ helper after five seconds. One three-browser real-site run passes7.723/2.885/
 compared with48–50s in the earlier full-ps run; this reduces diagnostic overhead
 but does not establish a shutdown fix. Default baseline behavior is unchanged.
 The user replaced the periodic heartbeat with an active hardening Goal.
+
+Latest read-only network-thread diagnostic: two valid ten-page quits at
+1.148/2.193s, zero leftovers/crashes; a third watchdogexit2 also has an
+unfinished-page rejection. Its network-service wait completes in3831ms, while
+the final browser dump waits for ThreadPool shutdown with a policy-loader
+filesystem-watch open still active. This is evidence of unfinished work, not a
+measured open duration or root cause. Diagnostic thread-handle lifecycle and
+reuse are validated; no engine/scheduling/default-baseline behavior changed.
+B-16 remains unresolved.
