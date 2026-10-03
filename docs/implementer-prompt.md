@@ -36,7 +36,8 @@ Context you may need:
 Working rules:
 - Commit in small chunks, one per completed task, messages prefixed
   `phase-<PHASE>:`. Never add a Co-Authored-By or any attribution trailer.
-  Do not push.
+  Push once, at the very end, after the progress-log commit:
+  `git push origin main`. Never mid-phase.
 - Tick each task in docs/progress.md as you complete it; append a dated log
   entry at the end of the session; when the exit criteria are met, mark the
   phase done there with a two-to-five-line review.

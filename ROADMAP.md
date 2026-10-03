@@ -183,6 +183,8 @@ What 2.1 provides (read `Packages/Store` before designing the views): `SidebarSt
 
 Carry-over from the 2.1 review, first in 2.2a: (a) `RoomDatabase` opens with GRDB's default `busyMode` (immediate error) and `RoomStorage.open` treats *any* open failure as corruption and moves the live database aside; a second Room instance writing at that instant (a Debug build launched beside a running one, same state directory) would therefore get its database moved from under it. Set a busy timeout (5 s), and recover only when `PRAGMA integrity_check` reports damage or SQLite reports the file is not a database (`SQLITE_CORRUPT`/`SQLITE_NOTADB`); on busy/locked, fail the open with an error the app shows instead. Test it. (b) The Store test "Mutations within the debounce window coalesce into one write" sleeps a fixed 400 ms and then opens a second connection; at load 500 (a Chromium build on the laptop) the timer had not fired and the second open hit "database is locked". Wait on `onCommit` instead of sleeping, with a generous timeout. (c) Apply CLAUDE.md "Testing" to the existing suites in one commit: tag every window-creating suite in UIKitCore and Card `.window` and skip it on CI; strip the luma/contrast/shadow assertions from `WindowSnapshotTests` (it keeps writing the PNGs, and `#require` only that a capture happened); drop the on-screen expectation from the frame-restore test. Three of the four red CI runs so far were runner geometry or contrast, none a bug.
 
+Polish from the 2.2a review, in 2.2b: (a) Essentials rows balance their tile counts: five tiles at the default width must lay out 3 + 2, never 4 + 1 (`EssentialsGridView.columns` picks the column count that fits, then rows are filled left to right; compute rows = ceil(count / columns) first and spread the tiles evenly across them, last row never shorter by more than one). (b) The header's address field truncates "developer.apple.com" with an ellipsis at the default sidebar width: let the field run to the sidebar's trailing inset, trim its horizontal padding to the token, and when the domain still does not fit truncate in the middle so the TLD stays readable.
+
 Tasks:
 1. `Sidebar` package: view-based `NSOutlineView` for space title → pinned (folders) → separator/Clear → Today; Essentials as a grid row above it (`NSCollectionView` or a custom grid; ≤12, 36 pt squircles, favicon-tinted background); footer placeholder (filled in 2.5/2.6). Header (address field showing the domain only, site button, copy button on hover) laid out by `TrafficLightLayout`.
 2. Row states (spec §A.1, §I.2–I.4, I.8): unloaded (60% favicon), loaded, changed dot + reset button on hover with the ⌘ sublabel swap, audio indicator, hover background 6%, close × for Today rows; selection pill animated with `Motion.pill`; insert/remove animation 150 ms; reduced-motion crossfades.
@@ -200,13 +202,13 @@ Exit criteria: every interaction in spec §A.2–A.9 works against `FakeEngine` 
 Goal: entries become real pages on CEF; the card shows the selected one.
 
 Tasks:
-1. `TabController` (App or `Store`-side coordinator): one `WebContents` per loaded entry, created on first selection; background loaded pages stay hidden browsers; the card swaps `nativeView` on selection; `rootBackgroundColor` binding per page (Phase 1.4 `PageHost` becomes this).
+1. `TabController` (App or `Store`-side coordinator), implementing `Sidebar.SidebarHost` on CEF in place of 2.2's FakeEngine `SidebarPages` (`EntryPageState` is what the sidebar reads per entry): one `WebContents` per loaded entry, created on first selection; background loaded pages stay hidden browsers; the card swaps `nativeView` on selection; `rootBackgroundColor` binding per page (Phase 1.4 `PageHost` becomes this).
 2. Lifecycle (spec §H): unloaded entries; restore on launch with only the selected entry per window loaded; discard after idle (Today 60 min, permanent 3 h) and on memory pressure (`DISPATCH_MEMORYPRESSURE_WARN`, LRU across spaces, never selected/audible); discarded entries keep URL/title/favicon (CEF has no navigation-history serialisation: back/forward is lost on discard and recorded as a CEF cap).
 3. ⌘W (spec §A.3) with MRU fallback, ⇧⌘T reopen stack, related-tab insertion under the opener (§A.7), MRU on close, closing the last Today tab → empty state ("Press ⌘T…").
 4. Tab switching: ⌃Tab MRU overlay (5 recent, hold ⌃, W closes), ⌘1–9, ⇧⌘] / ⇧⌘[, ⌥⌘↓ / ⌥⌘↑ (reserved set, `UIKitCore.ReservedShortcuts`).
 5. Page state into the store: title, favicon (download + cache by host, letter-tile fallback), live URL, `isChanged`, loading, audible (mute ⇧⌘M), `lastActiveAt`.
 6. Links from permanent entries navigate in place this phase (Peek in 2.7).
-7. Delete the Chapter 1 debug page list; keep the debug toolbar's URL field, back/forward/reload until 2.4 replaces them with the palette (there is no other way to enter a URL before then); keep `SpikeRunner`.
+7. Delete `SidebarPages` and the Chapter 1 debug page list; keep the Debug ▸ Show Debug Toolbar panel's URL field, back/forward/reload and the ⌘T/⌘L URL prompt until 2.4 replaces them with the palette (there is no other way to enter a URL before then); keep `SpikeRunner` and the sidebar fixtures.
 
 Exit criteria: 50 entries with 10 loaded; switching selection under 16 ms main-thread from click to the new page in the card (median and p95 recorded in `spike-results.md`), summed RSS recorded; quit and relaunch restore the tree with only the selected entry loaded; ⌘W/⇧⌘T/MRU behave per spec in tests against `FakeEngine` and by hand on CEF.
 
@@ -219,7 +221,7 @@ Tasks:
 2. Semantics (spec §C): ⌘T new (no tab until commit; Enter = new Today tab, ⌘Enter = current tab, ⌥Enter = background), ⌘L edit (prefilled, selected; Enter unchanged = reload), ⌘T/⌘L again closes, header-field click edits in place, typed text kept per tab for 45 s, inline host completion from history only.
 3. `Omnibox` package: providers (verbatim/URL fixup, open tabs across spaces, pinned & essentials, history FTS5 + frecency, search suggest, commands registry with the spec §C list), one scorer in Chromium-like bands, dedupe by normalised URL, max 8 rows, Tab cycles groups, `>` or Tab-from-empty enters commands, site-search keywords (`yt` + Tab).
 4. History recording: committed main-frame navigations → `history_url`/`history_visit` (Model), delete-suggestion (⇧Delete / ⌘⌥Delete).
-5. Delete the Chapter 1 debug toolbar once the palette opens URLs.
+5. Delete the Debug toolbar panel and the ⌘T/⌘L URL prompt once the palette opens URLs; `SidebarHost.newTab` and `editAddress` open the palette.
 6. Search suggest: DuckDuckGo, Google, Kagi clients, 120 ms debounce, cancel in flight; **off switch in Settings and honoured immediately** (CLAUDE.md); suggestions on by default; default engine Google until the first-run choice (2.8) (user decision, 2026-10-03).
 
 Exit criteria: spec §C works minus engine-provided ranking; scorer and provider unit tests; keystroke-to-local-results p95 under 16 ms with 50k history rows (synthetic) — measured and recorded; with suggestions off, no network request leaves the app while typing (verified with a net-log or proxy).
@@ -235,7 +237,7 @@ Tasks:
 4. Profiles as CEF request contexts at `<root>/Room Profile <name>` (Phase 1.4 finding); moving an entry to a space with another profile reloads it in the new context with a one-time warning.
 5. Drag an entry onto a space icon (500 ms) to move it (2.2 carry).
 
-Exit criteria: spec §B minus routing (routing is 4.2); two profiles keep separate cookies (verified with a test page setting a cookie); switching spaces with 10 loaded pages per space shows no material flash.
+Exit criteria: spec §B minus routing (routing is 4.2); two profiles keep separate cookies (verified with a test page setting a cookie); switching spaces with 10 loaded pages per space shows no material flash. Switching spaces re-measures the outline's full reload (42.7 ms for 508 rows in 2.2a, over a 120 Hz frame): the slide must not wait on it (reload the next space's outline before the slide, or reuse rows), measured and recorded.
 
 ### Phase 2.6 — Chrome surfaces
 
