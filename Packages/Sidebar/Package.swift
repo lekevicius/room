@@ -12,9 +12,10 @@ let package = Package(
         .package(path: "../Model"),
         .package(path: "../Store"),
         .package(path: "../Chrome"),
+        .package(path: "../Omnibox"),
     ],
     targets: [
-        .target(name: "Sidebar", dependencies: ["Design", "Model", "Store", "Chrome"], swiftSettings: mainActorByDefault),
-        .testTarget(name: "SidebarTests", dependencies: ["Sidebar", "Store", "Model", "Chrome"], swiftSettings: mainActorByDefault),
+        .target(name: "Sidebar", dependencies: ["Design", "Model", "Store", "Chrome", "Omnibox"], swiftSettings: mainActorByDefault),
+        .testTarget(name: "SidebarTests", dependencies: ["Sidebar", "Store", "Model", "Chrome", "Omnibox"], swiftSettings: mainActorByDefault),
     ]
 )

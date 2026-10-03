@@ -1,6 +1,7 @@
 import AppKit
 import Chrome
 import Model
+import Omnibox
 import Store
 import Testing
 @testable import Sidebar

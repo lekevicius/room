@@ -2,6 +2,7 @@ import AppKit
 import Chrome
 import Design
 import Model
+import Omnibox
 import Store
 
 /// Drag and drop (spec §A.9, §A.6 folders, §I.7 content): reorder with the

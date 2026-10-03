@@ -1,5 +1,5 @@
 import AppKit
-import Sidebar
+import Omnibox
 
 /// ⌘T and ⌘L until the palette (Phase 2.4 deletes this): a modal prompt.
 enum URLPrompt {

@@ -79,26 +79,6 @@ struct EntryLabelTests {
     }
 }
 
-@Suite("Edit Pinned URL fixup (spec §A.5)")
-struct URLFixupTests {
-    @Test("Bare hosts get a scheme; URLs pass", arguments: [
-        ("example.com", "https://example.com"),
-        ("example.com/path?q=1", "https://example.com/path?q=1"),
-        ("https://example.com/x", "https://example.com/x"),
-        ("http://intranet.local:8080", "http://intranet.local:8080"),
-        ("localhost:3000", "http://localhost:3000"),
-        ("about:blank", "about:blank"),
-    ])
-    func accepted(text: String, url: String) {
-        #expect(URLFixup.url(from: text) == url)
-    }
-
-    @Test("Not URLs", arguments: ["", "   ", "hello world", "nodot", "https://", ".com", "example..com"])
-    func refused(text: String) {
-        #expect(URLFixup.url(from: text) == nil)
-    }
-}
-
 @Suite("Essentials grid layout (spec §I.2)")
 struct EssentialsLayoutTests {
     @Test("Tiles fill the width; columns as fit, capped by count and the maximum")

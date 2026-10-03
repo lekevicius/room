@@ -2,6 +2,7 @@ import AppKit
 import Chrome
 import Design
 import Model
+import Omnibox
 import Store
 
 /// Context menus (spec §A.8 entries, §A.6 folders) and the footer's "+"

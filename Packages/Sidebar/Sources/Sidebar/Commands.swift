@@ -1,4 +1,5 @@
 import AppKit
+import Omnibox
 
 /// Command names shared by the sidebar's menus and, from Phase 2.4, the
 /// palette's command list, so users learn one vocabulary (spec §I.10). Names
@@ -59,41 +60,9 @@ public enum CommandName {
     public static func removeTabs(_ count: Int) -> String { "Remove \(count) Tabs" }
 }
 
-/// "Edit Pinned URL…" and "Paste URL as New Tab" input (spec §A.5): adds a
-/// scheme to bare hosts; refuses text that is not a URL.
-public enum URLFixup {
-    private static let schemes: Set<String> = ["http", "https", "file", "about", "data", "chrome", "view-source"]
-
-    public static func url(from text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains(where: \.isWhitespace) else { return nil }
-        if let colon = trimmed.firstIndex(of: ":") {
-            let scheme = trimmed[..<colon].lowercased()
-            if schemes.contains(scheme) {
-                guard let components = URLComponents(string: trimmed) else { return nil }
-                if scheme == "http" || scheme == "https" { guard components.host?.isEmpty == false else { return nil } }
-                return trimmed
-            }
-        }
-        // A bare host (with optional port, path, query): needs a dot or be localhost.
-        guard let components = URLComponents(string: "https://" + trimmed), let host = components.host, !host.isEmpty else {
-            return nil
-        }
-        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
-        let isLocal = host == "localhost" || host.hasSuffix(".localhost")
-        guard isLocal || (labels.count >= 2 && labels.allSatisfy { !$0.isEmpty }) else { return nil }
-        let scheme = isLocal ? "http://" : "https://"
-        return scheme + trimmed
-    }
-
-    /// Plain text dropped on the sidebar becomes a search tab (spec §A.9).
-    /// Google until the palette's search engine setting (Phase 2.4, backlog B-12).
-    public static func searchURL(for text: String) -> String {
-        var components = URLComponents(string: "https://www.google.com/search")!
-        components.queryItems = [URLQueryItem(name: "q", value: text.trimmingCharacters(in: .whitespacesAndNewlines))]
-        return components.url!.absoluteString
-    }
-
+/// Drops from outside the window (spec §A.9); `URLFixup` itself lives in
+/// the `Omnibox` package with the palette's verbatim row.
+extension URLFixup {
     /// What a drop from outside the window opens (spec §A.9, §I.7): every
     /// URL or file on the pasteboard, else each line of text if all are
     /// URLs, else one search for the text.
