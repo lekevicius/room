@@ -61,6 +61,15 @@ public struct RemovedEntry: Equatable, Sendable {
     public var index: Int
 }
 
+/// A deleted space with everything it held, for Undo (spec §B; B-15: the
+/// Archive that keeps them is Chapter 4.1, an Undo toast until then).
+public struct RemovedSpace: Equatable, Sendable {
+    public var space: Space
+    public var index: Int
+    public var entries: [Entry]
+    public var splitGroups: [SplitGroup]
+}
+
 /// One node of a space's pinned tree.
 public struct PinnedNode: Equatable, Sendable {
     public var entry: Entry
@@ -186,21 +195,49 @@ public final class SidebarStore {
 
     // MARK: Profiles and spaces
 
+    /// A new profile (cookie jar). Names are unique ignoring case ("Work 2"):
+    /// the engine keeps one directory per name.
     @discardableResult
     public func createProfile(name: String) -> Profile {
-        let profile = Profile(name: name, position: profiles.count)
+        let profile = Profile(name: SpaceRules.uniqueName(name, existing: profiles.map(\.name)), position: profiles.count)
         profiles.append(profile)
         commit(SidebarChange(spaces: [profile.id]))
         return profile
     }
 
+    /// A new space at `index` (default: the end), with its look (spec §B form).
     @discardableResult
-    public func createSpace(name: String, profile profileID: UUID, icon: String? = nil) throws(SidebarError) -> Space {
+    public func createSpace(name: String, profile profileID: UUID, icon: String? = nil, themeColors: [String] = [],
+                            themeAlgorithm: ThemeAlgorithm = .floating, themeOpacity: Double = 0.5,
+                            at index: Int? = nil) throws(SidebarError) -> Space {
         guard profiles.contains(where: { $0.id == profileID }) else { throw .unknownProfile(profileID) }
-        let space = Space(name: name, icon: icon, profileID: profileID, position: spaces.count)
-        spaces.append(space)
-        commit(SidebarChange(spaces: [space.id]))
-        return space
+        let space = Space(name: name, icon: icon, themeColors: Array(themeColors.prefix(ThemePalette.maxColors)),
+                          themeAlgorithm: themeAlgorithm, themeOpacity: themeOpacity, profileID: profileID, position: spaces.count)
+        spaces.insert(space, at: min(max(index ?? spaces.count, 0), spaces.count))
+        for i in spaces.indices { spaces[i].position = i }
+        commit(SidebarChange(spaces: Set(spaces.map(\.id))))
+        return self.space(space.id)!
+    }
+
+    /// "Set Profile" (spec §B): the space and everything in it (pinned
+    /// entries, folders, Today tabs) move to `profileID`'s cookie jar; the
+    /// profile's essentials show in it from now on. Returns the entries
+    /// that changed profile (their pages load again in the new one).
+    @discardableResult
+    public func setSpaceProfile(_ spaceID: UUID, to profileID: UUID) throws(SidebarError) -> [Entry] {
+        guard let index = spaces.firstIndex(where: { $0.id == spaceID }) else { throw .unknownSpace(spaceID) }
+        guard profiles.contains(where: { $0.id == profileID }) else { throw .unknownProfile(profileID) }
+        guard spaces[index].profileID != profileID else { return [] }
+        spaces[index].profileID = profileID
+        var change = SidebarChange(spaces: [spaceID])
+        var moved: [Entry] = []
+        for entry in entries.values where entry.spaceID == spaceID {
+            entries[entry.id]?.profileID = profileID
+            change.entries.insert(entry.id)
+            if entry.kind != .folder { moved.append(entry) }
+        }
+        commit(change)
+        return moved
     }
 
     /// Edits name, icon, theme or the pinned-collapsed flag (not id, profile or position).
@@ -226,9 +263,14 @@ public final class SidebarStore {
 
     /// Deletes a space with its pinned entries and Today tabs (the Archive
     /// that keeps them is Chapter 4.1). The last space cannot be deleted.
-    public func deleteSpace(_ id: UUID) throws(SidebarError) {
-        guard spaces.contains(where: { $0.id == id }) else { throw .unknownSpace(id) }
+    /// Returns what it removed, for `restoreSpace` (Undo).
+    @discardableResult
+    public func deleteSpace(_ id: UUID) throws(SidebarError) -> RemovedSpace {
+        guard let index = spaces.firstIndex(where: { $0.id == id }) else { throw .unknownSpace(id) }
         guard spaces.count > 1 else { throw .lastSpace }
+        let removed = RemovedSpace(space: spaces[index], index: index, entries: entries.values.filter { $0.spaceID == id },
+                                   splitGroups: [])
+        let groupsBefore = splitGroups
         var change = SidebarChange()
         for entry in entries.values where entry.spaceID == id {
             entries[entry.id] = nil
@@ -247,6 +289,32 @@ public final class SidebarStore {
         for i in spaces.indices { spaces[i].position = i }
         change.removedSpaces = [id]
         change.spaces = Set(spaces.map(\.id))
+        commit(change)
+        var result = removed
+        result.splitGroups = groupsBefore.values.filter { splitGroups[$0.id] == nil }
+        return result
+    }
+
+    /// Undo of `deleteSpace`: the space back at its place with its entries
+    /// in their containers and order (split groups it ended come back too).
+    /// Nothing happens if a space with its id exists again.
+    public func restoreSpace(_ removed: RemovedSpace) {
+        guard space(removed.space.id) == nil else { return }
+        var restored = removed.space
+        if !profiles.contains(where: { $0.id == restored.profileID }), let first = profiles.first { restored.profileID = first.id }
+        spaces.insert(restored, at: min(max(removed.index, 0), spaces.count))
+        for i in spaces.indices { spaces[i].position = i }
+        for group in removed.splitGroups where splitGroups[group.id] == nil { splitGroups[group.id] = group }
+        var change = SidebarChange(spaces: Set(spaces.map(\.id)))
+        for var entry in removed.entries.sorted(by: { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }) {
+            entry.profileID = restored.profileID
+            if let group = entry.splitGroupID, splitGroups[group] == nil { entry.splitGroupID = nil }
+            entries[entry.id] = entry
+            containers[entry.container, default: []].append(entry.id)
+            change.entries.insert(entry.id)
+            change.containers.insert(entry.container)
+        }
+        for container in change.containers { renumber(container, change: &change) }
         commit(change)
     }
 

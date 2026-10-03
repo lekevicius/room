@@ -400,6 +400,73 @@ struct SidebarStoreTests {
         #expect(try test.reopen().sidebar.spaces.map(\.id) == [space.id])
     }
 
+    @Test("Spaces: created with their look at a position, reordered, positions contiguous (spec §B)")
+    func spaceCRUD() throws {
+        let b = try sidebar.createSpace(name: "B", profile: profile.id, icon: "🌲", themeColors: ["#FF0000", "#00FF00", "#0000FF", "#FFFFFF"],
+                                        themeAlgorithm: .triadic, themeOpacity: 0.8)
+        let a = try sidebar.createSpace(name: "A", profile: profile.id, at: 0)
+        #expect(sidebar.spaces.map(\.id) == [a.id, space.id, b.id])
+        #expect(sidebar.spaces.map(\.position) == [0, 1, 2])
+        #expect(b.icon == "🌲" && b.themeAlgorithm == .triadic && b.themeOpacity == 0.8)
+        #expect(b.themeColors == ["#FF0000", "#00FF00", "#0000FF"], "three colours at most")
+        try sidebar.moveSpace(a.id, to: 2)
+        #expect(sidebar.spaces.map(\.id) == [space.id, b.id, a.id])
+        #expect(sidebar.spaces.map(\.position) == [0, 1, 2])
+        try sidebar.updateSpace(b.id) { $0.name = "Bee"; $0.themeColors = ["#123456"]; $0.icon = "leaf" }
+        #expect(sidebar.space(b.id)?.name == "Bee")
+        #expect(sidebar.space(b.id)?.icon == "leaf")
+        store.close()
+        let reopened = try test.reopen().sidebar
+        #expect(reopened.spaces.map(\.name) == ["Space", "Bee", "A"])
+        #expect(reopened.space(b.id)?.themeAlgorithm == .triadic)
+    }
+
+    @Test("Profile names are unique ignoring case")
+    func profileNames() {
+        #expect(sidebar.createProfile(name: "Work").name == "Work")
+        #expect(sidebar.createProfile(name: "work").name == "work 2")
+        #expect(sidebar.createProfile(name: "default").name == "default 2")
+    }
+
+    @Test("Set Profile moves the space's entries to the profile; essentials stay with theirs (spec §B)")
+    func setProfile() throws {
+        let work = sidebar.createProfile(name: "Work")
+        let folder = try sidebar.addFolder(name: "F", space: space.id)
+        let child = try sidebar.addEntry(.pinned, url: "https://child", space: space.id, folder: folder.id)
+        let tab = try sidebar.addEntry(.today, url: "https://t", space: space.id)
+        let essential = try sidebar.addEntry(.essential, url: "https://e", space: space.id)
+        let moved = try sidebar.setSpaceProfile(space.id, to: work.id)
+        #expect(Set(moved.map(\.id)) == [child.id, tab.id])
+        #expect(sidebar.space(space.id)?.profileID == work.id)
+        for id in [folder.id, child.id, tab.id] { #expect(sidebar.entry(id)?.profileID == work.id) }
+        #expect(sidebar.entry(essential.id)?.profileID == profile.id)
+        #expect(sidebar.essentials(profile: work.id).isEmpty)
+        #expect(try sidebar.setSpaceProfile(space.id, to: work.id).isEmpty, "already there")
+        #expect(throws: SidebarError.unknownProfile(space.id)) { try sidebar.setSpaceProfile(space.id, to: space.id) }
+    }
+
+    @Test("Undo of Delete Space puts it back at its place with its entries in order (B-15)")
+    func restoreSpace() throws {
+        let other = try sidebar.createSpace(name: "Other", profile: profile.id)
+        let last = try sidebar.createSpace(name: "Last", profile: profile.id)
+        let folder = try sidebar.addFolder(name: "F", space: other.id)
+        let child = try sidebar.addEntry(.pinned, url: "https://child", space: other.id, folder: folder.id)
+        let pinned = try sidebar.addEntry(.pinned, url: "https://p", space: other.id)
+        let tabs = try (0..<3).map { try sidebar.addEntry(.today, url: "https://t\($0)", space: other.id) }
+        let removed = try sidebar.deleteSpace(other.id)
+        #expect(removed.index == 1)
+        #expect(removed.entries.count == 6)
+        #expect(sidebar.spaces.map(\.id) == [space.id, last.id])
+        sidebar.restoreSpace(removed)
+        #expect(sidebar.spaces.map(\.id) == [space.id, other.id, last.id])
+        #expect(sidebar.spaces.map(\.position) == [0, 1, 2])
+        #expect(sidebar.pinned(space: other.id).map(\.id) == [folder.id, pinned.id])
+        #expect(sidebar.pinned(space: other.id, folder: folder.id).map(\.id) == [child.id])
+        #expect(sidebar.today(space: other.id).map(\.id) == tabs.map(\.id))
+        sidebar.restoreSpace(removed)
+        #expect(sidebar.spaces.count == 3, "a second Undo does nothing")
+    }
+
     @Test("Reset, replace and isChanged on a pinned entry (§A.5)")
     func resetAndReplace() throws {
         let pinned = try sidebar.addEntry(.pinned, url: "https://site/", title: "Site", space: space.id)
