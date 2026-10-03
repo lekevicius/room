@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- Phase 2.5 profile check: ?set=<value> stores a cookie `room_profile=<value>`
+     (one year); the page shows the cookies it can see. Serve over http (file://
+     pages have no cookies): python3 -m http.server -d research/spikes/phase-2.5 8765 -->
+<html><head><meta charset="utf-8"><title>Cookies</title>
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } code { font-size: 20px; }</style></head>
+<body><h1>Cookies on this origin</h1><p><code id="cookies"></code></p>
+<script>
+  const set = new URLSearchParams(location.search).get('set');
+  if (set) document.cookie = `room_profile=${encodeURIComponent(set)}; max-age=31536000; path=/; SameSite=Lax`;
+  const shown = document.cookie || '(none)';
+  document.getElementById('cookies').textContent = shown;
+  document.title = 'Cookies: ' + shown;
+</script></body></html>

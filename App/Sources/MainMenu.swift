@@ -23,6 +23,7 @@ enum MainMenu {
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(withTitle: "New Tab", action: #selector(AppDelegate.newPage(_:)), keyEquivalent: "t")
         fileMenu.addItem(withTitle: "Open Location…", action: #selector(AppDelegate.openLocation(_:)), keyEquivalent: "l")
+        fileMenu.addItem(withTitle: CommandName.newSpace, action: #selector(AppDelegate.newSpace(_:)), keyEquivalent: "")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: CommandName.closeTab, action: #selector(AppDelegate.closeTab(_:)), keyEquivalent: "w")
         fileMenu.addItem(withTitle: CommandName.reopenClosedTab, action: #selector(AppDelegate.reopenClosedTab(_:)),
@@ -84,6 +85,28 @@ enum MainMenu {
         tabMenu.addItem(.separator())
         tabMenu.addItem(withTitle: "Clear Today Tabs", action: #selector(AppDelegate.clearTodayTabs(_:)), keyEquivalent: "K")
         main.addItem(submenu: tabMenu, title: "Tab")
+
+        // Spaces (Phase 2.5, spec §B): ⌃1…⌃9 and ⌃0, ⌥⌘→ / ⌥⌘← wrapping.
+        let spacesMenu = NSMenu(title: "Spaces")
+        let right = String(UnicodeScalar(NSRightArrowFunctionKey)!), left = String(UnicodeScalar(NSLeftArrowFunctionKey)!)
+        let nextSpace = spacesMenu.addItem(withTitle: SpaceCommandName.nextSpace, action: #selector(AppDelegate.selectAdjacentSpace(_:)),
+                                           keyEquivalent: right)
+        nextSpace.keyEquivalentModifierMask = [.command, .option]
+        nextSpace.tag = 1
+        let previousSpace = spacesMenu.addItem(withTitle: SpaceCommandName.previousSpace,
+                                               action: #selector(AppDelegate.selectAdjacentSpace(_:)), keyEquivalent: left)
+        previousSpace.keyEquivalentModifierMask = [.command, .option]
+        previousSpace.tag = -1
+        spacesMenu.addItem(.separator())
+        for digit in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] {
+            let item = spacesMenu.addItem(withTitle: "Space \(digit == 0 ? 10 : digit)", action: #selector(AppDelegate.selectSpaceByNumber(_:)),
+                                          keyEquivalent: "\(digit)")
+            item.keyEquivalentModifierMask = [.control]
+            item.tag = digit
+        }
+        spacesMenu.addItem(.separator())
+        spacesMenu.addItem(withTitle: CommandName.newSpace, action: #selector(AppDelegate.newSpace(_:)), keyEquivalent: "")
+        main.addItem(submenu: spacesMenu, title: "Spaces")
 
         #if DEBUG
         // The page lifecycle checks (2.3). The Chapter 1 debug toolbar is gone: the palette opens URLs (2.4).

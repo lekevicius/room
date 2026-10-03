@@ -22,8 +22,15 @@ let delegate = AppDelegate(engine: engine)
 NSApplication.shared.delegate = delegate
 
 do {
+    var engineDirectory = AppPaths.engineUserData
+    #if DEBUG
+    // Spikes that write site data (the Phase 2.5 cookie check) use a throwaway engine root.
+    if let override = UserDefaults.standard.string(forKey: "RoomEngineDirectory") {
+        engineDirectory = URL(fileURLWithPath: override, isDirectory: true)
+    }
+    #endif
     let configuration = EngineConfiguration(
-        userDataDirectory: try AppPaths.ensureDirectory(AppPaths.engineUserData),
+        userDataDirectory: try AppPaths.ensureDirectory(engineDirectory),
         logFile: try AppPaths.ensureDirectory(AppPaths.logs).appending(path: "engine.log"),
         // CEF 154's stable API cannot rename the "Chromium Safe Storage"
         // keychain item, so a signed build would share (and prompt for) the

@@ -5,8 +5,8 @@ import Sidebar
 
 /// The palette's commands (spec §C list, `CommandRegistry`): which can run
 /// now and what each does. Commands of later phases (screenshot, archive,
-/// find, new space, split view, private window, print, routing) are not
-/// offered until their phase gives them something to do.
+/// find, split view, private window, print, routing) are not offered until
+/// their phase gives them something to do.
 extension AppDelegate {
     func paletteCommands() -> [OmniboxCommand] {
         guard let sidebar, let tabs else { return [] }
@@ -32,6 +32,9 @@ extension AppDelegate {
         add(CommandRegistry.autoAppearance, .appearance, when: NSApp.appearance != nil)
         add(CommandRegistry.toggleSidebar, .toggleSidebar)
         add(CommandRegistry.unloadTab, .unload, when: sidebar.selectedHasPage)
+        add(CommandRegistry.newSpace, .newSpace)
+        add(CommandRegistry.nextSpace, .space, when: sidebar.otherSpaces.count > 0)
+        add(CommandRegistry.previousSpace, .space, when: sidebar.otherSpaces.count > 0)
         for space in sidebar.otherSpaces {
             add(CommandRegistry.focus(space: space.id, name: space.name), .space)
             add(CommandRegistry.move(toSpace: space.id, name: space.name), .moveTo, when: sidebar.canMoveSelected)
@@ -63,6 +66,9 @@ extension AppDelegate {
         case CommandRegistry.autoAppearance.id: NSApp.appearance = nil
         case CommandRegistry.toggleSidebar.id: windowController?.toggleSidebar(nil)
         case CommandRegistry.unloadTab.id: sidebar.unloadSelected()
+        case CommandRegistry.newSpace.id: sidebar.newSpace()
+        case CommandRegistry.nextSpace.id: sidebar.showAdjacentSpace(1)
+        case CommandRegistry.previousSpace.id: sidebar.showAdjacentSpace(-1)
         default: NSLog("Room: palette command \(id) has no action")
         }
     }

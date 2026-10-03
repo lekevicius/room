@@ -295,7 +295,7 @@ extension SpikeRunner.Context {
 /// A display link that runs for the whole measurement and remembers when
 /// each frame started; `firstTick(after:)` finds the first frame after an
 /// instant (`nil` if none comes: occluded window).
-private final class FrameTicks: NSObject {
+final class FrameTicks: NSObject {
     private var link: CADisplayLink?
     private var times: [ContinuousClock.Instant] = []
     private var intervals: [Double] = []

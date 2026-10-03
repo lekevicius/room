@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- Phase 2.5 space-switch pages: a full-bleed colour per page (?hue=0..359&n=label),
+     so a frame where the card shows anything but a page stands out. -->
+<html><head><meta charset="utf-8"><title>Page</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 600 48px -apple-system, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; color: rgba(0,0,0,.55); }
+</style></head>
+<body><div id="label"></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const hue = Number(params.get('hue') || 210);
+  document.body.style.background = `hsl(${hue} 70% 82%)`;
+  document.documentElement.style.background = `hsl(${hue} 70% 82%)`;
+  const label = params.get('n') || 'page';
+  document.getElementById('label').textContent = label;
+  document.title = label;
+</script></body></html>

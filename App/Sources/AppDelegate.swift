@@ -51,14 +51,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { await startSession() }
     }
 
-    /// The default profile: the tab controller loads the selected entry once
-    /// it exists. Then the DEBUG runners.
+    /// Every model profile's engine profile (a CEF request context at
+    /// `<root>/Room Profile <name>`, ROADMAP 2.5 task 4): the tab controller
+    /// loads the selected entry once its profile exists. Then the DEBUG runners.
     private func startSession() async {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
         do {
-            let profile = try await engine.createProfile(name: "Default")
-            profile.downloadsDelegate = pageDelegate
-            if tabs.profile == nil { tabs.profile = profile }
+            let profiles = store?.sidebar.profiles ?? []
+            for model in profiles where tabs.engineProfiles[model.id] == nil {
+                let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
+                profile.downloadsDelegate = pageDelegate
+                if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
+            }
             // The Phase 1.4 overlay spikes (DEBUG `SpikeRunner`).
             overlays = OverlaySpike(rootView: controller.rootView)
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
@@ -191,6 +195,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let tabs = TabController(store: store)
         tabs.engine = engine
         let pageDelegate = PageUIDelegate(host: pageHost)
+        // A profile made after launch (a new space's "New Profile…") gets its engine profile on first use.
+        tabs.requestEngineProfile = { [weak self, weak tabs, weak pageDelegate] model in
+            Task { @MainActor in
+                guard let self, let tabs else { return }
+                do {
+                    let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
+                    profile.downloadsDelegate = pageDelegate
+                    tabs.setEngineProfile(profile, for: model.id)
+                } catch {
+                    NSLog("Room: no engine profile for \(model.name): \(error)")
+                }
+            }
+        }
         tabs.display = pageHost
         tabs.sidebar = sidebar
         tabs.pageUIDelegate = pageDelegate
@@ -208,6 +225,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         controller.sidebarView.headerView = sidebar.addressField
         controller.sidebarView.bodyView = sidebar.bodyView
         sidebar.onSpaceChange = { [weak controller] space in controller?.spaceTitle = space.name }
+        // The window's tint follows the active space's theme (spec §B), crossfading with the slide.
+        sidebar.onTintChange = { [weak controller] theme, animated in
+            controller?.materialView.setTint(theme.map(SpaceTint.init), animated: animated)
+        }
+        controller.materialView.setTint(sidebar.activeSpace?.theme.map(SpaceTint.init), animated: false)
         let rootView = controller.rootView
         let toasts = ToastCenter(hostView: rootView) { [weak rootView] in
             guard let rootView else { return ToastCenter.Anchor(rect: .zero, alignment: .center) }
@@ -266,6 +288,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.startLifecycle()
         // Only the selected entry loads at launch (spec §H); it waits for the profile.
         tabs.showSelection()
+        // The other spaces' lists are built after the first frame, one per turn,
+        // so a switch never waits on a list (ROADMAP 2.5 exit).
+        DispatchQueue.main.async { [weak sidebar] in sidebar?.prepareSpaces() }
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open
@@ -337,6 +362,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⇧⌘M.
     @objc func toggleMute(_ sender: Any?) { sidebar?.toggleMuteSelected() }
 
+    /// ⌃1…⌃9, ⌃0 (the item's tag is the digit; spec §B).
+    @objc func selectSpaceByNumber(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.showSpace(digit: item.tag)
+    }
+
+    /// ⌥⌘→ (tag 1) and ⌥⌘← (tag −1), wrapping around.
+    @objc func selectAdjacentSpace(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.showAdjacentSpace(item.tag)
+    }
+
+    /// File ▸ New Space (the form in the sidebar).
+    @objc func newSpace(_ sender: Any?) { sidebar?.newSpace() }
+
     /// ⌘D: pin / unpin the selected entry or the multi-selection.
     @objc func togglePin(_ sender: Any?) { sidebar?.togglePin() }
 
@@ -388,6 +428,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return sidebar?.canCloseCommandTargets == true
         case #selector(reopenClosedTab(_:)):
             return sidebar?.canReopenClosedTab == true
+        case #selector(selectSpaceByNumber(_:)):
+            guard let spaces = store?.sidebar.spaces else { return false }
+            let index = menuItem.tag == 0 ? 9 : menuItem.tag - 1
+            if spaces.indices.contains(index) { menuItem.title = spaces[index].name }
+            return spaces.indices.contains(index)
+        case #selector(selectAdjacentSpace(_:)):
+            return (store?.sidebar.spaces.count ?? 0) > 1
         case #selector(toggleMute(_:)):
             let muted = sidebar?.selectedEntryID.flatMap { tabs?.pageState(for: $0).isMuted } ?? false
             menuItem.title = muted ? CommandName.unmuteTab : CommandName.muteTab
@@ -401,5 +448,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         default:
             return true
         }
+    }
+}
+
+extension SpaceTint {
+    /// A space's theme as the window draws it: its palette, a darker variant
+    /// for dark mode (`ThemePalette.darkVariant`), its opacity in the tint range.
+    init(_ theme: SpaceTheme) {
+        func colors(_ hexes: [String]) -> [NSColor] {
+            hexes.compactMap(HSLColor.init(hex:)).map { NSColor(srgbRed: $0.rgb.red, green: $0.rgb.green, blue: $0.rgb.blue, alpha: 1) }
+        }
+        let range = Double(Materials.tintOpacityRange.lowerBound)...Double(Materials.tintOpacityRange.upperBound)
+        self.init(light: colors(theme.colors), dark: colors(ThemePalette.darkVariant(theme.colors)),
+                  alpha: CGFloat(ThemePalette.tintAlpha(opacity: theme.opacity, range: range)))
     }
 }
