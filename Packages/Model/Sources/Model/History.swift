@@ -157,6 +157,11 @@ public final class History: Sendable {
         }, completion: { _, result in completion?(result) })
     }
 
+    /// Returns once every queued write (visits, titles) has finished.
+    public func waitForPendingWrites() {
+        do { try pool.barrierWriteWithoutTransaction { _ in } } catch { NSLog("Room: history writes not drained: \(error)") }
+    }
+
     /// Synchronous variant (the importer, tests).
     public func recordVisitNow(url: String, title: String?, transition: HistoryTransition, profile: UUID, at date: Date = Date()) throws {
         guard transition.isVisit, Self.hostKey(for: url) != nil else { return }

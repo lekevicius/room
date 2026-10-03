@@ -56,7 +56,12 @@ final class TabsFixture {
         sidebar.host = tabs
     }
 
-    deinit { try? FileManager.default.removeItem(at: directory) }
+    /// The store closes first: removing the directory under a write still in
+    /// flight logged "disk I/O error" (2.5 carry-over).
+    isolated deinit {
+        store.close()
+        try? FileManager.default.removeItem(at: directory)
+    }
 
     var sidebarStore: SidebarStore { store.sidebar }
 

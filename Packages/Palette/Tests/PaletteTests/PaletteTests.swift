@@ -113,7 +113,10 @@ final class PaletteFixture {
     /// Paste & Go's clipboard: tests never touch the real one.
     let clipboard = FakeClipboard()
 
-    deinit { try? FileManager.default.removeItem(at: directory) }
+    isolated deinit {
+        store.close()
+        try? FileManager.default.removeItem(at: directory)
+    }
 
     var today: [Entry] { store.sidebar.today(space: space.id) }
 

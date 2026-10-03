@@ -70,8 +70,10 @@ public final class RoomStore {
         do { try persistence.flushAndWait() } catch { NSLog("Room: flush failed: \(error)") }
     }
 
-    /// Final write at quit; marks the session as cleanly ended.
+    /// Final write at quit; marks the session as cleanly ended. History's
+    /// queued visits and titles land first.
     public func close() {
+        history.waitForPendingWrites()
         do { try persistence.flushAndWait(cleanExit: true) } catch { NSLog("Room: final write failed: \(error)") }
     }
 }
