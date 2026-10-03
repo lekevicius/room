@@ -6,10 +6,17 @@
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
 #include "third_party/blink/public/mojom/webid/federated_request.mojom.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/printing/print_preview_dialog_controller.h"
+#include "chrome/browser/ui/webui/print_preview/print_preview_ui.h"
+#include "content/public/browser/web_ui.h"
+#include "printing/print_job_constants.h"
+#include "chrome/browser/devtools/devtools_ui_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -181,6 +188,7 @@ class Client : public room::RoomBrowserWindowClient {
     case IDC_ZOOM_MINUS:
     case IDC_ZOOM_NORMAL:
     case IDC_PRINT:
+    case IDC_DEV_TOOLS:
       if (!chrome::IsCommandEnabled(_browser, command_id)) {
         return @NO;
       }
@@ -200,6 +208,55 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action isEqualToString:@"print-preview-pdf"]) {
+    auto* dialogs = printing::PrintPreviewDialogController::GetInstance();
+    auto* preview = dialogs ? dialogs->GetPrintPreviewForContents(contents) : nullptr;
+    auto* ui = preview && preview->GetWebUI()
+                   ? preview->GetWebUI()->GetController()->GetAs<printing::PrintPreviewUI>()
+                   : nullptr;
+    auto bytes = ui ? ui->GetPrintPreviewDataForIndex(
+                          printing::COMPLETE_PREVIEW_DOCUMENT_INDEX)
+                    : nullptr;
+    if (!bytes || bytes->size() == 0) {
+      return @0;
+    }
+    NSString* output = [NSUserDefaults.standardUserDefaults stringForKey:@"RoomSpikeOutput"];
+    if (!output) {
+      return @(-1);
+    }
+    NSString* path = [[output stringByDeletingLastPathComponent]
+        stringByAppendingPathComponent:@"generated-preview.pdf"];
+    NSData* data = [NSData dataWithBytes:bytes->data() length:bytes->size()];
+    NSError* error = nil;
+    if (![data writeToFile:path options:NSDataWritingWithoutOverwriting error:&error]) {
+      LOG(WARNING) << "Room UI probe preview write failed=" << error.localizedDescription.UTF8String;
+      return @(-1);
+    }
+    NSWindow* window = preview->GetNativeView().GetNativeNSView().window;
+    LOG(WARNING) << "Room UI probe preview bytes=" << bytes->size()
+                 << " native_window=" << (window != nil)
+                 << " parent_window=" << (window.parentWindow != nil);
+    return @(bytes->size());
+  }
+  if ([action isEqualToString:@"devtools-state"]) {
+    auto* devtools = DevToolsWindow::GetInstanceForInspectedWebContents(contents);
+    auto* controller = DevtoolsUIController::From(_browser);
+    int state = controller ? 1 : 0;
+    if (devtools) {
+      state |= 2;
+      if (devtools->IsDocked()) {
+        state |= 4;
+      }
+      auto* frontend = devtools->GetDevToolsWebContents().get();
+      if (frontend && frontend->GetNativeView().GetNativeNSView().window) {
+        state |= 8;
+      }
+      LOG(WARNING) << "Room UI probe DevTools state=" << state
+                   << " can_dock=" << (controller && controller->CanDockDevtools())
+                   << " frontend=" << (frontend ? frontend->GetVisibleURL().spec() : "none");
+    }
+    return @(state);
   }
   if ([action hasPrefix:@"ui-dialog-"]) {
     auto* window =

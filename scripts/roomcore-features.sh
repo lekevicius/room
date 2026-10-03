@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -14,6 +14,27 @@ DEST="${2:-$ROOT/research/notes/feature-$FEATURE-$(date +%Y%m%d-%H%M%S)}"
 mkdir "$DEST"
 DEST="$(cd "$DEST" && pwd)"
 mkdir "$DEST/profile"
+# Capture the actual tested binary identities before launch; a source HEAD
+# alone is insufficient for locally edited engine/host probe builds.
+python3 - "$ROOT" "$APP" "$DEST" <<'PY_IDENTITY'
+import hashlib, json, subprocess, sys
+from pathlib import Path
+root, app, dest = map(Path, sys.argv[1:])
+version = (app / 'Contents/Frameworks/RoomCore.framework/Versions/Current').resolve()
+files = [app / 'Contents/MacOS/Room', app / 'Contents/MacOS/Room.debug.dylib',
+         version / 'RoomCore', version / 'Libraries/libchrome_dll.dylib',
+         version / 'Libraries/libbrowser_ui_views.dylib', version / 'Libraries/libcontent.dylib']
+def digest(path):
+    h = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''): h.update(chunk)
+    return h.hexdigest()
+identity = {'source_head': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
+            'tracked_diff_sha256': hashlib.sha256(subprocess.check_output(['git', '-C', str(root), 'diff', 'HEAD'])).hexdigest(),
+            'app': str(app), 'binaries_sha256': {str(p.relative_to(app)): digest(p) for p in files if p.exists()},
+            'host_sources_sha256': {str(p.relative_to(root)): digest(p) for p in sorted((root/'App/RoomCore').glob('*.swift'))}}
+(dest/'identity.json').write_text(json.dumps(identity, indent=2)+'\n')
+PY_IDENTITY
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$DEST/key.pem" -out "$DEST/cert.pem" \
   -days 1 -subj '/CN=localhost' > "$DEST/cert-generation.log" 2>&1
 python3 "$ROOT/scripts/roomcore-fixtures.py" --root "$ROOT/research/spikes" \

@@ -76,8 +76,8 @@ address into the user's profile.
 | Package | Current evidence / next bounded drive |
 |---|---|
 | Device choosers/connections | Web USB/HID/Serial/Bluetooth chooser cancellation passes (table below). Empty filters/fake Bluetooth; cancel only, never select hardware. Extension-origin and local-network gates remain separate. |
-| Print preview / DevTools | Independent frontend/ownership probes pending. Existing IDC_PRINT/CDP evidence is insufficient. |
-| Extension action UI | Existing action.openPopup missing-toolbar result retained; actual popup hosting still to investigate. Consent/site-access/side-panel source map pending. |
+| Print preview / DevTools | Real print preview/pages/cancel/reopen/PDF passes; docking has verified missing-controller blocker (below). Native print-panel/focus remains reviewer acceptance. |
+| Extension action UI | Verified missing-toolbar/container prerequisite; concrete popup ownership and consent/site-access/side-panel source map below. Product hosting deferred to Chapter3. |
 | Media/capture | Generated playback, synthetic capture and cancellation probes pending; no real camera/mic/screen capture authorized by this pass. |
 | Downloads/file dialogs | Existing bytes/cancel evidence retained; pending-download close decision and picker cancellation/lifetime still to investigate. |
 
@@ -108,3 +108,72 @@ without a nullable BrowserView guard, then ShowWidgetForExtension; it has
 not been runtime-qualified by these web probes. Chapter3 needs extension
 identity/anchor ownership separately from generic web origin UI. Tab-close,
 local-network permission and extension-origin probes remain pending.
+
+## Package 3 — embedded frontends
+
+Private probes are `ui-print-preview` and `ui-devtools`, invoked through the
+feature runner. Initial diagnostic build: 31 s / 13 steps, load31.15/39.85/34.79;
+GN dependency check and strict ad-hoc packaging pass (stage3.7s,host15.2s).
+Source parent9b08d74, Chromium2f06f6d7533a5; exact initial package hashes are in
+feature-ui-embedded-build/identity.json. No production behavior change.
+
+| Subfeature | Evidence | Status / Chapter3 contract |
+|---|---|---|
+| Real print frontend/pages | feature-ui-print-preview-initial: chrome://print target; app READY1, page count1, preview display-preview.29s,exit0 but driver fails after Cancel destroys the target/socket before replying. | Preview generation demonstrated; cancel/reopen verification is being corrected to inspect target lifetime. No Page.printToPDF substitution. |
+| Docked DevTools | feature-ui-devtools-initial: actual devtools_app.html target and DevToolsWindow/native window; bitmask10 = window exists + native parent, no controller/no docking.9s,exit0. | **Blocked by verified ownership prerequisite.** DevToolsWindow::Create checks DevtoolsUIController::From(browser), which is null for Room, and sets can_dock=false before creating frontend. No dock/resize/redock/focus pass claimed. Frontend was only interactive/bodyChildren0 when sampled; this is not functional undocked-frontend acceptance. |
+
+Chapter3 must supply an actual inspected-tab/DevTools content host. Chrome's
+DevtoolsUIController constructor requires ContentsContainerView objects and
+owns DevtoolsWebViewController entries with external focus tracking, resizing
+strategy restoration and attach/detach subscriptions. Room's current native
+page view does not implement that contract. A null guard or claiming a
+controller exists would not create the missing docked content, splitter or
+focus behavior. Dock/resize/undock/redock and inspected-tab-close acceptance
+therefore depend on that Chapter3 host, with native focus reviewed separately.
+No upstream patch or product docking implementation is added by this probe.
+
+## Package 4 — extension action and consent contracts
+
+This package reuses the retained actual MV3 action.openPopup result instead of
+repeating the completed tabs/windows controls. Source checked at Chromium
+2f06f6d7533a5; the toolbar feature check and absence of Room's extension UI
+container remain unchanged.
+
+| Subfeature | Evidence / exact boundary | Chapter3 requirement |
+|---|---|---|
+| Action popup open, ownership, resize, close, focus | feature-extension-activation/spike.txt (receipt source parent7974cd0 plus activation change later committed as eb55062;18s/exit0): active/key/main/visible window, then real action.openPopup rejects "Browser window has no toolbar." Current Room IsToolbarVisible still returns false. extension_action_api.cc OpenPopupInBrowser checks this before ExtensionsContainer::ShowToolbarActionPopupForAPICall. **Blocked**, no actual popup content/focus/resize pass. | Implement real ExtensionsContainer/ExtensionsToolbarViewModel delegate and per-action view model; own ExtensionViewHost, anchor, shown/closed callbacks and focus. Turning the toolbar boolean true cannot supply these contracts. |
+| Popup content sizing/lifetime | Source-map: ExtensionPopup owns ExtensionViewHost, observes widget/extension registry/tab strip/WebContents, delays showing until load; min25×25,max800×600. | Reuse Chrome view host or supply Room container that preserves extension identity, resize limits, close on unload/tab change, and DevTools inspection lifetime. Native anchor/focus needs reviewer acceptance after hosting exists. |
+| Install/update consent | Source-map only: ExtensionInstallPrompt::ShowConfirmation obtains the permission set and icon, checks WasParentDestroyed and completes ABORTED, otherwise invokes ShowDialogCallback with a once completion. | Retain requesting extension/permissions and parent lifetime; expose approve/cancel/abort exactly once. No installation or real permission grant was performed by this audit. |
+| Site access / requests | Source-map only: ExtensionsToolbarViewModel::GrantSiteAccess and PermissionsManager observers; PermissionsManager::UpdateUserSiteSetting/GetUserSiteSetting operate on origin settings. | Present extension + current origin + scope, explicit grant/revoke, pending request and navigation changes; keep Chromium permission storage authoritative. No fake global toolbar provider or blanket permission enable. |
+| Side panel | Source-map only: SidePanelCoordinator constructor CHECKs GetSidePanel(); lookup uses BrowserElementsViews kSidePanelElementId. Room has no SidePanel host. | Register and own side-panel content/entry lifecycle, geometry, tab/profile association and close/focus. An extension service worker alone cannot provide the content host. |
+
+These are concrete product ownership boundaries, not failures to be bypassed
+with more stubs. Runtime action blocking completes this investigation row;
+actual popup behavior awaits Chapter3. Consent/site-access/side-panel items
+are explicitly source-map scope, not runtime support claims.
+
+### Print preview final bounded result
+
+`feature-ui-print-preview-repair1`:29s,exit0. Both opens produced a distinct
+chrome://print target, READY1/pageCount1/display-preview, then the actual
+WebUI Cancel button destroyed that target. First preview exported49,366bytes
+from PrintPreviewUI::GetPrintPreviewDataForIndex(COMPLETE_PREVIEW_DOCUMENT_INDEX);
+`pdfinfo` confirms one A4 page, PDF1.4, Skia/PDF m154, title RoomCore features,
+unencrypted. This is actual preview-pipeline data, not Page.printToPDF and
+not an assertion that the native Save-to-PDF panel works. Native view had a
+window and parent (both1). Native focus and printer/destination selection
+remain reviewer checks; no physical printer used.
+
+One host verification correction handles cancellation racing its CDP reply,
+then requires target disappearance; errors are never ignored without that
+check. A private CLI-only diagnostic exports the completed preview bytes
+without overwriting existing files. It initially failed compilation because
+RefCountedMemory was only forward-declared; adding its header built25s/2steps.
+GN passes; package stage4.4s/host8.5s, strict signature valid. No production
+engine behavior, patch or network policy changed. Existing serial baseline
+remains qualified to its original binary; no new baseline is claimed here.
+
+Each new feature run now captures actual host/framework/component SHA256
+identities before launch. Committed roomcore-ui-embedded-checkpoint.json
+retains both probe identities and outcomes; raw PDF/profile/logs remain in
+the ignored feature directory.

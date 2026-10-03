@@ -264,3 +264,17 @@ host10.3s,518dylibs,916MBframework/918MBapp,strict ad-hoc signature valid.
 Required baseline nav15.105s,ten loaded real pages quit2.933s,28helpers/0left,
 0newcrashes,exit0,load1 20.385. Address callback results and final-tab exit
 failure are separately qualified in roomcore-ui-compatibility-results.md.
+
+
+## 2026-10-03 — embedded UI diagnostic checkpoint
+
+Private print/DevTools hooks only; no production/network/patch changes.
+Initial build31s/13steps,load31.15/39.85/34.79,GNpass,package3.7+15.2s.
+Print export hook missing RefCountedMemory include failed one compile;
+correction25s/2steps,load55.47/48.95/40.62,GNpass,package4.4+8.5s,strict
+ad-hoc signature valid. Host stand-in typecheck and shell syntax pass.
+Print29s initial driver failure on cancel-CDP race, corrected29s/exit0:
+two rendered one-page previews, both cancel/reopen,49,366-byte one-page A4
+PDF1.4 output from real preview pipeline. DevTools9s/exit0,window exists
+but no docking controller; concrete Chapter3 blocker. Results/identities
+in roomcore-ui-compatibility-results.md and embedded-checkpoint.json.

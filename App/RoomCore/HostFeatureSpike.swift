@@ -10,7 +10,8 @@ enum HostFeatureSpike {
                         "corners", "band", "form", "extension", "downloads", "permissions",
                         "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash",
                         "autofill-save", "autofill-update",
-                        "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth"]
+                        "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth",
+                        "ui-print-preview", "ui-devtools"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
         guard names.contains(name) else { HostSpike.record("error", "unknown spike \(name)"); return }
@@ -60,6 +61,8 @@ enum HostFeatureSpike {
             }
             guard ready else { throw HostCDP.Failure("fixture did not finish loading") }
             switch name {
+            case "ui-print-preview", "ui-devtools":
+                try await HostEmbeddedUISpike.run(name, host: host)
             case "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth":
                 try await HostDeviceChooserSpike.run(name, host: host, cdp: cdp)
             case "autofill-save", "autofill-update":

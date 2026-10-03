@@ -1,0 +1,64 @@
+{
+  "print_initial_identity": {
+    "source_parent": "9b08d74d2994961d5e2b434b361ee0ee23cee40e",
+    "chromium_head": "2f06f6d7533a515a94386027cc8020775f3aec9e",
+    "tracked_diff_sha256": "3caa179fb50222cb7117b04ccc990e127f97cd83fd4586f0e705bde6503ea3e9",
+    "embedded_probe_sha256": "3b16e4c50f8b2efb7d70af49d840b646736a2c3e96abbc5982dcbff5572aa642",
+    "binaries_sha256": {
+      "Contents/MacOS/Room.debug.dylib": "de85eb606aa90132b4eb7c7a62d053557a4e82b60c55395b4917afbe97f03ee2",
+      "Contents/Frameworks/RoomCore.framework/Versions/Current/Libraries/libchrome_dll.dylib": "17f0a2b6f2fa6b5e504f1d5c4bbd6083003708bd2a00e0601cda35ff4d88db88",
+      "Contents/Frameworks/RoomCore.framework/Versions/Current/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca"
+    }
+  },
+  "print_final_identity": {
+    "source_head": "9b08d74d2994961d5e2b434b361ee0ee23cee40e",
+    "tracked_diff_sha256": "a6065d1879b40f39ffacac47b2bd0b520bacc1eda00e9e17692c324558cfe463",
+    "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+    "binaries_sha256": {
+      "Contents/MacOS/Room": "3e8b29f580581618e0a863c78a6ddc4a7caacb4937f2c68ca4f195a531c1559f",
+      "Contents/MacOS/Room.debug.dylib": "647c759696e6d05e6b1e59a5e866772826b7ce10e55f7f5ab5ea5459333142fb",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "b954e49cd1741da52d5a5b919ae403dd447f7a5a60883257648fdca12d761178",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "53754a7d5ed1e40a87c04edc3048299b157005c40666a1fe85818146fd0f7af8",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+      "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+    },
+    "host_sources_sha256": {
+      "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+      "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+      "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+      "App/RoomCore/HostEmbeddedUISpike.swift": "f52fb2dd17565e4605956585f74b4dfe583b3b55976a7a5cbb7d0d97b8c20353",
+      "App/RoomCore/HostFeatureSpike.swift": "2213f30d964952883f883a77850c3feed6c3154919acdd221a6c62d3d359b242",
+      "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+      "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+      "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+      "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+    }
+  },
+  "print": {
+    "initial_seconds": 29,
+    "initial_exit": 0,
+    "initial_driver_pass": false,
+    "corrected_seconds": 29,
+    "corrected_exit": 0,
+    "corrected_driver_pass": true,
+    "preview_pages_each_open": 1,
+    "opens": 2,
+    "cancelled_targets": 2,
+    "pdf_bytes": 49366,
+    "pdf_pages": 1,
+    "pdf_sha256": "b126812d8214870a5bbca1ca54e7ae28e738f01264cb88a873ca651e3f57c25a",
+    "native_window": true,
+    "parent_window": true
+  },
+  "devtools": {
+    "seconds": 9,
+    "exit": 0,
+    "state_bitmask": 10,
+    "controller": false,
+    "window": true,
+    "docked": false,
+    "native_window": true,
+    "frontend_functional_acceptance": false,
+    "status": "blocked: missing DevtoolsUIController/ContentsContainerView host"
+  }
+}
