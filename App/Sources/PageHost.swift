@@ -6,30 +6,87 @@ import Observation
 import Tabs
 import UIKitCore
 
-/// Shows one page in the window's card and keeps the card's fill on the
-/// page's root background, so live resize and loading never expose the
-/// window material at the card edges. With no page it shows the empty
-/// state ("Press ⌘T…", spec §A.7).
+/// Shows the selected entry's page in the window's card, or its split
+/// (spec §D: up to four panes in a `SplitView`, the focused pane's page is
+/// `contents`), and keeps the card's fill on the focused page's root
+/// background, so live resize and loading never expose the window material
+/// at the card edges. With no page it shows the empty state ("Press ⌘T…",
+/// spec §A.7). A press in a pane focuses it (focus follows click).
 final class PageHost: PageDisplay {
-    let container = PageContainerView()
+    let splitView = SplitView()
+    /// The focused pane's container: the prompts, the find bar, the zoom
+    /// indicator, the status pill and DevTools follow it.
+    var container: PageContainerView { splitView.focusedPane.container }
     private weak var controller: RoomWindowController?
     private(set) var contents: (any WebContents)?
+    private var pendingSplit: SplitPresentation?
     /// The page in the card changed (the page's prompts follow it, 2.6a).
     var onShow: (((any WebContents)?) -> Void)?
+    /// A press in another pane of the split: its entry becomes the focused one.
+    var onFocusPane: ((UUID) -> Void)?
+    private var pressMonitor: Any?
+    #if DEBUG
+    /// Spikes: a press focused another pane — the main-thread time to the field updated, and to the next frame.
+    var debugFocusTiming: ((_ handled: Double, _ toFrame: Double) -> Void)?
+    #endif
 
     init(controller: RoomWindowController) {
         self.controller = controller
-        controller.cardView.contentView = container
+        controller.cardView.contentView = splitView
+        pressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            self?.pressed(event)
+            return event
+        }
+    }
+
+    isolated deinit {
+        if let pressMonitor { NSEvent.removeMonitor(pressMonitor) }
+    }
+
+    func showSplit(_ split: SplitPresentation?) {
+        pendingSplit = split
     }
 
     func show(_ contents: (any WebContents)?) {
-        guard contents !== self.contents || container.pageView == nil else { return }
-        self.contents?.devTools?.close()
-        container.isDevToolsOpen = false
+        let split = pendingSplit
+        let changed = contents !== self.contents || container.pageView == nil
+        if changed {
+            self.contents?.devTools?.close()
+            container.isDevToolsOpen = false
+        }
+        let keyboardInSplit = splitView.isSplit && isFirstResponderInSplit
         self.contents = contents
-        container.pageView = contents?.nativeView ?? container.emptyState
+        splitView.apply(split, focused: contents)
+        // ⌃⇧1…4 and ⌃⇧] / ⌃⇧[ move the keyboard with the focus (a click already put it there).
+        if changed, split != nil, keyboardInSplit { focusPage() }
+        guard changed else { return }
         trackBackground()
         onShow?(contents)
+    }
+
+    /// Whether the keyboard is in one of the split's pages.
+    private var isFirstResponderInSplit: Bool {
+        guard let view = splitView.window?.firstResponder as? NSView else { return false }
+        return view.isDescendant(of: splitView)
+    }
+
+    /// Focus follows click (spec §D): a press inside another pane's page
+    /// focuses that pane; the press goes on to the page.
+    private func pressed(_ event: NSEvent) {
+        guard splitView.isSplit, let window = splitView.window, event.window === window,
+              let hit = window.contentView?.hitTest(window.contentView?.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow)
+        else { return }
+        guard let pane = splitView.panes.first(where: { hit.isDescendant(of: $0.container) }), let entry = pane.entry,
+              pane !== splitView.focusedPane else { return }
+        #if DEBUG
+        let start = ProcessInfo.processInfo.systemUptime
+        #endif
+        onFocusPane?(entry)
+        #if DEBUG
+        let handled = (ProcessInfo.processInfo.systemUptime - start) * 1000
+        let timing = debugFocusTiming
+        CATransaction.setCompletionBlock { timing?(handled, (ProcessInfo.processInfo.systemUptime - start) * 1000) }
+        #endif
     }
 
     /// Puts the keyboard in the page: the first view in its tree that takes
@@ -87,9 +144,12 @@ final class PageHost: PageDisplay {
     private func trackBackground() {
         let color = withObservationTracking {
             contents?.rootBackgroundColor
-        } onChange: { [weak self] in
+        } onChange: { [weak self, id = contents.map(ObjectIdentifier.init)] in
             // Fires before the new value is stored; read it on the next turn.
-            Task { @MainActor in self?.trackBackground() }
+            Task { @MainActor in
+                guard let self, self.contents.map(ObjectIdentifier.init) == id else { return }
+                self.trackBackground()
+            }
         }
         controller?.cardView.backgroundColor = color ?? Palette.cardBackground
         // The optional toolbar sits on that fill (2.7a).

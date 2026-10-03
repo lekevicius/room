@@ -17,6 +17,8 @@ public final class AddressFieldView: NSView {
     private let copyButton = NSButton()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
     private var url: String?
+    /// The URL the field shows (spikes read it).
+    public var displayedURL: String? { url }
 
     public override init(frame: NSRect) {
         super.init(frame: frame)

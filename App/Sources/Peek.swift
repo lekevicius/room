@@ -8,16 +8,17 @@ import UIKitCore
 
 /// Peek on screen (spec §I.6): the content area dimmed 30%, an overlay card
 /// of 86% of it with 24 pt corners, a header with the domain, Open as Tab
-/// (⌘O), Split (⇧⌘O, 2.7b) and ×, and the page in its own `PageContainerView`
+/// (⌘O), Split (⇧⌘O) and ×, and the page in its own `PageContainerView`
 /// with its own tool and prompt layers. A click on the dim closes it; nothing
 /// under the dim gets an event. It opens scaling up from the click.
 final class PeekPresenter: PeekDisplay {
     private weak var rootView: BrowserWindowView?
     let overlay = PeekOverlayView()
     private(set) weak var contents: (any WebContents)?
-    /// Close (a click on the dim, ×), Open as Tab.
+    /// Close (a click on the dim, ×), Open as Tab, Split.
     var onClose: (() -> Void)?
     var onExpand: (() -> Void)?
+    var onSplit: (() -> Void)?
     /// The focused page changed: Peek's page with its container, or `nil` (back to the card).
     var onFocus: (((any WebContents)?, PageContainerView?) -> Void)?
     /// Where the last click in the window was (root view coordinates), if recent: the open animation starts there.
@@ -31,6 +32,7 @@ final class PeekPresenter: PeekDisplay {
         overlay.onDimClick = { [weak self] in self?.onClose?() }
         overlay.header.onClose = { [weak self] in self?.onClose?() }
         overlay.header.onExpand = { [weak self] in self?.onExpand?() }
+        overlay.header.onSplit = { [weak self] in self?.onSplit?() }
         // Under the floating cluster and the sidebar overlay, over the card.
         rootView.addSubview(overlay, positioned: .below, relativeTo: rootView.clusterView)
     }
@@ -70,7 +72,8 @@ final class PeekPresenter: PeekDisplay {
         overlay.container.pageView = nil
     }
 
-    /// The card's rect: Peek covers the content area (the page card), not the sidebar.
+    /// The card's rect: Peek covers the content area (the page card, a split's
+    /// panes together: spec §D "Peek from a pane overlays the whole content area"), not the sidebar.
     func layout() {
         guard let rootView, !overlay.isHidden else { return }
         overlay.frame = rootView.currentLayout.card
@@ -206,13 +209,14 @@ final class PeekDimView: NSView {
     override func scrollWheel(with event: NSEvent) {}
 }
 
-/// Peek's header: the domain (the title on hover as a tooltip), Open as Tab, Split (2.7b) and ×.
+/// Peek's header: the domain (the title on hover as a tooltip), Open as Tab, Split and ×.
 final class PeekHeaderView: NSView {
     var onExpand: (() -> Void)?
+    var onSplit: (() -> Void)?
     var onClose: (() -> Void)?
     private let domain = NSTextField(labelWithString: "")
     private let expand = PeekHeaderView.button(.peekExpand, "Open as Tab (⌘O)")
-    let split = PeekHeaderView.button(.peekSplit, "Open in Split View (⇧⌘O) — Phase 2.7b")
+    let split = PeekHeaderView.button(.peekSplit, "Open in Split View (⇧⌘O)")
     private let close = PeekHeaderView.button(.closeTab, "Close (Esc)")
 
     override init(frame: NSRect) {
@@ -224,7 +228,8 @@ final class PeekHeaderView: NSView {
         expand.target = self
         expand.action = #selector(expandClicked)
         expand.setAccessibilityIdentifier("peek-open-as-tab")
-        split.isEnabled = false
+        split.target = self
+        split.action = #selector(splitClicked)
         split.setAccessibilityIdentifier("peek-split")
         close.target = self
         close.action = #selector(closeClicked)
@@ -262,6 +267,7 @@ final class PeekHeaderView: NSView {
     }
 
     @objc private func expandClicked() { onExpand?() }
+    @objc private func splitClicked() { onSplit?() }
     @objc private func closeClicked() { onClose?() }
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {

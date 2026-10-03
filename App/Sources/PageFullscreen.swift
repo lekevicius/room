@@ -10,6 +10,8 @@ import UIKitCore
 /// fullscreen too.
 final class PageFullscreen {
     private weak var controller: RoomWindowController?
+    /// In a split the fullscreen pane fills the card alone (B-35).
+    weak var host: PageHost?
     /// The page in element fullscreen.
     private(set) weak var page: (any WebContents)?
     /// The window went fullscreen for the page (and leaves with it).
@@ -23,11 +25,12 @@ final class PageFullscreen {
 
     func enter(_ contents: any WebContents, shown: (any WebContents)?) {
         guard let controller, let window = controller.window, contents === shown else {
-            // Only the page in the card can take the window.
+            // Only the page in the card (in a split: the focused pane's) can take the window.
             contents.exitFullscreen()
             return
         }
         page = contents
+        host?.splitView.fullscreenContents = contents
         controller.rootView.isPageFullscreen = true
         if !window.styleMask.contains(.fullScreen) {
             enteredWindowFullscreen = true
@@ -57,6 +60,7 @@ final class PageFullscreen {
 
     private func restore() {
         page = nil
+        host?.splitView.fullscreenContents = nil
         controller?.rootView.isPageFullscreen = false
         guard enteredWindowFullscreen else { return }
         enteredWindowFullscreen = false

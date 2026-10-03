@@ -63,6 +63,8 @@ public enum Symbol: CaseIterable, Sendable {
 
     // Split view (§D)
     case newSplit
+    case paneGrip
+    case paneLayout
     case splitVertical
     case splitGrid
     case unsplit
@@ -164,6 +166,8 @@ public enum Symbol: CaseIterable, Sendable {
         case .showInFinder: "magnifyingglass.circle"
         case .cancel: "xmark.circle.fill"
         case .newSplit: "rectangle.split.2x1"
+        case .paneGrip: "line.3.horizontal"
+        case .paneLayout: "rectangle.split.2x2"
         case .splitVertical: "rectangle.split.1x2"
         case .splitGrid: "rectangle.split.2x2"
         case .unsplit: "rectangle"

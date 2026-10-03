@@ -47,6 +47,7 @@ extension SpikeRunner.Context {
         if runs("toolbar") { await toolbarCheck() }
         #if canImport(EngineCEF)
         if runs("peek") { await peekCheck(pinned: pinned) }
+        if runs("split") { await splitCheck(pinned: pinned) }
         #endif
         controller.isSidebarOpen = true
     }
@@ -61,7 +62,7 @@ extension SpikeRunner.Context {
     /// A window capture for 2.7a (the script answers it).
     func capture27(_ name: String) async {
         guard UserDefaults.standard.bool(forKey: "RoomSpikeCaptures27") else { return }
-        let full = "phase-2.7a-\(name)-\(appearanceSuffix)"
+        let full = "\(UserDefaults.standard.string(forKey: "RoomSpikeCapturePrefix") ?? "phase-2.7a")-\(name)-\(appearanceSuffix)"
         SpikeRunner.record("capture", full)
         let output = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeOutput") ?? "")
         let ack = output.deletingLastPathComponent().appending(path: output.lastPathComponent + ".ack-" + full)

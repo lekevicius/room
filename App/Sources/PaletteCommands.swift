@@ -5,7 +5,7 @@ import Sidebar
 
 /// The palette's commands (spec §C list, `CommandRegistry`): which can run
 /// now and what each does. Commands of later phases (screenshot, archive,
-/// split view, private window, routing) are not offered until
+/// private window, routing) are not offered until
 /// their phase gives them something to do.
 extension AppDelegate {
     func paletteCommands() -> [OmniboxCommand] {
@@ -22,6 +22,8 @@ extension AppDelegate {
         add(CommandRegistry.findInPage, .find, when: tabs.current != nil)
         add(CommandRegistry.print, .print, when: tabs.current != nil)
         add(CommandRegistry.newFolder, .newFolder)
+        add(CommandRegistry.newSplitView, .newSplit, when: sidebar.selectedEntryID != nil)
+        add(CommandRegistry.unsplit, .newSplit, when: sidebar.selectedSplit != nil)
         add(CommandRegistry.pinTab, .pin, title: sidebar.pinCommandTitle, when: sidebar.pinCommandTitle != nil)
         add(CommandRegistry.reload, .reload, when: tabs.current != nil)
         add(CommandRegistry.reloadWithoutCache, .reload, when: tabs.current != nil)
@@ -59,6 +61,9 @@ extension AppDelegate {
         case CommandRegistry.findInPage.id: find?.showFindBar()
         case CommandRegistry.print.id: tabs.current?.print()
         case CommandRegistry.newFolder.id: sidebar.newFolderCommand()
+        // After the palette has closed: the new pane opens it again on itself.
+        case CommandRegistry.newSplitView.id: DispatchQueue.main.async { sidebar.newSplitPane() }
+        case CommandRegistry.unsplit.id: sidebar.unsplit()
         case CommandRegistry.pinTab.id: sidebar.togglePin()
         case CommandRegistry.reload.id: tabs.current?.reload()
         case CommandRegistry.reloadWithoutCache.id: tabs.current?.reloadIgnoringCache()

@@ -13,8 +13,8 @@ enum MainMenu {
         appMenu.addItem(withTitle: "Settings…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Room", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
-        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        // No ⌥⌘H: docs/shortcuts.md gives it to the split layout (Zen); it matched here first (2.7b spike).
+        appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "")
         appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Room", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -118,9 +118,40 @@ enum MainMenu {
         tabMenu.addItem(.separator())
         // Peek (spec §I.6; docs/shortcuts.md: ⌘O, ⇧⌘O; Open File stays menu-only).
         tabMenu.addItem(withTitle: "Open Peek as Tab", action: #selector(AppDelegate.expandPeek(_:)), keyEquivalent: "o")
-        let split = tabMenu.addItem(withTitle: "Open Peek in Split View", action: #selector(AppDelegate.splitPeek(_:)), keyEquivalent: "O")
-        split.toolTip = "Split view arrives in Phase 2.7b"
+        tabMenu.addItem(withTitle: "Open Peek in Split View", action: #selector(AppDelegate.splitPeek(_:)), keyEquivalent: "O")
         main.addItem(submenu: tabMenu, title: "Tab")
+
+        // Split view (spec §D, docs/shortcuts.md). Page-first keys; shifted keys name the shifted character.
+        let splitMenu = NSMenu(title: "Split")
+        splitMenu.addItem(withTitle: CommandName.newSplit, action: #selector(AppDelegate.newSplitPane(_:)), keyEquivalent: "+")
+        let alias = splitMenu.addItem(withTitle: "New Split View (⌃⇧=)", action: #selector(AppDelegate.newSplitPane(_:)), keyEquivalent: "+")
+        alias.keyEquivalentModifierMask = [.control]
+        alias.isHidden = true
+        alias.allowsKeyEquivalentWhenHidden = true
+        let removePane = splitMenu.addItem(withTitle: "Remove Split Pane", action: #selector(AppDelegate.removeSplitPane(_:)), keyEquivalent: "_")
+        removePane.keyEquivalentModifierMask = [.control]
+        splitMenu.addItem(.separator())
+        for (title, key, tag) in [(CommandName.layoutGrid, "g", 0), (CommandName.layoutSideBySide, "v", 1), (CommandName.layoutStacked, "h", 2)] {
+            let item = splitMenu.addItem(withTitle: title, action: #selector(AppDelegate.setSplitLayout(_:)), keyEquivalent: key)
+            item.keyEquivalentModifierMask = [.command, .option]
+            item.tag = tag
+        }
+        let unsplit = splitMenu.addItem(withTitle: "Unsplit", action: #selector(AppDelegate.unsplit(_:)), keyEquivalent: "u")
+        unsplit.keyEquivalentModifierMask = [.command, .option]
+        splitMenu.addItem(.separator())
+        // ⌃⇧1…4 arrive as "!", "@", "#", "$" on the US layout (Shift is in the characters).
+        for (number, key) in zip(1...4, ["!", "@", "#", "$"]) {
+            let item = splitMenu.addItem(withTitle: "Focus Pane \(number)", action: #selector(AppDelegate.focusSplitPane(_:)), keyEquivalent: key)
+            item.keyEquivalentModifierMask = [.control]
+            item.tag = number
+        }
+        let nextPane = splitMenu.addItem(withTitle: "Next Pane", action: #selector(AppDelegate.focusAdjacentPane(_:)), keyEquivalent: "}")
+        nextPane.keyEquivalentModifierMask = [.control]
+        nextPane.tag = 1
+        let previousPane = splitMenu.addItem(withTitle: "Previous Pane", action: #selector(AppDelegate.focusAdjacentPane(_:)), keyEquivalent: "{")
+        previousPane.keyEquivalentModifierMask = [.control]
+        previousPane.tag = -1
+        main.addItem(submenu: splitMenu, title: "Split")
 
         // Spaces (Phase 2.5, spec §B): ⌃1…⌃9 and ⌃0, ⌥⌘→ / ⌥⌘← wrapping.
         let spacesMenu = NSMenu(title: "Spaces")

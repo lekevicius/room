@@ -47,6 +47,8 @@ public final class SidebarController: NSObject {
     var spaceForm: SpaceFormState?
     /// A space was created from the form (a toast tells about it while the sidebar is hidden, spec §E).
     public var onSpaceCreated: ((Space) -> Void)?
+    /// A drag of sidebar entries began (`true`) or ended: the card shows its split drop zones meanwhile (spec §D).
+    public var onEntryDrag: ((Bool) -> Void)?
     /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
     var swipe = SpaceSwipe()
     var wheel = SpaceWheel()
@@ -1289,6 +1291,17 @@ extension SidebarController {
 
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
+
+    /// The cell class showing `id`'s row (a split's pane: its group row).
+    public func debugRowCellKind(_ id: UUID) -> String {
+        guard let node = tree.displayedNode(for: id) else { return "none" }
+        let row = outline.row(forItem: node)
+        guard row >= 0, let view = outline.view(atColumn: 0, row: row, makeIfNecessary: true) else { return "none" }
+        return String(describing: type(of: view))
+    }
+
+    /// Whether `id` has a row of its own.
+    public func debugIsListed(_ id: UUID) -> Bool { outline.row(forItem: tree.node(for: id)) >= 0 }
 
     /// Spaces whose list is built and loaded.
     public var debugPreparedSpaces: Int { panes.values.filter(\.isLoaded).count }

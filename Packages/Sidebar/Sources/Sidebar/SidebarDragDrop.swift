@@ -12,10 +12,18 @@ import Store
 /// and text from outside; group drags of the multi-selection; a haptic tick
 /// whenever the insertion line moves. Drag to a space icon waits for 2.5,
 /// drag out to a new window for Chapter 4.8.
+/// The sidebar's own drag types, for drop targets outside it (the card's split drop zones, spec §D).
+public enum SidebarDragTypes {
+    /// One sidebar entry: its id.
+    public static let entry = NSPasteboard.PasteboardType("com.lekevicius.room.sidebar-entry")
+    /// A split's row: all its panes' ids, in order.
+    public static let splitPanes = NSPasteboard.PasteboardType("com.lekevicius.room.split-panes")
+}
+
 extension SidebarController {
     /// One sidebar entry on the pasteboard: its id for drops on the sidebar,
     /// its URL for every other app.
-    static let entryPasteboardType = NSPasteboard.PasteboardType("com.lekevicius.room.sidebar-entry")
+    static let entryPasteboardType = SidebarDragTypes.entry
 
     static let acceptedDragTypes: [NSPasteboard.PasteboardType] = [entryPasteboardType, .URL, .fileURL, .string]
 
@@ -56,7 +64,7 @@ extension SidebarController {
     }
 
     /// A split's row carries all its panes, in order (spec §D: the split moves as one row).
-    static let splitPanesPasteboardType = NSPasteboard.PasteboardType("com.lekevicius.room.split-panes")
+    static let splitPanesPasteboardType = SidebarDragTypes.splitPanes
 
     func pasteboardItem(forSplit group: SplitGroup) -> NSPasteboardItem {
         let members = sidebar.splitMembers(group.id)
@@ -85,6 +93,7 @@ extension SidebarController {
 
     func draggingSessionWillBegin(_ session: NSDraggingSession, ids: [UUID]) {
         drag = DragState(ids: ids)
+        onEntryDrag?(true)
         setDragging(ids, dimmed: true)
         if tree.essentialIDs.isEmpty {
             grid.showsDropSlot = true
@@ -93,6 +102,7 @@ extension SidebarController {
     }
 
     func draggingSessionEnded() {
+        onEntryDrag?(false)
         if let ids = drag?.ids { setDragging(ids, dimmed: false) }
         drag = nil
         hideDropFeedback()

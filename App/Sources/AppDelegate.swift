@@ -21,6 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var pageHost: PageHost?
     /// The card's content view (DEBUG spikes read what it shows).
     var pageHostContainer: PageContainerView? { pageHost?.container }
+    #if DEBUG
+    /// The card's host (split spikes read its panes and time focus changes).
+    var debugPageHost: PageHost? { pageHost }
+    #endif
     private(set) var pageDelegate: PageUIDelegate?
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
@@ -271,7 +275,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         self.downloads = downloads
         installPagePrompts(pageDelegate, pageHost: pageHost, sidebar: sidebar, tabs: tabs, rootView: rootView)
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
-        palette.contentRect = { [weak rootView] in rootView?.currentLayout.card ?? .zero }
+        palette.contentRect = { [weak rootView, weak pageHost] in
+            // In a split, over the focused pane (⇧⌘= "focuses the palette inside it", spec §D).
+            guard let rootView else { return .zero }
+            guard let split = pageHost?.splitView, split.isSplit, split.window != nil else { return rootView.currentLayout.card }
+            return split.focusedPane.convert(split.focusedPane.bounds, to: rootView)
+        }
         palette.addressFieldRect = { [weak rootView, weak sidebar] in
             // Docked on the header field only while the sidebar shows it (spec §C).
             guard let rootView, rootView.isSidebarOpen, let field = sidebar?.addressField, field.window != nil else { return nil }
@@ -303,6 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         self.palette = palette
         hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
+        installSplit(pageHost: pageHost, sidebar: sidebar, tabs: tabs, palette: palette, store: store)
         installToolbar(controller, tabs: tabs, settings: store.settings)
         trackFocusedPage(tabs)
         // The glass and the rows' hosting view are built before the first ⌘T.
@@ -343,6 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             },
             focusPage: { [weak pageHost] in pageHost?.focusPage() })
         let fullscreen = windowController.map(PageFullscreen.init)
+        fullscreen?.host = pageHost
         pageDelegate.fullscreen = fullscreen
         windowController?.onFullscreenChange = { [weak fullscreen] isFullscreen in
             if !isFullscreen { fullscreen?.windowDidExitFullscreen() }
@@ -356,10 +367,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             FindMetrics.inset + (find?.isVisible == true ? FindMetrics.height + Spacing.xs : 0)
         }
         let statusPill = StatusPill(host: tools)
-        tools.onLayout = { [weak statusPill, weak zoom] in
+        // Every pane's tool layer (2.7b: one per split pane) re-places the pill and the indicator.
+        let layoutTools = { [weak statusPill, weak zoom] in
             statusPill?.layout()
             zoom?.layout()
         }
+        tools.onLayout = layoutTools
+        pageHost.splitView.onNewPane = { pane in pane.container.toolLayer.onLayout = layoutTools }
         installPeek(tabs: tabs, pageHost: pageHost, rootView: rootView, tools: { [weak statusPill, weak zoom] in
             statusPill?.layout()
             zoom?.layout()
@@ -448,6 +462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         peek.overlay.container.toolLayer.onLayout = tools
         peek.onClose = { [weak tabs] in tabs?.closeShownPeek() }
         peek.onExpand = { [weak tabs] in tabs?.expandShownPeek() }
+        peek.onSplit = { [weak tabs] in tabs?.splitShownPeek() }
         peek.onFocus = { [weak self, weak pageHost] contents, _ in
             self?.focusPageSurfaces()
             if contents == nil { pageHost?.focusPage() }
@@ -467,6 +482,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 self?.lastClick = (rootView.convert(event.locationInWindow, from: nil), event.timestamp)
             }
             return event
+        }
+    }
+
+    /// Split view (spec §D): focus follows a press in a pane, the resizers'
+    /// sizes and the pane headers' commands go to the store and the sidebar,
+    /// the card's drop zones take sidebar entries while one is dragged, and a
+    /// new pane the palette was dismissed on goes again.
+    private func installSplit(pageHost: PageHost, sidebar: SidebarController, tabs: TabController, palette: PaletteController,
+                              store: RoomStore) {
+        let split = pageHost.splitView
+        pageHost.onFocusPane = { [weak sidebar] entry in sidebar?.select(entry) }
+        split.onRatios = { [weak store] group, ratios in try? store?.sidebar.setSplitRatios(group, ratios) }
+        split.onClosePane = { [weak sidebar] entry in sidebar?.close(entry) }
+        split.onMovePane = { [weak sidebar] group, from, to in sidebar?.movePane(in: group, from: from, to: to) }
+        split.onLayoutMenu = { [weak self] entry, button in self?.showPaneLayoutMenu(entry, at: button) }
+        split.dropOverlay.panes = { [weak split, weak tabs] in
+            guard let split else { return [] }
+            if split.isSplit { return zip(split.paneFrames, split.panes).map { ($0, $1.entry) } }
+            return [(split.bounds, tabs?.currentEntryID)]
+        }
+        split.dropOverlay.onDrop = { [weak sidebar] id, pane, zone in
+            guard let sidebar else { return }
+            guard let pane else { return sidebar.select(id) }
+            switch zone {
+            case .left: sidebar.dropIntoSplit(id, edge: .left, of: pane)
+            case .right: sidebar.dropIntoSplit(id, edge: .right, of: pane)
+            case .top: sidebar.dropIntoSplit(id, edge: .top, of: pane)
+            case .bottom: sidebar.dropIntoSplit(id, edge: .bottom, of: pane)
+            case .center: sidebar.dropReplacingPane(id, pane: pane)
+            }
+        }
+        sidebar.onEntryDrag = { [weak split] active in split?.dropOverlay.isHidden = !active }
+        // ⇧⌘= opened the palette on an empty pane: dismissed without a page, the pane goes (spec §D).
+        let previousClose = palette.onClose
+        palette.onClose = { [weak sidebar] in
+            previousClose?()
+            DispatchQueue.main.async {
+                guard let sidebar, let id = sidebar.selectedEntryID, sidebar.selectedSplit != nil,
+                      let entry = sidebar.store.sidebar.entry(id), entry.currentURL == nil else { return }
+                sidebar.close(id)
+            }
+        }
+    }
+
+    /// A pane header's layout button: the three layouts and Separate All Tabs.
+    private func showPaneLayoutMenu(_ entry: UUID, at button: NSView) {
+        guard let sidebar, let group = sidebar.store.sidebar.splitGroup(of: entry) else { return }
+        let menu = NSMenu()
+        for (title, layout, tag) in [(CommandName.layoutGrid, SplitLayout.grid, 0), (CommandName.layoutSideBySide, .hbox, 1),
+                                     (CommandName.layoutStacked, .vbox, 2)] {
+            let item = menu.addItem(withTitle: title, action: #selector(paneLayoutChosen(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = tag
+            item.representedObject = group.id
+            item.state = group.layout == layout ? .on : .off
+        }
+        menu.addItem(.separator())
+        let separate = menu.addItem(withTitle: CommandName.separateAllTabs, action: #selector(paneLayoutChosen(_:)), keyEquivalent: "")
+        separate.target = self
+        separate.tag = -1
+        separate.representedObject = group.id
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.maxY + 2), in: button)
+    }
+
+    @objc private func paneLayoutChosen(_ sender: NSMenuItem) {
+        guard let group = sender.representedObject as? UUID, let store else { return }
+        if sender.tag < 0 { return store.sidebar.dissolveSplitGroup(group) }
+        try? store.sidebar.setSplitLayout(group, Self.splitLayout(tag: sender.tag))
+    }
+
+    private static func splitLayout(tag: Int) -> SplitLayout {
+        switch tag {
+        case 0: .grid
+        case 1: .hbox
+        default: .vbox
         }
     }
 
@@ -548,8 +638,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌘O: Peek becomes a Today tab under its entry (spec §I.6).
     @objc func expandPeek(_ sender: Any?) { tabs?.expandShownPeek() }
 
-    /// ⇧⌘O: Peek into a split with its entry (2.7b; disabled until then).
-    @objc func splitPeek(_ sender: Any?) {}
+    /// ⇧⌘O: Peek into a split with its entry (spec §I.6).
+    @objc func splitPeek(_ sender: Any?) { tabs?.splitShownPeek() }
+
+    // Split view (spec §D, docs/shortcuts.md).
+
+    /// ⇧⌘= / ⌃⇧=: an empty pane beside the focused one, the palette on it.
+    @objc func newSplitPane(_ sender: Any?) { sidebar?.newSplitPane() }
+
+    /// ⌃⇧-: the focused pane leaves the split.
+    @objc func removeSplitPane(_ sender: Any?) { sidebar?.removeFocusedPane() }
+
+    /// ⌥⌘G (tag 0), ⌥⌘V (1), ⌥⌘H (2).
+    @objc func setSplitLayout(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.setSplitLayout(Self.splitLayout(tag: item.tag))
+    }
+
+    /// ⌥⌘U.
+    @objc func unsplit(_ sender: Any?) { sidebar?.unsplit() }
+
+    /// ⌃⇧1…4 (the item's tag).
+    @objc func focusSplitPane(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.focusPane(number: item.tag)
+    }
+
+    /// ⌃⇧] (tag 1), ⌃⇧[ (tag −1).
+    @objc func focusAdjacentPane(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        sidebar?.focusAdjacentPane(item.tag)
+    }
 
     /// ⇧⌘T.
     @objc func reopenClosedTab(_ sender: Any?) { sidebar?.reopenClosedTab() }
@@ -718,7 +837,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(expandPeek(_:)):
             return tabs?.shownPeek != nil
         case #selector(splitPeek(_:)):
-            return false  // Split view is 2.7b.
+            return tabs?.shownPeek != nil
+        case #selector(newSplitPane(_:)):
+            return sidebar?.selectedEntryID != nil
+        case #selector(removeSplitPane(_:)), #selector(unsplit(_:)):
+            return sidebar?.selectedSplit != nil
+        case #selector(setSplitLayout(_:)):
+            let split = sidebar?.selectedSplit
+            menuItem.state = split.map { $0.layout == Self.splitLayout(tag: menuItem.tag) } == true ? .on : .off
+            // Outside a split it splits the selected entry with the next one (Zen).
+            return sidebar?.selectedEntryID != nil
+        case #selector(focusSplitPane(_:)):
+            return (sidebar?.selectedSplit?.members.count ?? 0) >= menuItem.tag
+        case #selector(focusAdjacentPane(_:)):
+            return sidebar?.selectedSplit != nil
         case #selector(hideOrShowSidebar(_:)):
             // Enabled whenever the window exists and no page is in element fullscreen (ROADMAP 2.7b).
             menuItem.title = windowController?.isSidebarOpen == false ? "Show Sidebar" : "Hide Sidebar"
