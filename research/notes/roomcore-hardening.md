@@ -607,3 +607,11 @@ strict package signature pass. Serial nav20.447s,ten-loaded-pagequit3.083s,
 ready/clean. B-16 remains open: these fix and validate one startup invariant,
 not the existing policy-loader or renderer teardown stalls. Original five
 patches/public headers/Chapter2 remain untouched; apply0applied10already.
+
+Exact-package idle audit now running after3f091cb: netlog-idle-worker-start,
+managed session64273, browserPID16102,nice0,idle-start1791017322.9819632,
+600seconds requested. Actual live process and marker verified. Do not restart
+it or replace the packaged app while running; receipt/summary are pending.
+PR updated/attached;3f091cb CI pending. Compiler stopped. Next turn should first
+poll this exact session/process and qualify only its clean complete summary,
+then continue B-16 investigation with the retained narrow-fix boundaries.
