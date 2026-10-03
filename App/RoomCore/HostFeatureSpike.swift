@@ -12,6 +12,7 @@ enum HostFeatureSpike {
                         "autofill-save", "autofill-update",
                         "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth",
                         "ui-print-preview", "ui-devtools", "ui-extension-popup",
+                        "ui-file-input", "ui-filesystem", "ui-download-close", "ui-download-destination",
                         "ui-camera", "ui-microphone", "ui-capture", "ui-screen-share", "ui-video", "ui-document-pip"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
@@ -64,6 +65,8 @@ enum HostFeatureSpike {
             switch name {
             case "ui-camera", "ui-microphone", "ui-capture", "ui-screen-share", "ui-video", "ui-document-pip":
                 try await HostMediaUISpike.run(name, host: host, cdp: cdp, page: page, profile: profile)
+            case "ui-file-input", "ui-filesystem", "ui-download-close", "ui-download-destination":
+                try await HostFileUISpike.run(name, host: host, cdp: cdp, page: page, profile: profile)
             case "ui-extension-popup":
                 try await HostExtensionUISpike.run(host: host, page: page, profile: profile)
             case "ui-print-preview", "ui-devtools":

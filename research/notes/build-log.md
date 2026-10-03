@@ -298,3 +298,8 @@ mic or screen captured. Existing baseline/audit identities are not relabeled.
 ## 2026-10-03 — direct MV3 popup diagnostic
 
 Existing out/dev, default jobs, private CLI probe only:33s/13steps, load55.25/40.12/42.55. GN dependency check passes. Package stage4.4s/host18.7s, strict signature valid. Real popup lifecycle drive18s/exit0, details in roomcore-ui-compatibility-results.md. No production behavior or network-policy change.
+
+
+## 2026-10-03 — native file and download diagnostic
+
+Initial compile failed after29.67s at a probe-only static/member DownloadManager call. Corrected build26s/2steps, load49.85/50.86/45.11; GN/Swift checks pass. Package stage4.8s/host14.3s, strict signature valid. File input20s, filesystem13s, download-close boundary10s, destination cancel11s; all exit0. Production code/policy unchanged; see UI results for unsupported close-decision UI.

@@ -77,9 +77,9 @@ address into the user's profile.
 |---|---|
 | Device choosers/connections | Web USB/HID/Serial/Bluetooth chooser cancellation passes (table below). Empty filters/fake Bluetooth; cancel only, never select hardware. Extension-origin and local-network gates remain separate. |
 | Print preview / DevTools | Real print preview/pages/cancel/reopen/PDF passes; docking has verified missing-controller blocker (below). Native print-panel/focus remains reviewer acceptance. |
-| Extension action UI | action.openPopup has a verified toolbar/container blocker. Source map below; direct Chrome ExtensionPopup hosting through the existing Room anchor remains a useful private probe before closing this package. |
+| Extension action UI | action.openPopup has a verified toolbar/container blocker. Source map and successful direct Chrome ExtensionPopup ownership/resize/close probe below. Product toolbar/container remains missing. |
 | Media/capture | Denial, synthetic capture/stop, generated playback, screen-picker cancel and video PiP measured below. Document PiP also closes with its owner; native activity UI remains a concrete Chapter3 contract. |
-| Downloads/file dialogs | Existing bytes/cancel evidence retained; pending-download close decision and picker cancellation/lifetime still to investigate. |
+| Downloads/file dialogs | Real native input/open/save/folder/destination cancellation and owner destruction pass below. Pending-download decision is verified to auto-confirm without UI; product close confirmation remains missing. |
 
 The Goal remains active. Rows marked pending are unfinished, not architectural
 blockers or completed investigations.
@@ -273,3 +273,37 @@ and RoomCore's modal findings. Engine/roomcore and App/RoomCore were byte-for-by
 unchanged by the rebase against former checkpoint bfbd7c0. Direct-main scope
 for Packages, App and ROADMAP contains only App/RoomCore. Historical measurement
 source hashes above intentionally retain their pre-rebase identities.
+
+
+## Package 6 — downloads and native file dialogs
+
+Private diagnostic build26s/2steps (initial compilation rejected a static
+DownloadManager call; corrected to the actual profile member), GN/stand-in
+Swift typecheck pass, package stage4.8s/host14.3s, strict signature valid.
+All runs use fresh isolated profiles and local fixture downloads. No user
+file was selected, filesystem grant created, or physical output sent.
+Exact hashes and receipts: roomcore-ui-files-checkpoint.json.
+
+| Required path | Actual result | Status / Chapter3 contract |
+|---|---|---|
+| Ordinary file input cancellation | feature-ui-file-input-initial: real NSOpenPanel sheet attached to UIKitCore.RoomWindow; cancel event exactly1, files0. Reopen, close owner tab: pageClosed=true,panelGone=true.20s,exit0. | Works in spike. FileSelectHelper::RunFileChooserEnd clears listener, releases SelectFileDialog; macOS bridge cancellation follows owner destruction. Native selection/multiple/folder navigation and focus restoration remain reviewer acceptance. |
+| File System Access open/save/folder | feature-ui-filesystem-initial: actual NSOpenPanel/NSSavePanel sheets; showOpenFilePicker, showSaveFilePicker, showDirectoryPicker each rejects AbortError exactly once after cancel. Reopened open picker disappears with owner tab.13s,exit0. | Cancellation and owner lifetime work. No read/write grant was created: persistent grant display/revoke and overwrite approval require a later deliberately selected isolated file, not inference from cancelled picker. |
+| Download destination | feature-ui-download-destination-initial: prompt_for_download enabled only in fresh spike profile; real NSSavePanel sheet owned by Room; cancel produces actual canceled download event.11s,exit0. | Works in spike for destination cancel; no CDP destination override used for this case. Native path choice and overwrite are separate acceptance. |
+| Pending-download close decision | feature-ui-download-close-initial: actual active slow download; direct BrowserWindow::ConfirmBrowserCloseWithPendingDownloads(kBrowserShutdown) immediately calls back true, no panel. State3,10s,exit0; fixture canceled afterward. | **Verified missing decision UI**, not a completed close flow. Room's stub silently authorizes interruption. Chapter3 needs count/reason, keep-downloading versus cancel-and-close, exactly-once asynchronous completion, cancellation on owner loss, and persistent download state. No user approval was synthesized. |
+
+On macOS, UnloadController::CanCloseWithInProgressDownloads returns true for
+ordinary non-private profile window closes: those downloads may outlive a
+window. Private/guest final-window closure and application termination are
+separate policies. The direct callback probe deliberately verifies Room's
+missing boundary without falsely presenting a normal window close as the
+application-quit decision. Because the stub is immediate, it has no pending
+decision object whose owner lifetime could be accepted. This is product work,
+not a null-return compatibility fix. Existing26-byte completion and explicit
+slow-download cancellation evidence remain qualified to their original runs.
+
+The native panel probes use AppKit in-process cancellation, permitted by the
+CLI-hook rule; no accessibility or computer-use driving. Source references:
+chrome/browser/file_select_helper.cc, ui/shell_dialogs/select_file_dialog_mac.mm,
+components/remote_cocoa/app_shim/select_file_dialog_bridge.mm,
+chrome/browser/ui/unload_controller.cc and Room's window stubs. No production
+engine/policy/public API/patch changes; no new baseline or idle-audit claim.

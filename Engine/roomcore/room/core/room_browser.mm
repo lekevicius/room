@@ -27,6 +27,9 @@
 #include "printing/print_job_constants.h"
 #include "chrome/browser/devtools/devtools_ui_controller.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
+#include "content/public/browser/download_manager.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
@@ -217,6 +220,23 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action isEqualToString:@"download-prompt-enable"]) {
+    _profile.room_profile->GetPrefs()->SetBoolean(prefs::kPromptForDownload, true);
+    return @1;
+  }
+  if ([action isEqualToString:@"download-close-decision"]) {
+    int count = _profile.room_profile->GetDownloadManager()->InProgressCount();
+    if (count < 1) { return @(-1); }
+    auto state = std::make_shared<int>(0);
+    BrowserWindow::FromBrowser(_browser)->ConfirmBrowserCloseWithPendingDownloads(
+        count, UnloadController::DownloadCloseType::kBrowserShutdown,
+        base::BindOnce([](std::shared_ptr<int> result, bool cancel_downloads) {
+          *result = 1 | (cancel_downloads ? 2 : 0);
+          LOG(WARNING) << "Room UI probe download close callback cancel_downloads=" << cancel_downloads;
+        }, state));
+    LOG(WARNING) << "Room UI probe download close active=" << count << " immediate_state=" << *state;
+    return @(*state);
   }
   if ([action hasPrefix:@"extension-popup-"]) {
     if (!base::CommandLine::ForCurrentProcess()->HasSwitch("load-extension")) {

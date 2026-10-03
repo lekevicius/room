@@ -1,0 +1,149 @@
+{
+  "chromium_head": "2f06f6d7533a515a94386027cc8020775f3aec9e",
+  "runs": {
+    "file-input": {
+      "receipt": {
+        "feature": "ui-file-input",
+        "exit_status": "0",
+        "elapsed_seconds": "20",
+        "source_commit": "a53232f0f710c4063a841056168b8824463e682a"
+      },
+      "identity": {
+        "source_head": "a53232f0f710c4063a841056168b8824463e682a",
+        "tracked_diff_sha256": "2e0ec6847889f165ffee4d3c689676d6631efdcc580684cced0f5d919d4fe27f",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "0dbcdf0bc7c635df6c3cb2290c4835969a7d90b1948c670cc33b3512730249cd",
+          "Contents/MacOS/Room.debug.dylib": "211446e4c75ca1213085963a5b40d57d603aa80a8731578dd296be483b1cb45d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "95e0d9356185ce113506ee171284231218604c3c67ede5179542a862be2a155d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "e79816e632db082e48b7c7d6a2c070a14d6a8d3ed8ae82f089fac13fc9c97461",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "b3492e5d38bb74d771d4c6d92d19f26221dde27f37581971884c49973d8cde66",
+          "App/RoomCore/HostFeatureSpike.swift": "f6991376dd00f42f7ff7babcec91e72a1577bd8057bf896a5608f7860ae561cd",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-file-input\nloadavg: 70.5 56.2 47.6\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\nfile-panel: class=NSOpenPanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfile-input-cancel: callbacks=1 files=0\nfile-panel: class=NSOpenPanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfile-panel-owner-close: pageClosed=true panelGone=true\nboundary: No user file chosen or persistent filesystem grant created. Native navigation/selection and grant revocation remain separate acceptance.\ndrive-complete: ui-file-input\npage-state: url=http://127.0.0.1:55971/features title=RoomCore features closed=true\nend: ui-file-input\nterminate-request-time: 1791036187.088235\n"
+    },
+    "filesystem": {
+      "receipt": {
+        "feature": "ui-filesystem",
+        "exit_status": "0",
+        "elapsed_seconds": "13",
+        "source_commit": "a53232f0f710c4063a841056168b8824463e682a"
+      },
+      "identity": {
+        "source_head": "a53232f0f710c4063a841056168b8824463e682a",
+        "tracked_diff_sha256": "2e0ec6847889f165ffee4d3c689676d6631efdcc580684cced0f5d919d4fe27f",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "0dbcdf0bc7c635df6c3cb2290c4835969a7d90b1948c670cc33b3512730249cd",
+          "Contents/MacOS/Room.debug.dylib": "211446e4c75ca1213085963a5b40d57d603aa80a8731578dd296be483b1cb45d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "95e0d9356185ce113506ee171284231218604c3c67ede5179542a862be2a155d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "e79816e632db082e48b7c7d6a2c070a14d6a8d3ed8ae82f089fac13fc9c97461",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "b3492e5d38bb74d771d4c6d92d19f26221dde27f37581971884c49973d8cde66",
+          "App/RoomCore/HostFeatureSpike.swift": "f6991376dd00f42f7ff7babcec91e72a1577bd8057bf896a5608f7860ae561cd",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-filesystem\nloadavg: 76.2 58.5 48.6\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\nfilesystem-trigger: showOpenFilePicker()\nfile-panel: class=NSOpenPanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfilesystem-result: [\"pending\": 0, \"name\": AbortError, \"message\": Failed to execute 'showOpenFilePicker' on 'Window': The user aborted a request., \"count\": 1]\nfilesystem-trigger: showSaveFilePicker({suggestedName:'roomcore-unused.txt'})\nfile-panel: class=NSSavePanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfilesystem-result: [\"name\": AbortError, \"message\": Failed to execute 'showSaveFilePicker' on 'Window': The user aborted a request., \"pending\": 0, \"count\": 1]\nfilesystem-trigger: showDirectoryPicker()\nfile-panel: class=NSOpenPanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfilesystem-result: [\"name\": AbortError, \"pending\": 0, \"count\": 1, \"message\": Failed to execute 'showDirectoryPicker' on 'Window': The user aborted a request.]\nfile-panel: class=NSOpenPanel sheet=true parent=Optional(UIKitCore.RoomWindow)\nfile-panel-owner-close: pageClosed=true panelGone=true\nboundary: No user file chosen or persistent filesystem grant created. Native navigation/selection and grant revocation remain separate acceptance.\ndrive-complete: ui-filesystem\npage-state: url=http://127.0.0.1:56204/features title=RoomCore features closed=true\nend: ui-filesystem\nterminate-request-time: 1791036210.142247\n"
+    },
+    "download-close": {
+      "receipt": {
+        "feature": "ui-download-close",
+        "exit_status": "0",
+        "elapsed_seconds": "10",
+        "source_commit": "a53232f0f710c4063a841056168b8824463e682a"
+      },
+      "identity": {
+        "source_head": "a53232f0f710c4063a841056168b8824463e682a",
+        "tracked_diff_sha256": "2e0ec6847889f165ffee4d3c689676d6631efdcc580684cced0f5d919d4fe27f",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "0dbcdf0bc7c635df6c3cb2290c4835969a7d90b1948c670cc33b3512730249cd",
+          "Contents/MacOS/Room.debug.dylib": "211446e4c75ca1213085963a5b40d57d603aa80a8731578dd296be483b1cb45d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "95e0d9356185ce113506ee171284231218604c3c67ede5179542a862be2a155d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "e79816e632db082e48b7c7d6a2c070a14d6a8d3ed8ae82f089fac13fc9c97461",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "b3492e5d38bb74d771d4c6d92d19f26221dde27f37581971884c49973d8cde66",
+          "App/RoomCore/HostFeatureSpike.swift": "f6991376dd00f42f7ff7babcec91e72a1577bd8057bf896a5608f7860ae561cd",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-download-close\nloadavg: 81.2 63.6 51.1\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\ncdp-event: Browser.downloadWillBegin\ncdp-event: Page.downloadWillBegin\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ndownload-close-decision: state=3 panels=0\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\nblocked: Real active download plus direct BrowserWindow close-decision call auto-confirms cancellation without asking. Ordinary macOS non-private window close skips this question; product application/private-profile close decisions need an owned async UI contract. No browser close was simulated as a user approval.\ndrive-complete: ui-download-close\npage-state: url=http://127.0.0.1:56704/features title=RoomCore features closed=false\nend: ui-download-close\nterminate-request-time: 1791036256.091047\n"
+    },
+    "download-destination": {
+      "receipt": {
+        "feature": "ui-download-destination",
+        "exit_status": "0",
+        "elapsed_seconds": "11",
+        "source_commit": "a53232f0f710c4063a841056168b8824463e682a"
+      },
+      "identity": {
+        "source_head": "a53232f0f710c4063a841056168b8824463e682a",
+        "tracked_diff_sha256": "2e0ec6847889f165ffee4d3c689676d6631efdcc580684cced0f5d919d4fe27f",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "0dbcdf0bc7c635df6c3cb2290c4835969a7d90b1948c670cc33b3512730249cd",
+          "Contents/MacOS/Room.debug.dylib": "211446e4c75ca1213085963a5b40d57d603aa80a8731578dd296be483b1cb45d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "95e0d9356185ce113506ee171284231218604c3c67ede5179542a862be2a155d",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "e79816e632db082e48b7c7d6a2c070a14d6a8d3ed8ae82f089fac13fc9c97461",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "0547b519ac76d07a1173475786b3cc4c9400758c6295394ce270c5c0252f0d3d",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "b3492e5d38bb74d771d4c6d92d19f26221dde27f37581971884c49973d8cde66",
+          "App/RoomCore/HostFeatureSpike.swift": "f6991376dd00f42f7ff7babcec91e72a1577bd8057bf896a5608f7860ae561cd",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-download-destination\nloadavg: 54.1 58.9 50.0\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\ncdp-event: Page.frameScheduledNavigation\ncdp-event: Page.frameRequestedNavigation\ncdp-event: Page.frameClearedScheduledNavigation\nfile-panel: class=NSSavePanel sheet=true parent=Optional(UIKitCore.RoomWindow)\ncdp-event: Page.frameStartedNavigating\ncdp-event: Page.frameStartedLoading\ncdp-event: Page.frameStoppedLoading\ncdp-event: Browser.downloadWillBegin\ncdp-event: Page.downloadWillBegin\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ncdp-event: Browser.downloadProgress\ncdp-event: Page.downloadProgress\ndownload-destination-cancelled: true\ndrive-complete: ui-download-destination\npage-state: url=http://127.0.0.1:57161/features title=RoomCore features closed=false\nend: ui-download-destination\nterminate-request-time: 1791036300.439538\n"
+    }
+  }
+}

@@ -48,6 +48,7 @@ source_set("core") {
     "//components/component_updater",
     "//components/find_in_page",
     "//components/permissions",
+    "//components/prefs",
     "//components/keyed_service/content",
     "//chrome/browser/ui",
     "//chrome/browser/devtools",
