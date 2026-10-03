@@ -219,7 +219,8 @@ public final class DownloadsPopover: NSObject, NSPopoverDelegate {
         popover.contentViewController = DownloadsViewController(list: list)
         popover.delegate = self
         self.popover = popover
-        popover.show(relativeTo: rect ?? view.bounds, of: view, preferredEdge: .maxY)
+        // Above the footer button (in a flipped view, minY is the top edge).
+        popover.show(relativeTo: rect ?? view.bounds, of: view, preferredEdge: view.isFlipped ? .minY : .maxY)
         list.markSeen()
     }
 

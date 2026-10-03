@@ -59,6 +59,22 @@ struct SitePanelTests {
         #expect(reloads == 1 && !model.needsReload)
     }
 
+    @Test("An engine that answers with the default (CEF's effective value) does not make a row the site's own")
+    func defaultsAreNotStored() throws {
+        let engine = FakeApplication()
+        try engine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+        let profile = try engine.profile(named: "Default")
+        let origin = URL(string: "https://a.example")!
+        profile.setPermissionSetting(.allow, for: .javascript, origin: origin)
+        profile.setPermissionSetting(.ask, for: .clipboard, origin: origin)
+        profile.setPermissionSetting(.block, for: .popups, origin: origin)
+        profile.setPermissionSetting(.allow, for: .geolocation, origin: origin)
+        let model = SitePanelModel(origin: origin, security: .none, profile: profile) {}
+        #expect(model.rows == [.geolocation, .camera, .microphone, .notifications])
+        #expect(model.setting(.geolocation) == .allow)
+        #expect(model.hasStoredSettings)
+    }
+
     @Test("Clear site data asks the page's profile for cookies and storage of the origin")
     func clearData() async throws {
         let engine = FakeApplication()

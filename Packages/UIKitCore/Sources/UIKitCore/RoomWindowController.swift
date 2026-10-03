@@ -141,6 +141,9 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     }
     public func windowWillExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
     public func windowDidExitFullScreen(_ notification: Notification) {
+        // Again here: after a page's element fullscreen the toolbar came back hidden from the
+        // transition (2.6b), leaving the traffic lights at 9,9 instead of 19,19.
+        window?.toolbar?.isVisible = true
         rootView.needsLayout = true
         onFullscreenChange?(false)
     }
