@@ -48,7 +48,7 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | Zoom in / out / reset | ⌘= / ⌘- / ⌘0 | no | 2.6 | |
 | New split (empty pane) | ⇧⌘= (alias ⌃⇧=) | no | 2.7 | |
 | Remove split pane | ⌃⇧- | no | 2.7 | |
-| Split layout grid / vertical / horizontal / unsplit | ⌥⌘G / ⌥⌘V / ⌥⌘H / ⌥⌘U | no | 2.7 | |
+| Split layout grid / vertical / horizontal / unsplit | ⌥⌘G / ⌥⌘V / — / ⌥⌘U | no | 2.7 | ⌥⌘H stays Hide Others, the macOS standard (decided 2026-10-04, B-36); the horizontal layout is in the menu, the palette and the pane header |
 | Focus split pane N / next / previous | ⌃⇧1…4 / ⌃⇧] / ⌃⇧[ | no | 2.7 | |
 | Open link in Peek | ⇧-click | — | 2.7 | pointer gesture |
 | Expand Peek to tab / Peek to split | ⌘O / ⇧⌘O | no | 2.7 | Open File is menu-only |

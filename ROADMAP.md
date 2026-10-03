@@ -284,6 +284,10 @@ Exit criteria: spec §D, §E and §I.6 work on CEF; window screenshots extended 
 
 Goal: Room behaves like a Mac app and can be your default browser.
 
+Run it as two sessions with a report after each: **2.8a** = tasks 1, 2 and 6 (the main menu from `docs/shortcuts.md`, Settings v0, fullscreen on a real Space); **2.8b** = tasks 3, 4 and 5 (default browser and URL ingestion, first run, Sparkle and Sentry) and the exit criteria including the net-log check. The phase is done when both are.
+
+What 2.7 provides (details in the 2.7b entry of `docs/progress.md`, "For 2.8"): today's menus are App, File, Edit, View, Tab, Split (temporary), Spaces, Debug (DEBUG only) and Window; every Room item targets `AppDelegate` and validates there, and only AppKit's own actions (undo, cut/copy/paste, Close Window, Minimize, Zoom, Hide, Show All, Quit, About) still go through the responder chain; not yet items: ⌘N proper, ⇧⌘N (disabled until 4.8), ⌃⌘F, ⇧⌘L, ⌥⇧⌘R, ⇧⌘2, hard reload ⇧⌘R, stop ⌘.; ⌥⌘H stays Hide Others (B-36 decided, `docs/shortcuts.md`), the horizontal split layout has no key. The Settings window exists with Search and Downloads sections (2.4b, 2.6b); 2.8a's Settings v0 grows it. The AGENTS.md menu-action rule (no AppKit action names) and the CI-compiler rule came out of 2.7b.
+
 Tasks:
 1. Main menu in code from `docs/shortcuts.md` (every row present; unimplemented ones disabled with their chapter in the tooltip), `validateMenuItem` everywhere, the reserved set from `UIKitCore.ReservedShortcuts`. Remapping moves to 4.4 with the full settings window (amended in Phase 1.6: one place for shortcut editing).
 2. Settings v0 (SwiftUI window): search engine and suggestions off switch, download location, Peek on/off, sidebar side, appearance; the rest lands in 4.4.
