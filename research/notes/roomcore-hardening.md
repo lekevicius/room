@@ -496,3 +496,12 @@ Same-component stock-window control obtained one complete ten-page quit in
 watchdog and no root cause is claimed. Reproduction sources and preparation
 failures are documented in roomcore-shutdown-investigation.md. No engine,
 patch, policy, public API or protected Chapter 2 edits. CI passed 70/78 s.
+
+09:54 EEST: targeted teardown logging reproduced helper-grace failures,
+including with network-only sampling. Captured leftover renderer waits on
+GPU-channel disconnect while its IO thread deallocates Mojo Mach VM. Sampling
+can affect timings; no root-cause claim or production scheduling change.
+A diagnostic --disable-gpu run uncovered a separate host crash: Blink renderer
+loss enters SadTabController, which DCHECKs on Room's absent BrowserView.
+Next work is renderer-crash containment/reload, not disabling GPU. Details and
+all rejected samples are retained in roomcore-shutdown-investigation.md.

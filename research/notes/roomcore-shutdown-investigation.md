@@ -178,3 +178,52 @@ unqualified stress runs: retain the helper across the full deadline plus
 machine state, and only consider a narrow engine/upstream change once the
 blocked operation is established. Watchdog, helper grace and data durability
 remain unchanged. Latest PR CI compile/unit checks passed in 70 / 78 s.
+
+## Early teardown and leftover-renderer capture — 09:44–09:52 EEST
+
+Added opt-in --diagnose-shutdown to the strict quit runner. It logs the
+network-service wait and samples that helper from the termination marker;
+these receipts explicitly identify diagnostic overhead. On cleanup failure,
+one surviving helper is sampled after the unchanged five-second check.
+No sampling occurs in normal baseline mode.
+
+An initial browser+network capture (baseline-shutdown-targeted) began
+28 / 49 / 145 ms after termination markers. All ten pages loaded; browsers
+exited 0 in 6.333 / 3.699 / 6.633 s, but 8 / 11 / 9 helpers remained at the
+unchanged grace deadline. All samples are rejected. Network waits were
+5217 / 1410 / 5457 ms. No new crash reports or watchdog. Browser sampling was
+removed from the final tool to reduce observer interference; a watchdog
+already provides the main-process minidump when it fires.
+
+Network-only capture (baseline-shutdown-network-only) still rejected all three:
+6.731 / 8.115 / 7.656 s browser exits, 6 / 4 / 6 helpers left, 0 new crashes,
+exit 0; network waits 5933 / 6913 / 6813 ms. One sampler remained running at
+each browser exit, so instrumentation overhead is still a limitation. All
+helpers later exited. This does not prove the unsampled timing distribution.
+Two workers in the first network capture stayed in initial QoS setting in
+all 365 samples, while main waited for the network ThreadPool to drain.
+
+A leftover renderer (75080, reparented to launchd) was sampled after the
+failure: its main and compositor threads waited on synchronous GPU channel
+DestroyCommandBuffer during disconnect. Its IO thread was in
+ChannelMac::ShutDownOnIOThread → ScopedMachVM reset → mach_vm_deallocate for
+all 67 samples. Another renderer (75077) was processing an IPC endpoint error
+on its IO thread while its main waited on the same GPU disconnect path.
+Thus the evidence includes both network-worker startup and renderer/Mojo
+cleanup delays; do not collapse these into one proved cause.
+
+One diagnostic-only --disable-gpu exercise (baseline-shutdown-software)
+obtained browser exits 0 in 2.530 / 3.576 s with 0 leftover helpers, but both
+were rejected for the concurrent group's crash report. The third browser
+aborted before readiness. A renderer first DCHECKed in Blink
+LayoutObject::AssertLaidOut (layout_object.h:518, clientWidth/layout path),
+then the browser DCHECKed at sad_tab_controller.cc:32 because Room has no
+BrowserView. This is a separate actionable hardening defect: renderer loss
+must not take down the host. No conclusion that disabling GPU fixes teardown
+is warranted. The flag is absent from production configuration.
+
+Next: fix SadTab creation through the smallest available factory seam and
+add an intentional renderer-crash/reload probe. The underlying Blink layout
+failure remains unmodified; its dump/log are preserved. B-16 tracks the
+unresolved teardown reliability issue; B-8 now reflects the existing native
+termination option. Prior checkpoint CI passes 70 / 86 s.

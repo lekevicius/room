@@ -51,6 +51,8 @@ def main():
     parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--runs', type=int, default=3)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--diagnose-shutdown', action='store_true',
+                        help='sample network teardown; timings include diagnostic overhead')
     args = parser.parse_args()
     executable = args.app.resolve() / 'Contents/MacOS/Room'
     if not executable.is_file() or args.runs < 1:
@@ -64,19 +66,46 @@ def main():
         spike = run_dir / 'spike.txt'
         before = crash_reports()
         observed = {}
+        samplers = []
+        sampled = False
         load = os.getloadavg()[0]
+        diagnostic_args = (['--enable-logging=stderr',
+                            '--vmodule=browser_process_io_thread=1']
+                           if args.diagnose_shutdown else [])
         with (run_dir / 'host.log').open('w') as log:
             process = subprocess.Popen([str(executable), '-RoomSpike', 'open10',
                 '-RoomSpikeOutput', str(spike), '-RoomUserDataDir', str(run_dir / 'profile'),
-                '--use-mock-keychain'], stdout=log, stderr=subprocess.STDOUT)
+                '--use-mock-keychain', *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 120
             try:
                 while process.poll() is None:
-                    observed.update(helpers_under(process.pid, processes()))
+                    rows = processes()
+                    current_helpers = helpers_under(process.pid, rows)
+                    observed.update(current_helpers)
+                    if args.diagnose_shutdown and not sampled:
+                        state = markers(spike)
+                        if 'terminate-request-time' in state:
+                            sampled = True
+                            # Sampling the browser can retain task resources
+                            # around exit and confound helper cleanup. Its
+                            # watchdog already supplies a minidump if it hangs.
+                            targets = {pid: 'network' for pid, command in current_helpers.items()
+                                       if 'network.mojom.NetworkService' in command}
+                            capture = {'started': time.time(), 'markers': state,
+                                       'load': os.getloadavg(), 'helpers': current_helpers,
+                                       'targets': targets}
+                            (run_dir / 'shutdown-capture.json').write_text(
+                                json.dumps(capture, indent=2) + '\n')
+                            for pid, name in targets.items():
+                                samplers.append(subprocess.Popen(
+                                    ['sample', str(pid), '12', '10', '-file',
+                                     str(run_dir / f'{name}-{pid}-sample.txt')],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
                     if time.monotonic() > deadline:
                         raise TimeoutError('host did not load ten pages and quit within 120 s')
                     time.sleep(0.02)
                 exited = time.time()
+                samplers_at_exit = sum(sampler.poll() is None for sampler in samplers)
                 result = markers(spike)
                 if process.returncode != 0 or 'terminate-request-time' not in result:
                     raise RuntimeError(f'host failed: exit={process.returncode}, markers={result}')
@@ -95,9 +124,17 @@ def main():
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
                     'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}
+                receipt['diagnostic_sampling'] = args.diagnose_shutdown
+                receipt['samplers_running_at_browser_exit'] = samplers_at_exit
                 (run_dir / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
                 print(json.dumps(receipt), flush=True)
                 if left or crashes:
+                    if args.diagnose_shutdown and left:
+                        pid = next(iter(left))
+                        samplers.append(subprocess.Popen(
+                            ['sample', str(pid), '2', '10', '-file',
+                             str(run_dir / f'leftover-{pid}-sample.txt')],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
                     raise RuntimeError('shutdown left helpers or produced a crash report')
             except Exception as error:
                 # A watchdog exit is the sample we most need to diagnose. Keep
@@ -106,6 +143,7 @@ def main():
                 rows = processes()
                 failure = {
                     'error': str(error), 'exit_status': process.poll(),
+                    'diagnostic_sampling': args.diagnose_shutdown,
                     'browser_pid': process.pid, 'load1': load,
                     'markers': markers(spike), 'observed_helpers': observed,
                     'remaining_helpers': {
@@ -126,6 +164,12 @@ def main():
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait()
+                for sampler in samplers:
+                    try:
+                        sampler.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        sampler.terminate()
+                        sampler.wait(timeout=5)
         time.sleep(3)
 
 

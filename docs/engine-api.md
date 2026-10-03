@@ -153,7 +153,9 @@ RoomCore-side open points: certificate errors (interstitial vs. delegate), DevTo
 The existing public ObjC headers remain unchanged. Private `-RoomSpike` host
 commands exercise Chrome find/zoom/print without becoming product API.
 RoomBrowserWindow now supplies a Views-backed modal parent, permission bubble
-anchor, and FindBarOwner; native product UI still needs the Chapter 3 contracts
+anchor, FindBarOwner, and FedCM bubble/modal anchors with a primary Views
+context. Tab editability reflects the live model; explicit activation makes
+NSApp active before making its window key. Native product UI still needs the Chapter 3 contracts
 listed in research/notes/spike-results.md.
 
 RoomCore startup policy suppresses automatic Chrome-account, cloud-policy,
@@ -170,3 +172,7 @@ research/notes for switches, hooks, measurements and scope limitations.
 Crashpad uses `<selected user-data directory>/Crashpad`; callers omitting the
 data directory retain Chromium's existing default. The Room host supplies its
 Room/RoomCore root.
+
+Serial quit is verified, but concurrent teardown remains an open reliability
+issue; see research/notes/roomcore-shutdown-investigation.md. Diagnostic
+sampling is opt-in and its timings are identified separately from baselines.
