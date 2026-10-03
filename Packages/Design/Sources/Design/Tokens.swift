@@ -304,3 +304,14 @@ public enum PromptMetrics {
     /// The permission popover's content width (chosen).
     public static let permissionWidth: CGFloat = 360
 }
+
+/// The docked DevTools pane under the page (Phase 1.4; resizable in 2.6b).
+public enum DevToolsMetrics {
+    /// The pane's share of the card when first opened (Phase 1.4).
+    public static let defaultFraction: CGFloat = 0.42
+    /// Neither side of the divider gets smaller than this (chosen).
+    public static let minPaneHeight: CGFloat = 120
+    public static let minPageHeight: CGFloat = 120
+    /// The divider's drag area, centred on its 1 pt line (chosen, as the sidebar splitter).
+    public static let dividerHitHeight: CGFloat = 8
+}

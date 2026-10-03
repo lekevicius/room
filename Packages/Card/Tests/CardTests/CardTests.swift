@@ -88,3 +88,16 @@ struct CardTests {
         #expect(!card.container.mouseDownCanMoveWindow)
     }
 }
+
+@Suite("The DevTools pane's divider (ROADMAP 2.6 task 4)")
+struct DevToolsSplitTests {
+    @Test("Dragging the divider sets the pane's share; neither the page nor the pane goes under 120 pt")
+    func drag() {
+        #expect(DevToolsSplit.fraction(dividerAt: 600, height: 1000) == 0.4)
+        #expect(DevToolsSplit.fraction(dividerAt: 990, height: 1000) == 0.12)
+        #expect(DevToolsSplit.fraction(dividerAt: 10, height: 1000) == 0.88)
+        #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 1000) == 420)
+        #expect(DevToolsSplit.paneHeight(fraction: 0.95, height: 1000) == 880)
+        #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 200) == 100)
+    }
+}

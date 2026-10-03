@@ -34,6 +34,8 @@ final class FakeDevTools: DevTools {
     private weak var contents: FakeWebContents?
     private var view: NSTextField?
     private(set) var inspectedPoint: NSPoint?
+    private(set) var tool: DevToolsTool?
+    var isDockable: Bool { true }
 
     init(contents: FakeWebContents) {
         self.contents = contents
@@ -50,6 +52,11 @@ final class FakeDevTools: DevTools {
         view = label
     }
 
+    func open(in hostView: NSView, tool: DevToolsTool) {
+        open(in: hostView)
+        self.tool = tool
+    }
+
     func inspectElement(at point: NSPoint, in hostView: NSView) {
         open(in: hostView)
         inspectedPoint = point
@@ -59,5 +66,6 @@ final class FakeDevTools: DevTools {
         view?.removeFromSuperview()
         view = nil
         inspectedPoint = nil
+        tool = nil
     }
 }

@@ -530,6 +530,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         pageHost?.toggleDevTools()
     }
 
+    /// ⌥⌘J: DevTools on the console.
+    @objc func showJavaScriptConsole(_ sender: Any?) { pageHost?.openDevTools(.console) }
+
+    /// ⌥⌘C: DevTools with the element picker on.
+    @objc func inspectElements(_ sender: Any?) { pageHost?.openDevTools(.elementPicker) }
+
     // Debug menu: the lifecycle checks on CEF (spec §H), results in the log.
 
     @objc func simulateMemoryPressure(_ sender: Any?) {
@@ -567,7 +573,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let muted = sidebar?.selectedEntryID.flatMap { tabs?.pageState(for: $0).isMuted } ?? false
             menuItem.title = muted ? CommandName.unmuteTab : CommandName.muteTab
             return sidebar?.selectedHasPage == true
-        case #selector(reloadPage(_:)), #selector(showFindBar(_:)), #selector(findNext(_:)), #selector(printPage(_:)):
+        case #selector(toggleDevTools(_:)):
+            menuItem.title = pageHost?.isDevToolsOpen == true ? "Close Developer Tools" : "Developer Tools"
+            return tabs?.current != nil
+        case #selector(reloadPage(_:)), #selector(showFindBar(_:)), #selector(findNext(_:)), #selector(printPage(_:)),
+             #selector(showJavaScriptConsole(_:)), #selector(inspectElements(_:)):
             return tabs?.current != nil
         case #selector(zoomPage(_:)):
             guard let page = tabs?.current else { return false }

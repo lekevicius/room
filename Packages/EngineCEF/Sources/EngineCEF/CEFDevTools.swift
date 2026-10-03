@@ -24,6 +24,8 @@ final class CEFDevTools: DevTools, CEFDevToolsInspectable {
         frontend != nil || (usesWindow && contents?.browser?.hasDevTools == true)
     }
 
+    var isDockable: Bool { (CEFApplication.current?.remoteDebuggingPort ?? 0) > 0 }
+
     /// The docked front-end's page, for tests and the spike.
     public var frontendPage: CEFWebContents? { frontend }
 
@@ -33,6 +35,13 @@ final class CEFDevTools: DevTools, CEFDevToolsInspectable {
 
     func inspectElement(at point: NSPoint, in hostView: NSView) {
         Task { await show(in: hostView, inspecting: point) }
+    }
+
+    func open(in hostView: NSView, tool: DevToolsTool) {
+        Task {
+            await show(in: hostView, inspecting: nil)
+            await run(PageScripts.devToolsTool(tool))
+        }
     }
 
     func close() {
@@ -76,6 +85,16 @@ final class CEFDevTools: DevTools, CEFDevToolsInspectable {
         if let point { await reveal(at: point) }
     }
 
+    /// Runs `script` in the docked front-end once it has loaded and attached
+    /// (it answers `true`); without a docked front-end there is nothing to run it in.
+    private func run(_ script: String) async {
+        guard let frontend else { return }
+        for _ in 0..<50 {
+            if let result = try? await frontend.executeJavaScript(script), result == "true" { return }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+    }
+
     /// Selects the element at `point` in the docked front-end's Elements panel.
     private func reveal(at point: NSPoint) async {
         guard let contents, let frontend else { return }
@@ -93,6 +112,22 @@ final class CEFDevTools: DevTools, CEFDevToolsInspectable {
 }
 
 extension PageScripts {
+    /// Runs inside the DevTools front-end: the console panel, or the element
+    /// picker (its own "Select an element" action).
+    static func devToolsTool(_ tool: DevToolsTool) -> String {
+        let body = switch tool {
+        case .console:
+            "const UI = await import('./ui/legacy/legacy.js'); "
+                + "await UI.ViewManager.ViewManager.instance().showView('console');"
+        case .elementPicker:
+            "const UI = await import('./ui/legacy/legacy.js'); "
+                + "const registry = UI.ActionRegistry.ActionRegistry.instance(); "
+                + "if (!registry.hasAction('elements.toggle-element-search')) return false; "
+                + "await registry.getAction('elements.toggle-element-search').execute();"
+        }
+        return "(async () => { try { \(body) return true; } catch (e) { return false; } })()"
+    }
+
     /// Runs inside the DevTools front-end: resolves a backend node id in the
     /// primary page target and reveals it in the Elements panel.
     static func revealNode(_ backendID: Int) -> String {

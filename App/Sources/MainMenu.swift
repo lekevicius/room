@@ -69,8 +69,14 @@ enum MainMenu {
         viewMenu.addItem(withTitle: "Forward", action: #selector(AppDelegate.goForward(_:)), keyEquivalent: "]")
         viewMenu.addItem(withTitle: "Show History", action: #selector(AppDelegate.showHistory(_:)), keyEquivalent: "y")
         viewMenu.addItem(withTitle: "Downloads", action: #selector(AppDelegate.showDownloads(_:)), keyEquivalent: "J")
+        viewMenu.addItem(.separator())
         let devTools = viewMenu.addItem(withTitle: "Developer Tools", action: #selector(AppDelegate.toggleDevTools(_:)), keyEquivalent: "i")
         devTools.keyEquivalentModifierMask = [.command, .option]
+        let console = viewMenu.addItem(withTitle: "JavaScript Console", action: #selector(AppDelegate.showJavaScriptConsole(_:)),
+                                       keyEquivalent: "j")
+        console.keyEquivalentModifierMask = [.command, .option]
+        let inspect = viewMenu.addItem(withTitle: "Inspect Elements", action: #selector(AppDelegate.inspectElements(_:)), keyEquivalent: "c")
+        inspect.keyEquivalentModifierMask = [.command, .option]
         main.addItem(submenu: viewMenu, title: "View")
 
         // Sidebar and tab commands (Phases 2.2, 2.3); Phase 2.8 builds the full menu set.

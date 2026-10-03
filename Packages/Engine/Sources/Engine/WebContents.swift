@@ -94,12 +94,24 @@ public extension WebContents {
 @MainActor
 public protocol DevTools: AnyObject {
     var isOpen: Bool { get }
+    /// `false` when the engine can show DevTools only in a window of its own
+    /// (CEF without the debugging port, Release builds): the host view is then unused.
+    var isDockable: Bool { get }
     /// Shows DevTools filling `hostView`. A second call moves it to the new host.
     func open(in hostView: NSView)
+    /// Opens DevTools if needed on a tool: the console (⌥⌘J) or the element picker (⌥⌘C).
+    func open(in hostView: NSView, tool: DevToolsTool)
     /// Opens DevTools if needed and selects the element at `point` (in the
     /// web contents' `nativeView` coordinates).
     func inspectElement(at point: NSPoint, in hostView: NSView)
     func close()
+}
+
+/// What ⌥⌘J and ⌥⌘C open DevTools on.
+nonisolated public enum DevToolsTool: Sendable, Hashable {
+    case console
+    /// Pick an element on the page to inspect.
+    case elementPicker
 }
 
 /// Options for `Profile.createWebContents`.
