@@ -1,0 +1,6 @@
+light-active: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
+dark-active: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
+light-hover-changed: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
+light-hover-today: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
+light-collapsed-toast: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
+dark-collapsed-toast: appActive=true main=true image=2200x1520 card={{260, 6}, {834, 748}} title={{91, 18}, {44, 16}} lights={{19, 19}, {60, 14}}
