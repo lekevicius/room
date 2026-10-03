@@ -312,3 +312,47 @@ What the open cost (profile): the field becoming first responder made AppKit's p
 Captures (`research/screenshots/phase-2.4b/`, 1244 × 818 window at 2×, light and dark, in-process renders as in 2.4a, glass replaced by a flat stand-in, suggestions off so no live third-party text): `history-inline` ("gi": github.com completed inline and merged with the open GitHub essential, "Switch to Tab"; four GitHub history rows; the search row), `commands` (⇥ from empty: `>` and the first eight commands A–Z), `commands-filtered` (`>re`), `site-search` (`yt` ⇥ `lofi`: the YouTube chip, "Search YouTube", two YouTube history rows).
 
 Tests: Room scheme 301 tests (unit and window tier) pass locally; the no-engine CI spec builds and passes with window suites skipped. Smoke quit 0.21 s, exit 0, no helpers left, no new crash reports.
+
+## Phase 2.5 — spaces: switch cost, cookies per profile, mid-slide frame (2026-10-03, Mac mini M4, 24 GB, CEF, Debug)
+
+Conditions: the screen was unlocked and in use; Room's window was visible but never key (`window_main: false`: macOS refused activation of the script-launched app), the display ran at **60 Hz** (16.67 ms frames on every run), load average 4–13 (stated per run). No screen sharing.
+
+### Switching (`scripts/run-spike.sh spaces -RoomSidebarFixture spaces500`)
+
+Fixture: the 500 entries split over five spaces (100 each: 20 pinned, half in two folders, 80 Today tabs), alternating two profiles; the first ten Today tabs of every space are local colour pages (`research/spikes/phase-2.5/page.html`), all **50 loaded** (10 per space; 51 renderers, 5.9–6.5 GB summed RSS). 60 switches to a random other space by **⌃digit key events**; the slide runs 250 ms, the next switch waits 450 ms. Phases are timed inside `SidebarController.switchPane`. Final run (load 7.3) and the one before it (load 13.3):
+
+| Measure (ms, median / p95) | final run | previous run |
+|---|---|---|
+| ⌃digit key event to the switch starting (CEF passes the unhandled key to the menu) | 1.93 / 2.54 | 1.75 / 3.34 |
+| The switch's main-thread code | **6.37 / 8.70** | 6.84 / 11.28 |
+| … list swap and pill | 0.08 / 0.11 | 0.07 / 0.20 |
+| … slide set-up (layer animations, unhiding the list) | 1.68 / 2.99 | 1.78 / 3.90 |
+| … footer (active icon, highlight) | 0.27 / 0.47 | 0.28 / 0.81 |
+| … essentials (crossfade on a profile change) | 0.01 / 0.02 | 0.02 / 0.04 |
+| … tint and title | 0.88 / 1.45 | 0.80 / 2.47 |
+| … card: the space's selected page into the card (`TabController.activate`) | 3.47 / 4.56 | 3.52 / 6.17 |
+| **⌃digit to the slide's first frame** (first display-link frame after the switch) | **10.85 / 17.10** | 9.94 / 23.81 |
+| Lists loaded during the 60 switches | **0** | 0 |
+
+The slide never waits on a list: every space's list is built after launch (`SidebarController.prepareSpaces`, one per run-loop turn) and kept up to date off screen. A full reload of one space's list (103 rows) off screen costs 0.18–0.51 ms median (p95 0.9–5.6 ms), because AppKit makes no row views for a hidden outline; the real cost is the list's **first display**: the first switch to each space after launch took **101–105 ms** of run-loop turn (24–28 ms our code, of which 21–25 ms is creating the never-loaded selected page). Fix: each prepared list is laid out and drawn once, transparent, under the active one (`SidebarBodyView.warmUp`): **45.5 ms median per space, one per turn after launch** (4 spaces), and the first switch's turn fell to **36.4–37.6 ms** (24.7–27.6 ms our code, 22.6–25.0 ms of it the page creation). Before trimming, the switch's own code was 10.5–11.4 ms median: the footer re-laid itself out (2.5 ms; now only the active icon changes) and the hidden window title was set synchronously (now after the frame).
+
+The 2.2a full reload (42.7 ms for 508 rows in one visible list) is no longer on any switch's path. At 60 Hz the median switch shows its first slide frame within one frame of the key; at 120 Hz (8.3 ms) the median 6.4 ms of our code would leave little room: rerun on the laptop's panel (below, for the user).
+
+### Material flash (`scripts/spaces-capture.sh`, mid-slide capture)
+
+`research/screenshots/phase-2.5-mid-slide-light.png`: a Default → Work switch slowed 24× (`SidebarController.debugSetSlideSlowdown`, 6 s) and captured by the window server (`screencapture -l`, real CEF content) 1.8 s in: both lists mid-slide, the Work profile's essentials already in place, and the card already showing the Work space's selected page (the card swaps at the switch's start, its fill follows the page's background). No frame shows the window material inside the card. At full speed the swap is inside the switch's turn (3.5 ms), so no frame can show an empty card; checked by eye only in this capture.
+
+### Cookies per profile (`scripts/spaces-cookies.sh`)
+
+`-RoomSidebarFixture spaces` (spaces Space, Reading, Music in profile Default; Work in profile Work), a throwaway `-RoomEngineDirectory`, `research/spikes/phase-2.5/cookies.html` served on 127.0.0.1:8765:
+
+| Step | `document.cookie` |
+|---|---|
+| Space (Default) opens `?set=home` | `room_profile=home` |
+| Work (Work) opens `?set=work` | `room_profile=work` |
+| Work opens the page again | `room_profile=work` |
+| Reading (Default) opens the page | `room_profile=home` |
+| The Space tab, on the page without `?set`, before a move | `room_profile=home` |
+| … moved to Work (Move to, warning confirmed): a new page in Work's context, same URL | `room_profile=work` |
+
+Engine directories: `Room Profile Default`, `Room Profile Work`, both direct children of the root (Phase 1.4 finding). The moved entry's `profileID` is Work's.
