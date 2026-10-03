@@ -152,10 +152,38 @@ extension TabController: WebContentsUIDelegate {
         pageUIDelegate.webContents(webContents, didReceiveAuthChallenge: challenge, completion: completion)
     }
 
+    /// The interstitial shows the host as the row's title; Go Back on a page
+    /// with nothing to go back to leaves Room's empty card state, never
+    /// Chromium's "Privacy error" page (B-25, decided 2026-10-03).
     public func webContents(_ webContents: any WebContents, didFailCertificateCheck error: CertificateError,
                             completion: @escaping (Bool) -> Void) {
         guard let pageUIDelegate else { return completion(false) }
-        pageUIDelegate.webContents(webContents, didFailCertificateCheck: error, completion: completion)
+        let host = error.url.host() ?? error.url.absoluteString
+        if let id = entryID(for: webContents), let page = pages[id] {
+            page.interstitialHost = host
+            if let entry = store.sidebar.entry(id), entry.liveTitle != host {
+                try? store.sidebar.setLivePage(id, url: entry.liveURL ?? error.url.absoluteString, title: host)
+            }
+        }
+        pageUIDelegate.webContents(webContents, didFailCertificateCheck: error) { [weak self, weak webContents] proceed in
+            // Read before the presenter goes back (it does only when it can).
+            let leavesNothing = !proceed && webContents?.canGoBack == false
+            completion(proceed)
+            guard let self, let webContents, let id = self.entryID(for: webContents) else { return }
+            self.pages[id]?.interstitialHost = nil
+            guard leavesNothing else { return }
+            // After the engine has finished with the cancelled navigation.
+            Task { @MainActor in self.abandonBlockedPage(webContents, entry: id, url: error.url, host: host) }
+        }
+    }
+
+    /// B-25: the page goes, the entry stays (its row shows the host) and the
+    /// card shows the empty state while it is selected.
+    private func abandonBlockedPage(_ webContents: any WebContents, entry id: UUID, url: URL, host: String) {
+        guard pages[id]?.contents === webContents else { return }
+        unload(id)
+        try? store.sidebar.setLivePage(id, url: url.absoluteString, title: host)
+        sidebar?.pageStateDidChange([id])
     }
 
     public func webContents(_ webContents: any WebContents, runFileChooser request: FileChooserRequest,

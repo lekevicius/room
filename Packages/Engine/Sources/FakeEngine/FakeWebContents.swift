@@ -333,6 +333,12 @@ public final class FakeWebContents: WebContents {
         uiDelegate?.webContents(self, processGone: status)
     }
 
+    /// The page sets `document.title`.
+    public func simulateTitle(_ title: String?) {
+        self.title = title
+        updatePageView()
+    }
+
     /// The page reports a favicon (FakeEngine's own is a template globe).
     public func simulateFavicon(_ image: NSImage?) {
         favicon = image

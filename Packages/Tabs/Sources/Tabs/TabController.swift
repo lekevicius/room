@@ -27,6 +27,9 @@ final class Page {
     var historyTitle: (url: URL, title: String)?
     /// The favicon last written to the cache, so each icon is stored once.
     weak var storedFavicon: NSImage?
+    /// While the certificate interstitial shows, the row reads the host, not
+    /// Chromium's title for the blocked navigation (2.6a carry-over).
+    var interstitialHost: String?
 
     init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
@@ -416,7 +419,7 @@ public final class TabController: SidebarHost {
         if let url, let stored = store.sidebar.entry(entry) {
             let live = url.absoluteString
             // Keep the old title while a new load of the same page has none yet (no flicker).
-            let liveTitle = title ?? (stored.liveURL == live ? stored.liveTitle : nil)
+            let liveTitle = page.interstitialHost ?? title ?? (stored.liveURL == live ? stored.liveTitle : nil)
             if stored.liveURL != live || stored.liveTitle != liveTitle {
                 try? store.sidebar.setLivePage(entry, url: live, title: liveTitle)
             }

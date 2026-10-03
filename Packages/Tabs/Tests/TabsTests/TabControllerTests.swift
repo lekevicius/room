@@ -576,3 +576,73 @@ struct HistoryRecordingTests {
         #expect(try f.store.history.visits(url: "https://pinned.example/", profile: f.space.profileID).map(\.1) == [.bookmark])
     }
 }
+
+/// Holds the certificate prompt's completion until the test answers it.
+final class CertificateAnswer: WebContentsUIDelegate {
+    var pending: ((Bool) -> Void)?
+    func webContents(_ webContents: any WebContents, didFailCertificateCheck error: CertificateError, completion: @escaping (Bool) -> Void) {
+        pending = completion
+    }
+}
+
+@Suite("Tab controller: the certificate interstitial (2.6a carry-over, B-25)")
+struct CertificateInterstitialTests {
+    @Test("While the interstitial shows, the row's title is the host")
+    func titleIsHost() async throws {
+        let f = try TabsFixture()
+        let answer = CertificateAnswer()
+        f.tabs.pageUIDelegate = answer
+        let tab = try f.today("https://self-signed.example/page")
+        f.sidebar.select(tab.id)
+        let page = try #require(f.page(tab.id))
+        page.simulateTitle("Privacy error")
+        Task { _ = await page.simulateCertificateError() }
+        await f.settle()
+        #expect(f.sidebarStore.entry(tab.id)?.liveTitle == "self-signed.example")
+        page.simulateTitle("Still blocked")
+        await f.settle()
+        #expect(f.sidebarStore.entry(tab.id)?.liveTitle == "self-signed.example")
+        answer.pending?(true)
+        page.simulateTitle("The page")
+        await f.settle()
+        #expect(f.sidebarStore.entry(tab.id)?.liveTitle == "The page")
+    }
+
+    @Test("Go Back with nothing to go back to: the page goes, the entry stays with the host, the card is empty")
+    func goBackWithoutHistory() async throws {
+        let f = try TabsFixture()
+        let answer = CertificateAnswer()
+        f.tabs.pageUIDelegate = answer
+        let tab = try f.today("https://self-signed.example/page")
+        f.sidebar.select(tab.id)
+        let page = try #require(f.page(tab.id))
+        Task { _ = await page.simulateCertificateError() }
+        await f.settle()
+        answer.pending?(false)
+        await f.settle()
+        #expect(f.page(tab.id) == nil)
+        #expect(page.state == .closed)
+        #expect(f.display.shown == nil)
+        #expect(f.sidebar.selectedEntryID == tab.id)
+        let entry = try #require(f.sidebarStore.entry(tab.id))
+        #expect(entry.liveTitle == "self-signed.example")
+        #expect(entry.currentURL == "https://self-signed.example/page")
+    }
+
+    @Test("Go Back with a page to go back to keeps the page")
+    func goBackWithHistory() async throws {
+        let f = try TabsFixture()
+        let answer = CertificateAnswer()
+        f.tabs.pageUIDelegate = answer
+        let tab = try f.today("https://ok.example/")
+        f.sidebar.select(tab.id)
+        let page = try #require(f.page(tab.id))
+        page.load(URL(string: "https://self-signed.example/page")!)
+        Task { _ = await page.simulateCertificateError() }
+        await f.settle()
+        answer.pending?(false)
+        await f.settle()
+        #expect(f.page(tab.id) === page)
+        #expect(f.display.shown === page)
+    }
+}
