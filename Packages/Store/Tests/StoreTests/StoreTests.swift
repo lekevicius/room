@@ -523,6 +523,80 @@ struct SidebarStoreTests {
     }
 }
 
+@Suite("Store: split groups (spec §D)")
+struct SplitGroupStoreTests {
+    let test: TestStore
+    let space: Space
+
+    init() throws {
+        test = try TestStore()
+        space = try #require(test.store.sidebar.spaces.first)
+    }
+
+    var sidebar: SidebarStore { test.store.sidebar }
+
+    private func tabs(_ count: Int) throws -> [Entry] {
+        try (0..<count).map { try sidebar.addEntry(.today, url: "https://\($0).example", space: space.id) }
+    }
+
+    @Test("A split keeps its panes in order with equal sizes; at most four; essentials and folders are refused")
+    func create() throws {
+        let t = try tabs(5)
+        let group = try sidebar.createSplitGroup([t[2].id, t[0].id], layout: .vbox)
+        #expect(sidebar.splitMembers(group.id).map(\.id) == [t[2].id, t[0].id])
+        #expect(group.ratios == [0.5, 0.5])
+        #expect(sidebar.splitGroup(of: t[0].id)?.id == group.id)
+        try sidebar.addToSplitGroup(t[1].id, group: group.id, at: 1)
+        try sidebar.addToSplitGroup(t[3].id, group: group.id)
+        #expect(sidebar.splitMembers(group.id).map(\.id) == [t[2].id, t[1].id, t[0].id, t[3].id])
+        #expect(throws: SidebarError.splitFull) { try sidebar.addToSplitGroup(t[4].id, group: group.id) }
+        let essential = try sidebar.addEntry(.essential, url: "https://e", space: space.id)
+        #expect(throws: SidebarError.invalidKind) { try sidebar.createSplitGroup([essential.id, t[4].id]) }
+    }
+
+    @Test("A split left with one pane dissolves (leaving, closing, becoming an essential); Undo of a close rejoins")
+    func dissolve() throws {
+        let t = try tabs(4)
+        let group = try sidebar.createSplitGroup([t[0].id, t[1].id, t[2].id])
+        let removed = try sidebar.remove(t[1].id)
+        #expect(sidebar.splitMembers(group.id).map(\.id) == [t[0].id, t[2].id])
+        sidebar.restore([removed])
+        #expect(sidebar.splitMembers(group.id).map(\.id) == [t[0].id, t[2].id, t[1].id])
+        try sidebar.move(t[2].id, to: .essentials(profile: space.profileID), at: 0)
+        #expect(sidebar.splitGroup(of: t[2].id) == nil)
+        sidebar.removeFromSplitGroup(t[1].id)
+        #expect(sidebar.splitGroups[group.id] == nil)
+        #expect(sidebar.splitGroup(of: t[0].id) == nil)
+    }
+
+    @Test("Layout changes start equal; sizes that do not fit become equal; the grip moves a pane with its size")
+    func layoutAndRatios() throws {
+        let t = try tabs(3)
+        let group = try sidebar.createSplitGroup(t.map(\.id))
+        try sidebar.setSplitRatios(group.id, [0.2, 0.3, 0.5])
+        #expect(sidebar.splitGroups[group.id]?.ratios == [0.2, 0.3, 0.5])
+        try sidebar.moveSplitMember(group.id, from: 0, to: 2)
+        #expect(sidebar.splitGroups[group.id]?.members == [t[1].id, t[2].id, t[0].id])
+        #expect(sidebar.splitGroups[group.id]?.ratios == [0.3, 0.5, 0.2])
+        try sidebar.setSplitLayout(group.id, .grid)
+        #expect(sidebar.splitGroups[group.id]?.ratios == [0.5, 0.5, 0.5, 0.5])
+        try sidebar.setSplitRatios(group.id, [0.9, 0.9])
+        #expect(sidebar.splitGroups[group.id]?.ratios == [0.5, 0.5, 0.5, 0.5])
+    }
+
+    @Test("A pane's place goes to another entry (a drop in its centre); a split survives a relaunch")
+    func replaceAndReopen() throws {
+        let t = try tabs(3)
+        let group = try sidebar.createSplitGroup([t[0].id, t[1].id])
+        try sidebar.replaceSplitMember(t[0].id, with: t[2].id)
+        #expect(sidebar.splitMembers(group.id).map(\.id) == [t[2].id, t[1].id])
+        #expect(sidebar.splitGroup(of: t[0].id) == nil)
+        test.store.close()
+        let reopened = try test.reopen()
+        #expect(reopened.sidebar.splitMembers(group.id).map(\.id) == [t[2].id, t[1].id])
+    }
+}
+
 @Suite("Reopen stack (⇧⌘T)")
 struct ClosedTabStackTests {
     @Test("The reopen stack keeps the 25 most recent closes")

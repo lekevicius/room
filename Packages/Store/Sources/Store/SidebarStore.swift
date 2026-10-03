@@ -53,6 +53,9 @@ public enum SidebarError: Error, Equatable {
     case folderNotInSpace
     case lastSpace
     case invalidKind
+    /// A split has 2…4 panes (spec §D: "Can't add more panes").
+    case splitFull
+    case unknownSplitGroup(UUID)
 }
 
 /// A removed entry and where it was, for Undo (Clear, remove).
@@ -109,6 +112,8 @@ public final class SidebarStore {
             containers[container] = members.sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }.map(\.id)
         }
         for container in Array(containers.keys) { renumber(container) }
+        var ignored = SidebarChange()
+        normalizeSplitGroups(into: &ignored)
     }
 
     // MARK: Observation
@@ -284,7 +289,7 @@ public final class SidebarStore {
             default: break
             }
         }
-        dropSplitMembership(of: change.removedEntries, into: &change)
+        normalizeSplitGroups(into: &change)
         spaces.removeAll { $0.id == id }
         for i in spaces.indices { spaces[i].position = i }
         change.removedSpaces = [id]
@@ -315,6 +320,7 @@ public final class SidebarStore {
             change.containers.insert(entry.container)
         }
         for container in change.containers { renumber(container, change: &change) }
+        normalizeSplitGroups(into: &change)
         commit(change)
     }
 
@@ -380,6 +386,7 @@ public final class SidebarStore {
         if converted.kind == .folder, converted.spaceID != entry.spaceID || converted.profileID != entry.profileID {
             reassignSubtree(of: id, to: space, change: &change)
         }
+        normalizeSplitGroups(into: &change)
         commit(change)
     }
 
@@ -414,6 +421,7 @@ public final class SidebarStore {
                 reassignSubtree(of: entry.id, to: space, change: &change)
             }
         }
+        normalizeSplitGroups(into: &change)
         commit(change)
     }
 
@@ -539,7 +547,7 @@ public final class SidebarStore {
         entries[id] = nil
         change.removedEntries.insert(id)
         change.entries.remove(id)
-        dropSplitMembership(of: [id], into: &change)
+        normalizeSplitGroups(into: &change)
         commit(change)
         return RemovedEntry(entry: entry, index: index)
     }
@@ -556,7 +564,7 @@ public final class SidebarStore {
             entries[item.entry.id] = nil
             change.removedEntries.insert(item.entry.id)
         }
-        dropSplitMembership(of: change.removedEntries, into: &change)
+        normalizeSplitGroups(into: &change)
         commit(change)
         return removed
     }
@@ -573,6 +581,17 @@ public final class SidebarStore {
             if entry.kind == .essential,
                !EntryRules.canAddEssential(currentCount: essentials(profile: entry.profileID).count) { continue }
             insert(entry, at: item.index, change: &change)
+            // Back into the split it left, at the end, if the split is still there and has room.
+            if let group = entry.splitGroupID, var split = splitGroups[group], !split.members.contains(entry.id) {
+                if SplitRules.canAdd(toCount: split.members.count) {
+                    split.members.append(entry.id)
+                    split.ratios = SplitRules.equalRatios(layout: split.layout, count: split.members.count)
+                    splitGroups[group] = split
+                    touchSplit(split, &change)
+                } else {
+                    entries[entry.id]?.splitGroupID = nil
+                }
+            }
         }
         commit(change)
     }
@@ -642,20 +661,151 @@ public final class SidebarStore {
         commit(SidebarChange(entries: [id]))
     }
 
-    // MARK: Split groups (data only; the UI is Phase 2.7)
+    // MARK: Split groups (spec §D)
 
+    /// The split `id` is a pane of.
+    public func splitGroup(of id: UUID) -> SplitGroup? { entries[id]?.splitGroupID.flatMap { splitGroups[$0] } }
+
+    /// A split's panes in order.
+    public func splitMembers(_ group: UUID) -> [Entry] { splitGroups[group]?.members.compactMap { entries[$0] } ?? [] }
+
+    /// A split of `members` (2…4, in pane order); members leave any split
+    /// they were in. Only pinned entries and Today tabs are panes (an
+    /// essential joins as a copy, spec §D / Zen).
     @discardableResult
     public func createSplitGroup(_ members: [UUID], layout: SplitLayout = .hbox) throws(SidebarError) -> SplitGroup {
-        for id in members where entries[id] == nil { throw .unknownEntry(id) }
-        let group = SplitGroup(layout: layout, ratios: Array(repeating: 1 / Double(members.count), count: members.count))
-        splitGroups[group.id] = group
+        var ids: [UUID] = []
+        for id in members where !ids.contains(id) { ids.append(id) }
+        guard ids.count >= 2, ids.count <= SplitRules.maxPanes else { throw .splitFull }
+        try validatePanes(ids)
         var change = SidebarChange()
-        for id in members {
-            entries[id]?.splitGroupID = group.id
-            change.entries.insert(id)
-        }
+        for id in ids { leaveSplit(id, change: &change) }
+        let group = SplitGroup(layout: layout, ratios: SplitRules.equalRatios(layout: layout, count: ids.count), members: ids)
+        splitGroups[group.id] = group
+        for id in ids { entries[id]?.splitGroupID = group.id }
+        touchSplit(group, &change)
         commit(change)
         return group
+    }
+
+    /// `id` becomes pane `index` (clamped) of `group`, leaving any other split; sizes become equal.
+    public func addToSplitGroup(_ id: UUID, group groupID: UUID, at index: Int? = nil) throws(SidebarError) {
+        guard var group = splitGroups[groupID] else { throw .unknownSplitGroup(groupID) }
+        guard !group.members.contains(id) else { return }
+        guard SplitRules.canAdd(toCount: group.members.count) else { throw .splitFull }
+        try validatePanes([id])
+        var change = SidebarChange()
+        leaveSplit(id, change: &change)
+        group = splitGroups[groupID] ?? group
+        group.members.insert(id, at: min(max(index ?? group.members.count, 0), group.members.count))
+        group.ratios = SplitRules.equalRatios(layout: group.layout, count: group.members.count)
+        splitGroups[groupID] = group
+        entries[id]?.splitGroupID = groupID
+        touchSplit(group, &change)
+        commit(change)
+    }
+
+    /// `id` leaves its split (it stays in the sidebar); a split left with one pane dissolves.
+    public func removeFromSplitGroup(_ id: UUID) {
+        var change = SidebarChange()
+        leaveSplit(id, change: &change)
+        commit(change)
+    }
+
+    /// Unsplit (⌥⌘U, "Separate All Tabs"): every pane becomes a normal entry again.
+    public func dissolveSplitGroup(_ groupID: UUID) {
+        guard let group = splitGroups.removeValue(forKey: groupID) else { return }
+        var change = SidebarChange()
+        for id in group.members where entries[id]?.splitGroupID == groupID { entries[id]?.splitGroupID = nil }
+        touchSplit(group, &change)
+        commit(change)
+    }
+
+    /// ⌥⌘G / ⌥⌘V / ⌥⌘H: a new layout starts with equal sizes.
+    public func setSplitLayout(_ groupID: UUID, _ layout: SplitLayout) throws(SidebarError) {
+        guard var group = splitGroups[groupID] else { throw .unknownSplitGroup(groupID) }
+        guard group.layout != layout else { return }
+        group.layout = layout
+        group.ratios = SplitRules.equalRatios(layout: layout, count: group.members.count)
+        splitGroups[groupID] = group
+        var change = SidebarChange()
+        touchSplit(group, &change, containers: false)
+        commit(change)
+    }
+
+    /// A resizer drag ended (or a double-click equalised): sizes that do not fit the layout become equal.
+    public func setSplitRatios(_ groupID: UUID, _ ratios: [Double]) throws(SidebarError) {
+        guard var group = splitGroups[groupID] else { throw .unknownSplitGroup(groupID) }
+        let normalized = SplitRules.normalizedRatios(ratios, layout: group.layout, count: group.members.count)
+        guard normalized != group.ratios else { return }
+        group.ratios = normalized
+        splitGroups[groupID] = group
+        var change = SidebarChange()
+        touchSplit(group, &change, containers: false)
+        commit(change)
+    }
+
+    /// The pane header's grip: pane `from` moves to `to`.
+    public func moveSplitMember(_ groupID: UUID, from: Int, to: Int) throws(SidebarError) {
+        guard var group = splitGroups[groupID] else { throw .unknownSplitGroup(groupID) }
+        guard group.members.indices.contains(from), group.members.indices.contains(to), from != to else { return }
+        group.ratios = SplitRules.ratiosAfterMove(group.ratios, layout: group.layout, from: from, to: to)
+        group.members.insert(group.members.remove(at: from), at: to)
+        splitGroups[groupID] = group
+        var change = SidebarChange()
+        touchSplit(group, &change)
+        commit(change)
+    }
+
+    /// A drop in a pane's centre: `id` takes `pane`'s place, `pane` leaves the split.
+    public func replaceSplitMember(_ pane: UUID, with id: UUID) throws(SidebarError) {
+        guard let groupID = entries[pane]?.splitGroupID, var group = splitGroups[groupID],
+              let index = group.members.firstIndex(of: pane) else { throw .unknownEntry(pane) }
+        guard pane != id, !group.members.contains(id) else { return }
+        try validatePanes([id])
+        var change = SidebarChange()
+        leaveSplit(id, change: &change)
+        group = splitGroups[groupID] ?? group
+        group.members[index] = id
+        splitGroups[groupID] = group
+        entries[pane]?.splitGroupID = nil
+        entries[id]?.splitGroupID = groupID
+        touch(pane, &change)
+        touchSplit(group, &change)
+        commit(change)
+    }
+
+    private func validatePanes(_ ids: [UUID]) throws(SidebarError) {
+        for id in ids {
+            guard let entry = entries[id] else { throw .unknownEntry(id) }
+            guard entry.kind == .pinned || entry.kind == .today else { throw .invalidKind }
+        }
+    }
+
+    private func leaveSplit(_ id: UUID, change: inout SidebarChange) {
+        guard let groupID = entries[id]?.splitGroupID else { return }
+        entries[id]?.splitGroupID = nil
+        touch(id, &change)
+        guard var group = splitGroups[groupID] else { return }
+        group.members.removeAll { $0 == id }
+        group.ratios = SplitRules.equalRatios(layout: group.layout, count: group.members.count)
+        splitGroups[groupID] = group
+        normalizeSplitGroups(into: &change)
+        if let kept = splitGroups[groupID] { touchSplit(kept, &change) }
+    }
+
+    /// Every member and (unless `containers` is false) the lists they sit in:
+    /// the group row stands for hidden members, so those lists are read again.
+    private func touchSplit(_ group: SplitGroup, _ change: inout SidebarChange, containers: Bool = true) {
+        for id in group.members {
+            change.entries.insert(id)
+            if containers, let entry = entries[id] { change.containers.insert(entry.container) }
+        }
+    }
+
+    private func touch(_ id: UUID, _ change: inout SidebarChange) {
+        change.entries.insert(id)
+        if let entry = entries[id] { change.containers.insert(entry.container) }
     }
 
     // MARK: Internals
@@ -717,17 +867,39 @@ public final class SidebarStore {
         }
     }
 
-    /// Split groups need two members; a lone survivor leaves its group.
-    private func dropSplitMembership(of removed: Set<UUID>, into change: inout SidebarChange) {
-        for (groupID, _) in splitGroups {
-            let members = entries.values.filter { $0.splitGroupID == groupID }
+    /// Splits hold only entries that still point at them and can be panes
+    /// (an entry that became an essential, or was removed, leaves); a split
+    /// under two panes dissolves and its survivor becomes a normal entry.
+    private func normalizeSplitGroups(into change: inout SidebarChange) {
+        for (groupID, var group) in splitGroups {
+            let kept = group.members.filter { id in
+                guard let entry = entries[id], entry.splitGroupID == groupID else { return false }
+                return entry.kind == .pinned || entry.kind == .today
+            }
+            // Members recorded only on the entry side (older state) join at the end.
+            let strays = entries.values.filter { $0.splitGroupID == groupID && !kept.contains($0.id) && ($0.kind == .pinned || $0.kind == .today) }
+                .sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }.map(\.id)
+            let members = Array((kept + strays).prefix(SplitRules.maxPanes))
             if members.count < 2 {
                 splitGroups[groupID] = nil
-                for member in members {
-                    entries[member.id]?.splitGroupID = nil
-                    change.entries.insert(member.id)
+                for entry in entries.values where entry.splitGroupID == groupID {
+                    entries[entry.id]?.splitGroupID = nil
+                    touch(entry.id, &change)
                 }
+                continue
             }
+            for entry in entries.values where entry.splitGroupID == groupID && !members.contains(entry.id) {
+                entries[entry.id]?.splitGroupID = nil
+                touch(entry.id, &change)
+            }
+            guard members != group.members else { continue }
+            group.members = members
+            group.ratios = SplitRules.normalizedRatios(group.ratios, layout: group.layout, count: members.count)
+            if group.layout != .grid, group.ratios.count != members.count {
+                group.ratios = SplitRules.equalRatios(layout: group.layout, count: members.count)
+            }
+            splitGroups[groupID] = group
+            touchSplit(group, &change)
         }
     }
 

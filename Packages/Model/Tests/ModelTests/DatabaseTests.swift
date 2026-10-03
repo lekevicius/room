@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 creates every table; v2 (history frecency) and v3 (history per profile) follow")
+    @Test("v1 creates every table; v2 (history frecency), v3 (history per profile) and v4 (split pane order) follow")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
@@ -14,9 +14,41 @@ struct SchemaTests {
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
+    }
+
+    @Test("v4 gives existing splits their pane order: section, then position")
+    func v4Backfill() throws {
+        let queue = try DatabaseQueue()
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v3)
+        let profile = Profile(name: "P", position: 0)
+        let space = Space(name: "S", profileID: profile.id, position: 0)
+        let group = UUID()
+        let today0 = Entry(kind: .today, spaceID: space.id, profileID: profile.id, splitGroupID: group, position: 0)
+        let pinned = Entry(kind: .pinned, spaceID: space.id, profileID: profile.id, splitGroupID: group, position: 3)
+        let today1 = Entry(kind: .today, spaceID: space.id, profileID: profile.id, splitGroupID: group, position: 1)
+        try queue.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            try db.execute(sql: "INSERT INTO split_group (id, layout, ratios) VALUES (?, 'hbox', '[0.3,0.3,0.4]')", arguments: [group])
+            for entry in [today1, pinned, today0] { try entry.insert(db) }
+        }
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+        let loaded = try queue.read { db in try SplitGroup.fetchOne(db, key: group) }
+        #expect(loaded?.members == [pinned.id, today0.id, today1.id])
+        #expect(loaded?.ratios == [0.3, 0.3, 0.4])
+    }
+
+    @Test("A JSON snapshot from before v4 decodes with no pane order")
+    func splitGroupDecodesWithoutMembers() throws {
+        let id = UUID()
+        let json = #"{"id":"\#(id.uuidString)","layout":"vbox","ratios":[0.5,0.5]}"#
+        let group = try JSONDecoder().decode(SplitGroup.self, from: Data(json.utf8))
+        #expect(group.id == id && group.layout == .vbox && group.members.isEmpty)
     }
 
     @Test("Entry columns match the Entry record")

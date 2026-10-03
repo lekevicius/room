@@ -191,13 +191,30 @@ public struct SplitGroup: Hashable, Sendable, Codable, Identifiable, FetchableRe
 
     public var id: UUID
     public var layout: SplitLayout
-    /// Pane sizes as fractions, one per member in member position order.
+    /// Pane sizes as fractions (`SplitRules.equalRatios`): `hbox`/`vbox` one
+    /// per pane in `members` order; `grid` the two column fractions, then the two row fractions.
     public var ratios: [Double]
+    /// The member entries in pane order (schema v4, Phase 2.7b): members may
+    /// sit in different sections (a Today tab beside a pinned entry), so their
+    /// positions cannot order the panes.
+    public var members: [UUID]
 
-    public init(id: UUID = UUID(), layout: SplitLayout = .hbox, ratios: [Double] = []) {
+    public init(id: UUID = UUID(), layout: SplitLayout = .hbox, ratios: [Double] = [], members: [UUID] = []) {
         self.id = id
         self.layout = layout
         self.ratios = ratios
+        self.members = members
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, layout, ratios, members }
+
+    /// JSON snapshots written before schema v4 have no `members`.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        layout = try container.decode(SplitLayout.self, forKey: .layout)
+        ratios = try container.decode([Double].self, forKey: .ratios)
+        members = try container.decodeIfPresent([UUID].self, forKey: .members) ?? []
     }
 }
 

@@ -11,11 +11,15 @@ public enum Schema {
     /// Phase 2.5: history follows the profile (decided 2026-10-03, ROADMAP 2.5).
     public static let v3 = "v3-history-profile"
 
+    /// Phase 2.7b: a split group's pane order (`SplitGroup.members`).
+    public static let v4 = "v4-split-members"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
         migrator.registerMigration(v2, migrate: createV2)
         migrator.registerMigration(v3, migrate: createV3)
+        migrator.registerMigration(v4, migrate: createV4)
         return migrator
     }
 
@@ -132,6 +136,25 @@ public enum Schema {
     /// Foreign keys are deferred: the writer applies a whole-state diff in one
     /// transaction in any order, and SQLite checks references at commit.
     /// Nothing cascades; the store removes dependents itself.
+    /// `split_group.members`, the pane order; existing groups take their
+    /// members in section order, then position (what the sidebar showed).
+    static func createV4(_ db: Database) throws {
+        try db.alter(table: "split_group") { t in
+            t.add(column: "members", .jsonText).notNull().defaults(to: "[]")
+        }
+        let rows = try Row.fetchAll(db, sql: "SELECT id, splitGroupID, kind, position FROM entry WHERE splitGroupID IS NOT NULL")
+        let order = ["essential": 0, "pinned": 1, "folder": 1, "today": 2]
+        let grouped = Dictionary(grouping: rows) { $0["splitGroupID"] as Data? ?? Data() }
+        for (group, members) in grouped {
+            let sorted = members.sorted {
+                (order[$0["kind"] as String? ?? ""] ?? 3, $0["position"] as Int? ?? 0) < (order[$1["kind"] as String? ?? ""] ?? 3, $1["position"] as Int? ?? 0)
+            }
+            let ids = sorted.compactMap { ($0["id"] as UUID?)?.uuidString }
+            let json = String(data: try JSONSerialization.data(withJSONObject: ids), encoding: .utf8) ?? "[]"
+            try db.execute(sql: "UPDATE split_group SET members = ? WHERE id = ?", arguments: [json, group])
+        }
+    }
+
     static func createV1(_ db: Database) throws {
         try db.create(table: "profile") { t in
             t.primaryKey("id", .blob)
