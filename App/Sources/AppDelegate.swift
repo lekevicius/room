@@ -27,7 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
     private var toastCenter: ToastCenter?
-    private var debugPanel: NSPanel?
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -52,16 +51,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// The default profile: the tab controller loads the selected entry once
-    /// it exists. Then the debug panel, and DEBUG runners.
+    /// it exists. Then the DEBUG runners.
     private func startSession() async {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
         do {
             let profile = try await engine.createProfile(name: "Default")
             profile.downloadsDelegate = pageDelegate
             if tabs.profile == nil { tabs.profile = profile }
-            let overlays = OverlaySpike(rootView: controller.rootView)
-            self.overlays = overlays
-            installDebugPanel(DebugToolbar(tabs: tabs, pageHost: pageHost, pageDelegate: pageDelegate, overlays: overlays))
+            // The Phase 1.4 overlay spikes (DEBUG `SpikeRunner`).
+            overlays = OverlaySpike(rootView: controller.rootView)
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
                 tabs.openNewTab(url: URLFixup.url(from: start) ?? URLFixup.searchURL(for: start))
             }
@@ -82,40 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             await SpikeRunner.run(spike, session: session, controller: controller, overlays: overlays)
         }
         #endif
-    }
-
-    /// The Chapter 1 debug toolbar (CEF pages, DevTools, overlay spikes)
-    /// moved out of the sidebar into a utility panel (Debug ▸ Show Debug
-    /// Toolbar) when the sidebar tree arrived in Phase 2.2. Its SwiftUI view
-    /// exists only while the panel is open: hidden, it still re-rendered on
-    /// every tab switch (~3 ms each, 2.3 profile).
-    private func installDebugPanel(_ toolbar: some View) {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 520),
-                            styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: true)
-        panel.title = "Debug Toolbar"
-        panel.isFloatingPanel = true
-        panel.isReleasedWhenClosed = false
-        makeDebugToolbar = {
-            let view = NSHostingView(rootView: toolbar.padding(.top, 12))
-            view.identifier = Self.debugToolbarID
-            return view
-        }
-        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: panel, queue: .main) { _ in
-            MainActor.assumeIsolated { panel.contentView = nil }
-        }
-        debugPanel = panel
-    }
-
-    private var makeDebugToolbar: (() -> NSView)?
-    private static let debugToolbarID = NSUserInterfaceItemIdentifier("debug-toolbar")
-
-    @objc func showDebugToolbar(_ sender: Any?) {
-        guard let panel = debugPanel else { return }
-        if !panel.isVisible, let frame = windowController?.window?.frame {
-            panel.setFrameTopLeftPoint(NSPoint(x: frame.maxX + 8, y: frame.maxY))
-        }
-        if panel.contentView?.identifier != Self.debugToolbarID, let view = makeDebugToolbar?() { panel.contentView = view }
-        panel.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

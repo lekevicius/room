@@ -83,11 +83,8 @@ enum MainMenu {
         main.addItem(submenu: tabMenu, title: "Tab")
 
         #if DEBUG
-        // The Chapter 1 debug toolbar (URL field, navigation, DevTools, overlay
-        // spikes) until the palette (2.4), and the page lifecycle checks (2.3).
+        // The page lifecycle checks (2.3). The Chapter 1 debug toolbar is gone: the palette opens URLs (2.4).
         let debugMenu = NSMenu(title: "Debug")
-        debugMenu.addItem(withTitle: "Show Debug Toolbar", action: #selector(AppDelegate.showDebugToolbar(_:)), keyEquivalent: "")
-        debugMenu.addItem(.separator())
         debugMenu.addItem(withTitle: "Simulate Memory Pressure", action: #selector(AppDelegate.simulateMemoryPressure(_:)), keyEquivalent: "")
         debugMenu.addItem(withTitle: "Discard Background Pages", action: #selector(AppDelegate.discardBackgroundPages(_:)), keyEquivalent: "")
         main.addItem(submenu: debugMenu, title: "Debug")
