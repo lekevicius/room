@@ -69,6 +69,13 @@ public final class TabSwitcher {
 
     public var isActive: Bool { state != nil }
 
+    #if DEBUG
+    /// The list's frame in the window, if it is showing (captures).
+    public var debugPanelFrame: NSRect? { panel.map { $0.convert($0.bounds, to: nil) } }
+    /// The list itself (the glass draws nothing in an in-process render).
+    public var debugPanel: NSView? { panel }
+    #endif
+
     /// Returns whether the event was consumed.
     private func handle(_ event: NSEvent) -> Bool {
         guard let window, event.window === window || (event.window == nil && window.isKeyWindow) else { return false }
@@ -162,16 +169,13 @@ final class TabSwitcherPanel: NSView {
 
     private let glass = NSGlassEffectView()
     private let stack = NSStackView()
-    private let highlight = NSView()
+    private let highlight = HighlightView()
     private var highlighted = 0
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         glass.cornerRadius = Radius.large
         let content = NSView()
-        highlight.wantsLayer = true
-        highlight.layer?.cornerRadius = Radius.medium
-        highlight.layer?.cornerCurve = .continuous
         content.addSubview(highlight)
         stack.orientation = .vertical
         stack.spacing = 0
@@ -206,17 +210,20 @@ final class TabSwitcherPanel: NSView {
         self.highlighted = highlighted
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for row in rows { stack.addArrangedSubview(Self.rowView(row)) }
-        layoutSubtreeIfNeeded()
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            highlight.layer?.backgroundColor = Palette.sidebarSelection.cgColor
-        }
-        if stack.arrangedSubviews.indices.contains(highlighted), let content = glass.contentView {
-            let row = stack.arrangedSubviews[highlighted]
-            highlight.frame = content.convert(row.bounds, from: row)
-            highlight.isHidden = false
-        } else {
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        glass.contentView?.layoutSubtreeIfNeeded()
+        guard stack.arrangedSubviews.indices.contains(highlighted), let content = glass.contentView else {
             highlight.isHidden = true
+            return
         }
+        let row = stack.arrangedSubviews[highlighted]
+        highlight.frame = content.convert(row.bounds, from: row)
+        highlight.isHidden = false
+        highlight.needsDisplay = true
     }
 
     private static func rowView(_ row: Row) -> NSView {
@@ -239,5 +246,13 @@ final class TabSwitcherPanel: NSView {
             line.widthAnchor.constraint(equalToConstant: TabSwitcherMetrics.width - 2 * TabSwitcherMetrics.padding),
         ])
         return line
+    }
+}
+
+/// The highlighted row's pill (drawn, so captures show it too).
+private final class HighlightView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        Palette.sidebarMultiSelection.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: Radius.medium, yRadius: Radius.medium).fill()
     }
 }
