@@ -40,7 +40,7 @@ final class HostCDP {
             self.close()
         }
         defer { timeout.cancel() }
-        try await socket.send(.data(data))
+        try await socket.send(.string(String(decoding: data, as: UTF8.self)))
         while true {
             let message = try await socket.receive()
             let bytes: Data
@@ -67,7 +67,7 @@ final class HostCDP {
                         "id": nextID, "method": "Page.handleJavaScriptDialog",
                         "params": ["accept": false],
                     ])
-                    try await socket.send(.data(dismiss))
+                    try await socket.send(.string(String(decoding: dismiss, as: UTF8.self)))
                 }
             }
         }

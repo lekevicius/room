@@ -24,7 +24,7 @@ start=$(date +%s)
   "$@" > "$DEST/host.log" 2>&1 &
 pid=$!
 # Bound a hung startup/quit. Watchdog targets only the child we launched.
-( sleep "$((SECONDS_IDLE + 120))"; kill -TERM "$pid" 2>/dev/null || true ) &
+python3 -c 'import os,signal,sys,time; time.sleep(int(sys.argv[2])); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" "$((SECONDS_IDLE + 120))" &
 watchdog=$!
 trap 'kill "$watchdog" 2>/dev/null || true; kill -TERM "$pid" 2>/dev/null || true' INT TERM EXIT
 status=0

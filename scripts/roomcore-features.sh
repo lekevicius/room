@@ -40,9 +40,9 @@ fi
   -RoomSpikeBaseURL "$http" -RoomSpikeSecureURL "$https" -RoomSpikeCDPPort "$port" \
   -RoomUserDataDir "$DEST/profile" --use-mock-keychain \
   --remote-debugging-port="$port" --remote-debugging-address=127.0.0.1 \
-  "${extra[@]}" > "$DEST/host.log" 2>&1 &
+  ${extra[@]+"${extra[@]}"} > "$DEST/host.log" 2>&1 &
 pid=$!
-( sleep 90; kill -TERM "$pid" 2>/dev/null || true ) &
+python3 -c 'import os,signal,sys,time; time.sleep(90); os.kill(int(sys.argv[1]),signal.SIGTERM)' "$pid" &
 watchdog=$!
 status=0
 wait "$pid" || status=$?
