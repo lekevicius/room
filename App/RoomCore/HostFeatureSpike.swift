@@ -55,9 +55,15 @@ enum HostFeatureSpike {
                 HostSpike.record("review-required", "native reserved shortcuts and Colemak/Cmd routing need AppKit events")
             case "audio":
                 try await cdp.evaluate("document.querySelector('#a').play().then(()=>true)", userGesture: true)
-                try await Task.sleep(for: .seconds(2))
-                HostSpike.record("audio", try await cdp.evaluate("({paused:a.paused,time:a.currentTime})"))
+                // Audio-service startup can lag play()'s promise. Poll for
+                // advancing playback rather than sampling at the 2 s loop edge.
+                let playback = try await cdp.evaluate("new Promise(resolve=>{const start=performance.now();const timer=setInterval(()=>{if(a.currentTime>0.05||performance.now()-start>10000){clearInterval(timer);resolve({paused:a.paused,time:a.currentTime,ready:a.readyState,duration:a.duration,elapsed:performance.now()-start})}},100)})")
+                HostSpike.record("audio", playback)
                 try await cdp.evaluate("a.pause(); true")
+                guard let state = playback as? [String: Any],
+                      let time = state["time"] as? Double, time > 0.05 else {
+                    throw HostCDP.Failure("audio playback clock did not advance")
+                }
             case "scroll":
                 HostSpike.record("scroll", try await cdp.evaluate("new Promise(resolve=>{let start=performance.now(), frames=0; function step(t){scrollBy(0,8);frames++;if(t-start<3000)requestAnimationFrame(step);else resolve({frames,ms:t-start,y:scrollY})}requestAnimationFrame(step)})"))
             case "transparent":
@@ -78,7 +84,13 @@ enum HostFeatureSpike {
                 try await cdp.evaluate("for(const [k,v] of Object.entries({name:'Room Spike',email:'room@example.test',street:'1 Test Street',username:'room-spike',password:'spike-only'}))document.querySelector('[name='+k+']').value=v;document.querySelector('form').requestSubmit();true", userGesture: true)
                 HostSpike.record("review-required", "save bubbles and subsequent autocomplete dropdown")
             case "extension":
-                HostSpike.record("content-script", try await cdp.evaluate("document.documentElement.dataset.roomSpikeExtension || 'missing'"))
+                // Startup extension registration can finish after the first
+                // page navigation. Reload after the worker has initialized.
+                try await cdp.call("Page.reload")
+                try await Task.sleep(for: .seconds(2))
+                let marker = try await cdp.evaluate("document.documentElement.dataset.roomSpikeExtension || 'missing'")
+                HostSpike.record("content-script", marker)
+                guard marker as? String == "content-script-ran" else { throw HostCDP.Failure("extension content script did not run") }
                 HostSpike.record("review-required", "extension worker, chrome.tabs, action popup and chrome://extensions")
             case "downloads":
                 try await cdp.evaluate("document.querySelector('#download').click(); true", userGesture: true)
@@ -88,10 +100,13 @@ enum HostFeatureSpike {
             case "find", "zoom", "print":
                 // Private spike entry point, deliberately absent from public
                 // headers. A missing hook is a failure, never a silent pass.
-                let commands = name == "find" ? [37000, 37001] : name == "zoom" ? [38001, 38003, 38002] : [35003]
+                // Reset is correctly disabled at 100%; exercise it while
+                // zoomed in and out, not after opposite steps cancel out.
+                let commands = name == "find" ? [37000, 37001] : name == "zoom" ? [38001, 38002, 38003, 38002] : [35003]
                 for command in commands {
                     try host.runSpikeCommand(command)
                     try await Task.sleep(for: .seconds(1))
+                    if name == "zoom" { HostSpike.record("zoom-ratio", try await cdp.evaluate("devicePixelRatio")) }
                 }
             case "fullscreen":
                 try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)

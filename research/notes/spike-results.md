@@ -291,3 +291,47 @@ TMPDIR `roomcore-quit-7h1b5zin`. No raw patch or public header changes.
 Find baseline: nav **11.970 s**, ten loaded pages, quit **2.262 s**, load1
 **15.57**, 27 helpers observed, **0 left**, **0 crash reports**, exit **0**.
 Evidence `feature-find-owner`, `baseline-find`, TMPDIR `roomcore-quit-99uooayy`.
+
+### Feature surface matrix after three crash fixes
+
+All 18 feature triggers have run on the component build. The 17 completed
+drives below exit 0 without watchdog intervention; fullscreen exits 0 but its
+promise is rejected, so the driver correctly reports an error. This is **not**
+a claim that all 18 functional acceptance checks are complete. Native UI gaps
+are listed explicitly and the final all-feature regression is still pending.
+
+`C` below is the common first-hit set observed in every feature process:
+`GetCanResize GetRestoredState GetStatusBubbles GetWindowShowState GetWorkspace
+IsVisibleOnAllWorkspaces OnTabDetached UpdateLoadingAnimations
+UpdateReloadStopState UpdateToolbar UpdateToolbarSecurityState`.
+The log lists called stubs, not every real member Chrome uses. Extra real
+interfaces required to repair a crash are named separately.
+
+| Feature | Chrome path driven | Window members needed / logged | Fix and observed result | Remaining acceptance |
+|---|---|---|---|---|
+| popups | Browser navigation / AddNewContents; Blink date picker | C + LinkOpeningFromGesture | 10 s, two windowOpen events; host still owns 1 page; popup Browsers fall back to Chrome BrowserView | Swift ownership of new pages/windows, native select/color/date anchoring |
+| dialogs | JavaScriptTabModalDialogViewViews / constrained_window | C + GetWebContentsModalDialogHostFor/GetWebContentsModalDialogHost | Modal-host fix; all 3 opening/closed events, cancelled undefined/false/null, exit 0 | Native focus/appearance, beforeunload |
+| keys | CDP Input.dispatchKeyEvent / renderer input | C | a/KeyA received, exit 0 | Native reserved shortcuts, alternate keyboard layout |
+| audio | Blink HTMLMediaElement → audio service | C | 11 s; playback clock reached 0.076211 s after 201.8 ms polling, readyState 4, not paused | Audible output and Web Audio oscillator |
+| scroll | Blink rAF / compositor scroll | C | 180 frames / 3006.4 ms, scrollY 1440; exit 0 in 12 s | Native wheel / clipped composite |
+| transparent | CDP Emulation background / Blink paint | C | alpha-zero background drive, exit 0 in 9 s | Native material composite capture |
+| corners | Blink paint / native web contents view | C | body rgb(208,16,90), exit 0 in 8 s | Native resize/clipping/hairline capture |
+| band | CDP Input.dispatchMouseEvent | C | page coordinates [200,8], [200,34], exit 0 in 9 s | Native toolbar hit testing |
+| form | Blink form submit / Chrome password manager | C | HTTP GET submitted test fields, password-save IPH code reached, exit 0 in 8 s | Save prompt and stored autocomplete selection |
+| extension | Chrome extension loader / MV3 worker / content script | C | worker-installed console message; content-script-ran after reload, exit 0 in 10 s | chrome.tabs/windows, action popup, extension manager |
+| downloads | Browser download manager, local Content-Disposition | C | attachment trigger survives, exit 0 in 8 s | Verify saved bytes and completion/cancel UI |
+| permissions | PermissionPromptBubble → bubble_anchor_util_views | C + modal host; LocationBar.GetChipAnchor | Views anchor fix; notification/geolocation trigger, exit 0 in 16 s | Native denial/dismissal callback and anchoring |
+| auth | HTTP login handler / constrained-window dialog | C + both modal-host getters | 401 Basic challenge, exit 0 in 10 s | Fixture credential submission/cancel callback |
+| certificate | SSL blocking page / security interstitial | C | Privacy error title for self-signed fixture, exit 0 in 10 s | Back/leave action |
+| find | Chrome Find command / FindBarController / FindBarHost | C + CreateFindBar/modal host; FindBarOwner | Find owner fix; find/next exits 0 in 18 s | Match count and native focus/close |
+| zoom | Chrome zoom commands / ZoomController | C | scale ratios 2.2 → 2 → 1.8 → 2; exit 0 in 23 s | Native zoom feedback UI |
+| print | Chrome print command / print preview / constrained-window | C + both modal-host getters | Print trigger and close survive, exit 0 in 9 s | Preview contents and native cancellation; no print job sent |
+| fullscreen | FullscreenController / ExclusiveAccessContext | C + IsTabStripEditable | Safe rejection: TypeError not granted; exit 0 in 6 s | Unsupported: RoomExclusiveAccessContext::CanUserEnterFullscreen returns false |
+
+Chapter 3 must provide host ownership for popup/new-tab windows, native
+address/permission anchors, find focus and keyboard routing, permission/auth
+completion, download status/cancellation, extension actions, and a page
+fullscreen state machine with visible origin/escape affordance. Null-returning
+stubs cannot provide those contracts. A safe rejection is recorded as an
+unsupported surface, never as successful fullscreen. Native composition and
+input checks need reviewer interaction under the current AGENTS.md rule.

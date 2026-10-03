@@ -30,7 +30,7 @@ have no CDP port, HTTP fixture, extension, or externally loaded start page.
 | `band` | HTTP `band.html`; page clicks at y=8 and 34 | native pointer test in 52 pt toolbar band; recorded page coordinates | CDP page coordinates only; native hit testing pending |
 | `form` | HTTP `form.html`; fill name/email/street/test credentials and submit | save prompt path, completion/cancel; revisit form, type R, inspect autocomplete anchoring | submit prepared; bubbles/dropdown pending |
 | `extension` | --load-extension original MV3 fixture; load HTTP form | content marker, service worker, chrome.tabs/windows, action popup, chrome://extensions; any unsupported surface named | content-marker prepared; browser surfaces pending |
-| `downloads` | local attachment with Content-Disposition | actual file byte count (26 bytes), completion/cancel, download surface stub hits | attachment click prepared |
+| `downloads` | local attachment with Content-Disposition | actual file byte count (25 bytes), completion/cancel, download surface stub hits | attachment click prepared |
 | `permissions` | Notification.requestPermission and geolocation on trusted loopback | prompt shown, denial/dismissal completes request; camera/mic policy separately without granting capture | request trigger prepared; native cancellation pending |
 | `auth` | /auth sends HTTP 401 Basic challenge; fixture credentials room/spike | native auth UI and cancel path; supplied fixture credentials load page | navigation/prompt observation prepared |
 | `certificate` | HTTPS fixture with untrusted self-signed local cert (no ignore-certificate-errors) | security interstitial rendered; leave/back works; error attributed to fixture | navigation/interstitial observation prepared |
@@ -53,7 +53,7 @@ exit status, duration, and crash report delta. Copy the curated findings into
 
 | Feature | Chrome call site/path | Window members needed | Fix / fallback | Runtime result |
 |---|---|---|---|---|
-| all 18 | pending component build | pending first-hit logs | no fixes applied yet | unverified |
+| all 18 | measured matrix in spike-results.md | per-feature first-hit logs retained | three crash fixes committed | 17 drives completed; fullscreen rejected; UI acceptance gaps remain |
 
 On CHECK/crash: capture the first failing Chrome call site and full stack,
 inspect the requested window member, fix the narrowest //room hook, rebuild,
