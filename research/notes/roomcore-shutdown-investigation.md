@@ -333,3 +333,47 @@ proc_pidinfo/PROC_PIDTBSDINFO including start time. Do not silently weaken
 helper detection, change default baselines, or attribute failures solely to
 ps without an adequately controlled observation. No further unqualified
 repetition of the real-site/census pair is useful.
+
+
+## Native process observer — 11:07 EEST
+
+Added opt-in --process-observer libproc. The default remains ps. Native
+observation enumerates children through proc_listchildpids, identifies each
+PID by its start time through PROC_PIDTBSDINFO, and reads its executable path.
+Known descendants remain tracked after reparenting and are checked for a
+fork-to-exec transition. New helper command lines are obtained in targeted
+batches; polling does not repeatedly request every process's arguments.
+Unknown observation errors fail the run rather than becoming an empty set.
+Receipts identify the observer, query count and (after the browser exercise)
+helper start identities. All existing watchdogs, polling and grace remain.
+
+Local lifecycle fixture passes creation, delayed exec, reparenting, exit and
+a synthetic mismatched-start-time rejection for a still-live PID. Final run:
+100 snapshots in 0.001615 s, one command query. The full runner rejects a
+compiled helper deliberately left alive beyond the unchanged 5 s grace:
+helpers_left=1, browser exit0, runner failure, observer_error=null. Earlier
+fixture setup tried copying system sleep: protected flags then platform-binary
+termination made that unsuitable; the final test compiles an ordinary sleeper.
+No Room engine defect was inferred from that setup failure. Reusable local
+validation: python3 scripts/roomcore-process-observer-test.py.
+
+One bounded three-browser real-site comparison, without stack sampling:
+
+| Group | Ready seconds | Quit seconds | Helpers observed / left | Native snapshots / census wall seconds | Targeted command queries |
+|---|---|---|---|---|---|
+| 1 | 37 | 7.723 | 26 / 0 | 1566 / 11.104 | 14 |
+| 2 | 37 | 2.885 | 27 / 0 | 1403 / 10.253 | 15 |
+| 3 | 36 | 1.326 | 26 / 0 | 1314 / 10.812 | 15 |
+
+All ten pages were non-loading, Stack Overflow had its expected questions
+title in this run, all browsers exit0, zero new crash reports. Exercise
+61.159 s; machine before: load15.26/13.24/19.75, CPU57.30%idle, 55G used,
+14G compressor, 8335M unused, swap5719M, 987 processes/8637 threads. Evidence:
+baseline-shutdown-libproc. Existing engine0f87b84/hosta4f8c25 was unchanged.
+
+This observer performs many more snapshots with less cumulative census wall
+time than the earlier full-ps exercise (10–11 s versus48–50 s), but the live
+sites and machine state differ. The 7.723 s quit is still close to the 10 s
+watchdog. B-16 is not fixed, and no causality is assigned to ps. Future bounded
+diagnostics can use this validated observer while retaining failed samples;
+there is no reason to repeat the observer lifecycle or earlier control runs.

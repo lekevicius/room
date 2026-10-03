@@ -564,3 +564,13 @@ three dumps: two network-service waits, one ThreadPool shutdown. No engine,
 network, public API, patch, timeout, grace or default cadence change. B-16
 remains open; next useful work is a lower-overhead process observer validated
 against child/PID lifecycle, not another blind stress loop.
+
+11:13 EEST: opt-in libproc observer validated for child exec/reparent/exit,
+start-time identity and rejection of a helper beyond the five-second grace.
+A three-browser real-site exercise passes quits7.723/2.885/1.326s, all ten
+non-loading pages, 0 helpers/0 crashes. Observation consumes10–11s per runner
+versus the prior48–50s; machine/live-site differences prevent root-cause claims.
+No engine/patch/network/public API/default baseline change. CI e19e4d5 passed
+74/87s. User requested replacing the 25-minute heartbeat with a Goal: the
+schedule was deleted and the remaining original hardening objective is active
+as a Goal. B-16 remains unresolved; detailed evidence is in the investigation.

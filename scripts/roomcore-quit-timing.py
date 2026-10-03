@@ -56,6 +56,8 @@ def main():
     parser.add_argument('--urls-json', type=Path, help='ten loopback fixture URLs; diagnostic only')
     parser.add_argument('--process-snapshot-ms', type=int, default=0,
                         help='diagnostic census interval; 0 preserves a full census every poll')
+    parser.add_argument('--process-observer', choices=['ps', 'libproc'], default='ps',
+                        help='opt-in native child observer; default retains whole-system ps')
     args = parser.parse_args()
     if not 0 <= args.process_snapshot_ms <= 1000:
         parser.error('process snapshot interval must be between 0 and 1000 ms')
@@ -77,6 +79,7 @@ def main():
         snapshot_count = 0
         snapshot_seconds = 0.0
         current_helpers = {}
+        native = None
         load = os.getloadavg()[0]
         fixture_args = (['-RoomSpikeURLsJSON', str(args.urls_json.resolve())]
                         if args.urls_json else [])
@@ -89,11 +92,17 @@ def main():
                 '--use-mock-keychain', *fixture_args, *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 120
             try:
+                if args.process_observer == 'libproc':
+                    from roomcore_process_observer import ProcessObserver
+                    native = ProcessObserver(process.pid)
                 while process.poll() is None:
                     if time.monotonic() >= next_snapshot:
                         census_start = time.monotonic()
-                        rows = processes()
-                        current_helpers = helpers_under(process.pid, rows)
+                        if native is not None:
+                            current_helpers = native.snapshot()
+                        else:
+                            rows = processes()
+                            current_helpers = helpers_under(process.pid, rows)
                         observed.update(current_helpers)
                         snapshot_count += 1
                         snapshot_seconds += time.monotonic() - census_start
@@ -130,8 +139,12 @@ def main():
                 # Chrome code-sign-clone-cleanup can outlive the browser by 1.4 s.
                 grace = time.monotonic() + 5
                 while True:
-                    rows = processes()
-                    left = {pid: cmd for pid, cmd in observed.items() if pid in rows and rows[pid][1] == cmd}
+                    if native is not None:
+                        left = native.snapshot()
+                        observed.update(left)
+                    else:
+                        rows = processes()
+                        left = {pid: cmd for pid, cmd in observed.items() if pid in rows and rows[pid][1] == cmd}
                     if not left or time.monotonic() >= grace:
                         break
                     time.sleep(0.1)
@@ -140,6 +153,10 @@ def main():
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
                     'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}
+                receipt['process_observer'] = args.process_observer
+                if native is not None:
+                    receipt['targeted_command_queries'] = native.command_queries
+                    receipt['helper_start_times'] = {pid: native.identities[pid] for pid in native.commands}
                 receipt['process_snapshot_ms'] = args.process_snapshot_ms
                 receipt['live_process_snapshots'] = snapshot_count
                 receipt['live_process_snapshot_seconds'] = round(snapshot_seconds, 3)
@@ -159,7 +176,17 @@ def main():
                 # A watchdog exit is the sample we most need to diagnose. Keep
                 # its helpers and markers even when it cannot produce a valid
                 # timing receipt; never turn the failure into a passing sample.
-                rows = processes()
+                observer_error = None
+                try:
+                    if native is not None:
+                        remaining = native.snapshot()
+                    else:
+                        rows = processes()
+                        remaining = {pid: cmd for pid, cmd in observed.items()
+                                     if pid in rows and rows[pid][1] == cmd}
+                except Exception as observation_failure:
+                    observer_error = str(observation_failure)
+                    remaining = None  # unknown is never a passing empty set
                 failure = {
                     'error': str(error), 'exit_status': process.poll(),
                     'diagnostic_sampling': args.diagnose_shutdown,
@@ -168,13 +195,16 @@ def main():
                     'live_process_snapshots': snapshot_count,
                     'live_process_snapshot_seconds': round(snapshot_seconds, 3),
                     'markers': markers(spike), 'observed_helpers': observed,
-                    'remaining_helpers': {
-                        pid: cmd for pid, cmd in observed.items()
-                        if pid in rows and rows[pid][1] == cmd},
+                    'remaining_helpers': remaining,
+                    'process_observer': args.process_observer,
+                    'observer_error': observer_error,
                     'new_crash_reports': sorted(crash_reports() - before),
                     'minidumps': [str(path.relative_to(run_dir)) for path in
                                  sorted((run_dir / 'profile/Crashpad').rglob('*.dmp'))],
                 }
+                if native is not None:
+                    failure['targeted_command_queries'] = native.command_queries
+                    failure['helper_start_times'] = {pid: native.identities[pid] for pid in native.commands}
                 (run_dir / 'failure.json').write_text(
                     json.dumps(failure, indent=2) + '\n')
                 raise

@@ -101,3 +101,11 @@ run passed 5.010/3.331/3.930 s with no helpers/crashes. Census wall time was abo
 This supports reducing diagnostic overhead, not declaring an engine fix.
 Exact current-library minidumps again show network-service waits or ThreadPool
 shutdown; all raw failures remain rejected. B-16 remains open.
+
+The opt-in native process observer now passes child exec/reparent/exit and
+PID-start identity checks, including a real runner rejection of a lingering
+helper after five seconds. One three-browser real-site run passes7.723/2.885/
+1.326s with0helpers/crashes. Observer census wall time is10–11s per runner,
+compared with48–50s in the earlier full-ps run; this reduces diagnostic overhead
+but does not establish a shutdown fix. Default baseline behavior is unchanged.
+The user replaced the periodic heartbeat with an active hardening Goal.
