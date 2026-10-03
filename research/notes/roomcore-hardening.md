@@ -584,3 +584,16 @@ Thread handle reuse is verified and explicitly labeled in diagnostic output;
 16-thread lifecycle fixture passes. B-16 remains open; no engine, patch, public
 API, network policy or default baseline change. Details and next discriminating
 measurement are in roomcore-shutdown-investigation.md.
+
+Rebased after this checkpoint onto advancing main af1fab0 with no compiler or
+test app running. The only conflict was concurrent append-only spike notes;
+both sections remain, and main's spike-results.md is a verbatim prefix.
+Engine/roomcore and App/RoomCore Git tree hashes equal the pre-rebase trees:
+no engine/host source change, so the measured package remains applicable.
+Protected diff again includes only App/RoomCore; original five patches and
+public headers are unchanged. The new main instruction to push main at phase
+end is overridden by this task's explicit never-push-main/background-checkpoint
+rules. Whole-branch whitespace checking flags only required blank context lines
+inside the added patch files; source/docs/scripts checks exclude patch payloads.
+Pre-rebase checkpoint aaa31f9 corresponds to rebased56f1595; earlier measurement
+commit IDs remain historical artifact identities, not the new branch ancestry.

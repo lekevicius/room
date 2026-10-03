@@ -118,3 +118,9 @@ filesystem-watch open still active. This is evidence of unfinished work, not a
 measured open duration or root cause. Diagnostic thread-handle lifecycle and
 reuse are validated; no engine/scheduling/default-baseline behavior changed.
 B-16 remains unresolved.
+
+Branch refreshed onto main af1fab0 after the compiler stopped. Both concurrent
+spike-note sections are preserved. Engine/roomcore and App/RoomCore tree hashes
+are unchanged by rebase; original measured package IDs above remain valid
+historical artifact identities. Protected-path diff again contains only
+App/RoomCore. Original five patches and public ObjC headers remain unchanged.
