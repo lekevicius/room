@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Element fullscreen</title>
+<style>body { font: 15px -apple-system, sans-serif; margin: 40px; } video { width: 480px; background: #000; display: block; margin: 12px 0; }</style>
+<h1>Element fullscreen</h1>
+<p>A video fed from a canvas (no file); the button asks for fullscreen on the video element.</p>
+<video id="video" autoplay muted playsinline></video>
+<button id="enter" onclick="document.getElementById('video').requestFullscreen()">Fullscreen</button>
+<button id="exit" onclick="document.exitFullscreen()">Exit</button>
+<pre id="log"></pre>
+<script>
+const canvas = document.createElement('canvas');
+canvas.width = 640; canvas.height = 360;
+const g = canvas.getContext('2d');
+let t = 0;
+function frame() {
+  t += 1;
+  const grad = g.createLinearGradient(0, 0, 640, 360);
+  grad.addColorStop(0, `hsl(${t % 360}, 70%, 45%)`);
+  grad.addColorStop(1, `hsl(${(t + 120) % 360}, 70%, 35%)`);
+  g.fillStyle = grad; g.fillRect(0, 0, 640, 360);
+  g.fillStyle = '#fff'; g.font = '48px -apple-system, sans-serif';
+  g.fillText('Room 2.6b · ' + (t / 60).toFixed(1) + ' s', 40, 190);
+  requestAnimationFrame(frame);
+}
+frame();
+document.getElementById('video').srcObject = canvas.captureStream(30);
+document.addEventListener('fullscreenchange', () => {
+  document.getElementById('log').textContent = 'fullscreen: ' + (document.fullscreenElement ? document.fullscreenElement.id : 'none');
+});
+</script>

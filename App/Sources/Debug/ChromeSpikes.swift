@@ -22,14 +22,14 @@ import EngineCEF
 ///   captures (`capture:` the window, `capture_screen:` a screen rect for
 ///   the popover and the menu); `-RoomSpikeAppearance dark` for dark.
 extension SpikeRunner.Context {
-    private var chrome: PageChrome { session.pageDelegate.chrome }
-    private var prompts: PagePrompts { chrome.prompts }
-    private var presenter: PagePromptPresenter? { (NSApp.delegate as? AppDelegate)?.promptPresenter }
+    var chrome: PageChrome { session.pageDelegate.chrome }
+    var prompts: PagePrompts { chrome.prompts }
+    var presenter: PagePromptPresenter? { (NSApp.delegate as? AppDelegate)?.promptPresenter }
 
-    private static let server = "http://127.0.0.1:8766/"
-    private static let secureServer = "https://127.0.0.1:8767/"
+    static let server = "http://127.0.0.1:8766/"
+    static let secureServer = "https://127.0.0.1:8767/"
 
-    private var appearanceSuffix: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
+    var appearanceSuffix: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
 
     func chromeSurfaces() async {
         #if canImport(EngineCEF)
@@ -50,7 +50,7 @@ extension SpikeRunner.Context {
     }
 
     #if canImport(EngineCEF)
-    private func openTest(_ path: String, server: String = "http://127.0.0.1:8766/") async -> CEFWebContents? {
+    func openTest(_ path: String, server: String = "http://127.0.0.1:8766/") async -> CEFWebContents? {
         guard let page = await open(URL(string: server + path)!) as? CEFWebContents else {
             SpikeRunner.record("error", "no page for \(path)")
             return nil
@@ -59,7 +59,7 @@ extension SpikeRunner.Context {
         return page
     }
 
-    private func dialogName(_ dialog: PageDialog?) -> String {
+    func dialogName(_ dialog: PageDialog?) -> String {
         switch dialog {
         case .alert?: "alert"
         case .confirm?: "confirm"
@@ -71,14 +71,14 @@ extension SpikeRunner.Context {
         }
     }
 
-    private func waitForDialog() async -> String {
+    func waitForDialog() async -> String {
         _ = await waitUntil(8) { self.prompts.visibleDialog != nil }
         try? await Task.sleep(for: .milliseconds(250))
         return dialogName(prompts.visibleDialog?.dialog)
     }
 
-    private func pressReturn() { sendKey("\r", keyCode: 36, []) }
-    private func pressEscape() { sendKey("\u{1b}", keyCode: 53, []) }
+    func pressReturn() { sendKey("\r", keyCode: 36, []) }
+    func pressEscape() { sendKey("\u{1b}", keyCode: 53, []) }
 
     /// Who has the keyboard: the dialog's panel, a field in it, the page.
     private var responderName: String {
@@ -111,7 +111,7 @@ extension SpikeRunner.Context {
 
     // MARK: JavaScript dialogs and beforeunload
 
-    private func dialogsCheck() async {
+    func dialogsCheck() async {
         guard let page = await openTest("dialogs.html") else { return }
         let results = { await self.js(page, "JSON.stringify(window.__results)") }
 
@@ -160,7 +160,7 @@ extension SpikeRunner.Context {
 
     // MARK: HTTP auth
 
-    private func authCheck() async {
+    func authCheck() async {
         let start = ContinuousClock.now
         guard let page = session.newPage(URL(string: Self.server + "auth")!) else { return }
         _ = await waitForDialog()
@@ -181,20 +181,28 @@ extension SpikeRunner.Context {
 
     // MARK: Certificate errors
 
-    private func certificateCheck() async {
+    func certificateCheck() async {
         let url = URL(string: Self.secureServer + "secure.html")!
-        guard let page = session.newPage(url) as? CEFWebContents else { return }
+        guard let first = session.newPage(url) as? CEFWebContents else { return }
+        let entry = tabs.entryID(for: first)
         var state = await waitForDialog()
         if case .certificate(let error)? = prompts.visibleDialog?.dialog {
             state += " code=\(error.code) \(error.description) overridable=\(error.isOverridable) chain=\(error.certificateChain.count)"
         }
+        // 2.6a carry-over (b): the row reads the host while the interstitial shows.
+        state += " row title=\(entry.flatMap { store.entry($0)?.liveTitle } ?? "nil")"
         SpikeRunner.record("certificate_interstitial", state)
+        await captureB("certificate-interstitial-row")
         pressReturn()  // Go Back is the default
         _ = await waitUntil(5) { self.prompts.visibleDialog == nil }
         try? await Task.sleep(for: .milliseconds(800))
-        SpikeRunner.record("certificate_go_back", "title=\(page.title ?? "nil") url=\(page.url?.absoluteString ?? "nil")")
+        // B-25: nothing to go back to: the page goes, the entry stays (titled with the host), the card shows the empty state.
+        let emptyState = (NSApp.delegate as? AppDelegate)?.pageHostContainer?.pageView?.accessibilityIdentifier() ?? "nil"
+        SpikeRunner.record("certificate_go_back", "entry kept=\(entry.flatMap { store.entry($0) } != nil) page closed=\(first.state == .closed) "
+            + "row title=\(entry.flatMap { store.entry($0)?.liveTitle } ?? "nil") card=\(emptyState) selected=\(sidebar.selectedEntryID == entry)")
+        await captureB("certificate-go-back-empty-state")
 
-        page.load(url)
+        guard let page = session.newPage(url) as? CEFWebContents else { return }
         _ = await waitForDialog()
         button(titled: "Show Details", in: presenter?.dialogView)?.performClick(nil)
         try? await Task.sleep(for: .milliseconds(300))
@@ -208,7 +216,7 @@ extension SpikeRunner.Context {
 
     // MARK: Permissions
 
-    private func permissionsCheck() async {
+    func permissionsCheck() async {
         guard let page = await openTest("permissions.html") else { return }
         func ask(_ selector: String, answer identifier: String, capturing name: String? = nil) async -> String {
             Task { await self.click(page, selector) }
@@ -234,7 +242,7 @@ extension SpikeRunner.Context {
 
     // MARK: File choosers
 
-    private func filesCheck() async {
+    func filesCheck() async {
         guard let page = await openTest("files.html") else { return }
         for selector in ["#image", "#docs", "#folder"] {
             Task { await self.click(page, selector) }
@@ -253,7 +261,7 @@ extension SpikeRunner.Context {
 
     // MARK: Context menus
 
-    private func contextMenuCheck() async {
+    func contextMenuCheck() async {
         guard let page = await openTest("menu.html") else { return }
         let presentMenu = chrome.presentMenu
         defer { chrome.presentMenu = presentMenu }
@@ -313,7 +321,7 @@ extension SpikeRunner.Context {
 
     // MARK: Popups
 
-    private func popupsCheck() async {
+    func popupsCheck() async {
         guard let page = await openTest("popups.html") else { return }
         let before = store.today(space: sidebar.activeSpaceID).count
         await click(page, "#popup")

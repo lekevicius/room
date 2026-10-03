@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var windowController: RoomWindowController?
     private var settingsWindow: SettingsWindowController?
     private var pageHost: PageHost?
+    /// The card's content view (DEBUG spikes read what it shows).
+    var pageHostContainer: PageContainerView? { pageHost?.container }
     private(set) var pageDelegate: PageUIDelegate?
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
@@ -325,7 +327,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             },
             pageHost: { [weak pageHost] id in
                 guard let contents = pageHost?.contents, ObjectIdentifier(contents) == id else { return nil }
-                return contents.url?.host()
+                guard let url = contents.url, ["http", "https"].contains(url.scheme) else { return nil }
+                return url.host()
             },
             focusPage: { [weak pageHost] in pageHost?.focusPage() })
         let fullscreen = windowController.map(PageFullscreen.init)

@@ -72,6 +72,9 @@ public final class TabController: SidebarHost {
     /// Asked once per model profile whose engine profile a page needs and
     /// that has none yet; the app creates it and calls `setEngineProfile`.
     @ObservationIgnored public var requestEngineProfile: ((Model.Profile) -> Void)?
+    /// Spikes only: every page the controller takes on, after it became the
+    /// page's delegates (the 2.6b spike wraps them to record each callback).
+    @ObservationIgnored public var debugDidAdopt: ((any WebContents) -> Void)?
     @ObservationIgnored private var requestedProfiles: Set<UUID> = []
     /// Background loads waiting for their entry's engine profile.
     @ObservationIgnored private var waitingLoads: [UUID] = []
@@ -375,6 +378,7 @@ public final class TabController: SidebarHost {
         let page = Page(contents: contents, profileID: profileID, lastVisible: now())
         pages[entry] = page
         observe(page, entry: entry)
+        debugDidAdopt?(contents)
         return page
     }
 

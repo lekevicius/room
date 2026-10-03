@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A long page</title>
+<style>body { font: 15px/1.5 -apple-system, sans-serif; margin: 40px; max-width: 760px; }</style>
+<h1>A long page for find in page</h1>
+<div id="text"></div>
+<script>
+// 2,000 paragraphs (~120,000 words); "lighthouse" occurs 400 times, "harbour" 2,000 times.
+const words = ['the', 'tide', 'came', 'in', 'over', 'stones', 'and', 'gulls', 'circled', 'above', 'a', 'small', 'boat', 'near', 'the', 'quay'];
+const out = [];
+for (let i = 0; i < 2000; i++) {
+  let p = [];
+  for (let j = 0; j < 58; j++) p.push(words[(i * 7 + j * 3) % words.length]);
+  p.splice(20, 0, 'harbour');
+  if (i % 5 === 0) p.splice(40, 0, 'lighthouse');
+  out.push('<p>' + (i + 1) + '. ' + p.join(' ') + '.</p>');
+}
+document.getElementById('text').innerHTML = out.join('');
+</script>
