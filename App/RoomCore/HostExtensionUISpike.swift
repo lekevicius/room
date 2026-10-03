@@ -30,6 +30,32 @@ enum HostExtensionUISpike {
         return false
     }
 
+    static func runDevice(host: HostController, profile: RoomProfile) async throws {
+        let (popup, popupID) = try await open(host: host)
+        let address = try await popup.evaluate("location.href") as! String
+        popup.close()
+        _ = try host.runSpikeAction("extension-popup-close")
+        guard try await gone(popupID) else { throw HostCDP.Failure("setup popup did not close") }
+        guard host.open(URL(string: address)!, in: profile, activate: true) != nil else { throw HostCDP.Failure("extension tab unavailable") }
+        let cdp = try await HostCDP.connect(port: UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort"), pageURL: address)
+        defer { cdp.close() }
+        for _ in 0..<50 {
+            if (try? await cdp.evaluate("document.readyState==='complete'")) as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        HostSpike.record("extension-device-origin", try await cdp.evaluate("({origin:location.origin,usb:typeof navigator.usb})"))
+        try await cdp.evaluate("window.__roomExtensionDevice={pending:true};navigator.usb.requestDevice({filters:[{vendorId:65535,productId:65535}]}).then(()=>__roomExtensionDevice={granted:true},e=>__roomExtensionDevice={name:e.name,message:e.message});true", userGesture: true)
+        var result: [String: Any] = [:]
+        for _ in 0..<100 {
+            result = try await cdp.evaluate("__roomExtensionDevice") as? [String: Any] ?? [:]
+            if result["pending"] == nil { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        HostSpike.record("extension-device-result", result)
+        guard result["name"] as? String == "NotFoundError" else { throw HostCDP.Failure("extension chooser did not safely cancel or reject") }
+        HostSpike.record("boundary", "No extension device grant; rejection is not functional chooser support.")
+    }
+
     static func run(host: HostController, page: RoomWebContents, profile: RoomProfile) async throws {
         let (popup, id) = try await open(host: host)
         defer { popup.close() }

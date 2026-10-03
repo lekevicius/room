@@ -31,7 +31,8 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | `0005-read-anything-without-side-panel` | Read Anything treats a browser without a side panel as legitimate (upstream only exempts its WebUI browser and tests) |
 
 The original five patches are unchanged by background hardening. Additional
-factory/anchor hooks keep their implementations in `//room`:
+factory/anchor hooks keep their implementations in `//room`; narrow upstream
+guards cover call sites that offer no Room hook:
 
 | Patch | Why |
 |---|---|
@@ -40,6 +41,8 @@ factory/anchor hooks keep their implementations in `//room`:
 | `0008-fedcm-anchor-hook` | supply native bubble/modal parents without pretending Cocoa content is a Views WebView |
 | `0009-sad-tab-factory-hook` | contain renderer loss in a Cocoa fallback; SadTab::Create otherwise directly constructs a BrowserView-dependent controller |
 | `0010-shutdown-worker-start-priority` | workers created after shutdown starts enter at least default priority; the direct base thread creation has no Room hook, and an isolated probe demonstrates the lost startup clamp |
+| `0011-browser-window-lookup-hook` | Room window lookup for legacy autofill callers; guard the optional Chrome-only address-save promo |
+| `0012-extension-chooser-toolbar-guard` | extension-origin chooser uses the nullable registered toolbar provider; reject safely when no extension container exists instead of dereferencing a missing BrowserView |
 
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's

@@ -7,6 +7,11 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/command_line.h"
+#include "base/feature_list.h"
+#include "content/public/browser/permission_controller.h"
+#include "content/public/browser/render_frame_host.h"
+#include "services/network/public/cpp/features.h"
+#include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "chrome/browser/extensions/extension_view_host_factory.h"
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/ui/views/extensions/extension_popup.h"
@@ -233,6 +238,34 @@ class Client : public room::RoomBrowserWindowClient {
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
+  }
+  if ([action hasPrefix:@"network-"]) {
+    if (!base::CommandLine::ForCurrentProcess()->HasSwitch("ip-address-space-overrides")) {
+      return @(-1);
+    }
+    if ([action isEqualToString:@"network-flags"]) {
+      const int flags = (base::FeatureList::IsEnabled(network::features::kLocalNetworkAccessChecks) ? 1 : 0) |
+                        (network::features::kLocalNetworkAccessChecksWarn.Get() ? 2 : 0) |
+                        (base::FeatureList::IsEnabled(network::features::kLocalNetworkAccessChecksWebSockets) ? 4 : 0) |
+                        (base::FeatureList::IsEnabled(network::features::kLocalNetworkAccessChecksWebTransport) ? 8 : 0) |
+                        (base::FeatureList::IsEnabled(network::features::kLocalNetworkAccessChecksWebRTC) ? 16 : 0);
+      return @(flags);
+    }
+    if ([action isEqualToString:@"network-reset"]) {
+      auto* controller = _profile.room_profile->GetPermissionController();
+      const auto origin = contents->GetPrimaryMainFrame()->GetLastCommittedOrigin();
+      controller->ResetPermission(blink::PermissionType::LOCAL_NETWORK, origin);
+      controller->ResetPermission(blink::PermissionType::LOOPBACK_NETWORK, origin);
+      return @1;
+    }
+    auto* manager = permissions::PermissionRequestManager::FromWebContents(contents);
+    if (!manager || !manager->IsRequestInProgress() || manager->Requests().empty()) { return @0; }
+    for (const auto& request : manager->Requests()) {
+      if (request->request_type() != permissions::RequestType::kLocalNetwork &&
+          request->request_type() != permissions::RequestType::kLoopbackNetwork) { return @(-1); }
+    }
+    if ([action isEqualToString:@"network-accept"]) { manager->Accept(std::monostate{}); }
+    return @1;
   }
   if ([action isEqualToString:@"download-prompt-enable"]) {
     _profile.room_profile->GetPrefs()->SetBoolean(prefs::kPromptForDownload, true);

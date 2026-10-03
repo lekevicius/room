@@ -22,6 +22,15 @@ PAGE = b'''<!doctype html><meta charset="utf-8"><title>RoomCore features</title>
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
+        if self.path == '/network':
+            body = b'Room network fixture'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == '/auth':
             if self.headers.get('Authorization') != 'Basic cm9vbTpzcGlrZQ==':
                 self.send_response(401)
@@ -70,6 +79,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--network-probes', action='store_true')
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--cert', required=True)
     parser.add_argument('--key', required=True)
@@ -81,10 +91,13 @@ def main():
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(args.cert, args.key)
     https.socket = context.wrap_socket(https.socket, server_side=True)
-    for server in (http, https):
+    peers = [ThreadingHTTPServer(('127.0.0.1', 0), handler) for _ in range(2)] if args.network_probes else []
+    for server in (http, https, *peers):
         threading.Thread(target=server.serve_forever, daemon=True).start()
-    args.receipt.write_text(json.dumps({'http': f'http://127.0.0.1:{http.server_port}',
-                                        'https': f'https://127.0.0.1:{https.server_port}'}) + '\n')
+    receipt = {'http': f'http://127.0.0.1:{http.server_port}', 'https': f'https://127.0.0.1:{https.server_port}'}
+    if peers:
+        receipt.update(local=f'http://127.0.0.1:{peers[0].server_port}', loopback=f'http://127.0.0.1:{peers[1].server_port}')
+    args.receipt.write_text(json.dumps(receipt) + '\n')
     signal.pause()
 
 

@@ -12,3 +12,4 @@
 0009-sad-tab-factory-hook.patch
 0010-shutdown-worker-start-priority.patch
 0011-browser-window-lookup-hook.patch
+0012-extension-chooser-toolbar-guard.patch

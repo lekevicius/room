@@ -308,3 +308,8 @@ Initial compile failed after29.67s at a probe-only static/member DownloadManager
 ## 2026-10-03 — local card registration fix and bounded autofill diagnostics
 
 Probe38s/2steps; production registration fix29s/2steps,load113.41/98.40/75.07; final private diagnostic32s/2steps,load89.16/91.45/80.38. GN/stand-in Swift/strict signature pass after explicit probe dependency and Swift expression corrections. Baseline after production fix:nav17.169s;10loaded external pages quit4.840s,load72.982,26helpers0left0newcrashes,exit0. Card crash7s/139 before fix; cancel/accept repair19s/0. Final owner setup failed11s/0, not a lifetime pass. Address suggestion final19s/0 generates3rows but selection remains unverified due keyDown vs rawKeyDown probe boundary. See UI results and exact identity manifest.
+
+
+## 2026-10-03 — extension chooser guard and final UI checkpoint
+
+Connection diagnostic29s/2steps,load42.39/56.80/68.49. Local/loopback permission19s/exit0; USB chooser owner cleanup11s/exit0. Extension-origin USB crashes6s/exit139 at BrowserView::toolbar_button_provider. Patch0012 nullable-provider guard: first compile11.15s failed due removed transitive BaseWindow include; one corrected retry19s/2steps,load21.81/35.26/53.95. Both GN checks and strict ad-hoc package pass,host8.8s. Regression18s/exit0 safely rejects NotFoundError. Required baseline nav12.168s,10loaded external pages quit0.694s,25helpers0left0newcrashes,exit0,load45.859; no sampling,original5s grace. Apply0/12. See roomcore-ui-handoff.md and exact connection manifest.

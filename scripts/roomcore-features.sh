@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEATURE="${1:?feature required}"
 case "$FEATURE" in
-  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|ui-address-suggestions|ui-passwords|ui-card-save|autofill-save|autofill-update|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-extension-popup|ui-file-input|ui-filesystem|ui-download-close|ui-download-destination|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
+  popups|dialogs|keys|audio|scroll|transparent|corners|band|form|extension|downloads|permissions|auth|certificate|find|zoom|print|fullscreen|widevine|fedcm|renderer-crash|ui-address-suggestions|ui-passwords|ui-card-save|autofill-save|autofill-update|ui-local-network|ui-usb-owner|ui-extension-device|ui-usb|ui-hid|ui-serial|ui-bluetooth|ui-print-preview|ui-devtools|ui-extension-popup|ui-file-input|ui-filesystem|ui-download-close|ui-download-destination|ui-camera|ui-microphone|ui-capture|ui-screen-share|ui-video|ui-document-pip) ;;
   *) echo "unknown feature: $FEATURE" >&2; exit 2 ;;
 esac
 APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -37,7 +37,9 @@ identity = {'source_head': subprocess.check_output(['git', '-C', str(root), 'rev
 PY_IDENTITY
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$DEST/key.pem" -out "$DEST/cert.pem" \
   -days 1 -subj '/CN=localhost' > "$DEST/cert-generation.log" 2>&1
-python3 "$ROOT/scripts/roomcore-fixtures.py" --root "$ROOT/research/spikes" \
+fixture_extra=()
+[[ "$FEATURE" != ui-local-network ]] || fixture_extra+=("--network-probes")
+python3 "$ROOT/scripts/roomcore-fixtures.py" ${fixture_extra[@]+"${fixture_extra[@]}"} --root "$ROOT/research/spikes" \
   --cert "$DEST/cert.pem" --key "$DEST/key.pem" --receipt "$DEST/fixtures.json" > "$DEST/server.log" 2>&1 &
 server=$!
 pid='' watchdog=''
@@ -54,10 +56,15 @@ read -r http https < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]
 # port; a collision fails visibly instead of attaching to another profile.
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
 extra=()
+if [[ "$FEATURE" == ui-local-network ]]; then
+  read -r local_url loopback_url < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["local"],d["loopback"])' "$DEST/fixtures.json")
+  extra+=("-RoomSpikeLocalURL" "$local_url" "-RoomSpikeLoopbackURL" "$loopback_url"
+          "--ip-address-space-overrides=${http#http://}=public,${local_url#http://}=local")
+fi
 case "$FEATURE" in
   ui-camera|ui-microphone|ui-capture) extra+=("--use-fake-device-for-media-stream") ;;
 esac
-if [[ "$FEATURE" == extension || "$FEATURE" == ui-extension-popup ]]; then
+if [[ "$FEATURE" == extension || "$FEATURE" == ui-extension-popup || "$FEATURE" == ui-extension-device ]]; then
   extra+=("--load-extension=$ROOT/research/spikes/phase-1.4/extension")
 fi
 if [[ "$FEATURE" == widevine ]]; then

@@ -29,3 +29,15 @@ user can make; otherwise any session.
 | B-17 | Discard exemptions CEF cannot see: a page with unsaved form input (beforeunload listener) or in Picture-in-Picture is discarded like any other background page (spec §H, §A.7 exempt them); Chromium's `TabLifecycleUnit` knows both | Phase 2.3 | 3.7 | |
 | B-18 | Phase 2.3's numbers were taken with the display asleep and the session locked (occluded window, pages never visible): rerun `scripts/tabs-measure.sh` with the screen unlocked and Room frontmost for the switch time with CEF compositing and the page's own visible/first-frame times (`switch_page_visible`, `switch_page_first_frame`, empty while occluded); also `scripts/run-spike.sh capture -RoomSidebarFixture demo -RoomSpikeCaptureDirectory research/screenshots/phase-2.3` gives in-process renders only, a real window capture needs the unlocked screen; and `scripts/sidebar-snapshots.sh demo` (now on the tab controller with FakeEngine pages) waits for the window to become frontmost, which a locked session never allows | Phase 2.3 | user, before 2.4 | **user** |
 | B-19 | RoomCore concurrent teardown can hit the shutdown watchdog or leave helpers beyond the grace period. Network-service worker startup, policy-loader filesystem work and renderer Mojo/GPU-disconnect stalls are captured. A post-shutdown worker-start priority regression is corrected by patch0010 with an isolated probe, but the broader watchdog cause remains unproved. See research/notes/roomcore-shutdown-investigation.md. | bg hardening | before Chapter 3 acceptance | Open; serial passes do not resolve |
+
+
+## RoomCore UI input to Chapter3
+
+The capped [six-package compatibility pass](../research/notes/roomcore-ui-handoff.md)
+is concluded, with three UI crash repairs and measured native/content probes.
+Product work remains: real password/extension toolbar ownership, docked
+DevTools content host, persistent capture/download/grant controls and an
+explicit pending-download close decision. Address suggestion selection and
+local-card owner-close acceptance remain unverified after bounded failed
+fixtures; native/hardware acceptance is separately listed in the handoff.
+This does not close B-19 or authorize further shutdown stress.

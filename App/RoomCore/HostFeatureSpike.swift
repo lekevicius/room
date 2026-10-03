@@ -10,7 +10,7 @@ enum HostFeatureSpike {
                         "corners", "band", "form", "extension", "downloads", "permissions",
                         "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash",
                         "autofill-save", "autofill-update", "ui-address-suggestions", "ui-passwords", "ui-card-save",
-                        "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth",
+                        "ui-local-network", "ui-usb-owner", "ui-extension-device", "ui-usb", "ui-hid", "ui-serial", "ui-bluetooth",
                         "ui-print-preview", "ui-devtools", "ui-extension-popup",
                         "ui-file-input", "ui-filesystem", "ui-download-close", "ui-download-destination",
                         "ui-camera", "ui-microphone", "ui-capture", "ui-screen-share", "ui-video", "ui-document-pip"]
@@ -67,6 +67,12 @@ enum HostFeatureSpike {
                 try await HostMediaUISpike.run(name, host: host, cdp: cdp, page: page, profile: profile)
             case "ui-file-input", "ui-filesystem", "ui-download-close", "ui-download-destination":
                 try await HostFileUISpike.run(name, host: host, cdp: cdp, page: page, profile: profile)
+            case "ui-local-network":
+                try await HostNetworkUISpike.run(host: host, cdp: cdp, page: page, profile: profile)
+            case "ui-usb-owner":
+                try await HostDeviceChooserSpike.runOwner(host: host, cdp: cdp, page: page, profile: profile)
+            case "ui-extension-device":
+                try await HostExtensionUISpike.runDevice(host: host, profile: profile)
             case "ui-extension-popup":
                 try await HostExtensionUISpike.run(host: host, page: page, profile: profile)
             case "ui-print-preview", "ui-devtools":

@@ -1,6 +1,7 @@
 # RoomCore UI compatibility results — 2026-10-03
 
-Status: **in progress**. This implements the bounded
+Status: **bounded investigation concluded; product/native acceptance remains partial**.
+Start with the compact [Chapter3 handoff](roomcore-ui-handoff.md). This implements the bounded
 [scope](roomcore-ui-compatibility-scope.md); it does not claim Chapter 3 UI is
 built. The wider [inventory](roomcore-ui-surface-audit.md) is source research,
 not runtime acceptance. The old shutdown investigation is deferred (now B-19;
@@ -75,14 +76,14 @@ address into the user's profile.
 
 | Package | Current evidence / next bounded drive |
 |---|---|
-| Device choosers/connections | Web USB/HID/Serial/Bluetooth chooser cancellation passes (table below). Empty filters/fake Bluetooth; cancel only, never select hardware. Extension-origin and local-network gates remain separate. |
+| Device choosers/connections | Web chooser cancel and USB owner cleanup pass. Local/loopback network deny/allow/reuse/revoke pass; extension-origin crash is repaired to safe rejection, with a missing container contract (final package2 section). |
 | Print preview / DevTools | Real print preview/pages/cancel/reopen/PDF passes; docking has verified missing-controller blocker (below). Native print-panel/focus remains reviewer acceptance. |
 | Extension action UI | action.openPopup has a verified toolbar/container blocker. Source map and successful direct Chrome ExtensionPopup ownership/resize/close probe below. Product toolbar/container remains missing. |
 | Media/capture | Denial, synthetic capture/stop, generated playback, screen-picker cancel and video PiP measured below. Document PiP also closes with its owner; native activity UI remains a concrete Chapter3 contract. |
 | Downloads/file dialogs | Real native input/open/save/folder/destination cancellation and owner destruction pass below. Pending-download decision is verified to auto-confirm without UI; product close confirmation remains missing. |
 
-The Goal remains active. Rows marked pending are unfinished, not architectural
-blockers or completed investigations.
+The tables below retain the measured outcomes, including failed fixtures.
+Later checkpoint sections resolve earlier pending rows; the handoff is the final summary.
 
 ## Package 2 — web device chooser cancellation
 
@@ -378,7 +379,7 @@ policy changed; the handler constructor has no network work, so the existing
 exact-identity idle audit is retained without claiming a new600s audit.
 All receipts/source/component hashes are in roomcore-ui-card-checkpoint.json.
 
-### Remaining active Goal work after this checkpoint
+### Pending work before the final connection checkpoint
 
 Package2 still needs device chooser owner destruction, the distinct extension-
 origin path, and effective local/loopback-network permission/grant lifetime.
@@ -386,3 +387,57 @@ Packages3–6 now have measured outcomes and explicit boundaries. Package1 has
 bounded findings above, including failed selection/owner-lifetime acceptance;
 those must remain visible in the final handoff rather than quietly reclassified
 as passes. No return to shutdown stress or periodic scheduling.
+
+
+## Package 2 final — connection permissions and extension chooser containment
+
+| Path | Fixture and measured result | Status / Chapter3 contract |
+|---|---|---|
+| Web device owner destruction | feature-ui-usb-owner-initial: actual visible USB chooser; close requester tab while a second tab remains; pageClosed=true,remainingDialogs0.11s,exit0. | USB owner cleanup works. HID/Serial/Bluetooth cancellation remains qualified to their earlier runs; the shared LocationBarBubbleDelegateView::WebContentsDestroyed closes these bubble views, but no extra per-device owner test or real grant is claimed. |
+| Effective local-network gates | feature-ui-local-network-initial: runtime flag bitmask13 = checks,WebSockets,WebTransport enabled; warning-only and WebRTC-check bits disabled. Three permission queries initially prompt. | Actual effective values in this package; WebSocket/WebTransport transfers themselves are not driven. The legacy local-network-access permission is a compatibility query combining the distinct local/loopback settings, not a third grant to request. |
+| Local/loopback deny, allow, reuse | Same19s/exit0 run. Each type opens one actual owned PermissionPromptBubbleBaseView; Deny rejects fetch with TypeError and stores denied. Accept permits the exact local response; a repeat succeeds without another prompt. | Works through Chromium permission decisions. Fixture uses three127.0.0.1 servers with test address-space classification; no LAN devices or outside hosts contacted. MacOS LAN/privacy or real device reachability is not accepted. |
+| Network grant lifetime/revoke | Loopback grant remains granted in a replacement same-origin tab after original owner destruction; ResetPermission returns it to prompt. A subsequent pending requester is closed; its replacement tab reports pending0. | Origin/profile grant survives tab lifetime and can be reset. Owner destruction removes the request-owning WebContents; remaining-manager pending0 is measured, not an independent enumeration of the destroyed prompt's native window. Product grant settings/revoke UI and native focus remain to implement. |
+| Extension-origin USB | feature-ui-extension-device-initial: a real MV3 page opened as Room's active tab has navigator.usb; requestDevice crashes in BrowserView::toolbar_button_provider+0, called by chrome::ShowDeviceChooserDialog+992, address0x648.6s,exit139. | Distinct from the working web chooser. No fake device selected or permission granted. |
+| Extension safe rejection | Patch0012 switches to nullable ToolbarButtonProvider::From(browser). feature-ui-extension-device-repair1: actual request settles NotFoundError/No device selected;18s,exit0. | Crash contained, **no functional extension chooser pass**. Chapter3 needs ExtensionsContainerViews or an intentional equivalent with extension identity, origin, anchor and completion/owner lifecycle. |
+
+The original extension chooser dereferenced BrowserView before reaching its
+existing “no extension container” rejection. There is no Room factory or
+window hook in that extension-specific branch. Supplying a fake BrowserView
+or registering a pretend global toolbar would misrepresent unrelated UI.
+The tiny upstream guard is therefore necessary: the ordinary Chrome
+BrowserView::toolbar_button_provider already delegates to the same
+ToolbarButtonProvider::From lookup, preserving its populated-provider path.
+Missing providers now use the existing null-container cancellation path.
+Patch0012 changes one file (4insertions/4deletions including a direct BaseWindow
+include); original five patches and public headers remain unchanged.
+
+Initial guard compilation exposed an incomplete BaseWindow type when the
+transitive BrowserView include was removed (11.15s failure). Added the direct
+include and retried once:19s/2steps,load21.81/35.26/53.95. GN checks pass for
+both //room/* and the patched Chrome permissions target. Strict ad-hoc package
+passes, host8.8s. Apply is idempotent:0applied/12already; Chromium
+cbc9414a6affa56c5ef03b46a265b4dab74ae785.
+
+Required serial baseline after the guard:nav12.168s;10loaded external pages,
+quit0.694s,25helpers/0left,0newcrashreports,exit0,load45.859. Original5s grace,
+default observer, no sampling. Exact final package identity and all connection
+receipts are in roomcore-ui-connections-checkpoint.json. The initial crash
+package is preserved in build/roomcore/audit-ui-extension-device-initial.
+
+No production network policy changed: the guard runs only after an explicit
+extension device request, and all address-space overrides/grants belong to
+isolated CLI fixtures. Existing600s zero-idle evidence retains its older exact
+package identity; no new audit is asserted. Main remains8522d6f after fetch.
+Direct-main protected scope is empty except App/RoomCore; all branch changes
+are within the authorized directories/documents.
+
+## Final qualification
+
+All six agreed packages have now been driven or stopped at a concrete
+prerequisite/attempt boundary. This concludes the capped compatibility
+investigation; it does not deliver Chapter3 UI. The address-fill selection
+and local-card owner-close fixtures remain failed/unverified, with the exact
+probe limitations above. No additional rounds were hidden under new names.
+Native focus/geometry, real hardware, licensed playback and product decision
+surfaces remain explicit future acceptance. Read roomcore-ui-handoff.md for
+the compact implementation contracts and next checks.

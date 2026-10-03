@@ -187,3 +187,16 @@ Renderer loss is contained by a Cocoa crash fallback for Room-owned pages,
 using SadTabHelper's existing renderer-ready lifetime. Reload removes it and
 restores the page in the component probe. This introduces no public API;
 Chapter 3 still needs crash status, accessible retry and reporting UI.
+
+
+## Pre-Chapter3 UI qualification (2026-10-03)
+
+The bounded [RoomCore UI handoff](../research/notes/roomcore-ui-handoff.md)
+qualifies the mapping above; it is not a public API extension. Retained Chrome
+bubbles, print preview, native file sheets, synthetic capture and direct
+extension-popup hosting have measured spike evidence. Password/extension
+toolbar ownership, DevTools docking, persistent activity and pending-download
+close decisions still need host contracts. Address fill and local-card owner
+closure have explicitly failed/unverified probe acceptance. Preserve those
+boundaries when designing Chapter3 delegates; the existence of a Chromium
+controller does not imply that Room exports or correctly hosts its full flow.

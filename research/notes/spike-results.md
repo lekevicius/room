@@ -572,3 +572,12 @@ roomcore-ui-compatibility-results.md. This checkpoint does not finish the Goal.
 | Synthetic local card save | SaveCardBubbleControllerImpl::DoShowBubble+156, null handler, SIGSEGV7s/exit139 | AutofillBubbleHandler registered on BrowserWindowInterface user-data host before any caller; Chrome payment path bypasses legacy getter | Initialize existing handler at Room window construction. One visible SaveCardBubble; cancel and accept each callback1,19s/exit0. Baseline nav17.169s,ten-page quit4.840s,26helpers0left0crashes. Final owner-close fixture fails third-bubble setup, so lifetime/persistence unaccepted. |
 
 No new raw patch/public header or network-policy change. Full bounded outcomes, including actual3-row suggestions without accepted fill and password toolbar prerequisite, live in roomcore-ui-compatibility-results.md.
+
+
+## 2026-10-03 — UI pass: extension device chooser
+
+| Feature | Chrome path / failure | Window requirement | Fix / verification |
+|---|---|---|---|
+| Extension-origin USB request | chrome::ShowDeviceChooserDialog+992 → BrowserView::toolbar_button_provider+0, SIGSEGV6s/139 | Registered ToolbarButtonProvider and extension container; Room has neither | Patch0012 uses nullable provider lookup and existing no-container rejection. Real request now NotFoundError/No device selected,18s/0; no functional chooser claim. Baseline nav12.168s,ten-loaded-page quit0.694s,25helpers0left0crashes. |
+
+Separate web USB owner cleanup11s/0 and local/loopback permission deny/allow/reuse/revoke19s/0 pass. All network fixture targets are127.0.0.1. Full qualification, identities and Chapter3 contracts: roomcore-ui-handoff.md and roomcore-ui-compatibility-results.md.

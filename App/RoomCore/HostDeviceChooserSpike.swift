@@ -1,8 +1,31 @@
 import Foundation
+import RoomCore
 
 /// Real chooser callbacks through CDP; never select or connect to a device.
 @MainActor
 enum HostDeviceChooserSpike {
+    static func runOwner(host: HostController, cdp: HostCDP, page: RoomWebContents, profile: RoomProfile) async throws {
+        try await cdp.evaluate("window.__ownerDevice={pending:true}; navigator.usb.requestDevice({filters:[{vendorId:65535,productId:65535}]}).then(()=>__ownerDevice={granted:true},e=>__ownerDevice={name:e.name});true", userGesture: true)
+        var shown = false
+        for _ in 0..<100 {
+            if try host.runSpikeAction("ui-dialog-count") == 1 { shown = true; break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        guard shown else { throw HostCDP.Failure("owner test never displayed a USB chooser") }
+        let spare = host.open(URL(string: UserDefaults.standard.string(forKey: "RoomSpikeBaseURL")! + "/features#device-owner")!, in: profile, activate: false)!
+        for _ in 0..<100 { if !spare.isLoading { break }; try await Task.sleep(for: .milliseconds(100)) }
+        page.close()
+        var dialogs = -1
+        for _ in 0..<50 {
+            dialogs = try host.runSpikeAction("ui-dialog-count")
+            if dialogs == 0 { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        HostSpike.record("device-owner-close", "shown=\(shown) pageClosed=\(page.isClosed) remainingDialogs=\(dialogs)")
+        guard page.isClosed, dialogs == 0 else { throw HostCDP.Failure("chooser survived owner destruction") }
+        HostSpike.record("boundary", "Actual USB chooser owner cleanup only; no device grant/connection. Destroyed document has no live JavaScript promise to report.")
+    }
+
     static func run(_ name: String, host: HostController, cdp: HostCDP) async throws {
         let request: String
         var browserCDP: HostCDP?
