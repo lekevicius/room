@@ -31,3 +31,20 @@ handler and self-monitor handler. Do not delete/move old crash databases.
 
 No patch or public ObjC API change expected. This remains a draft until the
 component build and handler inspection pass.
+
+## Implemented and verified — 2026-10-03 07:23 EEST
+
+The override now runs immediately before ChromeMain using the effective
+--user-data-dir (or Chromium's existing default when none was supplied).
+PathService creates the directory; initialization stops visibly on failure.
+No old database is moved/deleted. Build: 18 s, 2 steps; ad-hoc package valid.
+
+Runtime evidence feature-crashpad-path/handlers.txt contains two handlers:
+PID 17544 --monitor-self and PID 17548 --no-periodic-tasks. Both report
+--database=/Users/j/.codex/worktrees/35bc/room/research/notes/feature-crashpad-path/profile/Crashpad
+and --annotation=prod=Room_Mac. Probe exits 0 after 30 s idle.
+
+Baseline nav 19.676 s; ten loaded pages; quit 2.591 s at load1 43.40;
+26 helpers observed, 0 left after 5 s grace, 0 new crash reports, exit 0.
+This verifies selected-directory placement. Normal host AppPaths supplies
+Room/RoomCore; public nil-directory semantics are intentionally unchanged.

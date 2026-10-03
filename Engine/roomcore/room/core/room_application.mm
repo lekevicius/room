@@ -10,11 +10,14 @@
 #include "base/check.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/path_service.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/chrome_paths.h"
+#include "chrome/common/chrome_paths_internal.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_profile_internal.h"
@@ -130,6 +133,17 @@ constexpr const char* kDefaultSwitches[] = {
                   [delegate roomApplicationWillTerminate:strongSelf];
                 }
               }];
+
+  // Chrome's default crash path ignores --user-data-dir. Keep each host's
+  // crash database inside the same selected profile root. Overrides survive
+  // ChromeMain's later path-provider registration.
+  base::FilePath user_data = base::CommandLine::ForCurrentProcess()
+                                 ->GetSwitchValuePath(switches::kUserDataDir);
+  if (user_data.empty()) {
+    CHECK(chrome::GetDefaultUserDataDirectory(&user_data));
+  }
+  CHECK(base::PathService::Override(chrome::DIR_CRASH_DUMPS,
+                                    user_data.AppendASCII("Crashpad")));
 
   auto network_policy = room::InstallNetworkPolicy();
   const int result = ChromeMain(argc, argv.data());
