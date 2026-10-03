@@ -102,7 +102,15 @@ struct EssentialsLayoutTests {
         #expect(EssentialsLayout.columns(count: 12, width: 488) == 6)
         let frames = EssentialsLayout.frames(count: 5, width: 228)
         #expect(frames.count == 5)
-        #expect(frames[4].minY > frames[3].minY, "fifth tile wraps")
-        #expect(abs(frames[3].maxX - 228) <= 1)
+        #expect(frames[3].minY > frames[2].minY, "fourth tile starts the second row")
+        #expect(abs(frames[2].maxX - 228) <= 1 && abs(frames[4].maxX - 228) <= 1, "both rows fill the width")
+    }
+
+    @Test("Rows are balanced: never shorter than another by more than one (2.2a review)", arguments: [
+        (5, 228.0, [3, 2]), (7, 228.0, [4, 3]), (9, 228.0, [3, 3, 3]), (6, 228.0, [3, 3]), (4, 228.0, [4]),
+        (12, 228.0, [4, 4, 4]), (7, 488.0, [4, 3]), (12, 488.0, [6, 6]), (1, 228.0, [1]), (0, 228.0, []),
+    ])
+    func balancedRows(count: Int, width: Double, rows: [Int]) {
+        #expect(EssentialsLayout.rowCounts(count: count, width: width) == rows)
     }
 }

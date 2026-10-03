@@ -10,9 +10,11 @@ protocol EssentialTileEvents: AnyObject {
 }
 
 /// Layout of the Essentials grid (spec §I.2): tiles `essentialTileHeight`
-/// tall that stretch to fill the row, as many per row as fit at
-/// `essentialTileMinWidth`, at most `essentialMaxColumns`, never more than
-/// there are tiles.
+/// tall that stretch to fill their row. The column count is as many as fit
+/// at `essentialTileMinWidth`, at most `essentialMaxColumns`, never more
+/// than there are tiles; the rows that count needs are then filled evenly,
+/// left to right, so no row is shorter than another by more than one (five
+/// tiles in four columns are 3 + 2, never 4 + 1; ROADMAP 2.2 review).
 public enum EssentialsLayout {
     public static func columns(count: Int, width: CGFloat) -> Int {
         guard count > 0 else { return 0 }
@@ -21,17 +23,27 @@ public enum EssentialsLayout {
         return max(1, min(fit, SidebarMetrics.essentialMaxColumns, count))
     }
 
-    public static func frames(count: Int, width: CGFloat) -> [CGRect] {
+    /// Tiles per row, top to bottom.
+    public static func rowCounts(count: Int, width: CGFloat) -> [Int] {
         let columns = columns(count: count, width: width)
         guard columns > 0 else { return [] }
+        let rows = (count + columns - 1) / columns
+        let base = count / rows, longer = count % rows
+        return (0..<rows).map { $0 < longer ? base + 1 : base }
+    }
+
+    public static func frames(count: Int, width: CGFloat) -> [CGRect] {
         let gap = SidebarMetrics.essentialsGap
-        let tileWidth = (width - gap * CGFloat(columns - 1)) / CGFloat(columns)
         let height = SidebarMetrics.essentialTileHeight
-        return (0..<count).map { index in
-            let row = index / columns, column = index % columns
-            return CGRect(x: (CGFloat(column) * (tileWidth + gap)).rounded(), y: CGFloat(row) * (height + gap),
-                          width: tileWidth.rounded(), height: height)
+        var frames: [CGRect] = []
+        for (row, tiles) in rowCounts(count: count, width: width).enumerated() {
+            let tileWidth = (width - gap * CGFloat(tiles - 1)) / CGFloat(tiles)
+            for column in 0..<tiles {
+                frames.append(CGRect(x: (CGFloat(column) * (tileWidth + gap)).rounded(), y: CGFloat(row) * (height + gap),
+                                     width: tileWidth.rounded(), height: height))
+            }
         }
+        return frames
     }
 
     public static func height(count: Int, width: CGFloat) -> CGFloat {
