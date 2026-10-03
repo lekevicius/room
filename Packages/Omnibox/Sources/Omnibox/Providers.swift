@@ -19,6 +19,12 @@ public struct VerbatimProvider: OmniboxProvider {
     public func matches(for input: OmniboxInput, in context: OmniboxContext) -> [OmniboxMatch] {
         let text = input.trimmed
         guard !text.isEmpty else { return [] }
+        if case .siteSearch(let site) = input.mode {
+            // The chip's site: always a search there (spec §C "Search YouTube").
+            return [OmniboxMatch(id: "verbatim:search", provider: .verbatim, relevance: Relevance.verbatimSearch,
+                                 action: .search(query: text, url: site.engine.searchURL(for: text)), title: text,
+                                 detail: "Search \(site.name)", icon: .search, keepsSlot: true)]
+        }
         let engine = context.searchEngine
         func search(_ query: String, relevance: Int) -> OmniboxMatch {
             OmniboxMatch(id: "verbatim:search", provider: .verbatim, relevance: relevance,

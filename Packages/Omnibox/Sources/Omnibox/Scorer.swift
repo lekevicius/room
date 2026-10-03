@@ -7,15 +7,15 @@ public enum Relevance {
     /// An open tab or entry whose URL is exactly what was typed: switch to it
     /// rather than open a second copy (spec §C top hit "exact tab match").
     public static let exactEntry = 1450
-    /// 2.4b: history that completes the input inline beats the verbatim URL
+    /// History that completes the input inline beats the verbatim URL
     /// (Chromium's HistoryURL inline band); 1410…1449.
     public static let inlineHistory = 1410...1449
     /// What you typed, when it is surely a URL.
     public static let verbatimURL = 1400
     /// What you typed, when it reads as a query: search for it.
     public static let verbatimSearch = 1300
-    /// 2.4b: history by frecency (below the verbatim search so a query stays
-    /// a query unless history completes it inline).
+    /// History by match quality and frecency (below the verbatim search so a
+    /// query stays a query unless history completes it inline).
     public static let history = 600...1299
     /// Open tabs (Today, every space), by match quality and recency.
     public static let openTabs = 1000...1199
@@ -24,9 +24,10 @@ public enum Relevance {
     /// The verbatim alternative that is not the top hit: the URL of
     /// "node.js", the search for "github.com". Kept in the cap regardless.
     public static let verbatimAlternative = 850
-    /// 2.4b: search suggestions.
+    /// Search suggestions.
     public static let suggest = 500...899
-    /// 2.4b: commands; a prefix match on the name scores high in `>` mode.
+    /// Commands in `>` mode (they are the only rows there); in normal mode
+    /// they score 400…700, below everything (`CommandsProvider`).
     public static let commands = 400...1300
 
     /// `fraction` (0…1) placed in `band`.
@@ -63,11 +64,21 @@ public struct OmniboxResult: Hashable, Sendable {
             if lhs.element.group != rhs.element.group { return lhs.element.group < rhs.element.group }
             return lhs.offset < rhs.offset
         }.map(\.element)
-        var seen = Set<String>()
+        var seen: [String: Int] = [:]
         var unique: [OmniboxMatch] = []
-        for match in ordered where seen.insert(match.dedupeKey).inserted {
-            // A duplicate that must keep a slot hands that to the survivor.
-            unique.append(match)
+        for match in ordered {
+            guard let index = seen[match.dedupeKey] else {
+                seen[match.dedupeKey] = unique.count
+                unique.append(match)
+                continue
+            }
+            // History naming a page that is open in an entry switches to that
+            // entry (Chromium's tab match): "gi" completing to github.com
+            // with a GitHub tab open selects the tab instead of a second copy.
+            if case .switchToEntry = match.action, unique[index].provider == .history, case .navigate = unique[index].action {
+                unique[index].action = match.action
+                unique[index].spaceName = match.spaceName
+            }
         }
         for match in ordered where match.keepsSlot {
             if let index = unique.firstIndex(where: { $0.dedupeKey == match.dedupeKey }) { unique[index].keepsSlot = true }
@@ -147,13 +158,23 @@ public struct Omnibox: Sendable {
         self.providers = providers
     }
 
-    /// The 2.4a providers.
-    public static let localProviders: [any OmniboxProvider] = [VerbatimProvider(), OpenTabsProvider(), PinnedProvider()]
+    /// The providers that need nothing but the context; the app adds
+    /// `HistoryProvider` with its database.
+    public static let localProviders: [any OmniboxProvider] = [VerbatimProvider(), OpenTabsProvider(), PinnedProvider(),
+                                                               SiteSearchProvider(), CommandsProvider()]
 
-    /// Every provider's matches, unranked.
+    /// Every provider's matches, unranked. Commands mode asks only the
+    /// commands (an empty query lists them all); a site-search chip asks the
+    /// verbatim search and history (spec §C).
     public func candidates(for input: OmniboxInput, in context: OmniboxContext) -> [OmniboxMatch] {
-        guard !input.isEmpty else { return [] }
-        return providers.flatMap { $0.matches(for: input, in: context) }
+        let kinds: Set<ProviderKind>
+        switch input.mode {
+        case .commands: kinds = [.commands]
+        case .siteSearch: kinds = [.verbatim, .history]
+        case .normal: kinds = Set(ProviderKind.allCases)
+        }
+        guard !input.isEmpty || input.mode == .commands else { return [] }
+        return providers.filter { kinds.contains($0.kind) }.flatMap { $0.matches(for: input, in: context) }
     }
 
     public func result(for input: OmniboxInput, in context: OmniboxContext) -> OmniboxResult {

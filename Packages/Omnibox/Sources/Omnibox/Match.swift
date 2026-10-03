@@ -3,14 +3,38 @@ import Model
 
 /// What the user typed.
 public struct OmniboxInput: Hashable, Sendable {
+    /// Which providers answer (spec §C).
+    public enum Mode: Hashable, Sendable {
+        case normal
+        /// `>` or Tab from an empty field: commands only.
+        case commands
+        /// A site-search keyword chip (`yt` + Tab): searches that site.
+        case siteSearch(SiteSearch)
+    }
+
+    /// The query: the field's text without the `>` of commands mode.
     public var text: String
     /// Set when the last edit was a deletion: inline completion would put
     /// back what the user just removed (Chromium's `prevent_inline_autocomplete`).
     public var preventsInlineCompletion: Bool
+    public var mode: Mode
 
-    public init(text: String, preventsInlineCompletion: Bool = false) {
+    public init(text: String, preventsInlineCompletion: Bool = false, mode: Mode = .normal) {
         self.text = text
         self.preventsInlineCompletion = preventsInlineCompletion
+        self.mode = mode
+    }
+
+    /// The field's text as input: a leading `>` enters commands mode (spec
+    /// §C); with a site-search chip the text is that site's query.
+    public init(field: String, siteSearch: SiteSearch? = nil, preventsInlineCompletion: Bool = false) {
+        if let siteSearch {
+            self.init(text: field, preventsInlineCompletion: true, mode: .siteSearch(siteSearch))
+        } else if field.hasPrefix(">") {
+            self.init(text: String(field.dropFirst()), preventsInlineCompletion: true, mode: .commands)
+        } else {
+            self.init(text: field, preventsInlineCompletion: preventsInlineCompletion)
+        }
     }
 
     public var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -62,8 +86,10 @@ public enum MatchAction: Hashable, Sendable {
     case search(query: String, url: String)
     /// An existing entry: switch to it (its space first); ⌘ opens a copy of `url`.
     case switchToEntry(id: UUID, space: UUID?, url: String?)
-    /// 2.4b: a registry command by identifier.
+    /// A registry command by identifier.
     case command(id: String)
+    /// The site-search hint row: enter `keyword`'s chip mode (spec §C).
+    case enterSiteSearch(keyword: String)
 
     /// The page this action ends on, if it is a page (dedupe key, copies).
     public var url: String? {
@@ -71,7 +97,7 @@ public enum MatchAction: Hashable, Sendable {
         case .navigate(let url): url
         case .search(_, let url): url
         case .switchToEntry(_, _, let url): url
-        case .command: nil
+        case .command, .enterSiteSearch: nil
         }
     }
 }
@@ -81,7 +107,9 @@ public enum MatchIcon: Hashable, Sendable {
     case entry(UUID)
     case search
     case url
-    /// 2.4b: a command's SF Symbol.
+    /// A page from history: its site's cached favicon, or the letter tile.
+    case site(url: String)
+    /// A command's SF Symbol name.
     case symbol(String)
 }
 
@@ -130,6 +158,7 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
     /// Matches that end on the same page are one suggestion (spec §C).
     public var dedupeKey: String {
         if case .command(let id) = action { return "command:" + id }
+        if case .enterSiteSearch(let keyword) = action { return "sitesearch:" + keyword }
         return action.url.map(URLNormalization.normalized) ?? id
     }
 }
@@ -171,13 +200,18 @@ public struct OmniboxContext: Sendable {
     /// The entry in the card: never suggested (switching to it does nothing).
     public var currentEntryID: UUID?
     public var searchEngine: SearchEngine
+    /// The commands that can run now (the app builds them per open; spec §C list).
+    public var commands: [OmniboxCommand]
+    /// Site-search keywords (spec §C; Settings ▸ Search manages them later).
+    public var siteSearches: [SiteSearch]
     /// The recency clock (tests inject one).
     public var now: Date
 
     /// `previous`: an earlier context whose precomputed keys are reused for
     /// entries that did not change (the palette reopens on mostly the same sidebar).
     public init(entries: [OmniboxEntry] = [], activeSpaceID: UUID? = nil, currentEntryID: UUID? = nil,
-                searchEngine: SearchEngine = .google, now: Date = Date(), reusingKeysFrom previous: OmniboxContext? = nil) {
+                searchEngine: SearchEngine = .google, commands: [OmniboxCommand] = [], siteSearches: [SiteSearch] = SiteSearch.defaults,
+                now: Date = Date(), reusingKeysFrom previous: OmniboxContext? = nil) {
         self.entries = entries
         if let previous {
             var known: [UUID: (entry: OmniboxEntry, keys: EntryKeys)] = [:]
@@ -194,6 +228,8 @@ public struct OmniboxContext: Sendable {
         self.activeSpaceID = activeSpaceID
         self.currentEntryID = currentEntryID
         self.searchEngine = searchEngine
+        self.commands = commands
+        self.siteSearches = siteSearches
         self.now = now
     }
 }
@@ -209,8 +245,11 @@ struct EntryKeys: Sendable {
     var normalizedURLs: [String]
 
     init(_ entry: OmniboxEntry) {
-        let urls = [entry.url, entry.storedURL].compactMap { $0 }
-        title = entry.title.lowercased()
+        self.init(title: entry.title, urls: [entry.url, entry.storedURL].compactMap { $0 })
+    }
+
+    init(title: String, urls: [String]) {
+        self.title = title.lowercased()
         hosts = urls.compactMap { URLComponents(string: $0)?.host?.lowercased() }.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
         bareURLs = urls.map { url in
             var lower = url.lowercased()
