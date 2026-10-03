@@ -529,3 +529,14 @@ Original patches 0001–0008 are unchanged. Apply reports 0 applied, 9 already;
 Chromium HEAD 0811f471258ac. Network policy is unchanged; the last 600 s audit
 belongs to engine 2a04498, not this new binary. The original concurrent
 shutdown failure remains open; renderer containment does not fix its cause.
+
+10:18 EEST: deterministic loopback shutdown controls completed. Three Room
+browsers each loaded ten storage/cache/canvas fixtures; quits 1.028/1.596/2.336 s,
+0 helpers left/0 crashes. Same-current-component stock window entry completed
+three at 5.107/3.790/4.585 s, also clean. No stack sampling. Different host
+setup/termination paths and machine load forbid a performance ranking; these
+are controls, not the required real-site baseline. No engine or network
+policy change, no new hook. Test-only host rebuild 8.6 s, signature valid;
+Python/Node checks pass. CI0f87b84 passed78/81s. B-16 remains open. A final
+600-second fresh-profile idle audit on the current package is started under
+netlog-idle-sadtab; its result is pending, not counted as passed.

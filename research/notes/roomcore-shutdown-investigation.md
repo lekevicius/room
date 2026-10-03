@@ -227,3 +227,49 @@ add an intentional renderer-crash/reload probe. The underlying Blink layout
 failure remains unmodified; its dump/log are preserved. B-16 tracks the
 unresolved teardown reliability issue; B-8 now reflects the existing native
 termination option. Prior checkpoint CI passes 70 / 86 s.
+
+
+## Deterministic loopback comparison — 10:14–10:17 EEST
+
+The SadTab renderer-loss containment described above is fixed in 0f87b84;
+intentional crash/reload and the required real-site serial baseline pass.
+It does not repair the underlying Blink renderer layout defect or the
+concurrent teardown issue.
+
+Added scripts/roomcore-shutdown-local.py and a host-only RoomSpikeURLsJSON
+option. Ten distinct *.localhost origins, served exclusively on 127.0.0.1,
+each complete a persistent cookie, 65,536-character localStorage write, 65,536-character IndexedDB
+transaction, and a 128 KiB cached HTTP fetch before their ready title. A
+bounded 640×360 canvas animation exercises the compositor. This is a small
+controlled corpus, not a recreation of the real websites. Bad/incomplete
+fixture state fails the existing runner. Default open10 still uses the ten
+external sites; receipts identify which corpus ran.
+
+| Host / three concurrent browsers | Ready seconds | Quit seconds | Result |
+|---|---|---|---|
+| Room, engine 0f87b84 plus test-only host changes | 28 / 27 / 26 | 1.028 / 1.596 / 2.336 | All ten fixture titles ready per browser; 28 / 27 / 27 helpers observed; 0 left after unchanged 5 s grace, 0 new crash reports, all exit 0 |
+| Stock Chromium window entry, same current fork component libraries | 22.500 / 24.095 / 22.468 | 5.107 / 3.790 / 4.585 | All ten fixture titles ready per browser; 0 helpers left after 5 s, 0 new crash reports, all exit 0 |
+
+No stack sampling ran. Room uses the native NSApp terminate marker; stock
+uses Browser.close over CDP, opens its tabs sequentially through CDP, and
+has Chrome UI/default services. The stock control is **not unmodified
+Chromium** and these are not an apples-to-apples performance ranking. Its
+bundle is build/roomcore/audit-stock-local/Room.app: cloned current package,
+stock out/dev executable and Info.plist, re-signed ad hoc. DYLD_LIBRARY_PATH
+points at that same bundle's Libraries. Prior controls used an older snapshot;
+this control uses the SadTab engine libraries.
+
+Machine before Room: load 14.57/14.94/26.00, 49.17% CPU idle, 63 GiB used,
+18 GiB compressor, 164 MiB unused; 1196 processes/9158 threads. Before stock:
+load 98.30/47.33/37.73, 56.92% CPU idle, 60 GiB used, 19 GiB compressor,
+3294 MiB unused; 1167 processes/9001 threads. Load history/launch order and
+instrumentation differ. Total exercise durations 45.176 / 35.090 s. Raw
+receipts and machine snapshots are in baseline-shutdown-local-room and
+baseline-shutdown-local-stock. Python/Node syntax checks pass; host rebuilt
+in 8.6 s, strict ad-hoc signature valid. CI for 0f87b84 passes 78/81 s.
+
+This bounded control does not reproduce a watchdog or helper-grace failure,
+and therefore supplies no basis for changing shutdown scheduling or limits.
+Retain B-16 open. Further repetition of this same corpus is not useful without
+an additional discriminating hypothesis. The real-site failures remain valid
+and their retained minidumps/helper stacks are the next source of evidence.

@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--diagnose-shutdown', action='store_true',
                         help='sample network teardown; timings include diagnostic overhead')
+    parser.add_argument('--urls-json', type=Path, help='ten loopback fixture URLs; diagnostic only')
     args = parser.parse_args()
     executable = args.app.resolve() / 'Contents/MacOS/Room'
     if not executable.is_file() or args.runs < 1:
@@ -69,13 +70,15 @@ def main():
         samplers = []
         sampled = False
         load = os.getloadavg()[0]
+        fixture_args = (['-RoomSpikeURLsJSON', str(args.urls_json.resolve())]
+                        if args.urls_json else [])
         diagnostic_args = (['--enable-logging=stderr',
                             '--vmodule=browser_process_io_thread=1']
                            if args.diagnose_shutdown else [])
         with (run_dir / 'host.log').open('w') as log:
             process = subprocess.Popen([str(executable), '-RoomSpike', 'open10',
                 '-RoomSpikeOutput', str(spike), '-RoomUserDataDir', str(run_dir / 'profile'),
-                '--use-mock-keychain', *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
+                '--use-mock-keychain', *fixture_args, *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 120
             try:
                 while process.poll() is None:
@@ -120,7 +123,7 @@ def main():
                         break
                     time.sleep(0.1)
                 crashes = sorted(crash_reports() - before)
-                receipt = {'run': number, 'pages': 10, 'helpers_observed': len(observed),
+                receipt = {'corpus': result.get('corpus', 'external-typical-sites'), 'run': number, 'pages': 10, 'helpers_observed': len(observed),
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
                     'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}

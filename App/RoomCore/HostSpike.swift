@@ -58,11 +58,32 @@ enum HostSpike {
     }
 
     private static func openTen(host: HostController, profile: RoomProfile) async {
-        for (i, site) in typicalSites.enumerated() {
+        let fixturePath = UserDefaults.standard.string(forKey: "RoomSpikeURLsJSON")
+        var sites = typicalSites
+        if let fixturePath {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: fixturePath))
+                sites = try JSONDecoder().decode([String].self, from: data)
+                guard sites.count == 10, sites.allSatisfy({ site in
+                    guard let url = URL(string: site), let hostname = url.host else { return false }
+                    return url.scheme == "http" && hostname.hasSuffix(".localhost") && url.port != nil
+                }) else { throw HostCDP.Failure("expected ten loopback fixture URLs") }
+            } catch {
+                record("error", "invalid loopback corpus: \(error)")
+                return
+            }
+        }
+        record("corpus", fixturePath == nil ? "external-typical-sites" : "loopback-storage-canvas-v1")
+        for (i, site) in sites.enumerated() {
             host.open(URL(string: site)!, in: profile, activate: i == 0)
         }
         let start = Date()
-        while host.pages.contains(where: { $0.isLoading }), Date().timeIntervalSince(start) < 60 {
+        func incomplete() -> Bool {
+            host.pages.count != 10 || host.pages.contains {
+                $0.isLoading || (fixturePath != nil && !$0.title.hasPrefix("Room shutdown ready "))
+            }
+        }
+        while incomplete(), Date().timeIntervalSince(start) < 60 {
             try? await Task.sleep(for: .milliseconds(250))
         }
         try? await Task.sleep(for: .seconds(3))
@@ -71,7 +92,7 @@ enum HostSpike {
         }
         record("pages", host.pages.count)
         record("loading-at-ready", host.pages.filter { $0.isLoading }.count)
-        if host.pages.count != 10 || host.pages.contains(where: { $0.isLoading }) {
+        if incomplete() {
             record("error", "ten-page load incomplete")
         }
         record("ready", Int(Date().timeIntervalSince(start)))

@@ -82,3 +82,12 @@ GPU-channel disconnect waiting while IO deallocates Mojo Mach VM. Sampling
 may affect timings; this does not establish a cause or production fix. The
 software-GPU diagnostic exposed the separate SadTab crash fixed above. No
 watchdog, grace, QoS or GPU policy workaround was added.
+
+A bounded loopback control now completes ten distinct storage/cache/canvas
+origins in each of three concurrent browsers. Room quits 1.028/1.596/2.336 s;
+stock-window entry on the same component libraries quits 5.107/3.790/4.585 s.
+All leave 0 helpers and 0 new crashes, with no stack sampling. This eliminates
+external-page readiness as a problem in this control but does not reproduce
+or fix the real-site shutdown failure. Different setup/termination paths and
+load prevent a performance ranking. A final current-package 600-second idle
+audit (netlog-idle-sadtab) is pending.
