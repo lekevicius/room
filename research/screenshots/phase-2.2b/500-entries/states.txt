@@ -1,0 +1,16 @@
+500-entries: active=true dark=false image=2200x1520
+entries: 505 rows: 508
+full reload: n=20 median=40.61 ms p95=49.89 ms max=49.89 ms
+insert one Today tab (row animation started): n=50 median=4.70 ms p95=5.37 ms max=5.45 ms
+rename one row (reconfigure): n=50 median=0.07 ms p95=0.08 ms max=0.09 ms
+select (pill + markActive): n=50 median=0.93 ms p95=1.63 ms max=3.58 ms
+drop: move one Today tab 200 rows: n=50 median=5.18 ms p95=6.13 ms max=6.38 ms
+drop: move a 10-tab group 300 rows: n=20 median=9.52 ms p95=10.09 ms max=10.09 ms
+drag validation (canMove, 10 tabs): n=50 median=0.02 ms p95=0.02 ms max=0.07 ms
+remove one Today tab: n=50 median=2.70 ms p95=3.53 ms max=3.82 ms
+scroll native 1500 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=238 median=16.67 ms p95=16.67 ms max=36.40 ms; late frames (>1.5× nominal) 1; main-thread scroll step: n=239 median=3.96 ms p95=7.47 ms max=24.87 ms; steps over 8.33 ms 2
+scroll proxy120 1500 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=240 median=16.67 ms p95=16.67 ms max=16.67 ms; late frames (>1.5× nominal) 0; main-thread scroll step: n=241 median=1.17 ms p95=9.20 ms max=13.32 ms; steps over 8.33 ms 20
+scroll native 4000 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=240 median=16.67 ms p95=16.67 ms max=16.67 ms; late frames (>1.5× nominal) 0; main-thread scroll step: n=241 median=4.63 ms p95=7.84 ms max=15.06 ms; steps over 8.33 ms 7
+scroll proxy120 4000 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=240 median=16.67 ms p95=16.67 ms max=16.67 ms; late frames (>1.5× nominal) 0; main-thread scroll step: n=241 median=5.00 ms p95=7.38 ms max=9.63 ms; steps over 8.33 ms 4
+scroll native 9000 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=239 median=16.67 ms p95=16.67 ms max=16.67 ms; late frames (>1.5× nominal) 0; main-thread scroll step: n=240 median=4.87 ms p95=7.62 ms max=13.80 ms; steps over 8.33 ms 6
+scroll proxy120 9000 pt/s for 4 s, 508 rows, display 60.0 Hz: frame interval: n=240 median=16.67 ms p95=16.67 ms max=16.67 ms; late frames (>1.5× nominal) 0; main-thread scroll step: n=241 median=5.13 ms p95=7.62 ms max=9.43 ms; steps over 8.33 ms 4
