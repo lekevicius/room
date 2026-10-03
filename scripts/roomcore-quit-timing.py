@@ -93,7 +93,7 @@ def main():
                 crashes = sorted(crash_reports() - before)
                 receipt = {'run': number, 'pages': 10, 'helpers_observed': len(observed),
                     'load1': load, 'quit_seconds': round(exited - float(result['terminate-request-time']), 3),
-                    'helpers_left': len(left), 'new_crash_reports': crashes,
+                    'helpers_left': len(left), 'leftover_helpers': left, 'new_crash_reports': crashes,
                     'exit_status': process.returncode, 'helper_grace_seconds': 5}
                 (run_dir / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
                 print(json.dumps(receipt), flush=True)

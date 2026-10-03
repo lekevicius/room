@@ -1,6 +1,6 @@
-# Private feature-drive command hook — draft, not compiled
+# Private feature-drive command hook — applied 2026-10-03
 
-Do not apply while the initial build runs. Add only to
+Applied after the initial build completed, only to
 `Engine/roomcore/room/core/room_browser.mm`, never public headers. The host
 invokes the selector dynamically on its own RoomBrowser, which directly owns
 `BrowserWindowInterface`; no browser search or accidentally targeting another

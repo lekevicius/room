@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -149,6 +150,29 @@ class Client : public room::RoomBrowserWindowClient {
   id<RoomBrowserDelegate> delegate = self.delegate;
   if ([delegate respondsToSelector:@selector(browserDidClose:)]) {
     [delegate browserDidClose:self];
+  }
+}
+
+// Spike-only entry point; intentionally absent from the public API.
+- (NSNumber*)roomSpikeCommand:(NSNumber*)command {
+  if (!_browser ||
+      ![[NSProcessInfo processInfo].arguments containsObject:@"-RoomSpike"]) {
+    return @NO;
+  }
+  const int command_id = command.intValue;
+  switch (command_id) {
+    case IDC_FIND:
+    case IDC_FIND_NEXT:
+    case IDC_ZOOM_PLUS:
+    case IDC_ZOOM_MINUS:
+    case IDC_ZOOM_NORMAL:
+    case IDC_PRINT:
+      if (!chrome::IsCommandEnabled(_browser, command_id)) {
+        return @NO;
+      }
+      return @(chrome::ExecuteCommand(_browser, command_id));
+    default:
+      return @NO;
   }
 }
 

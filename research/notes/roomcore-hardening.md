@@ -167,3 +167,13 @@ Modal-host fix verified: three dialog open/close events, page survives, exit 0
 without watchdog. Post-fix baseline nav 11.935 s; ten-loaded-page quit 0.442 s
 at load1 32.85, 28 helpers observed, 0 left, 0 new crash reports. No patches or
 public API changes. Native focus/appearance review remains open.
+
+Private command hook (find/next, zoom in/out/reset, print) now compiles in
+19 s; allowlisted and gated by -RoomSpike, no public header change. Nav
+passed in 23.827 s. First ten-page quit exited 0 in 6.839 s but failed the
+5 s helper grace with 5 helpers; these were gone at follow-up inspection.
+Added leftover PID/command evidence to future failed receipts. Unchanged-grace
+repeat: 0.431 s at load1 50.53, 10 loaded pages, 28 helpers observed, 0 left,
+0 crash reports, exit 0. The rejected cleanup sample remains recorded.
+TLS source attribution is now complete for all 88 laptop failures; see
+roomcore-tls-audit.md. The historical mini count is not reconstructed.
