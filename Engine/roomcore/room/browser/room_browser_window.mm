@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/views/find_bar_host.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
@@ -37,6 +38,7 @@ namespace room {
 // (patches/0003-browser-window-factory-hook.patch).
 extern BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*);
 extern views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*);
+extern std::unique_ptr<SadTab> (*g_create_sad_tab_hook)(content::WebContents*, SadTabKind);
 }  // namespace room
 
 namespace {
@@ -45,6 +47,45 @@ auto& RoomWindows() {
   static base::NoDestructor<std::map<BrowserWindowInterface*, RoomBrowserWindow*>> windows;
   return *windows;
 }
+
+// SadTabHelper owns this until a new renderer is ready. Keep the fallback in
+// the page's Cocoa view; a Room tab has no Chrome ContentsWebView to decorate.
+class RoomSadTab : public SadTab {
+ public:
+  RoomSadTab(content::WebContents* contents, SadTabKind kind)
+      : SadTab(contents, kind) {
+    RoomStubHit("CreateSadTab");
+    overlay_ = [[NSBox alloc] initWithFrame:NSZeroRect];
+    overlay_.identifier = @"RoomSadTab";
+    overlay_.boxType = NSBoxCustom;
+    overlay_.borderWidth = 0;
+    overlay_.titlePosition = NSNoTitle;
+    overlay_.fillColor = NSColor.windowBackgroundColor;
+    overlay_.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    NSTextField* label = [NSTextField labelWithString:@"Page crashed. Reload to try again."];
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    [overlay_.contentView addSubview:label];
+    [NSLayoutConstraint activateConstraints:@[
+      [label.centerXAnchor constraintEqualToAnchor:overlay_.contentView.centerXAnchor],
+      [label.centerYAnchor constraintEqualToAnchor:overlay_.contentView.centerYAnchor],
+    ]];
+    ReinstallInWebView();
+  }
+  ~RoomSadTab() override { [overlay_ removeFromSuperview]; }
+  void ReinstallInWebView() override {
+    NSView* view = web_contents()->GetNativeView().GetNativeNSView();
+    if (!view) {
+      return;
+    }
+    overlay_.frame = view.bounds;
+    if (overlay_.superview != view) {
+      [overlay_ removeFromSuperview];
+      [view addSubview:overlay_];
+    }
+  }
+ private:
+  NSBox* __strong overlay_;
+};
 
 // Views-backed web dialogs still need a native parent and an explicit host
 // lifetime even though Room does not own a BrowserView.
@@ -184,6 +225,15 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  g_create_sad_tab_hook = +[](content::WebContents* contents, SadTabKind kind)
+      -> std::unique_ptr<SadTab> {
+    for (const auto& [browser, window] : RoomWindows()) {
+      if (browser->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0) {
+        return std::make_unique<RoomSadTab>(contents, kind);
+      }
+    }
+    return nullptr;  // Preserve Chrome's UI for fallback Chrome windows.
+  };
   g_fedcm_anchor_hook = +[](BrowserWindowInterface* browser) -> views::View* {
     const auto found = RoomWindows().find(browser);
     if (found == RoomWindows().end()) {

@@ -524,3 +524,21 @@ feature-web-audio evidence retained locally. No additional engine fix was
 needed for these stronger probes. Probe receipts name engine commit eb55062;
 the tested host additions are committed separately. Destination selection and
 callback execution are never presented as native click acceptance.
+
+### Renderer-loss containment — 2026-10-03
+
+| Feature | Chrome path | Window members it needs | Fixed how / measured result |
+|---|---|---|---|
+| Renderer crash/reload | SadTabHelper::PrimaryMainFrameRenderProcessGone → SadTab::Create → SadTabController::ReinstallInWebView → FindContentsWebView | A crash surface in the page native view; Room has no BrowserView or ContentsWebView. First-hit CreateSadTab logged | Patch 0009 nullable SadTab factory; Room-owned tabs get a Cocoa fallback owned by existing SadTabHelper, Chrome fallback windows retain default UI. Intentional Page.crash reaches crashed + overlay; reload reaches ready + overlay removed. 39 s process, exit 0 |
+
+The actual discovery was a renderer Blink layout DCHECK during a diagnostic
+--disable-gpu run, followed by a browser DCHECK on absent BrowserView. The
+renderer defect is not claimed fixed; its failure no longer takes down the
+Room host. No disable-gpu production switch was added. Patch 0009 is required
+because SadTab::Create directly constructs the Views controller and neither
+SadTab nor SadTabHelper has an existing replacement factory.
+
+Baseline: nav 21.170 s; ten loaded pages quit 0.554 s, load1 18.00,
+26 helpers / 0 left / 0 new crash reports, exit 0. Chapter 3 still needs
+accessible crash status, retry interaction and reporting controls. The fallback
+label is containment, not finished product UI. Public ObjC headers unchanged.

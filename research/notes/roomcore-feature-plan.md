@@ -99,3 +99,11 @@ the parent/context failures first discovered during the real open10 baseline.
 It does not perform IdP credential entry or token exchange; native focus and
 sign-in UI are Chapter 3 acceptance. Run with scripts/roomcore-features.sh
 fedcm <new-directory>.
+
+`-RoomSpike renderer-crash` intentionally terminates the loopback fixture's
+renderer through Page.crash. The private status hook verifies both IsCrashed
+and the Cocoa crash fallback, then reloads, reconnects CDP and verifies a ready
+page with the fallback removed. Run scripts/roomcore-features.sh renderer-crash
+<new-directory>. This catches the SadTabController BrowserView assumption
+found by the software-GPU diagnostic. Native retry/accessibility/reporting
+remain Chapter 3 contracts; no new public API is introduced.

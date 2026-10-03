@@ -505,3 +505,27 @@ A diagnostic --disable-gpu run uncovered a separate host crash: Blink renderer
 loss enters SadTabController, which DCHECKs on Room's absent BrowserView.
 Next work is renderer-crash containment/reload, not disabling GPU. Details and
 all rejected samples are retained in roomcore-shutdown-investigation.md.
+
+Renderer recovery fix: SadTab::Create directly constructs a
+SadTabController, and neither SadTab nor SadTabHelper exposes a replacement
+factory. New patch 0009 adds only a nullable factory hook; //room installs a
+Cocoa fallback for tabs owned by tracked Room windows. Chrome fallback windows
+retain SadTabController. SadTabHelper owns/removes the fallback through its
+existing renderer-ready lifecycle. A private local-fixture probe checks
+intentional Page.crash, continued host operation, and reload/overlay removal.
+Public ObjC headers and the original eight patches are unchanged.
+
+10:04 EEST: intentional renderer crash/reload passes in 39 s, exit 0.
+CreateSadTab first-hit logging is present; private status reaches crashed +
+fallback (3), then loaded + no fallback (0). Page.crash disconnects its own
+CDP socket as expected; the host reconnects after reload. No public API added.
+The receipt names pre-commit 781cf1e; the tested dirty source is this fix.
+First incremental failed in //room on deprecated NSBox.borderType (19 s);
+use borderWidth=0. Final build 22 s / 3 steps, load 21.29/34.83/46.76,
+nice 0/default jobs; GN check passes. Package remains strict-valid ad hoc,
+518 dylibs, 918 MB app. Baseline nav 21.170 s; ten loaded pages quit 0.554 s,
+load1 18.00, 26 helpers / 0 left / 0 new crashes, exit 0, no sampling.
+Original patches 0001–0008 are unchanged. Apply reports 0 applied, 9 already;
+Chromium HEAD 0811f471258ac. Network policy is unchanged; the last 600 s audit
+belongs to engine 2a04498, not this new binary. The original concurrent
+shutdown failure remains open; renderer containment does not fix its cause.

@@ -8,7 +8,7 @@ import RoomCore
 enum HostFeatureSpike {
     static let names = ["popups", "dialogs", "keys", "audio", "scroll", "transparent",
                         "corners", "band", "form", "extension", "downloads", "permissions",
-                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm"]
+                        "auth", "certificate", "find", "zoom", "print", "fullscreen", "widevine", "fedcm", "renderer-crash"]
 
     static func run(_ name: String, host: HostController, profile: RoomProfile) async {
         guard names.contains(name) else { HostSpike.record("error", "unknown spike \(name)"); return }
@@ -308,6 +308,32 @@ enum HostFeatureSpike {
                 }
                 try await Task.sleep(for: .seconds(20))
                 HostSpike.record("review-required", "inspect NetLog for demand-only CDM update; MediaKeys creation is not licensed playback")
+            case "renderer-crash":
+                do { _ = try await cdp.call("Page.crash") }
+                catch { HostSpike.record("renderer-crash-command", String(describing: error)) }
+                var crashed = false
+                for _ in 0..<100 {
+                    if try host.runSpikeAction("renderer-status") == 3 { crashed = true; break }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                HostSpike.record("renderer-crash-contained", crashed)
+                guard crashed else { throw HostCDP.Failure("renderer crash did not leave a live host and Cocoa fallback") }
+                cdp.close()
+                page.reload()
+                try await Task.sleep(for: .seconds(1))
+                let recovered = try await HostCDP.connect(port: defaults.integer(forKey: "RoomSpikeCDPPort"), pageURL: address)
+                defer { recovered.close() }
+                var reloaded = false
+                for _ in 0..<100 {
+                    if (try? await recovered.evaluate("location.href === \(quotedAddress) && document.readyState === 'complete'")) as? Bool == true,
+                       try host.runSpikeAction("renderer-status") == 0 {
+                        reloaded = true; break
+                    }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                HostSpike.record("renderer-reloaded", reloaded)
+                guard reloaded else { throw HostCDP.Failure("renderer reload did not remove the crash fallback") }
+                HostSpike.record("review-required", "Chapter 3 needs crash status, accessible retry UI and reporting controls")
             case "fullscreen":
                 try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)
                 HostSpike.record("fullscreen", try await cdp.evaluate("!!document.fullscreenElement"))

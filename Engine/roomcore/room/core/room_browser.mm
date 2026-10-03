@@ -196,6 +196,15 @@ class Client : public room::RoomBrowserWindowClient {
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {
     return @(-1);
   }
+  if ([action isEqualToString:@"renderer-status"]) {
+    int status = contents->IsCrashed() ? 1 : 0;
+    for (NSView* view in contents->GetNativeView().GetNativeNSView().subviews) {
+      if ([view.identifier isEqualToString:@"RoomSadTab"]) {
+        status |= 2;
+      }
+    }
+    return @(status);
+  }
   if ([action isEqualToString:@"fedcm-close"]) {
     _spike_identity_controller.reset();
     return @1;

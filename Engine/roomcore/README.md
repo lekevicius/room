@@ -30,6 +30,16 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | `0004-link-room-core` | `chrome_dll` depends on `//room/core`, so the API is inside the framework |
 | `0005-read-anything-without-side-panel` | Read Anything treats a browser without a side panel as legitimate (upstream only exempts its WebUI browser and tests) |
 
+The original five patches are unchanged by background hardening. Additional
+factory/anchor hooks keep their implementations in `//room`:
+
+| Patch | Why |
+|---|---|
+| `0006-component-update-scheduler-hook` | disable automatic checks while preserving explicit on-demand component updates |
+| `0007-demand-cdm-factory-hooks` | observe an actual EME request and CDM registration without public ObjC API changes |
+| `0008-fedcm-anchor-hook` | supply native bubble/modal parents without pretending Cocoa content is a Views WebView |
+| `0009-sad-tab-factory-hook` | contain renderer loss in a Cocoa fallback; SadTab::Create otherwise directly constructs a BrowserView-dependent controller |
+
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's
 `BrowserCrApplication`, so `RegisterBrowserCrApp()` accepts the host's object

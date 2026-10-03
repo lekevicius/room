@@ -176,3 +176,8 @@ Room/RoomCore root.
 Serial quit is verified, but concurrent teardown remains an open reliability
 issue; see research/notes/roomcore-shutdown-investigation.md. Diagnostic
 sampling is opt-in and its timings are identified separately from baselines.
+
+Renderer loss is contained by a Cocoa crash fallback for Room-owned pages,
+using SadTabHelper's existing renderer-ready lifetime. Reload removes it and
+restores the page in the component probe. This introduces no public API;
+Chapter 3 still needs crash status, accessible retry and reporting UI.

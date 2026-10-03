@@ -227,3 +227,12 @@ Explicit native activation: 20 s / 2 steps, load 9.42 / 14.28 / 17.62.
 Extension lifecycle/action probe 18 s, exit 0; AppKit active/key/main true.
 Post-change nav 11.419 s; ten-page quit 0.549 s, load1 11.05, 26 helpers /
 0 remaining / 0 new crashes, exit 0.
+
+Renderer-crash containment: first incremental failed inside //room on deprecated
+NSBox.borderType after 19 s; corrected to borderWidth=0. Final 22 s / 3 steps,
+load 21.29 / 34.83 / 46.76, nice 0/default jobs; GN check all //room passes.
+Ad-hoc strict package valid, 518 dylibs, 916 MB framework, 918 MB host (12 s
+host build). Intentional crash/reload probe 39 s, exit 0. Post-fix nav 21.170 s;
+ten loaded pages quit 0.554 s at load1 18.00, 26 helpers / 0 left / 0 new
+crash reports, exit 0. No diagnostic sampling. Evidence: baseline-sadtab-build,
+feature-renderer-crash, baseline-sadtab and TMPDIR roomcore-quit-_y_gjafd.
