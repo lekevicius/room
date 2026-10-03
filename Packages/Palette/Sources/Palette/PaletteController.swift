@@ -72,8 +72,9 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// most of the open's main-thread time (2.4a measurement).
     private var builtOverlay: PaletteOverlayView?
     private var context = OmniboxContext()
-    /// The snapshot is built on the first keystroke of an open, not at the
-    /// open (an empty palette needs none; 2.4a measured the open at 25.8 ms).
+    /// The snapshot is built after the open's frame, on an idle turn (or by
+    /// a keystroke that comes first), not at the open (2.4a measured the open
+    /// at 25.8 ms) nor on the first keystroke (3 ms of its 22 ms, 2.6a).
     private var contextIsCurrent = false
     /// The input the rows were last computed for.
     private var input = OmniboxInput(text: "")
@@ -166,6 +167,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             panel.field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
         }
         panel.animateIn()
+        prepareContextWhenIdle()
         observeSelection()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, let field = self.overlay?.panel.field, event.window === field.window,
@@ -336,6 +338,17 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// first query of an open that needs it. Unchanged entries reuse their
     /// last snapshot and match keys (6 ms for 500 entries otherwise, Debug
     /// build, 2.4a measurement).
+    /// Builds the snapshot shortly after an open, once its frame is out.
+    private func prepareContextWhenIdle() {
+        let mode = mode
+        DispatchQueue.main.asyncAfter(deadline: .now() + Timing.paletteContextDelay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isOpen, self.mode == mode, !self.isUnchangedEdit else { return }
+                self.ensureContext()
+            }
+        }
+    }
+
     private func ensureContext() {
         guard !contextIsCurrent else { return }
         context = makeContext()
@@ -541,22 +554,30 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// completion selected so the next keystroke replaces it (spec §C; 2.4b's provider).
     private func applyInlineCompletion() {
         guard let completion = result.inlineCompletion, let field = overlay?.panel.field else { return }
-        field.stringValue = typedText + completion
         let typedLength = (typedText as NSString).length
-        field.currentEditor()?.selectedRange = NSRange(location: typedLength, length: (completion as NSString).length)
+        let selection = NSRange(location: typedLength, length: (completion as NSString).length)
+        // While editing, the completion goes into the field editor's text: a
+        // whole `stringValue` reset re-laid out the editor (~1 ms a keystroke, 2.6a profile).
+        if let editor = field.currentEditor() as? NSTextView, let storage = editor.textStorage, storage.string == typedText {
+            storage.replaceCharacters(in: NSRange(location: typedLength, length: 0), with: completion)
+            editor.selectedRange = selection
+            return
+        }
+        field.stringValue = typedText + completion
+        field.currentEditor()?.selectedRange = selection
     }
 
     private func updateRows() {
         guard let overlay else { return }
-        let model = overlay.panel.rows
+        let list = overlay.panel.rows
         let rows = result.matches.enumerated().map { index, match in row(for: match, startsGroup: index > 0 && match.group != result.matches[index - 1].group) }
         // No rows: the panel shrinks to the field and clips the list, whose
         // slots keep their last content, so the next keystroke updates rows in
-        // place instead of filling empty ones (a query's first keystroke cost
-        // 24 ms, mostly SwiftUI drawing rows from nothing, 2.4b measurement).
-        // Unchanged rows are not reassigned either.
-        if !rows.isEmpty, model.rows != rows { model.rows = rows }
-        if !rows.isEmpty, model.highlighted != highlightedIndex { model.highlighted = highlightedIndex }
+        // place. A slot's views change only when its row did.
+        if !rows.isEmpty {
+            list.highlighted = highlightedIndex
+            list.rows = rows
+        }
         overlay.panel.visibleRowCount = rows.count
         layout()
     }

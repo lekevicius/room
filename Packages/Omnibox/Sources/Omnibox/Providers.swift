@@ -99,7 +99,12 @@ enum EntryMatching {
         let needles = terms.map { Array($0.utf8) }
         let initial: Character? = terms.count == 1 && terms[0].count == 1 ? terms[0].first : nil
         var matches: [OmniboxMatch] = []
-        for (entry, keys) in zip(context.entries, context.keys) {
+        // Indices, not `zip`: its iterator was half of a one-letter query's entry matching in Debug builds (2.6a profile).
+        let entries = context.entries, allKeys = context.keys
+        for index in 0..<min(entries.count, allKeys.count) {
+            let keys = allKeys[index]
+            if typedURL == nil, let initial, !keys.initials.contains(initial) { continue }
+            let entry = entries[index]
             guard kinds.contains(entry.kind), entry.id != context.currentEntryID else { continue }
             let relevance: Int
             if let typedURL, keys.normalizedURLs.contains(typedURL) {

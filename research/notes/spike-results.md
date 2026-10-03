@@ -356,3 +356,37 @@ The 2.2a full reload (42.7 ms for 508 rows in one visible list) is no longer on 
 | … moved to Work (Move to, warning confirmed): a new page in Work's context, same URL | `room_profile=work` |
 
 Engine directories: `Room Profile Default`, `Room Profile Work`, both direct children of the root (Phase 1.4 finding). The moved entry's `profileID` is Work's.
+
+## Phase 2.6a — palette rows on AppKit: the first keystroke (2026-10-03, Mac mini M4, 24 GB, CEF, Debug)
+
+Same machine and method as 2.4b: `scripts/run-spike.sh palettemeasure -RoomSidebarFixture 500 -RoomHistoryRows 50000`, Debug build, the display at **60 Hz** (16.67 ms frames on every run), Room frontmost, **screen sharing active** (`avconferenced` preempting the main thread in the System Trace), load average 4.5–7.7. "Before" is the session's starting commit (f33c362, SwiftUI rows) built with only the spike's new probes patched in (as 2.4b did for 2.4a); before and after builds ran alternately. New probes in `palettemeasure`: the turn up to the run loop's display pass, each first key's turn / event / query, `-RoomPaletteTypingDelay <ms>` (default 100, as 2.4b) and `-RoomPaletteSpinBeforeFirstKey YES` (diagnostic, below).
+
+| Measure (ms, median / p95) | Before, run 1 | Before, run 2 | After, run 1 | After, run 2 |
+|---|---|---|---|---|
+| **A query's first keystroke, whole turn** (n = 14) | 26.62 / 34.99 | 25.91 / 36.48 | **17.89 / 21.39** | **18.89 / 20.95** |
+| … its query (snapshot + providers + rank + rows) | 9.22 / 12.15 | 9.21 / 16.12 | 5.25 / 10.86 | 5.14 / 12.44 |
+| … snapshot on the first key | 2.95 | 2.95 | 0.01 | 0.01 |
+| **Later keystrokes, whole turn** (n = 106) | 7.96 / 15.09 | 7.77 / 16.45 | **5.13 / 9.61** | **4.90 / 10.40** |
+| Local results, all keys (query only, n = 134) | 3.48 / 9.96 | 3.24 / 9.21 | 2.58 / 6.71 | 2.57 / 6.47 |
+| Open call / open turn | 2.58 / 3.43, 3.15 / 4.06 | 2.76 / 3.64, 3.29 / 4.35 | 2.50 / 3.53, 3.07 / 4.49 | 2.75 / 4.20, 3.47 / 4.92 |
+| Open to next frame | 5.72 / 15.12 | 5.48 / 14.96 | 7.11 / 13.54 | 7.55 / 13.36 |
+
+Earlier the same day, at the start of the session (the starting commit as it was, load 4.4–5.1): first key 22.18 / 36.57 and 27.29 / 30.53, later keys 6.44 / 12.48 and 7.10 / 13.01. 2.4b recorded first keys at 22–25 ms and later keys at p95 13.65–14.22.
+
+**Target (ROADMAP 2.6 task 0): a first keystroke under one 120 Hz frame (8.33 ms) median. Not met by this method: 17.9–18.9 ms (from 25.9–26.6).** Later keystrokes are better than 2.4b's (p95 9.6–10.4 vs 13.7–14.2).
+
+Why the first key stays slow: **it runs on an efficiency core.** A System Trace of the typing (`xctrace`, System Trace template, 8 s) shows each query's first key, which arrives after ≥ 100 ms of idle, running on an E core for its first ~18 ms before the scheduler moves the main thread to a P core ("balanced off CPU 2 (E Core) to optimize the system's CPU performance"). Example bursts: 4.0 ms on P / 19.3 ms on E; 6.5 / 18.1; 2.2 / 17.0. Later keys follow each other within milliseconds and run on P cores. The work is CPU-bound, not waiting: the main thread is running throughout. Neither a running `CADisplayLink`, nor typing 400 ms after the open (outside the 120 ms open animation), nor a `.latencyCritical` process activity while the palette is open moved the first key (19.7 / 20.3 / 17.6 ms median).
+
+What the first key costs on a performance core (`-RoomPaletteSpinBeforeFirstKey YES`: the spike keeps the main thread busy for 25 ms before the key, so the scheduler has already moved it): **before 17.85 / 20.03 ms, after 7.53 / 12.59 ms** (first-key query 4.80 → 2.27 ms). So our code now fits in one 120 Hz frame; the remaining ~10 ms in the 2.4b method is the same work at E-core speed.
+
+Where the first key's time went (Time Profiler, first keys spun onto a P core, before the fixes): ~3 ms query, ~1.5 ms field editor, ~9 ms in AppKit's display flush (macOS 27's `UC::DriverCore` update source; drawing ~37%, layout ~30%). The 2.4b reading ("SwiftUI drawing eight rows, ~12 ms") was not the main cost: AppKit rows alone moved the first key 22.2 → 22.0 ms. What did move it:
+
+| Change | Effect |
+|---|---|
+| AppKit rows: one reusable row view per slot, frames by hand, a slot's views touched only when its row changed | later keys 6.4 → 5.8 ms median |
+| Sidebar snapshot built 30 ms after the open on an idle turn (`Timing.paletteContextDelay`), not on the first key | first-key query −3 ms |
+| One- and two-letter history: ids from the `(profileID, host, frecency)` index, whole rows only for the 8 kept (sorting whole rows read a fifth of the table for one letter); cached statements for it and the inline-completion lookup | "g" at 50k rows 5.8 → 0.5 ms in `sqlite3` |
+| Inline completion written into the field editor's text instead of resetting `stringValue` | ~1 ms per completed key (profile) |
+| Field editor on TextKit 1 | its selection and viewport bookkeeping was ~1 ms per key (profile) |
+| Letter tiles cached as bitmaps (the cached drawing-handler image ran its handler on every draw); symbol images cached by name; no per-layout tracking-area churn or label measuring in rows | ~1–2 ms of the first key's display pass |
+| Entry matching iterates indices, not `zip` (Debug) | one-letter entry matching ~−40% |

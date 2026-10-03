@@ -59,26 +59,40 @@ public final class FaviconView: NSView {
             image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             return
         }
-        Self.drawLetterTile(letterSource, in: bounds)
+        Self.drawLetterTile(letterSource, in: bounds, scale: window?.backingScaleFactor ?? 2)
     }
 
-    static func drawLetterTile(_ domain: String, in rect: NSRect) {
-        letterTile(domain, size: rect.size).draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true,
-                                                  hints: nil)
+    static func drawLetterTile(_ domain: String, in rect: NSRect, scale: CGFloat = 2) {
+        letterTile(domain, size: rect.size, scale: scale).draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+                                                                respectFlipped: true, hints: nil)
     }
 
-    /// Letter tiles by letter, colour and size: rendering the glyph on every
-    /// draw was a visible share of each scrolled-in row (2.2b profile).
+    /// Letter tiles by letter, colour, size and scale: rendering the glyph on
+    /// every draw was a visible share of each scrolled-in row (2.2b profile).
+    /// Kept as bitmaps: an image with a drawing handler ran it again on every
+    /// draw (the palette's eight rows on a query's first keystroke, 2.6a profile).
     private static var letterTiles: [String: NSImage] = [:]
 
-    private static func letterTile(_ domain: String, size: NSSize) -> NSImage {
+    private static func letterTile(_ domain: String, size: NSSize, scale: CGFloat) -> NSImage {
         let letter = domain.first.map { String($0).uppercased() } ?? "•"
         let color = Palette.letterTileColor(for: domain)
-        let key = "\(letter)|\(color.hash)|\(size.width)x\(size.height)|\(NSAppearance.currentDrawing().isDark)"
+        let isDark = NSAppearance.currentDrawing().isDark
+        let key = "\(letter)|\(color.hash)|\(size.width)x\(size.height)@\(scale)|\(isDark)"
         if let image = letterTiles[key] { return image }
-        let image = NSImage(size: size, flipped: true) { rect in
-            renderLetterTile(letter, color: color, in: rect)
-            return true
+        let image = NSImage(size: size)
+        if let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(size.width * scale)),
+                                         pixelsHigh: Int(ceil(size.height * scale)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                         isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+           let context = NSGraphicsContext(bitmapImageRep: bitmap) {
+            bitmap.size = size
+            let appearance = NSAppearance.currentDrawing()
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = context
+            appearance.performAsCurrentDrawingAppearance {
+                renderLetterTile(letter, color: color, in: NSRect(origin: .zero, size: size))
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            image.addRepresentation(bitmap)
         }
         if letterTiles.count > 512 { letterTiles.removeAll() }
         letterTiles[key] = image

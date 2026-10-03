@@ -252,6 +252,7 @@ extension SpikeRunner.Context {
             nextIsFirst = false
         }
         var keyTurn: [Double] = [], firstKey: [Double] = [], laterKeys: [Double] = [], rows: [Int] = []
+        var firstKeyBeforeDisplay: [Double] = [], laterKeysBeforeDisplay: [Double] = [], firstKeyLog: [String] = []
         var historyRows: [Int] = [], inline = 0
         // Sidebar entries (2.4a) and history: hosts, words, a path, common
         // trigrams ("com", "the"), a miss.
@@ -260,14 +261,27 @@ extension SpikeRunner.Context {
         SpikeRunner.record("queries", texts.joined(separator: " | "))
         // The no-network check compares the proxy and net-log against this window.
         SpikeRunner.record("typing_start_epoch_ms", Int(Date().timeIntervalSince1970 * 1000))
+        // `-RoomPaletteTypingDelay <ms>`: the pause between ⌘T and the first key (2.4b: 100 ms, inside the 120 ms open animation).
+        let typingDelay = max(0, UserDefaults.standard.integer(forKey: "RoomPaletteTypingDelay"))
+        // `-RoomPaletteSpinBeforeFirstKey YES`: diagnostic, the first key runs on a performance core.
+        let spinBeforeFirstKey = UserDefaults.standard.bool(forKey: "RoomPaletteSpinBeforeFirstKey")
+        SpikeRunner.record("spin_before_first_key", spinBeforeFirstKey)
+        SpikeRunner.record("typing_delay_ms", typingDelay == 0 ? 100 : typingDelay)
         for text in texts {
             palette.toggleNew()
-            try? await Task.sleep(for: .milliseconds(100))
+            try? await Task.sleep(for: .milliseconds(typingDelay == 0 ? 100 : typingDelay))
             for (index, character) in text.enumerated() {
                 nextIsFirst = index == 0
+                if index == 0, spinBeforeFirstKey {
+                    // Diagnostic: 25 ms of busy main thread first, so the scheduler has moved it to a performance core.
+                    let until = ContinuousClock.now + .milliseconds(25)
+                    while ContinuousClock.now < until {}
+                }
                 let timing = await timedTurn { self.type(String(character)) }
                 keyTurn.append(timing.turn)
                 if index == 0 { firstKey.append(timing.turn) } else { laterKeys.append(timing.turn) }
+                if index == 0 { firstKeyBeforeDisplay.append(timing.beforeDisplay) } else { laterKeysBeforeDisplay.append(timing.beforeDisplay) }
+                if index == 0 { firstKeyLog.append(String(format: "%@ %.1f/%.1f/%.1f", String(character), timing.turn, timing.sync, queries.last ?? -1)) }
                 rows.append(palette.result.matches.count)
                 historyRows.append(palette.result.matches.filter { $0.provider == .history }.count)
                 if palette.result.inlineCompletion != nil { inline += 1 }
@@ -281,6 +295,10 @@ extension SpikeRunner.Context {
         SpikeRunner.record("keystroke_to_rows_turn", SpikeRunner.stats(keyTurn))
         SpikeRunner.record("keystroke_to_rows_first_key", SpikeRunner.stats(firstKey))
         SpikeRunner.record("keystroke_to_rows_later_keys", SpikeRunner.stats(laterKeys))
+        // Up to the run loop's display pass: the rest of a turn is AppKit's layout, drawing and the Core Animation commit.
+        SpikeRunner.record("keystroke_before_display_first_key", SpikeRunner.stats(firstKeyBeforeDisplay))
+        SpikeRunner.record("keystroke_before_display_later_keys", SpikeRunner.stats(laterKeysBeforeDisplay))
+        SpikeRunner.record("first_keys_turn_sync_query_ms", firstKeyLog.joined(separator: ", "))
         SpikeRunner.record("keystroke_query_only", SpikeRunner.stats(queries))
         SpikeRunner.record("keystroke_query_only_first_key", SpikeRunner.stats(firstQueries))
         for key in phases.keys.sorted() { SpikeRunner.record("query_phase_\(key)", SpikeRunner.stats(phases[key] ?? [])) }

@@ -351,9 +351,17 @@ public final class History: Sendable {
 
     private static func hostPrefixRows(_ db: Database, prefix: String, profile: UUID, limit: Int) throws -> [HistoryRow] {
         guard let upper = prefixUpperBound(prefix) else { return [] }
-        return try Row.fetchAll(db, sql: """
-            SELECT * FROM history_url WHERE profileID = ? AND host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
-            """, arguments: [profile, prefix, upper, limit]).map(HistoryRow.init)
+        // The ids come from the (profileID, host, frecency) index alone; whole
+        // rows only for the ones kept. Sorting whole rows read every row of the
+        // range from the table (a one-letter prefix is a fifth of the history:
+        // 5.8 → 0.5 ms for "g" at 50k rows, 2.6a).
+        // A cached statement: one- and two-letter text runs this on every keystroke.
+        let statement = try db.cachedStatement(sql: """
+            SELECT * FROM history_url WHERE id IN (
+                SELECT id FROM history_url WHERE profileID = ? AND host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
+            ) ORDER BY frecency DESC
+            """)
+        return try Row.fetchAll(statement, arguments: [profile, prefix, upper, limit]).map(HistoryRow.init)
     }
 
     /// Hosts that start with `prefix` (lowercased, without "www."), most
@@ -362,9 +370,10 @@ public final class History: Sendable {
         let prefix = prefix.lowercased()
         guard !prefix.isEmpty, let upper = Self.prefixUpperBound(prefix) else { return [] }
         return try pool.read { db in
-            try Row.fetchAll(db, sql: """
+            // Inline completion asks on every keystroke: a cached statement.
+            try Row.fetchAll(db.cachedStatement(sql: """
                 SELECT * FROM history_host WHERE profileID = ? AND host >= ? AND host < ? ORDER BY frecency DESC LIMIT ?
-                """, arguments: [profile, prefix, upper, limit]).map {
+                """), arguments: [profile, prefix, upper, limit]).map {
                 HistoryHost(host: $0["host"], bestURL: $0["bestURL"], frecency: $0["frecency"], visitCount: $0["visitCount"],
                             typedCount: $0["typedCount"])
             }

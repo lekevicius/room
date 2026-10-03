@@ -1,6 +1,5 @@
 import AppKit
 import Design
-import SwiftUI
 
 /// Fills the window's content view above the card and the sidebar while
 /// the palette is open: a click anywhere outside the panel dismisses it
@@ -35,10 +34,10 @@ final class PaletteOverlayView: NSView {
 }
 
 /// The palette itself: `NSGlassEffectView` (PLAN §2.4) holding the text
-/// field and, below it, the SwiftUI rows.
+/// field and, below it, the AppKit rows (PLAN §4).
 final class PalettePanelView: NSView {
     let field = PaletteField()
-    let rows = PaletteRowsModel()
+    let rows = PaletteRowsView(frame: .zero)
     /// Rows the panel shows; the list's slots may hold more (stale, clipped away).
     var visibleRowCount = 0 {
         didSet { if visibleRowCount != oldValue { needsLayout = true } }
@@ -50,7 +49,6 @@ final class PalettePanelView: NSView {
     /// The site-search chip ("YouTube") left of the field (spec §C).
     private let chip = NSView()
     private let chipLabel = NSTextField(labelWithString: "")
-    private lazy var rowsView = NSHostingView(rootView: PaletteRowsView(model: rows))
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -61,7 +59,6 @@ final class PalettePanelView: NSView {
         searchIcon.image = Symbol.search.image(pointSize: 15, accessibilityDescription: nil)
         searchIcon.contentTintColor = .secondaryLabelColor
         separator.boxType = .separator
-        rowsView.sizingOptions = []
         chip.wantsLayer = true
         chip.layer?.cornerRadius = PaletteMetrics.chipHeight / 2
         chip.isHidden = true
@@ -72,7 +69,7 @@ final class PalettePanelView: NSView {
         content.addSubview(searchIcon)
         content.addSubview(field)
         content.addSubview(separator)
-        content.addSubview(rowsView)
+        content.addSubview(rows)
         content.wantsLayer = true
         content.layer?.masksToBounds = true
         glass.contentView = content
@@ -136,12 +133,12 @@ final class PalettePanelView: NSView {
                              height: fieldHeight)
         separator.isHidden = visibleRowCount == 0
         separator.frame = NSRect(x: 0, y: PaletteMetrics.fieldHeight, width: width, height: 1)
-        // Never hidden, only zero-high without rows: un-hiding the hosting view
-        // made SwiftUI rebuild the list on a query's first keystroke (2.4b profile).
+        // The list keeps its full size; without rows the content view clips it away.
         let top = PaletteMetrics.fieldHeight + 1
         // Always the height of every slot (the content view clips it), so its size changes only with the width.
         let full = Self.height(rowCount: PaletteRowsView.slots, groupCount: PaletteRowsView.slots) - top
-        rowsView.frame = NSRect(x: 0, y: top, width: width, height: full)
+        let frame = NSRect(x: 0, y: top, width: width, height: full)
+        if rows.frame != frame { rows.frame = frame }
     }
 
     // MARK: Open / close animation (spec §I.1: scale 0.96 → 1 and fade, 120 ms)
@@ -222,8 +219,10 @@ final class PaletteFieldCell: NSTextFieldCell {
 /// view in the window (6–7 ms per open with 500 sidebar rows, 2.4b
 /// profile). The palette's field has no username or password neighbour to find.
 final class PaletteFieldEditor: NSTextView {
+    /// TextKit 1: one line of text, and the TextKit 2 editor's selection and
+    /// viewport bookkeeping was a millisecond of every keystroke (2.6a profile).
     convenience init() {
-        self.init(frame: .zero)
+        self.init(usingTextLayoutManager: false)
         isFieldEditor = true
     }
 

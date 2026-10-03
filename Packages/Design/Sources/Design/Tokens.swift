@@ -229,6 +229,10 @@ public enum Timing {
     /// Text typed into the palette for a tab and not committed comes back
     /// when the palette reopens on that tab within this long (spec §C, Zen `wait-to-clear`).
     public static let typedTextMemory: TimeInterval = 45
+    /// The palette builds its sidebar snapshot this long after opening: after
+    /// the open's first frame (≤ 16.7 ms plus the turn at 60 Hz), before a
+    /// person's first keystroke (chosen, 2.6a).
+    public static let paletteContextDelay: TimeInterval = 0.03
     /// Search suggestions are requested once typing pauses this long (ROADMAP 2.4 task 6;
     /// `macos-ui-stack.md` §5.2: 100–150 ms).
     public static let suggestDebounce: TimeInterval = 0.12

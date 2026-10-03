@@ -213,3 +213,10 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `SpaceFormMetrics.padding` / `iconCell` / `previewHeight` | 12 / 26 / 18 pt | chosen |
 | Space form icons | 24 SF Symbols and 24 emoji, any emoji typed in its field | chosen |
 | `Symbol.more` on the space title row | "…" on hover, left of the chevron | spec §B |
+
+## Added in Phase 2.6a (palette rows on AppKit, the page's prompts)
+
+| Token | Value | Provenance |
+|---|---|---|
+| Palette rows (`PaletteRowView`) | AppKit, one reusable view per slot (8); the 2.4b row unchanged: 16 pt icon, 8 pt gaps (`faviconTitleGap + 2`), title and detail in one tail-truncated line (`Typography.row`, detail secondary label colour after two spaces), a spacer of at least 8 pt, space chip (`Typography.secondary`, capsule `Palette.sidebarHover`, 6 × 2 pt padding), hint on the highlighted row, × 10 pt semibold in `PaletteMetrics.deleteButtonSize`; highlight pill `Palette.sidebarMultiSelection`, `Radius.medium`, continuous corners | 2.4b SwiftUI row, PLAN §4 (rows on AppKit) |
+| `Timing.paletteContextDelay` | 0.03 s: the palette's sidebar snapshot is built this long after it opens | chosen: after the open's first frame (≤ 16.7 ms plus the turn at 60 Hz), before a person's first keystroke |
