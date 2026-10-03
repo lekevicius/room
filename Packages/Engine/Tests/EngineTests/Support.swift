@@ -135,11 +135,16 @@ final class RecordingUIDelegate: WebContentsUIDelegate {
 /// A navigation delegate that records actions and answers from a closure.
 final class RecordingNavigationDelegate: NavigationDelegate {
     private(set) var actions: [NavigationAction] = []
+    private(set) var commits: [(url: URL, transition: PageTransition)] = []
     var decide: (NavigationAction) -> Disposition = { $0.disposition }
 
     func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition {
         actions.append(action)
         return decide(action)
+    }
+
+    func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
+        commits.append((url, transition))
     }
 }
 

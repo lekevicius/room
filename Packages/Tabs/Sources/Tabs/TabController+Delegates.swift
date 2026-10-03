@@ -11,6 +11,28 @@ extension TabController: NavigationDelegate {
     public func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition {
         action.disposition
     }
+
+    /// Every committed main-frame navigation of an entry's page is a history
+    /// visit (ROADMAP 2.4 task 4); the title follows when the page reports it.
+    public func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
+        guard entryID(for: webContents) != nil else { return }
+        store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition))
+    }
+}
+
+extension HistoryTransition {
+    init(_ transition: PageTransition) {
+        switch transition {
+        case .link: self = .link
+        case .typed: self = .typed
+        case .bookmark: self = .bookmark
+        case .generated: self = .generated
+        case .keyword: self = .keyword
+        case .formSubmit: self = .formSubmit
+        case .reload: self = .reload
+        case .other: self = .other
+        }
+    }
 }
 
 // MARK: - UI delegate

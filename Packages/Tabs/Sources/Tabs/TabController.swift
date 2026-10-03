@@ -21,6 +21,8 @@ final class Page {
     var lastVisible: Date
     /// The page's last real favicon (FakeEngine's template globe excluded).
     var favicon: NSImage?
+    /// The (URL, title) last given to history, so each title is written once.
+    var historyTitle: (url: URL, title: String)?
     /// The favicon last written to the cache, so each icon is stored once.
     weak var storedFavicon: NSImage?
 
@@ -75,6 +77,9 @@ public final class TabController: SidebarHost {
     @ObservationIgnored var closing: [ObjectIdentifier: (contents: any WebContents, entry: UUID)] = [:]
     /// The last tab a page opened, while the user has not switched tabs (§A.7).
     @ObservationIgnored var relatedChain: (opener: UUID, last: UUID)?
+    /// How the next page made for an entry starts (the palette's typed URL,
+    /// search or keyword), consumed by `makePage`; history weighs it.
+    @ObservationIgnored var pendingTransitions: [UUID: PageTransition] = [:]
     @ObservationIgnored private var faviconImages: [Int64: NSImage] = [:]
     @ObservationIgnored var sweepTimer: Timer?
     @ObservationIgnored var memoryPressureSource: (any DispatchSourceMemoryPressure)?
@@ -180,9 +185,11 @@ public final class TabController: SidebarHost {
     // MARK: Opening URLs (the palette, Phase 2.4)
 
     /// A new Today tab at the end of the active space's Today list, selected.
+    /// `transition`: how the palette produced the URL (history weighs it).
     @discardableResult
-    public func openNewTab(url: String) -> UUID? {
+    public func openNewTab(url: String, transition: PageTransition = .typed) -> UUID? {
         guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
+        pendingTransitions[entry.id] = transition
         sidebar.select(entry.id)
         return entry.id
     }
@@ -190,23 +197,25 @@ public final class TabController: SidebarHost {
     /// A new Today tab at the end of the active space's Today list, loading
     /// behind the current one (the palette's ⌥Enter, spec §C).
     @discardableResult
-    public func openBackgroundTab(url: String) -> UUID? {
+    public func openBackgroundTab(url: String, transition: PageTransition = .typed) -> UUID? {
         guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
+        pendingTransitions[entry.id] = transition
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
         return entry.id
     }
 
     /// Navigates the selected entry's page to `url` (typed), loading the entry if it has no page.
-    public func navigateSelected(to url: String) {
+    public func navigateSelected(to url: String, transition: PageTransition = .typed) {
         guard let id = currentEntryID, let target = URL(string: url) else {
-            openNewTab(url: url)
+            openNewTab(url: url, transition: transition)
             return
         }
         if let page = pages[id] {
-            page.contents.load(target, transition: .typed, fromAddressBar: true)
+            page.contents.load(target, transition: transition, fromAddressBar: true)
         } else if let entry = store.sidebar.entry(id) {
             try? store.sidebar.setLivePage(id, url: url, title: nil)
+            pendingTransitions[id] = transition
             activate(store.sidebar.entry(id) ?? entry)
         }
     }
@@ -235,8 +244,12 @@ public final class TabController: SidebarHost {
             return nil
         }
         let page = adopt(contents, entry: entry.id)
+        // An unloaded pinned entry opens like a bookmark; any other page
+        // coming back (restored, unloaded) is a reload, not a new visit.
+        let restored: PageTransition = entry.kind.isPermanent && entry.liveURL == nil ? .bookmark : .reload
+        let transition = pendingTransitions.removeValue(forKey: entry.id) ?? restored
         if let url = entry.currentURL.flatMap(URL.init(string:)) {
-            contents.load(url, transition: entry.kind.isPermanent && entry.liveURL == nil ? .bookmark : .other, fromAddressBar: false)
+            contents.load(url, transition: transition, fromAddressBar: false)
         }
         return page
     }
@@ -303,6 +316,11 @@ public final class TabController: SidebarHost {
             let liveTitle = title ?? (stored.liveURL == live ? stored.liveTitle : nil)
             if stored.liveURL != live || stored.liveTitle != liveTitle {
                 try? store.sidebar.setLivePage(entry, url: live, title: liveTitle)
+            }
+            // The title arrives after the commit that recorded the visit.
+            if let title, !title.isEmpty, page.historyTitle?.url != url || page.historyTitle?.title != title {
+                page.historyTitle = (url, title)
+                store.history.setTitle(title, for: live)
             }
         }
         if let favicon, !favicon.isTemplate {

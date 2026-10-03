@@ -21,6 +21,23 @@ extension Disposition {
     }
 }
 
+extension PageTransition {
+    /// Back/forward has no page transition of its own (`NavigationAction.kind` carries it).
+    init(_ transition: RoomCEFTransition) {
+        switch transition {
+        case .link: self = .link
+        case .typed: self = .typed
+        case .bookmark: self = .bookmark
+        case .generated: self = .generated
+        case .keyword: self = .keyword
+        case .formSubmit: self = .formSubmit
+        case .reload: self = .reload
+        case .backForward, .other: self = .other
+        @unknown default: self = .other
+        }
+    }
+}
+
 extension NavigationAction {
     init(_ request: RoomCEFNavigationRequest) {
         let kind: Kind

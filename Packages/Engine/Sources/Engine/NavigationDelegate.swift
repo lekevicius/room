@@ -8,6 +8,16 @@ public protocol NavigationDelegate: AnyObject {
     /// another disposition to redirect it, or `.ignore` to cancel it (and, for
     /// example, open the URL in another space yourself).
     func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition
+
+    /// A main-frame navigation committed: the page now shows `url` (history
+    /// recording, Phase 2.4). Also for same-document navigations (fragments,
+    /// `pushState`), which the engine may report as `.link`. Not called for
+    /// navigations that fail before committing or that the delegate cancelled.
+    func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition)
+}
+
+public extension NavigationDelegate {
+    func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {}
 }
 
 /// Where a navigation or new window should land. Chromium `WindowOpenDisposition`.

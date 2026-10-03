@@ -120,7 +120,7 @@ public final class FakeWebContents: WebContents {
         case .ignore:
             return
         case .currentTab:
-            commit(action.url)
+            commit(action.url, transition: action.transition)
         case .saveToDisk:
             profile?.simulateDownload(url: action.url)
         case .newForegroundTab, .newBackgroundTab, .newWindow, .newPopup, .newPictureInPicture, .offTheRecord:
@@ -128,18 +128,18 @@ public final class FakeWebContents: WebContents {
         }
     }
 
-    private func commit(_ url: URL) {
+    private func commit(_ url: URL, transition: PageTransition) {
         backForwardList.removeSubrange((currentIndex + 1)...)
         backForwardList.append(url)
         currentIndex = backForwardList.count - 1
-        startLoading(url)
+        startLoading(url, transition: transition)
     }
 
     private func traverse(to index: Int) {
         let action = NavigationAction(url: backForwardList[index], kind: .backForward, transition: .other)
         guard navigationDelegate?.webContents(self, decidePolicyFor: action) != .ignore else { return }
         currentIndex = index
-        startLoading(backForwardList[index])
+        startLoading(backForwardList[index], transition: .other)
     }
 
     private func reload(ignoringCache: Bool) {
@@ -148,11 +148,12 @@ public final class FakeWebContents: WebContents {
             guard proceed, let self else { return }
             let action = NavigationAction(url: url, kind: .reload, transition: .reload)
             guard self.navigationDelegate?.webContents(self, decidePolicyFor: action) != .ignore else { return }
-            self.startLoading(url)
+            self.startLoading(url, transition: .reload)
         }
     }
 
-    private func startLoading(_ url: URL) {
+    /// The navigation commits at once (FakeEngine has no network phase).
+    private func startLoading(_ url: URL, transition: PageTransition) {
         state = .alive
         isCrashed = false
         findResult = nil
@@ -164,6 +165,7 @@ public final class FakeWebContents: WebContents {
         loadProgress = 0.1
         updateSecurityState(for: url)
         updatePageView()
+        navigationDelegate?.webContents(self, didCommitNavigation: url, transition: transition)
         if loadsSynchronously { finishLoading() }
     }
 

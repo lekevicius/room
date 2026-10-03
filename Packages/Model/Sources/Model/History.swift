@@ -156,7 +156,13 @@ public final class History: Sendable {
         try pool.write { db in try Self.insertVisit(db, url: url, title: title, transition: transition, at: date) }
     }
 
+    /// The URL as recorded: without its `#fragment` (one row per page, not per anchor).
+    public static func recordedURL(_ url: String) -> String {
+        url.firstIndex(of: "#").map { String(url[..<$0]) } ?? url
+    }
+
     private static func insertVisit(_ db: Database, url: String, title: String?, transition: HistoryTransition, at date: Date) throws {
+        let url = recordedURL(url)
         guard let host = hostKey(for: url) else { return }
         let time = Timestamp(date)
         let typed = transition == .typed ? 1 : 0
@@ -184,6 +190,7 @@ public final class History: Sendable {
 
     /// The page's title arrived after the commit.
     public func setTitle(_ title: String, for url: String) {
+        let url = Self.recordedURL(url)
         pool.asyncWrite({ db in
             try db.execute(sql: "UPDATE history_url SET title = ? WHERE url = ? AND title IS NOT ?", arguments: [title, url, title])
         }, completion: { _, _ in })

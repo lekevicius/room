@@ -58,6 +58,15 @@ public final class CEFWebContents: NSObject, WebContents {
     @ObservationIgnored private var closeRequested = false
     @ObservationIgnored private var lastFindText: String?
     @ObservationIgnored private var faviconURL: String?
+    /// What the last `load` asked for: CEF commits every browser-initiated
+    /// load as TYPED, so the requested transition stands in for it.
+    @ObservationIgnored private var requestedTransition: PageTransition?
+    /// The URL of the last commit reported to the navigation delegate.
+    @ObservationIgnored private var committedURL: URL?
+    /// A commit waiting one run-loop turn, so an error page is not reported.
+    @ObservationIgnored private var pendingCommit: (url: URL, transition: PageTransition)?
+    /// The URL of a main-frame load that failed since the last load request.
+    @ObservationIgnored private var failedURL: String?
     @ObservationIgnored private var audibilityPoll: Task<Void, Never>?
     @ObservationIgnored private lazy var cefDevTools = CEFDevTools(contents: self)
 
@@ -104,9 +113,12 @@ public final class CEFWebContents: NSObject, WebContents {
     // MARK: Navigation
 
     public func load(_ url: URL, transition: PageTransition, fromAddressBar: Bool) {
-        // CEF always loads with TYPED | FROM_ADDRESS_BAR; `transition` is ignored.
+        // CEF always loads with TYPED | FROM_ADDRESS_BAR; `transition` is
+        // remembered and reported at the commit instead.
         if state == .discarded { revive() }
         self.url = url
+        requestedTransition = transition
+        failedURL = nil
         browser?.loadURL(url.absoluteString)
     }
 
@@ -115,7 +127,8 @@ public final class CEFWebContents: NSObject, WebContents {
 
     public func reload() {
         if state == .discarded, let url {
-            load(url)
+            // A discarded page coming back is a reload, not a visit.
+            load(url, transition: .reload, fromAddressBar: false)
         } else {
             browser?.reload()
         }
@@ -123,7 +136,7 @@ public final class CEFWebContents: NSObject, WebContents {
 
     public func reloadIgnoringCache() {
         if state == .discarded, let url {
-            load(url)
+            load(url, transition: .reload, fromAddressBar: false)
         } else {
             browser?.reloadIgnoringCache()
         }
@@ -361,8 +374,38 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
     }
 
     public func browser(_ browser: RoomCEFBrowser, didChangeAddress url: String) {
-        self.url = URL(string: url)
+        let address = URL(string: url)
+        self.url = address
         updateSecurityState()
+        // A new address outside a load is a same-document navigation
+        // (fragment, `pushState`): CEF calls no `OnLoadStart` for it.
+        if let address, !isLoading, committedURL != nil, address != committedURL {
+            committedURL = address
+            navigationDelegate?.webContents(self, didCommitNavigation: address, transition: .link)
+        }
+    }
+
+    public func browser(_ browser: RoomCEFBrowser, didCommitMainFrameNavigation url: String, transition: RoomCEFTransition) {
+        guard let committed = URL(string: url) else { return }
+        var reported = PageTransition(transition)
+        if transition == .typed, let requestedTransition { reported = requestedTransition }
+        requestedTransition = nil
+        committedURL = committed
+        pendingCommit = (committed, reported)
+        // `OnLoadError` for an error page arrives around the commit, in the same turn.
+        DispatchQueue.main.async { [weak self] in self?.deliverPendingCommit() }
+    }
+
+    public func browser(_ browser: RoomCEFBrowser, didFailMainFrameLoad errorCode: Int, errorText: String, url: String) {
+        // ERR_ABORTED (-3): cancelled (a policy decision, a download, a newer load), not an error page.
+        if errorCode != -3 { failedURL = url }
+    }
+
+    private func deliverPendingCommit() {
+        guard let pending = pendingCommit else { return }
+        pendingCommit = nil
+        guard pending.url.absoluteString != failedURL else { return }
+        navigationDelegate?.webContents(self, didCommitNavigation: pending.url, transition: pending.transition)
     }
 
     public func browser(_ browser: RoomCEFBrowser, didChangeTitle title: String?) {
@@ -433,6 +476,7 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
     }
 
     public func browser(_ browser: RoomCEFBrowser, shouldCancelNavigation request: RoomCEFNavigationRequest) -> Bool {
+        if !request.redirect { failedURL = nil }
         guard let navigationDelegate else { return false }
         let action = NavigationAction(request)
         let decision = navigationDelegate.webContents(self, decidePolicyFor: action)

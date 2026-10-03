@@ -68,17 +68,19 @@ struct HistoryRecordingTests {
         #expect(try history.visits(url: "https://www.github.com/").map(\.1) == [.typed, .link])
     }
 
-    @Test("Reloads and internal URLs are not recorded")
+    @Test("Reloads and internal URLs are not recorded; a fragment is the same page")
     func ignored() throws {
         let fixture = try HistoryFixture()
         defer { fixture.directory.cleanup() }
         let history = fixture.history
         try history.recordVisitNow(url: "https://example.com/", title: nil, transition: .link, at: now)
         try history.recordVisitNow(url: "https://example.com/", title: nil, transition: .reload, at: now)
+        // A fragment is the same page.
+        try history.recordVisitNow(url: "https://example.com/#top", title: nil, transition: .link, at: now)
         try history.recordVisitNow(url: "about:blank", title: nil, transition: .typed, at: now)
         try history.recordVisitNow(url: "data:text/html,hi", title: nil, transition: .link, at: now)
         #expect(try history.count() == 1)
-        #expect(try history.row(url: "https://example.com/")?.visitCount == 1)
+        #expect(try history.row(url: "https://example.com/")?.visitCount == 2)
     }
 
     @Test("The asynchronous recorder stores the visit and a later title")

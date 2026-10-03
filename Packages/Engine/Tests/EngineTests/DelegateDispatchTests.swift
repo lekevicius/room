@@ -45,6 +45,23 @@ struct DelegateDispatchTests {
         #expect(navigation.actions[2].url == url("https://a.example"))
     }
 
+    @Test("Committed navigations reach didCommitNavigation with their transition; cancelled ones do not")
+    func commitsAreReported() throws {
+        let (_, profile) = try makeProfile()
+        let page = profile.makeWebContents()
+        let navigation = RecordingNavigationDelegate()
+        page.navigationDelegate = navigation
+        page.load(url("https://a.example"), transition: .typed, fromAddressBar: true)
+        page.simulateLinkClick(to: url("https://b.example"))
+        page.goBack()
+        page.reload()
+        navigation.decide = { _ in .ignore }
+        page.load(url("https://blocked.example"))
+        #expect(navigation.commits.map(\.url) == [url("https://a.example"), url("https://b.example"), url("https://a.example"),
+                                                  url("https://a.example")])
+        #expect(navigation.commits.map(\.transition) == [.typed, .link, .other, .reload])
+    }
+
     @Test func linkClickCarriesReferrerAndGesture() throws {
         let (_, profile) = try makeProfile()
         let page = profile.makeWebContents()

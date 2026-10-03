@@ -239,6 +239,11 @@ NS_SWIFT_UI_ACTOR
     loadingStateChanged:(BOOL)isLoading
               canGoBack:(BOOL)canGoBack
            canGoForward:(BOOL)canGoForward;
+/// `CefLoadHandler::OnLoadStart` for the main frame: called after a
+/// cross-document navigation committed (not for same-document ones).
+- (void)browser:(RoomCEFBrowser*)browser
+    didCommitMainFrameNavigation:(NSString*)url
+                      transition:(RoomCEFTransition)transition;
 - (void)browser:(RoomCEFBrowser*)browser didFinishMainFrameLoad:(NSInteger)httpStatusCode;
 - (void)browser:(RoomCEFBrowser*)browser
     didFailMainFrameLoad:(NSInteger)errorCode

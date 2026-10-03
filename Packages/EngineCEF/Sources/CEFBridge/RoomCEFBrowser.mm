@@ -566,6 +566,12 @@ class RoomCEFClient : public CefClient,
     }
   }
 
+  void OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, TransitionType transition_type) override {
+    if (frame->IsMain() && [delegate() respondsToSelector:@selector(browser:didCommitMainFrameNavigation:transition:)]) {
+      [delegate() browser:owner_ didCommitMainFrameNavigation:ToNS(frame->GetURL()) transition:ToTransition(transition_type)];
+    }
+  }
+
   void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) override {
     if (frame->IsMain() && [delegate() respondsToSelector:@selector(browser:didFinishMainFrameLoad:)]) {
       [delegate() browser:owner_ didFinishMainFrameLoad:httpStatusCode];
