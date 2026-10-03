@@ -631,3 +631,21 @@ its success criterion. B-16 remains open. Production external-boost lifetime
 and synchronization (including nested Chromium scope state) need resolution
 before a patch; no speculative scheduling or deadline change applied. Exact
 patch0010 package idle audit now passes as recorded above.
+
+User-directed priority update: expanded Chrome UI exploration supersedes further
+unqualified B-16 stress repeats. roomcore-ui-surface-audit.md maps22 families
+with explicit source/runtime boundaries and six bounded next-probe groups.
+Source findings include the null autofill handler, missing DevTools content
+controller, extension chooser BrowserView dependency and pending-download
+close auto-confirm. No new runtime pass or engine edit in this audit checkpoint.
+Patch0011 and its probe changes remain local/uncommitted from prior work; do
+not accidentally stage them with this documentation checkpoint. B-16 stays
+open: latest before/after comparison failed both variants (before watchdogs;
+after browser exit0 but12helpers left per run). Preserve all evidence.
+
+Main/origin-main advanced to8b5f79f during the UI audit. Merge-base scope still
+contains only App/RoomCore among protected paths; direct diff against current
+main also shows its newer Chapter2 work, so final exact-main scope is not yet
+requalified. No rebase attempted with the local shutdown candidate present.
+Main now uses backlog B-16 for a sidebar scroll check; reconcile that identifier
+collision on the next safe rebase. Here B-16 means this branch's shutdown issue.

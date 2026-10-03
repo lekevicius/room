@@ -150,6 +150,12 @@ RoomCore-side open points: certificate errors (interstitial vs. delegate), DevTo
 
 ## RoomCore background hardening (2026-10-03 component build)
 
+The original feature drives do not cover the full Chrome UI contract. See
+[the expanded UI surface audit](../research/notes/roomcore-ui-surface-audit.md)
+for missing chooser, capture/session, autofill, extension, print-preview and
+DevTools-hosting boundaries. This is Chapter 3 design input; no public ObjC API
+is added by the audit.
+
 The existing public ObjC headers remain unchanged. Private `-RoomSpike` host
 commands exercise Chrome find/zoom/print without becoming product API.
 RoomBrowserWindow now supplies a Views-backed modal parent, permission bubble

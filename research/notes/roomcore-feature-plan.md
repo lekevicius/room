@@ -1,5 +1,11 @@
 # RoomCore feature-drive plan — 2026-10-03
 
+Scope clarification: the 18 drives below are the original crash-path sample,
+not full Chrome UI coverage. The expanded [UI surface audit](roomcore-ui-surface-audit.md)
+maps media/capture, device choosers, autofill, extension UI, real print preview,
+docked DevTools and connections, with current gaps and a bounded next batch.
+Its source-only findings are not additional runtime passes.
+
 Run each feature in a fresh host process so the stub logger's first-hit
 suppression does not conceal a feature's dependencies. Keep stub logging
 on. Start with `scripts/roomcore-package.sh` (ad hoc, mock keychain), then

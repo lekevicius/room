@@ -3,6 +3,13 @@
 Branch: bg/roomcore-hardening. Draft PR: https://github.com/lekevicius/room/pull/1.
 This is a partial engineering checkpoint, not full browser acceptance.
 
+Coverage clarification after user review: the original18 drives are not a
+complete Chrome UI inventory. The [expanded source audit](roomcore-ui-surface-audit.md)
+records22 surface families, source-confirmed missing boundaries and the next
+bounded UI probe batch. It adds no runtime passes. In particular, autofill
+save/update, docked DevTools, device choosers, capture indicators, real print
+preview and extension action hosting remain open.
+
 ## Measured gates
 
 | Gate | Evidence / status |
@@ -19,7 +26,7 @@ This is a partial engineering checkpoint, not full browser acceptance.
 | TLS B-3 | All 88 reproduced laptop failures attributed by host to local DNS sinkholes ([::]:443), TLS alert 80 / BoringSSL 1080. Exact historical mini ~220 still needs its original NetLog |
 | Crashpad B-14 | Both primary and monitor command lines verified at selected-root/Crashpad, prod=Room_Mac |
 | Patch/API scope | Original 0001–0005/public ObjC headers unchanged. New 0006 scheduler, 0007 demand-CDM, 0008 FedCM anchor and 0009 SadTab factory hooks, plus 0010 shutdown-worker-start correction, each justified; Room-specific implementation stays in //room, with the documented base startup correction in0010 |
-| Chapter 2 scope | Protected diff contains only App/RoomCore. No Packages, other App, ROADMAP edits; no main push or merge |
+| Chapter 2 scope | Branch changes from merge base contain only App/RoomCore in protected paths. Main advanced to8b5f79f; direct-main scope needs a later safe rebase. No Packages, other App or ROADMAP edits by this branch; no main push or merge |
 
 Before request list: accounts.google.com 1 (Gaia), android.clients.google.com
 9 (GCM check-in/registration), clients2.google.com 1 (time),
