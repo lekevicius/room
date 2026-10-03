@@ -136,7 +136,10 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     public var onFullscreenChange: ((Bool) -> Void)?
 
     /// ⌘S (spec §E): hides the sidebar, or docks it again (from the overlay too).
-    @objc public func toggleSidebar(_ sender: Any?) {
+    /// Not `toggleSidebar:`: NSWindow answers that action itself (AppKit's own
+    /// sidebar) and validates it disabled, ahead of its controller in the
+    /// responder chain (2.7b; Room's menu routes through the app delegate).
+    @objc public func toggleSidebarVisibility(_ sender: Any?) {
         isSidebarOpen.toggle()
         onSidebarStateChange?(sidebarWidth, isSidebarOpen)
     }
@@ -148,7 +151,7 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     }
 
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleSidebar(_:)) {
+        if menuItem.action == #selector(toggleSidebarVisibility(_:)) {
             menuItem.title = isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"
             return !rootView.isPageFullscreen
         }

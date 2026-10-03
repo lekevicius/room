@@ -33,7 +33,7 @@ enum HostMenu {
         main.add(editMenu, title: "Edit")
 
         let viewMenu = NSMenu(title: "View")
-        viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebarVisibility(_:)), keyEquivalent: "s")
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Reload Page", action: #selector(RoomHostApplication.reloadPage(_:)), keyEquivalent: "r")
         viewMenu.addItem(withTitle: "Back", action: #selector(RoomHostApplication.goBack(_:)), keyEquivalent: "[")

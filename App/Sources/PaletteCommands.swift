@@ -68,7 +68,7 @@ extension AppDelegate {
         case CommandRegistry.lightAppearance.id: NSApp.appearance = NSAppearance(named: .aqua)
         case CommandRegistry.darkAppearance.id: NSApp.appearance = NSAppearance(named: .darkAqua)
         case CommandRegistry.autoAppearance.id: NSApp.appearance = nil
-        case CommandRegistry.toggleSidebar.id: windowController?.toggleSidebar(nil)
+        case CommandRegistry.toggleSidebar.id: windowController?.toggleSidebarVisibility(nil)
         case CommandRegistry.unloadTab.id: sidebar.unloadSelected()
         case CommandRegistry.newSpace.id: newSpace(nil)
         case CommandRegistry.nextSpace.id: sidebar.showAdjacentSpace(1)

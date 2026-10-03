@@ -57,11 +57,11 @@ enum MainMenu {
         main.addItem(submenu: editMenu, title: "Edit")
 
         let viewMenu = NSMenu(title: "View")
-        // Reaches the key window's controller through the responder chain.
-        viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        // Through the app delegate to the window's controller, like every other item: in the responder
+        // chain RoomWindow answers `toggleSidebar:` itself (AppKit's sidebar action) and disables it (2.7b).
+        viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(AppDelegate.hideOrShowSidebar(_:)), keyEquivalent: "s")
         // Pins the hidden sidebar's overlay open (spec §E; docs/shortcuts.md "Pin overlay sidebar open").
-        let pin = viewMenu.addItem(withTitle: "Keep Sidebar Open", action: #selector(RoomWindowController.toggleSidebarOverlayPin(_:)),
-                                   keyEquivalent: "s")
+        let pin = viewMenu.addItem(withTitle: "Keep Sidebar Open", action: #selector(AppDelegate.keepSidebarOpen(_:)), keyEquivalent: "s")
         pin.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(withTitle: "Show Toolbar", action: #selector(AppDelegate.toggleToolbar(_:)), keyEquivalent: "")
         viewMenu.addItem(.separator())

@@ -403,6 +403,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         controller.showsToolbar = settings.settings.showsToolbar
     }
 
+    /// ⌘S, View ▸ Hide Sidebar / Show Sidebar (spec §E).
+    @objc func hideOrShowSidebar(_ sender: Any?) {
+        windowController?.toggleSidebarVisibility(sender)
+    }
+
+    /// ⌥⌘S, View ▸ Keep Sidebar Open: pins the hidden sidebar's overlay (spec §E); nothing to pin while it is docked.
+    @objc func keepSidebarOpen(_ sender: Any?) {
+        windowController?.toggleSidebarOverlayPin(sender)
+    }
+
     /// View ▸ Show Toolbar.
     @objc func toggleToolbar(_ sender: Any?) {
         guard let controller = windowController, let settings = store?.settings else { return }
@@ -709,6 +719,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return tabs?.shownPeek != nil
         case #selector(splitPeek(_:)):
             return false  // Split view is 2.7b.
+        case #selector(hideOrShowSidebar(_:)):
+            // Enabled whenever the window exists and no page is in element fullscreen (ROADMAP 2.7b).
+            menuItem.title = windowController?.isSidebarOpen == false ? "Show Sidebar" : "Hide Sidebar"
+            return windowController.map { !$0.rootView.isPageFullscreen } ?? false
+        case #selector(keepSidebarOpen(_:)):
+            menuItem.state = windowController?.reveal.isPinned == true ? .on : .off
+            return windowController.map { !$0.rootView.isPageFullscreen } ?? false
         case #selector(toggleToolbar(_:)):
             menuItem.state = windowController?.showsToolbar == true ? .on : .off
             return windowController != nil

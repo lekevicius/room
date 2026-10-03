@@ -41,6 +41,7 @@ extension SpikeRunner.Context {
         sidebar.select(pinned)
         if let page = tabs.contents(for: pinned) { await waitLoaded(page) }
         try? await Task.sleep(for: .milliseconds(500))
+        if runs("menu") { await menuCheck() }
         if runs("reveal") { await revealCheck() }
         if runs("cluster") { await clusterCheck() }
         if runs("toolbar") { await toolbarCheck() }
@@ -93,6 +94,47 @@ extension SpikeRunner.Context {
         while running(), Date().timeIntervalSince(start) < timeout { try? await Task.sleep(for: .milliseconds(5)) }
         link.invalidate()
         return zip(recorder.stamps.dropFirst(), recorder.stamps).map { ($0 - $1) * 1000 }
+    }
+
+    // MARK: The View menu with a page focused (2.7b carry-over)
+
+    /// Clicks into the page (CEF's view takes the keyboard), then records the
+    /// responder chain an action message walks and what `NSMenu.update()`
+    /// validates for View ▸ Hide Sidebar and Keep Sidebar Open, with the
+    /// sidebar docked and hidden.
+    func menuCheck() async {
+        let card = controller.rootView.currentLayout.card
+        await postClick(at: CGPoint(x: card.midX, y: card.midY))
+        try? await Task.sleep(for: .milliseconds(300))
+        var chain: [String] = []
+        var responder: NSResponder? = window.firstResponder
+        while let current = responder, chain.count < 40 {
+            chain.append(String(describing: Swift.type(of: current)))
+            responder = current.nextResponder
+        }
+        SpikeRunner.record("menu_responder_chain", "key=\(window.isKeyWindow) main=\(window.isMainWindow) NSApp.keyWindow=\(NSApp.keyWindow.map { String(describing: Swift.type(of: $0)) } ?? "nil") window.delegate=\(window.delegate.map { String(describing: Swift.type(of: $0)) } ?? "nil") chain: \(chain.joined(separator: " → "))")
+        guard let view = NSApp.mainMenu?.item(withTitle: "View")?.submenu else { return SpikeRunner.record("error", "no View menu") }
+        for docked in [true, false] {
+            controller.isSidebarOpen = docked
+            try? await Task.sleep(for: .milliseconds(300))
+            view.update()
+            let items = view.items.filter { $0.keyEquivalent.lowercased() == "s" && $0.keyEquivalentModifierMask.contains(.command) }
+            let states = items.map { item -> String in
+                let target = item.action.flatMap { NSApp.target(forAction: $0, to: item.target, from: item) }
+                return "\(item.title) [\(item.action.map(NSStringFromSelector) ?? "nil")] enabled=\(item.isEnabled) target=\(target.map { String(describing: Swift.type(of: $0)) } ?? "nil")"
+            }
+            SpikeRunner.record(docked ? "menu_sidebar_docked" : "menu_sidebar_hidden", states.joined(separator: "; "))
+        }
+        controller.isSidebarOpen = true
+        // ⌘S as the page hands it on unhandled (`handleUnhandledKeyEvent` → the main menu).
+        let commandS = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: window.windowNumber, context: nil, characters: "s", charactersIgnoringModifiers: "s",
+                                        isARepeat: false, keyCode: 1)!
+        let handled = NSApp.mainMenu?.performKeyEquivalent(with: commandS) ?? false
+        let hidden = !controller.isSidebarOpen
+        _ = NSApp.mainMenu?.performKeyEquivalent(with: commandS)
+        SpikeRunner.record("menu_command_s", "handled=\(handled) hid the sidebar=\(hidden) second ⌘S docked it=\(controller.isSidebarOpen)")
+        controller.isSidebarOpen = true
     }
 
     // MARK: Hide/reveal (spec §E)

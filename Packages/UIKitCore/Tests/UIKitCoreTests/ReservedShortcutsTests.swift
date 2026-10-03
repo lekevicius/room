@@ -71,3 +71,16 @@ struct ReservedShortcutsTests {
         ])
     }
 }
+
+@Suite("Menu actions")
+struct MenuActionTests {
+    /// 2.7b: View ▸ Hide Sidebar was disabled because the item's action was
+    /// `toggleSidebar:`, which NSWindow answers itself (and disables) before
+    /// the window's controller in the responder chain.
+    @Test("The window does not answer the controller's sidebar actions")
+    func windowDoesNotShadowSidebarActions() {
+        #expect(NSWindow.instancesRespond(to: Selector(("toggleSidebar:"))))
+        #expect(!RoomWindow.instancesRespond(to: #selector(RoomWindowController.toggleSidebarVisibility(_:))))
+        #expect(!RoomWindow.instancesRespond(to: #selector(RoomWindowController.toggleSidebarOverlayPin(_:))))
+    }
+}

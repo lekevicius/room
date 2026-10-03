@@ -195,9 +195,9 @@ struct WindowStateCallbackTests {
         controller.sidebarWidth = 300
         controller.isSidebarOpen = true
         #expect(reports.isEmpty)
-        controller.toggleSidebar(nil)
+        controller.toggleSidebarVisibility(nil)
         #expect(reports.count == 1 && reports[0] == (300, false))
-        controller.toggleSidebar(nil)
+        controller.toggleSidebarVisibility(nil)
         controller.rootView.splitterView.onDrag?(350)
         controller.rootView.splitterView.onEnd?()
         #expect(reports.last.map { $0 == (350, true) } == true)

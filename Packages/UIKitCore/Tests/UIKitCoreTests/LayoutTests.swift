@@ -91,7 +91,7 @@ struct RoomWindowControllerTests {
         splitter.onEnd?()
         #expect(posts == 1)
         // Reopening restores the width the drag started from.
-        controller.toggleSidebar(nil)
+        controller.toggleSidebarVisibility(nil)
         #expect(controller.isSidebarOpen)
         #expect(controller.sidebarWidth == SidebarMetrics.maxWidth)
     }

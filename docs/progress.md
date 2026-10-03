@@ -190,7 +190,7 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 - [x] 2.7a: Hide/reveal (§E)
 - [x] 2.7a: Floating traffic-light cluster as the drag region; optional toolbar
 - [x] 2.7a: Peek (§A.4, §I.6), Split button disabled
-- [ ] 2.7b: View ▸ Hide Sidebar / Keep Sidebar Open routed through AppDelegate (disabled for the user on the laptop); menu validation in the spike
+- [x] 2.7b: View ▸ Hide Sidebar / Keep Sidebar Open routed through AppDelegate (disabled for the user on the laptop); menu validation in the spike — the chain did reach the window controller, but `RoomWindow` answers `toggleSidebar:` first (AppKit's own sidebar action, validated disabled); `layoutmodes` `menu` records the chain, both items enabled with a CEF page focused, ⌘S through the menu
 - [ ] 2.7b: Split view (§D) and Peek's Split button
 - [ ] Exit: §D, §E, §I.6 on CEF; snapshot tests for hidden/split; overlay passes no events to the page
 
