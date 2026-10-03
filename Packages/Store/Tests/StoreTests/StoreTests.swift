@@ -455,3 +455,21 @@ struct SidebarStoreTests {
         #expect(snapshot.pinned.first?.children.map(\.entry.id) == [child.id])
     }
 }
+
+@Suite("Reopen stack (⇧⌘T)")
+struct ClosedTabStackTests {
+    @Test("The reopen stack keeps the 25 most recent closes")
+    func stackCapacity() {
+        var stack = ClosedTabStack()
+        let space = UUID(), profile = UUID()
+        for index in 0..<30 {
+            let entry = Entry(kind: .today, spaceID: space, profileID: profile, position: index, liveURL: "https://\(index).example")
+            stack.push(.removed([RemovedEntry(entry: entry, index: index)]))
+        }
+        stack.push(.removed([]))
+        #expect(stack.items.count == ClosedTabStack.capacity)
+        guard case .removed(let newest)? = stack.pop() else { Issue.record("no item"); return }
+        #expect(newest.first?.index == 29)
+    }
+
+}

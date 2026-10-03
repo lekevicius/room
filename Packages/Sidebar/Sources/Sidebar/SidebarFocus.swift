@@ -358,6 +358,7 @@ extension SidebarController {
         let removed = sidebar.clearToday(space: space)
         guard !removed.isEmpty else { return }
         for item in removed { host?.unload(item.entry.id) }
+        closedTabs.push(.removed(removed))
         if selectedWasToday {
             let next = sidebar.mruOrder(space: space).first { $0.kind != .folder && $0.lastActiveAt != nil }
             select(next?.id)

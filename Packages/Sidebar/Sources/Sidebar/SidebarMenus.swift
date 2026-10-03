@@ -436,6 +436,7 @@ extension SidebarController {
             host?.unload(id)
             if let item = try? sidebar.remove(id) { removed.append(item) }
         }
+        closedTabs.push(.removed(removed))
         toasts?.show(Toast(id: "tabs-closed", symbol: .clearToday,
                            message: removed.count == 1 ? "1 tab closed" : "\(removed.count) tabs closed",
                            action: .init(title: "Undo") { [weak self] in self?.sidebar.restore(removed) },

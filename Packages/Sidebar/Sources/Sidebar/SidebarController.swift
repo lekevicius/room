@@ -49,6 +49,8 @@ public final class SidebarController: NSObject {
     var isClearing = false
     /// Stretches Clear's animation (DEBUG captures of the mid-Clear frame).
     var clearSlowdown: Double = 1
+    /// Closed tabs for ⇧⌘T, newest last.
+    var closedTabs = ClosedTabStack()
     /// The folder preview waiting for its 500 ms dwell, and the one showing (spec §A.6).
     private var pendingFolderPreview: DispatchWorkItem?
     private weak var folderPreview: NSPopover?
@@ -378,14 +380,26 @@ public final class SidebarController: NSObject {
     }
 
     /// Close per `NavigationRules.closeSteps` (Today tab: switch away, unload,
-    /// remove; permanent entries follow the ⌘W preference, spec §A.3).
-    func close(_ id: UUID, behavior: PermanentCloseBehavior? = nil) {
+    /// remove; permanent entries follow the ⌘W preference, spec §A.3). What
+    /// it closed goes on the ⇧⌘T stack: the removed entry, or a permanent
+    /// entry's page (its URL before the reset).
+    public func close(_ id: UUID, behavior: PermanentCloseBehavior? = nil) {
         let behavior = behavior ?? store.settings.settings.permanentCloseBehavior
-        guard let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID) else { return }
+        guard let before = sidebar.entry(id),
+              let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID) else { return }
+        let hadPage = pageState(id).isLoaded
         if plan.steps.contains(.switchAway), selectedEntryID == id { applyFallback(plan.fallback) }
         if plan.steps.contains(.unload) { host?.unload(id) }
-        if plan.steps.contains(.reset) { try? sidebar.resetToStoredURL(id) }
-        if plan.steps.contains(.remove) { _ = try? sidebar.remove(id) }
+        if plan.steps.contains(.reset) {
+            try? sidebar.resetToStoredURL(id)
+            // A page that stays loaded (`reset` alone) goes back to the stored URL too.
+            if !plan.steps.contains(.unload), let entry = sidebar.entry(id) { host?.reset(entry) }
+        }
+        if plan.steps.contains(.remove) {
+            if let removed = try? sidebar.remove(id) { closedTabs.push(.removed([removed])) }
+        } else if hadPage, before.liveURL != nil, plan.steps.contains(.unload) || plan.steps.contains(.reset) {
+            closedTabs.push(.page(before))
+        }
         pageStateDidChange([id])
     }
 

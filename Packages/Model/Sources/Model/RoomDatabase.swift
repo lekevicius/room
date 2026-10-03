@@ -70,4 +70,19 @@ public final class RoomDatabase: Sendable {
             return wasRunning
         }
     }
+
+    // MARK: Favicon cache (outside the state pipeline)
+
+    public func favicons() throws -> [Favicon] {
+        try pool.read { db in try Favicon.fetchAll(db) }
+    }
+
+    /// Inserts or replaces the row for `favicon.host`; returns its id.
+    public func saveFavicon(_ favicon: Favicon) throws -> Int64? {
+        var record = favicon
+        return try pool.write { db in
+            if record.id == nil { try record.insert(db) } else { try record.update(db) }
+            return record.id
+        }
+    }
 }

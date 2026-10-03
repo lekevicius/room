@@ -5,18 +5,18 @@ import Design
 /// domain on a colour hashed from it, spec §I.2); dimmed while unloaded,
 /// with the changed dot (§I.8), and a ring spinner in its place while the
 /// page loads (§I.2).
-final class FaviconView: NSView {
-    var image: NSImage? { didSet { if image !== oldValue { needsDisplay = true } } }
+public final class FaviconView: NSView {
+    public var image: NSImage? { didSet { if image !== oldValue { needsDisplay = true } } }
     /// Domain the letter tile is drawn from.
-    var letterSource = "" { didSet { if letterSource != oldValue { needsDisplay = true } } }
-    var isUnloaded = false { didSet { alphaValue = isUnloaded ? SidebarMetrics.unloadedIconAlpha : 1 } }
+    public var letterSource = "" { didSet { if letterSource != oldValue { needsDisplay = true } } }
+    public var isUnloaded = false { didSet { alphaValue = isUnloaded ? SidebarMetrics.unloadedIconAlpha : 1 } }
     var showsChangedDot = false { didSet { dot.isHidden = !showsChangedDot } }
     var isLoading = false { didSet { if isLoading != oldValue { updateSpinner() } } }
 
     private let dot = CALayer()
     private let spinner = CAShapeLayer()
 
-    override init(frame: NSRect) {
+    public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         dot.isHidden = true
@@ -34,9 +34,9 @@ final class FaviconView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    override var isFlipped: Bool { true }
+    public override var isFlipped: Bool { true }
 
-    override func layout() {
+    public override func layout() {
         super.layout()
         let size = SidebarMetrics.changedDotSize
         dot.frame = CGRect(x: bounds.maxX - size + 2, y: bounds.maxY - size + 2, width: size, height: size)
@@ -44,12 +44,12 @@ final class FaviconView: NSView {
         spinner.path = CGPath(ellipseIn: bounds.insetBy(dx: 1, dy: 1), transform: nil)
     }
 
-    override func viewDidChangeEffectiveAppearance() {
+    public override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
     }
 
-    override func draw(_ dirtyRect: NSRect) {
+    public override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             dot.backgroundColor = Palette.accent.cgColor
             spinner.strokeColor = NSColor.secondaryLabelColor.cgColor

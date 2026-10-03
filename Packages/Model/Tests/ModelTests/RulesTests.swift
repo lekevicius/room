@@ -261,6 +261,29 @@ struct NavigationTests {
         #expect(NavigationRules.digitTarget(9, in: []) == nil)
         #expect(NavigationRules.digitTarget(0, in: items) == nil)
     }
+
+    @Test("⇧⌘] / ⌥⌘↓ step through the sidebar order and wrap; no selection starts at an end (§G)")
+    func adjacent() {
+        let items = (0..<3).map { _ in entry(.today) }
+        #expect(NavigationRules.adjacent(to: items[0].id, offset: 1, in: items)?.id == items[1].id)
+        #expect(NavigationRules.adjacent(to: items[2].id, offset: 1, in: items)?.id == items[0].id)
+        #expect(NavigationRules.adjacent(to: items[0].id, offset: -1, in: items)?.id == items[2].id)
+        #expect(NavigationRules.adjacent(to: nil, offset: 1, in: items)?.id == items[0].id)
+        #expect(NavigationRules.adjacent(to: UUID(), offset: -1, in: items)?.id == items[2].id)
+        #expect(NavigationRules.adjacent(to: nil, offset: 1, in: []) == nil)
+    }
+
+    @Test("A tab opened from a page goes below a Today opener, after its previous one, or to the top of Today (§A.7)")
+    func relatedTabIndex() {
+        let today = (0..<4).map { _ in entry(.today) }
+        let pinned = entry(.pinned)
+        #expect(NavigationRules.relatedTabIndex(opener: today[1], lastRelated: nil, today: today) == 2)
+        #expect(NavigationRules.relatedTabIndex(opener: today[1], lastRelated: today[2].id, today: today) == 3)
+        #expect(NavigationRules.relatedTabIndex(opener: pinned, lastRelated: nil, today: today) == 0)
+        #expect(NavigationRules.relatedTabIndex(opener: pinned, lastRelated: today[0].id, today: today) == 1)
+        // The previous related tab was closed meanwhile: right below the opener again.
+        #expect(NavigationRules.relatedTabIndex(opener: today[3], lastRelated: UUID(), today: today) == 4)
+    }
 }
 
 @Suite("Values")

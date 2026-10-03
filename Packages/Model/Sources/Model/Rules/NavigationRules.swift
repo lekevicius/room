@@ -94,6 +94,31 @@ public enum NavigationRules {
         return result
     }
 
+    /// ⇧⌘] / ⌥⌘↓ (`offset` 1) and ⇧⌘[ / ⌥⌘↑ (−1): the entry next to
+    /// `selected` in `order` (the sidebar order), wrapping around at the
+    /// ends. With nothing selected (or the selection not in `order`, e.g. a
+    /// child peeking out of a collapsed folder) it is the first entry for a
+    /// forward step and the last for a backward one.
+    public static func adjacent(to selected: UUID?, offset: Int, in order: [Entry]) -> Entry? {
+        guard !order.isEmpty, offset != 0 else { return nil }
+        guard let index = order.firstIndex(where: { $0.id == selected }) else {
+            return offset > 0 ? order.first : order.last
+        }
+        let count = order.count
+        return order[((index + offset) % count + count) % count]
+    }
+
+    /// Where a tab opened from a page goes in the Today list `today` (§A.7):
+    /// right below a Today opener; below `lastRelated`, the previous tab the
+    /// same opener opened, while the user has not switched tabs since
+    /// (Firefox `insertRelatedAfterCurrent`, so ⌘-clicked links keep their
+    /// order); at the top of Today for a permanent opener (as Duplicate).
+    public static func relatedTabIndex(opener: Entry, lastRelated: UUID?, today: [Entry]) -> Int {
+        if let lastRelated, let index = today.firstIndex(where: { $0.id == lastRelated }) { return index + 1 }
+        if opener.kind == .today, let index = today.firstIndex(where: { $0.id == opener.id }) { return index + 1 }
+        return 0
+    }
+
     /// ⌘`digit` target: 1…8 = the Nth item, 9 = the last (Chrome/Arc).
     public static func digitTarget(_ digit: Int, in order: [Entry]) -> Entry? {
         switch digit {

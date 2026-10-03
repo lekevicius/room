@@ -215,4 +215,22 @@ public enum Timing {
     public static let undoToast: TimeInterval = 8
     /// Tooltip with the full URL over the address field (spec §C).
     public static let urlTooltipDelay: TimeInterval = 0.6
+    /// A background page is discarded after this long unseen: Today tabs,
+    /// then pinned entries and essentials (spec §H).
+    public static let discardIdleToday: TimeInterval = 60 * 60
+    public static let discardIdlePermanent: TimeInterval = 3 * 60 * 60
+    /// How often the idle-discard sweep runs (chosen).
+    public static let discardSweepInterval: TimeInterval = 60
+    /// ⌃Tab held this long before the switcher shows; a quicker tap
+    /// switches without it (chosen).
+    public static let tabSwitcherDelay: TimeInterval = 0.12
+}
+
+/// The ⌃Tab MRU switcher (spec §G: five recent tabs, favicons).
+public enum TabSwitcherMetrics {
+    /// Entries listed.
+    public static let limit = 5
+    public static let width: CGFloat = 340
+    public static let rowHeight: CGFloat = 36
+    public static let padding: CGFloat = 8
 }
