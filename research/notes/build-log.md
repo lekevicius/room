@@ -134,6 +134,14 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-03 | Quit with 10 pages (`NSApp.terminate`, the ⌘Q path), "end" line to process exit ×6 | 0.31 / 0.18 / 0.26 s (load 8–13); 0.34 / 0.55 / 3.24 s (load 15, 16, 69) | exit 0, 0 crash reports; one `code-sign-clone-cleanup` helper (Chrome deleting its code-sign clone of the app) exits 1.4 s after the browser |
 | 2026-10-03 | Quit by SIGTERM after real mouse/scroll input in the page | 0.06 s | 0 helpers left after 2 s, 0 crash reports |
 
+### Phase 3.1a on the Mac mini (2026-10-04)
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-04 | `scripts/roomcore-apply.sh` after the PR #1 merge (six new patches 0006–0009, 0011, 0012 committed on `room`) | ~2 min | "patches: 6 applied, 5 already on the room branch"; the second run "patches: 0 applied, 11 already on the room branch" in 21 s |
+| 2026-10-04 | `scripts/roomcore-build.sh` (`ROOM_BUILD_JOBS=6`), first build after the merge (patches in `chrome/`, `content/`, `base/` untouched since 0010 is parked; `//room` +1,600 lines) | **91 s** build part | load 4.3 → 7.4; component build, so only the touched objects and their dylibs relink |
+| 2026-10-04 | `scripts/roomcore-package.sh` | 99 s | stage 5.8 s (916 MB, 518 dylibs), host build 92.8 s (first build of the branch's host spikes); `Room.app` 919 MB |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior

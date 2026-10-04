@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# nav assertions, followed by one ten-loaded-page clean-quit measurement.
+# nav assertions, followed by the ten-loaded-page clean-quit measurement,
+# three runs (ROOM_BASELINE_QUIT_RUNS overrides).
 # Usage: scripts/roomcore-baseline.sh <new-evidence-directory>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,4 +31,4 @@ receipt={'nav_exit':result.returncode,'nav_seconds':round(time.time()-started,3)
 (out/'nav-receipt.json').write_text(json.dumps(receipt)+'\n')
 print(json.dumps(receipt),flush=True)
 PY
-ROOM_APP="$APP" ROOM_QUIT_MODE=spike "$ROOT/scripts/quit-timing.sh" 1 | tee "$DEST/quit.txt"
+ROOM_APP="$APP" ROOM_QUIT_MODE=spike "$ROOT/scripts/quit-timing.sh" "${ROOM_BASELINE_QUIT_RUNS:-3}" | tee "$DEST/quit.txt"
