@@ -3,6 +3,12 @@
 # chrome_dll, the library the framework binary is (or, in the component
 # build, re-exports) via patches/0004-link-room-core.patch.
 
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("cdm_mojom") {
+  sources = [ "room_cdm.mojom" ]
+}
+
 source_set("core") {
   sources = [
     "public/RoomApplication.h",
@@ -13,8 +19,12 @@ source_set("core") {
     "public/RoomProfile.h",
     "public/RoomWebContents.h",
     "room_application.mm",
+    "room_network_policy.cc",
+    "room_network_policy.h",
     "room_application_internal.h",
     "room_browser.mm",
+    "room_cdm_browser.cc",
+    "room_cdm_renderer.cc",
     "room_core_version.mm",
     "room_cr_application.mm",
     "room_profile.mm",
@@ -23,12 +33,40 @@ source_set("core") {
     "room_web_contents_internal.h",
   ]
   deps = [
+    ":cdm_mojom",
+    "//content/public/renderer",
+    "//mojo/public/cpp/bindings",
+    "//services/network/public/cpp",
+    "//third_party/blink/public/platform/media",
     "//base",
     "//chrome/app:command_ids",
     "//chrome/browser",
     "//chrome/browser:chrome_browser_application_mac",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/invalidation",
+    "//chrome/browser/signin",
+    "//components/component_updater",
+    "//components/find_in_page",
+    "//components/permissions",
+    "//components/prefs",
+    "//components/keyed_service/content",
     "//chrome/browser/ui",
+    "//chrome/browser/devtools",
+    "//chrome/browser/extensions",
+    "//extensions/browser",
+    "//extensions/common",
+    "//chrome/browser/media/webrtc",
+    "//chrome/browser/printing",
+    "//chrome/browser/ui/webui/print_preview",
+    "//printing",
+    "//chrome/browser/ui/autofill",
+    "//chrome/browser/autofill",
+    "//chrome/browser/ui/views/passwords:password_bubble_view_base",
+    "//chrome/browser/ui/views/frame:toolbar_button_provider",
+    "//components/autofill/core/browser",
+    "//components/autofill/content/browser",
+    "//chrome/browser/ui/login",
+    "//chrome/browser/ui/webid",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/browser_window:create_browser_window",
     "//chrome/browser/ui/tabs:tab_strip",
@@ -38,10 +76,18 @@ source_set("core") {
     "//net",
     "//room/browser",
     "//ui/base",
+    "//ui/views",
     "//url",
   ]
   frameworks = [
     "AppKit.framework",
     "Foundation.framework",
   ]
+}
+
+# Explicitly built diagnostic; not linked into RoomCore or the host.
+executable("room_worker_shutdown_probe") {
+  testonly = true
+  sources = [ "../diagnostics/worker_shutdown_probe.cc" ]
+  deps = [ "//base" ]
 }

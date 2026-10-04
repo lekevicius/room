@@ -1,0 +1,166 @@
+{
+  "chromium_head": "cbc9414a6affa56c5ef03b46a265b4dab74ae785",
+  "runs": {
+    "local-network-initial": {
+      "receipt": {
+        "feature": "ui-local-network",
+        "exit_status": "0",
+        "elapsed_seconds": "19",
+        "source_commit": "0a87883c720e9a12b5f3e5f246c515ccda301084"
+      },
+      "identity": {
+        "source_head": "0a87883c720e9a12b5f3e5f246c515ccda301084",
+        "tracked_diff_sha256": "ca5e25e175f03a1af9d381d3201349b8480e6a6286f800385a35f39cd88a00d6",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "9759ce77a9562dd4e11cf17a03f9a2183a3efadf4d3563f71ac4dea545bfd000",
+          "Contents/MacOS/Room.debug.dylib": "94d00d5d791b7e5848170b1c6d9db5a989b4148a11378c8089d37c16df2264ee",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "4e0bb9e87aaf9df0d2421bb30b2b835840790b7426e4733e853ce045e3a4ae8a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "faf1a5e1f6c75fe1f1f7639160839edeaf0757ee5d5660866be10223a8d3723e",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostAutofillUISpike.swift": "a6e9aa167a885b021359e0246458ddf357c6301af923e01cb7f173bcb3e66805",
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "07c26076d300e4af0683b0f98fe7bb028287b05ab3740244909cc79a89a2fa3b",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "41d77ccda7511a2956abdd993b3aacaac2778cd6f5cf576dcc736487ea9b29a4",
+          "App/RoomCore/HostFeatureSpike.swift": "1cf5a24ec6b0f6d030b13831f8a32bcd888a86244f2b7852075693c6d6544b79",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostNetworkUISpike.swift": "8d5b1deca257d840257b342d5c6c0fe52aef2e094f7e01f3778ea7f7c9ac3e3a",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-local-network\nloadavg: 52.6 55.8 66.3\ncdp-event: Page.frameStoppedLoading\nnetwork-effective-flags: 13\nnetwork-permissions-initial: [\"loopback-network\": prompt, \"local-network-access\": prompt, \"local-network\": prompt]\nnetwork-owned-dialogs: 1\nlocal-network-denied: [\"result\": [\"message\": Failed to fetch, \"pending\": 0, \"name\": TypeError], \"permissions\": [\"local-network\": denied, \"local-network-access\": denied, \"loopback-network\": prompt]]\nnetwork-owned-dialogs: 1\nlocal-network-accepted: [\"result\": [\"text\": Room network fixture, \"pending\": 0], \"permissions\": [\"local-network-access\": granted, \"loopback-network\": prompt, \"local-network\": granted]]\nlocal-network-reuse: true\nnetwork-owned-dialogs: 1\nloopback-network-denied: [\"permissions\": [\"loopback-network\": denied, \"local-network\": granted, \"local-network-access\": denied], \"result\": [\"message\": Failed to fetch, \"pending\": 0, \"name\": TypeError]]\nnetwork-owned-dialogs: 1\nloopback-network-accepted: [\"result\": [\"pending\": 0, \"text\": Room network fixture], \"permissions\": [\"local-network-access\": granted, \"loopback-network\": granted, \"local-network\": prompt]]\nloopback-network-reuse: true\nnetwork-grant-after-owner-close: [\"local-network-access\": granted, \"loopback-network\": granted, \"local-network\": prompt]\nnetwork-revoked: [\"loopback-network\": prompt, \"local-network\": prompt, \"local-network-access\": prompt]\nnetwork-owned-dialogs: 1\nnetwork-pending-owner-close: closed=true pending=0\ndrive-complete: ui-local-network\npage-state: url=http://127.0.0.1:56494/features title=RoomCore features closed=true\nend: ui-local-network\nterminate-request-time: 1791038293.2970572\n"
+    },
+    "usb-owner-initial": {
+      "receipt": {
+        "feature": "ui-usb-owner",
+        "exit_status": "0",
+        "elapsed_seconds": "11",
+        "source_commit": "0a87883c720e9a12b5f3e5f246c515ccda301084"
+      },
+      "identity": {
+        "source_head": "0a87883c720e9a12b5f3e5f246c515ccda301084",
+        "tracked_diff_sha256": "ca5e25e175f03a1af9d381d3201349b8480e6a6286f800385a35f39cd88a00d6",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "9759ce77a9562dd4e11cf17a03f9a2183a3efadf4d3563f71ac4dea545bfd000",
+          "Contents/MacOS/Room.debug.dylib": "94d00d5d791b7e5848170b1c6d9db5a989b4148a11378c8089d37c16df2264ee",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "4e0bb9e87aaf9df0d2421bb30b2b835840790b7426e4733e853ce045e3a4ae8a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "faf1a5e1f6c75fe1f1f7639160839edeaf0757ee5d5660866be10223a8d3723e",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostAutofillUISpike.swift": "a6e9aa167a885b021359e0246458ddf357c6301af923e01cb7f173bcb3e66805",
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "07c26076d300e4af0683b0f98fe7bb028287b05ab3740244909cc79a89a2fa3b",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "41d77ccda7511a2956abdd993b3aacaac2778cd6f5cf576dcc736487ea9b29a4",
+          "App/RoomCore/HostFeatureSpike.swift": "1cf5a24ec6b0f6d030b13831f8a32bcd888a86244f2b7852075693c6d6544b79",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostNetworkUISpike.swift": "8d5b1deca257d840257b342d5c6c0fe52aef2e094f7e01f3778ea7f7c9ac3e3a",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-usb-owner\nloadavg: 71.6 59.8 67.3\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\ndevice-owner-close: shown=true pageClosed=true remainingDialogs=0\nboundary: Actual USB chooser owner cleanup only; no device grant/connection. Destroyed document has no live JavaScript promise to report.\ndrive-complete: ui-usb-owner\npage-state: url=http://127.0.0.1:56807/features title=RoomCore features closed=true\nend: ui-usb-owner\nterminate-request-time: 1791038324.598701\n"
+    },
+    "extension-device-initial": {
+      "receipt": {
+        "feature": "ui-extension-device",
+        "exit_status": "139",
+        "elapsed_seconds": "6",
+        "source_commit": "0a87883c720e9a12b5f3e5f246c515ccda301084"
+      },
+      "identity": {
+        "source_head": "0a87883c720e9a12b5f3e5f246c515ccda301084",
+        "tracked_diff_sha256": "ca5e25e175f03a1af9d381d3201349b8480e6a6286f800385a35f39cd88a00d6",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "9759ce77a9562dd4e11cf17a03f9a2183a3efadf4d3563f71ac4dea545bfd000",
+          "Contents/MacOS/Room.debug.dylib": "94d00d5d791b7e5848170b1c6d9db5a989b4148a11378c8089d37c16df2264ee",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "4e0bb9e87aaf9df0d2421bb30b2b835840790b7426e4733e853ce045e3a4ae8a",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "faf1a5e1f6c75fe1f1f7639160839edeaf0757ee5d5660866be10223a8d3723e",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostAutofillUISpike.swift": "a6e9aa167a885b021359e0246458ddf357c6301af923e01cb7f173bcb3e66805",
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "07c26076d300e4af0683b0f98fe7bb028287b05ab3740244909cc79a89a2fa3b",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "41d77ccda7511a2956abdd993b3aacaac2778cd6f5cf576dcc736487ea9b29a4",
+          "App/RoomCore/HostFeatureSpike.swift": "1cf5a24ec6b0f6d030b13831f8a32bcd888a86244f2b7852075693c6d6544b79",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostNetworkUISpike.swift": "8d5b1deca257d840257b342d5c6c0fe52aef2e094f7e01f3778ea7f7c9ac3e3a",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-extension-device\nloadavg: 53.6 56.7 66.0\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\nfrontend-target: [\"type\": page, \"id\": \"DD9EA38DF2E1CBB9E91DB252FF443D0A\", \"url\": chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij/popup.html]\nextension-popup-state: 15\nextension-device-origin: {\n    origin = \"chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij\";\n    usb = object;\n}\n"
+    },
+    "extension-device-repair1": {
+      "receipt": {
+        "feature": "ui-extension-device",
+        "exit_status": "0",
+        "elapsed_seconds": "18",
+        "source_commit": "0a87883c720e9a12b5f3e5f246c515ccda301084"
+      },
+      "identity": {
+        "source_head": "0a87883c720e9a12b5f3e5f246c515ccda301084",
+        "tracked_diff_sha256": "1f3558aabec1e66500e5e9c7d8913e40cb4bab27676c8fd75e3dd09bf4f05bb5",
+        "app": "/Users/j/.codex/worktrees/35bc/room/build/roomcore/DerivedData/Build/Products/Debug/Room.app",
+        "binaries_sha256": {
+          "Contents/MacOS/Room": "0e7d3923e57b03ee38f81c4c939708e0a2200beebb1c26db027292a83b24a43b",
+          "Contents/MacOS/Room.debug.dylib": "94d00d5d791b7e5848170b1c6d9db5a989b4148a11378c8089d37c16df2264ee",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/RoomCore": "f67950e48a343695313b9d241ab0c727767c3e71fa25c3e5d5c5b15e9ca36c37",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libchrome_dll.dylib": "4b71a67f4be6bb3155033c2ee49b1400fd1f8f76bef93bc19c1efc2b093f204f",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca",
+          "Contents/Frameworks/RoomCore.framework/Versions/154.0.8037.58/Libraries/libcontent.dylib": "9470957da7129d726c88255c69f1912e0f5a0309f040c80b4dc9a2588113e3ae"
+        },
+        "host_sources_sha256": {
+          "App/RoomCore/HostAutofillUISpike.swift": "a6e9aa167a885b021359e0246458ddf357c6301af923e01cb7f173bcb3e66805",
+          "App/RoomCore/HostCDP.swift": "b3e0ebc367031548dc4541e6a72632ad1c2b6a221b16ce136579522b518ce0ff",
+          "App/RoomCore/HostController.swift": "654fdc5849752ea788f5a3ac794c99c97f08ed175188289eb598816398e20ec3",
+          "App/RoomCore/HostDeviceChooserSpike.swift": "07c26076d300e4af0683b0f98fe7bb028287b05ab3740244909cc79a89a2fa3b",
+          "App/RoomCore/HostEmbeddedUISpike.swift": "784d5892b4fc78a36211d8138afe341905d94ff6965b5def4ae7c2843fdefe03",
+          "App/RoomCore/HostExtensionUISpike.swift": "41d77ccda7511a2956abdd993b3aacaac2778cd6f5cf576dcc736487ea9b29a4",
+          "App/RoomCore/HostFeatureSpike.swift": "1cf5a24ec6b0f6d030b13831f8a32bcd888a86244f2b7852075693c6d6544b79",
+          "App/RoomCore/HostFileUISpike.swift": "37ba1292dc8146127aa181ec9debf6547dead73f183b5f30b0ea4f4ba9b30bc8",
+          "App/RoomCore/HostMediaUISpike.swift": "653b0032086423e1df5089d12516a628a279e10d10f65c7e8603041dc9b83fb6",
+          "App/RoomCore/HostMenu.swift": "3b0284af24fbfeda382428b4ba01ea17bf8b5935b39583f8aa12e97e524f2ec3",
+          "App/RoomCore/HostNetworkUISpike.swift": "8d5b1deca257d840257b342d5c6c0fe52aef2e094f7e01f3778ea7f7c9ac3e3a",
+          "App/RoomCore/HostSpike.swift": "5db3b657fce888ec3e3003d6f6c1c399b06ca50a44defd8c22c0bc82099a8d52",
+          "App/RoomCore/RoomHostApplication.swift": "1011ff537315d5f3defe8a46f60e84cf7cd5df44ea03d0cf58a869ae27f43235",
+          "App/RoomCore/main.swift": "716c7a23a24f6cdafe3d004573f4431ea0cf64f36ad67015eea276614a4fcd4a"
+        }
+      },
+      "markers": "spike: ui-extension-device\nloadavg: 52.1 41.9 54.9\ncdp-event: Page.domContentEventFired\ncdp-event: Page.loadEventFired\ncdp-event: Page.frameStoppedLoading\nfrontend-target: [\"url\": chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij/popup.html, \"id\": \"87CDE753A014329605B1A4637BE6A76F\", \"type\": page]\nextension-popup-state: 15\nextension-device-origin: {\n    origin = \"chrome-extension://gbbfbhicpglkelgfgllpojcdlcbkedij\";\n    usb = object;\n}\nextension-device-result: [\"name\": NotFoundError, \"message\": Failed to execute 'requestDevice' on 'USB': No device selected.]\nboundary: No extension device grant; rejection is not functional chooser support.\ndrive-complete: ui-extension-device\npage-state: url=http://127.0.0.1:59407/features title=RoomCore features closed=false\nend: ui-extension-device\nterminate-request-time: 1791038677.049932\n"
+    }
+  },
+  "baseline": {
+    "nav": {
+      "nav_exit": 0,
+      "nav_seconds": 12.168,
+      "nav_assertions": "passed"
+    },
+    "quit": "evidence_directory=/var/folders/z5/3xy83w8n657_xdt33yw7g_8w0000gn/T/roomcore-quit-kte_pp5d\n{\"corpus\": \"external-typical-sites\", \"run\": 1, \"pages\": 10, \"helpers_observed\": 25, \"load1\": 45.859375, \"quit_seconds\": 0.694, \"helpers_left\": 0, \"leftover_helpers\": {}, \"new_crash_reports\": [], \"exit_status\": 0, \"helper_grace_seconds\": 5, \"process_observer\": \"ps\", \"process_snapshot_ms\": 0, \"live_process_snapshots\": 667, \"live_process_snapshot_seconds\": 50.631, \"diagnostic_sampling\": false, \"samplers_running_at_browser_exit\": 0}\n",
+    "package_identity_matches": "feature-ui-extension-device-repair1/identity.json"
+  }
+}

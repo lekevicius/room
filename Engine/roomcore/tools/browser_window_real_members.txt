@@ -22,3 +22,7 @@ UpdateTitleBar
 AsBrowserView
 GetLocationBar
 GetExclusiveAccessContext
+GetWebContentsModalDialogHost
+GetWebContentsModalDialogHostFor
+CreateFindBar
+GetAutofillBubbleHandler

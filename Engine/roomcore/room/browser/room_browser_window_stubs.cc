@@ -122,11 +122,6 @@ void RoomBrowserWindow::SetContentsSize(const gfx::Size& size) {
   RoomStubHit("SetContentsSize");
 }
 
-autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
-  RoomStubHit("GetAutofillBubbleHandler");
-  return nullptr;
-}
-
 void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
   RoomStubHit("SetFocusToLocationBar");
 }
@@ -172,14 +167,6 @@ void RoomBrowserWindow::FocusAppMenu() {
   RoomStubHit("FocusAppMenu");
 }
 
-bool RoomBrowserWindow::IsTabStripEditable() const {
-  RoomStubHit("IsTabStripEditable");
-  return false;
-}
-
-void RoomBrowserWindow::DisableTabStripEditingForTesting() {
-  RoomStubHit("DisableTabStripEditingForTesting");
-}
 
 bool RoomBrowserWindow::IsToolbarVisible() const {
   RoomStubHit("IsToolbarVisible");
@@ -238,21 +225,6 @@ void RoomBrowserWindow::PreHandleDragExit() {
 
 void RoomBrowserWindow::HandleDragEnded() {
   RoomStubHit("HandleDragEnded");
-}
-
-std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
-  RoomStubHit("CreateFindBar");
-  return nullptr;
-}
-
-web_modal::WebContentsModalDialogHost* RoomBrowserWindow::GetWebContentsModalDialogHost() {
-  RoomStubHit("GetWebContentsModalDialogHost");
-  return nullptr;
-}
-
-web_modal::WebContentsModalDialogHost* RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents* web_contents) {
-  RoomStubHit("GetWebContentsModalDialogHostFor");
-  return nullptr;
 }
 
 void RoomBrowserWindow::ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) {

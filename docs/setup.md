@@ -77,6 +77,19 @@ bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
 scripts/roomcore-package.sh   # stage the framework, build the Swift host (scheme "Room (RoomCore)")
 ```
 
+Engine-level checks (from PR #1, merged in 3.1a), all on the packaged host
+(`ROOM_APP` overrides the app path): `scripts/roomcore-baseline.sh <new-dir>`
+(nav assertions, then the ten-page clean quit), `scripts/roomcore-features.sh`
+(the 18 feature drives on loopback fixtures from `scripts/roomcore-fixtures.py`),
+`scripts/roomcore-netlog.sh` (launch, 600 s idle, quit, NetLog) summarised by
+`scripts/roomcore-netlog-summary.py <netlog.json>` (requests by host and Chromium
+traffic annotation; TLS failures through source dependencies). The shutdown
+diagnostics use `scripts/roomcore_process_observer.py` and
+`scripts/roomcore_thread_observer.py` (libproc through `ctypes`, read-only;
+Python 3 from the Command Line Tools, no packages) from
+`scripts/roomcore-shutdown-local.py`; `python3 scripts/tests/test_roomcore_netlog.py`
+tests the summariser.
+
 The full Chromium history is needed (the `room` branch is rebased onto new
 tags); do not use `--no-history`.
 

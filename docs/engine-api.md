@@ -176,6 +176,62 @@ Counts are from one run of `scripts/chrome-surfaces.sh --session 2.6b` (light; t
 | **DownloadsDelegate** `willBeginDownload` | `DownloadList` picks the file (Settings' folder, "(1)" numbering), the fly-in | downloads.html: five downloads (5) |
 | `didUpdateDownload` | the footer ring, bounce and badge; the popover's rows | 52 updates; pause, resume and cancel through `Profile` |
 
+## RoomCore (Chapter 3 inputs)
+
+From PR #1 (`bg/roomcore-hardening`, merged in 3.1a); the planner's review is `research/notes/roomcore-hardening-review.md`. The shutdown watchdog these notes call open is B-38.
+
+### RoomCore background hardening (2026-10-03 component build)
+
+The original feature drives do not cover the full Chrome UI contract. See
+[the expanded UI surface audit](../research/notes/roomcore-ui-surface-audit.md)
+for missing chooser, capture/session, autofill, extension, print-preview and
+DevTools-hosting boundaries. This is Chapter 3 design input; no public ObjC API
+is added by the audit.
+
+The existing public ObjC headers remain unchanged. Private `-RoomSpike` host
+commands exercise Chrome find/zoom/print without becoming product API.
+RoomBrowserWindow now supplies a Views-backed modal parent, permission bubble
+anchor, FindBarOwner, and FedCM bubble/modal anchors with a primary Views
+context. Tab editability reflects the live model; explicit activation makes
+NSApp active before making its window key. Native product UI still needs the Chapter 3 contracts
+listed in research/notes/spike-results.md.
+
+RoomCore startup policy suppresses automatic Chrome-account, cloud-policy,
+component-update, Safe Browsing update, model/speech-download, search-preconnect
+and time-query traffic. Ordinary page networking remains active. Component
+registration and explicit update APIs remain available. A page request for
+`com.widevine.alpha` provisions Widevine on demand through a document-scoped
+internal Mojo service; installed CDMs are reused without an update request.
+The service checks the active document, trustworthy origin and encrypted-media
+policy, coalesces requests, and bounds failed provisioning to 60 seconds.
+Fresh-profile MediaKeys creation is verified; licensed playback remains unverified.
+See roomcore-network-audit.md under
+research/notes for switches, hooks, measurements and scope limitations.
+Crashpad uses `<selected user-data directory>/Crashpad`; callers omitting the
+data directory retain Chromium's existing default. The Room host supplies its
+Room/RoomCore root.
+
+Serial quit is verified, but concurrent teardown remains an open reliability
+issue; see research/notes/roomcore-shutdown-investigation.md. Diagnostic
+sampling is opt-in and its timings are identified separately from baselines.
+
+Renderer loss is contained by a Cocoa crash fallback for Room-owned pages,
+using SadTabHelper's existing renderer-ready lifetime. Reload removes it and
+restores the page in the component probe. This introduces no public API;
+Chapter 3 still needs crash status, accessible retry and reporting UI.
+
+### Pre-Chapter3 UI qualification (2026-10-03)
+
+The bounded [RoomCore UI handoff](../research/notes/roomcore-ui-handoff.md)
+qualifies the mapping above; it is not a public API extension. Retained Chrome
+bubbles, print preview, native file sheets, synthetic capture and direct
+extension-popup hosting have measured spike evidence. Password/extension
+toolbar ownership, DevTools docking, persistent activity and pending-download
+close decisions still need host contracts. Address fill and local-card owner
+closure have explicitly failed/unverified probe acceptance. Preserve those
+boundaries when designing Chapter3 delegates; the existence of a Chromium
+controller does not imply that Room exports or correctly hosts its full flow.
+
 ## Review
 
 2026-10-02: every row checked against the CEF 154 headers/libcef source, the Chromium 154.0.8037.58 checkout and the ArcCore headers (a separate review pass, ~83 rows). 19 corrections applied (signatures, enum names, M154 renames such as `chrome_security_state::GetSecurityLevel`, and four CEF "not available" claims that turned out emulatable or partial). Not verified by reading code: runtime claims marked *emulated* (Phase 1.4 measures them) and DevTools hosting through `DevToolsUIBindings` (Chapter 3 design).

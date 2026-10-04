@@ -133,3 +133,183 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-03 | `-RoomSpike open10`, ten typical sites to `ready` | 12 / 12 / 12 s (load 8–13); 16 / 14 / 34 s (load 15–69) | 24–35 helper processes; browser process RSS 329–443 MB |
 | 2026-10-03 | Quit with 10 pages (`NSApp.terminate`, the ⌘Q path), "end" line to process exit ×6 | 0.31 / 0.18 / 0.26 s (load 8–13); 0.34 / 0.55 / 3.24 s (load 15, 16, 69) | exit 0, 0 crash reports; one `code-sign-clone-cleanup` helper (Chrome deleting its code-sign clone of the app) exits 1.4 s after the browser |
 | 2026-10-03 | Quit by SIGTERM after real mouse/scroll input in the page | 0.06 s | 0 helpers left after 2 s, 0 crash reports |
+
+## RoomCore background hardening — M1 Max laptop, 2026-10-03
+
+64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior
+17,224/70,495-step run (3,010 s). Source symlink points to the isolated
+`bg/roomcore-hardening` worktree; five existing patches unchanged.
+
+| Local time (Europe/Vilnius) | Elapsed | Progress / result | Priority / load |
+|---|---|---|---|
+| 2026-10-03 02:28:07 | start | resumed `autoninja -C out/dev chrome`; Siso recalculates remaining total after regeneration | build and Siso nice 0, default jobs; load 20.59 / 45.70 / 49.30 |
+| 2026-10-03 02:46:19 | 18 m 12 s | 5,385 / 51,154 remaining-run graph steps (Siso recalculated total); still compiling V8/media | nice 0; load 440.95 / 443.86 / 348.54; 10 logical CPUs, 68,719,476,736 bytes RAM |
+| 2026-10-03 03:09:20 | 41 m 13 s | 11,755 / 47,624 graph steps; compiling Blink core/platform, no failure/completion marker | nice 0; load 504.45 / 476.79 / 436.47 |
+| 2026-10-03 03:28:06 | 59 m 58.68 s | hourly sample recovered from log: 14,381 / 47,505 graph steps, Blink CSS | load not sampled at exactly one hour |
+| 2026-10-03 03:34:28 | 1 h 6 m 20.83 s | 14,904 / 47,504 graph steps, Blink SVG/style; no failure/completion marker | build/Siso nice 0; load 505.28 / 499.28 / 484.07 |
+| 2026-10-03 03:59:22 | 1 h 31 m 15.27 s | 17,002 / 47,361 graph steps, Blink bindings/payments; no failure/completion marker | build/Siso nice 0; load 426.61 / 458.57 / 474.10 |
+| 2026-10-03 04:24:22 | 1 h 56 m 15.32 s | 21,458 / 46,951 graph steps, Views/permissions/download components; no failure/completion marker | build/Siso nice 0; load 490.11 / 490.62 / 486.98 |
+| 2026-10-03 04:28:05 | 1 h 59 m 58.49 s | hourly sample recovered from log: 22,159 / 46,860 graph steps; second hour +7,778 completed steps | load not sampled at exactly two hours |
+| 2026-10-03 04:49:29 | 2 h 21 m 22.26 s | 27,080 / 44,307 graph steps, extensions/web apps/autocomplete; no failure/completion marker | build/Siso nice 0; load 490.20 / 482.00 / 477.36 |
+| 2026-10-03 05:14:23 | 2 h 46 m 15.72 s | 34,961 / 40,924 graph steps, Chrome enterprise/UI components; no failure/completion marker | build/Siso nice 0; load 492.17 / 482.50 / 479.04 |
+| 2026-10-03 05:28:07 | 2 h 59 m 59.50 s | hourly sample recovered from log: 37,004 / 40,556 graph steps; third hour +14,845 completed steps | load not sampled at exactly three hours |
+| 2026-10-03 05:39:26 | 3 h 11 m 18.86 s | 38,955 / 39,975 graph steps, Chrome WebUI/preloading components; no failure/completion marker | build/Siso nice 0; load 480.14 / 481.37 / 485.62 |
+| 2026-10-03 05:41:37 | 3 h 13 m 30 s | **Build succeeded**, 39,698 executed graph steps; 39,084 local, 614 noexec, 45,805 skipped; **11,610 s resumed**, **14,620 s cumulative (4 h 3 m 40 s)** | nice 0; Siso localexec capacity **10**, action pool 10; retry 0; final load 404.72 / 462.97 / 478.30 |
+
+Total clean branded time must add 3,010 s from the earlier partial run to
+this resumed build; do not call the resumed wall time a clean-build total.
+
+
+Build completion was observed at the 06:04 scheduled poll; compiler processes
+had exited and system load had fallen to 29.13 / 33.90 / 121.27. No compiler
+failures or retries occurred. The five patches and //room sources remained
+unchanged throughout the resumed build.
+
+### Laptop baseline after completed component build (2026-10-03)
+
+| Check | Laptop result | Mac mini comparison |
+|---|---|---|
+| Package/sign | 518 component dylibs, 916 MB staged, 917 MB app; stage 5.3 s, cold host build 20.8 s; deep/strict ad-hoc signature valid | 518 dylibs; 916 MB; package about 10 s |
+| nav | 14.209 s whole process; exit 0; load/back/forward/reload URLs and history flags correct; reload KVO observed; native view 1034×788 in window | 12.2–18.2 s whole process; 991×758 native view |
+| open10 | ready 15 s, process 18.358 s, 10 pages, 0 loading at ready, exit 0; load 17.1 / 28.3 / 108.9 | ready 12 s at load 8–13 |
+| ten-page quit, valid samples | 0.493 / 0.471 s; 27 / 29 helpers observed, 0 left after grace, 0 new crash reports, exit 0; load1 23.18 / 38.50 | 0.18–0.55 s at load 8–16 |
+| ten-page quit, rejected sample | third attempt had 1 of 10 pages still loading after 63 s; script correctly failed the fixture instead of reporting it as a valid ten-loaded-page timing; process exited 0 | no directly matching failure recorded |
+
+Raw laptop evidence: `research/notes/baseline-laptop-initial/` (local,
+ignored). Quit raw runs: `/var/folders/z5/3xy83w8n657_xdt33yw7g_8w0000gn/T/roomcore-quit-pvi8xptc`.
+Baseline nav and two ten-loaded-page clean quits pass; external-page timeout
+is explicitly retained as a rejected sample. Added per-page diagnostics and
+explicit warning-level stderr logging to subsequent spikes: the first-hit
+stub logger was compiled in, but Chromium's default stderr configuration did
+not print its WARNING messages in the initial captures.
+
+Post-modal-fix laptop baseline: nav 11.935 s; ten loaded pages, quit 0.442 s
+at load1 32.85, 28 helpers observed, 0 left, no new crash reports, exit 0.
+Raw evidence: `baseline-modal-final` and `roomcore-quit-auqwxlkm` in TMPDIR.
+
+## Background hardening follow-up — 2026-10-03 laptop
+
+Default jobs/nice 0 retained. Network-policy last incremental 16 s / 2 steps;
+Crashpad incremental 18 s / 2 steps. Ad-hoc packaging valid, 518 dylibs,
+916 MB framework, 918 MB host after feature driver additions. One pre-build
+apply-script failure was a pipefail/SIGPIPE false negative, not a compiler
+failure; corrected history consumption, one retry succeeded (0 applied,
+6 already). Original five patches unchanged; sixth scheduler hook justified
+in roomcore-network-audit.md. No outside-//room compiler failure/retry.
+
+Post-network baseline nav 23.598 s, ten-page quit 4.240 s, load1 38.39,
+26 helpers/0 remaining/0 crash reports. Post-Crashpad nav 19.676 s,
+ten-page quit 2.591 s, load1 43.40, 26 helpers/0 remaining/0 crash reports.
+Network before/after: 600 s idle each; 62→0 HTTP requests, 86→0 connections,
+9→0 DNS. Final feature regression has 18 clean process exits; fullscreen
+unsupported and native UI acceptance gaps remain (spike-results.md).
+
+Demand-CDM follow-up: //room API adjustments failed before compiling; the
+first link then exposed the missing direct Blink platform/media dependency.
+That dependency fixed the link in 18 s. GN check exposed a private Content
+header; replace it with a public-CdmInfo callback hook instead of weakening
+visibility. Final incremental 27 s / 15 steps, load 30.52 / 27.26 / 26.54;
+GN header check passes. Package 518 dylibs, 918 MB app, valid ad-hoc signature.
+
+FedCM follow-up: anchor/probe build 24 s / 4 steps; after exposing the separate
+primary-widget dependency, context initialization build 28 s / 3 steps at
+load 14.91 / 15.50 / 19.78. Direct GN dependency declaration recheck took
+12 s / 0 actions. GN check for all //room targets passes. Passive bubble and
+active loading modal probe 18 s, exit 0. Post-change nav 12.447 s, ten-page
+quit 0.635 s, load1 28.40, 27 helpers / 0 remaining / 0 new crashes, exit 0.
+
+Tab-editability fix: 22 s / 6 steps at load 14.85 / 16.81 / 19.68; GN check
+all //room targets passes. Extension tabs count 1→2→1 and popup create/remove
+pass (24 s process, exit 0). Post-change nav 11.570 s; ten-page quit 0.534 s,
+load1 12.39, 24 helpers / 0 left / 0 new crash reports, exit 0.
+
+Explicit native activation: 20 s / 2 steps, load 9.42 / 14.28 / 17.62.
+Extension lifecycle/action probe 18 s, exit 0; AppKit active/key/main true.
+Post-change nav 11.419 s; ten-page quit 0.549 s, load1 11.05, 26 helpers /
+0 remaining / 0 new crashes, exit 0.
+
+Renderer-crash containment: first incremental failed inside //room on deprecated
+NSBox.borderType after 19 s; corrected to borderWidth=0. Final 22 s / 3 steps,
+load 21.29 / 34.83 / 46.76, nice 0/default jobs; GN check all //room passes.
+Ad-hoc strict package valid, 518 dylibs, 916 MB framework, 918 MB host (12 s
+host build). Intentional crash/reload probe 39 s, exit 0. Post-fix nav 21.170 s;
+ten loaded pages quit 0.554 s at load1 18.00, 26 helpers / 0 left / 0 new
+crash reports, exit 0. No diagnostic sampling. Evidence: baseline-sadtab-build,
+feature-renderer-crash, baseline-sadtab and TMPDIR roomcore-quit-_y_gjafd.
+
+## Shutdown worker startup correction — 2026-10-03, laptop
+
+Explicit standalone room_worker_shutdown_probe: initial Room-only compile
+failure (SDK/constructor mismatch), corrected6.74s/2steps. It uses existing
+out/dev component libraries. Patch0010 Chrome+probe rebuild30.66s/15steps,
+Chromium7ac71cfacf83f. Packaging stage4.4s + host13s, strict signature valid.
+Probe: entry after shutdown background/QoS9 → default/QoS25; normal entry9
+unchanged, probe exit2 →0. No browser hang is asserted by this diagnostic.
+Required real-site serial baseline: nav20.447s; ten loaded pages quit3.083s,
+load29.759,26helpers/0left/0crashes,exit0. Details: shutdown investigation and
+baseline-shutdown-worker-start. Concurrent B-38 remains a separate open gate.
+
+
+## 2026-10-03 — bounded UI pass, autofill
+
+Deferred shutdown candidate archived before source edits; accepted10-patch
+Chromium restored, Room rebased onto main2239107 without protected source
+changes. Probe build first failed on a capturing BindOnce lambda; correction
+built56s/69steps. First repair compile corrected raw_ptr-set iteration, then
+built27s/36steps. Missing direct ToolbarButtonProvider GN dependency corrected.
+Second/final runtime repair adds window lookup hook and optional promo guard:
+Chromium2f06f6d7533a5,63s/5steps,nice0/default jobs,out/dev reused, completion
+load34.09/30.55/33.18. GN room dependency check passes. Packaging stage5s,
+host10.3s,518dylibs,916MBframework/918MBapp,strict ad-hoc signature valid.
+Required baseline nav15.105s,ten loaded real pages quit2.933s,28helpers/0left,
+0newcrashes,exit0,load1 20.385. Address callback results and final-tab exit
+failure are separately qualified in roomcore-ui-compatibility-results.md.
+
+
+## 2026-10-03 — embedded UI diagnostic checkpoint
+
+Private print/DevTools hooks only; no production/network/patch changes.
+Initial build31s/13steps,load31.15/39.85/34.79,GNpass,package3.7+15.2s.
+Print export hook missing RefCountedMemory include failed one compile;
+correction25s/2steps,load55.47/48.95/40.62,GNpass,package4.4+8.5s,strict
+ad-hoc signature valid. Host stand-in typecheck and shell syntax pass.
+Print29s initial driver failure on cancel-CDP race, corrected29s/exit0:
+two rendered one-page previews, both cancel/reopen,49,366-byte one-page A4
+PDF1.4 output from real preview pipeline. DevTools9s/exit0,window exists
+but no docking controller; concrete Chapter3 blocker. Results/identities
+in roomcore-ui-compatibility-results.md and embedded-checkpoint.json.
+
+
+## 2026-10-03 — synthetic media UI checkpoint
+
+Private diagnostic changes only; public API, original patches and production
+media/network policy unchanged. Build34s/2steps,load56.72/50.34/44.80; GN and
+stand-in Swift typecheck pass, strict ad-hoc package valid (host14.2s).
+Camera deny18s, mic deny8s, combined fake capture/indicator/stop12s, screen
+picker cancel14s, all exit0. Generated VP8/WebM3,951bytes, initial4frames and
+verified8frames; video PiP590×332 in12s/exit0. Document PiP320×180 opens/closes
+and owning-tab closure removes its identified target in9s/exit0. Initial
+size-after-close and ambiguous CDP target-count observations are retained as
+probe limitations/failures, with bounded source-backed host corrections.
+Muted WebAudio48kHz/0.405333s has engine muted+audible state3. No real camera,
+mic or screen captured. Existing baseline/audit identities are not relabeled.
+
+
+## 2026-10-03 — direct MV3 popup diagnostic
+
+Existing out/dev, default jobs, private CLI probe only:33s/13steps, load55.25/40.12/42.55. GN dependency check passes. Package stage4.4s/host18.7s, strict signature valid. Real popup lifecycle drive18s/exit0, details in roomcore-ui-compatibility-results.md. No production behavior or network-policy change.
+
+
+## 2026-10-03 — native file and download diagnostic
+
+Initial compile failed after29.67s at a probe-only static/member DownloadManager call. Corrected build26s/2steps, load49.85/50.86/45.11; GN/Swift checks pass. Package stage4.8s/host14.3s, strict signature valid. File input20s, filesystem13s, download-close boundary10s, destination cancel11s; all exit0. Production code/policy unchanged; see UI results for unsupported close-decision UI.
+
+
+## 2026-10-03 — local card registration fix and bounded autofill diagnostics
+
+Probe38s/2steps; production registration fix29s/2steps,load113.41/98.40/75.07; final private diagnostic32s/2steps,load89.16/91.45/80.38. GN/stand-in Swift/strict signature pass after explicit probe dependency and Swift expression corrections. Baseline after production fix:nav17.169s;10loaded external pages quit4.840s,load72.982,26helpers0left0newcrashes,exit0. Card crash7s/139 before fix; cancel/accept repair19s/0. Final owner setup failed11s/0, not a lifetime pass. Address suggestion final19s/0 generates3rows but selection remains unverified due keyDown vs rawKeyDown probe boundary. See UI results and exact identity manifest.
+
+
+## 2026-10-03 — extension chooser guard and final UI checkpoint
+
+Connection diagnostic29s/2steps,load42.39/56.80/68.49. Local/loopback permission19s/exit0; USB chooser owner cleanup11s/exit0. Extension-origin USB crashes6s/exit139 at BrowserView::toolbar_button_provider. Patch0012 nullable-provider guard: first compile11.15s failed due removed transitive BaseWindow include; one corrected retry19s/2steps,load21.81/35.26/53.95. Both GN checks and strict ad-hoc package pass,host8.8s. Regression18s/exit0 safely rejects NotFoundError. Required baseline nav12.168s,10loaded external pages quit0.694s,25helpers0left0newcrashes,exit0,load45.859; no sampling,original5s grace. Apply0/12. See roomcore-ui-handoff.md and exact connection manifest.

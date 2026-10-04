@@ -85,6 +85,15 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
         browser.close()
     }
 
+    func activationSnapshot() -> [String: Bool] {
+        let window = windowController?.window
+        return ["applicationActive": NSApp.isActive,
+                "windowKey": window?.isKeyWindow ?? false,
+                "windowMain": window?.isMainWindow ?? false,
+                "canBecomeKey": window?.canBecomeKey ?? false,
+                "visible": window?.isVisible ?? false]
+    }
+
     // MARK: Pages
 
     @discardableResult
@@ -107,6 +116,26 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
     }
 
     var pages: [RoomWebContents] { browser?.webContents ?? [] }
+
+    func runSpikeCommand(_ command: Int) throws {
+        let selector = NSSelectorFromString("roomSpikeCommand:")
+        guard let browser, browser.responds(to: selector) else {
+            throw HostCDP.Failure("missing test-only Chrome command hook")
+        }
+        let result = browser.perform(selector, with: NSNumber(value: command))?.takeUnretainedValue() as? NSNumber
+        guard result?.boolValue == true else {
+            throw HostCDP.Failure("Chrome command \(command) disabled or rejected")
+        }
+    }
+
+    func runSpikeAction(_ action: String) throws -> Int {
+        let selector = NSSelectorFromString("roomSpikeAction:")
+        guard let browser, browser.responds(to: selector),
+              let result = browser.perform(selector, with: action as NSString)?.takeUnretainedValue() as? NSNumber else {
+            throw HostCDP.Failure("missing private fixture action hook")
+        }
+        return result.intValue
+    }
 
     private func show(_ page: RoomWebContents?) {
         guard page !== current || windowController?.cardView.contentView !== page?.nativeView else { return }

@@ -13,14 +13,20 @@ core.delegate = host
 do {
     // Separate from the CEF build's Engine directory: different engine,
     // different profile format.
+    let requestedDirectory = UserDefaults.standard.string(forKey: "RoomUserDataDir")
     let userData = try AppPaths.ensureDirectory(
-        AppPaths.applicationSupport.appending(path: "RoomCore", directoryHint: .isDirectory))
+        requestedDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? AppPaths.applicationSupport.appending(path: "RoomCore", directoryHint: .isDirectory))
     // Ad-hoc builds get a new code identity per build, so macOS asks for the
     // login password before every read of the "Room Safe Storage" item, and
     // the cookie store (which needs that key) holds every navigation until it
     // is answered. Team-signed builds keep their identity and use the real
     // keychain.
     var arguments = CommandLine.arguments
+    if HostSpike.requested != nil {
+        // Preserve BrowserWindow first-hit logs in each spike's captured stderr.
+        arguments += ["--enable-logging=stderr", "--log-level=0"]
+    }
     if CodeSignature.teamIdentifier == nil {
         arguments.append("--use-mock-keychain")
     }

@@ -635,3 +635,332 @@ The screen locked during a later bisect run (macOS locks the session when a Scre
 Run 3 (1280 × 800 display, no Screen Sharing) moved little: switching 11.5 / 18.2 and 13.2 / 19.1 ms, the page visible after 4.1 / 3.9 ms, relaunch to the selected page 1.40 / 1.28 s.
 
 Not regressions: tab switching and the palette's first key are where the phases left them once conditions are equal; the visible-window switch and the relaunch are new conditions (B-41, B-42). Two findings that are the product's, both in the backlog: `RoomStorage.open` runs `PRAGMA integrity_check` over the whole database at every launch, 0.35–0.56 s at 50k history rows (B-42); a certificate exception cannot be revoked from Room (B-43). The spikes' CEF-only driving paths are B-44.
+
+## Background hardening (laptop, 2026-10-03)
+
+PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.
+
+### RoomCore background hardening — laptop M1 Max (2026-10-03)
+
+Component build with active DCHECKs, five original patches unchanged. Each
+feature uses an isolated profile and warning-level first-hit stub logging.
+Native visual/click checks remain explicit reviewer tasks under AGENTS.md.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| dialogs | JavaScriptTabModalDialogManagerDelegateDesktop → JavaScriptTabModalDialogViewViews → constrained_window_views.cc:295; NativeWidgetMac::InitNativeWidget at native_widget_mac.mm:589 | GetWebContentsModalDialogHostFor, GetWebContentsModalDialogHost; native Views parent | Previous null host CHECK (exit 134), then arbitrary NSView parent DCHECK (exit 134). //room supplies a lazy WebContentsModalDialogHost and transparent noninteractive Views child anchor tied to the Swift NSWindow; host observers follow resize/move and teardown. Three dialogs opened/closed, cancelled results undefined/false/null, page alive, exit 0; no watchdog. Native appearance/focus still needs review. |
+| keys | CDP Input.dispatchKeyEvent → RenderWidgetHost input | common activation/toolbar stubs only in this page-event drive | Page recorded a/KeyA, exit 0, no watchdog. Native reserved shortcuts and alternate layouts unverified. |
+
+Evidence: `feature-dialogs-cdp-close`, `feature-keys-cdp-close` (local ignored
+raw logs). Modal rebuilds: 24 s initial, 20 s final teardown version; final
+package stage 3.5 s + host 8.1 s, signature valid. Post-fix baseline
+`baseline-modal-final`: nav **11.935 s**, assertions passed; ten loaded pages,
+quit **0.442 s**, load1 **32.85**, 28 helpers observed, **0 left**, **0 new
+crash reports**, exit **0**. Private API headers and patch files unchanged.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| permissions | PermissionPromptBaseView::AnchorToPageInfoOrChip → bubble_anchor_util_views.cc GetPageInfoAnchorConfiguration | GetLocationBar → GetChipAnchor; Views native parent | Null BrowserView fallback caused SIGSEGV (exit 139). Return a 1×1 Views anchor via the existing LocationBar hook. Notification/geolocation trigger survives, exit 0 in 16 s. Native prompt completion/layout is still unverified. |
+
+Permission-anchor baseline: nav **13.694 s**, ten-loaded-page quit **0.647 s**
+at load1 **18.40**; 28 helpers observed, **0 left**, **0 new crash reports**,
+exit **0**. Evidence `feature-permissions-anchor`, `baseline-permissions`,
+TMPDIR `roomcore-quit-7h1b5zin`. No raw patch or public header changes.
+
+| Feature | Chrome path | Window members needed | Fixed how / result |
+|---|---|---|---|
+| find | chrome::Find → BrowserWindowFeatures::GetFindBarController → FindBarPlatformHelperMac::UpdateFindBarControllerFromPasteboard | CreateFindBar, native Views owner/bounds | Null FindBar caused SIGSEGV, exit 139. //room FindBarOwner returns Chrome FindBarHost; find and next survive, exit 0 in 18 s. Native keyboard/focus and match counts pending. |
+
+Find baseline: nav **11.970 s**, ten loaded pages, quit **2.262 s**, load1
+**15.57**, 27 helpers observed, **0 left**, **0 crash reports**, exit **0**.
+Evidence `feature-find-owner`, `baseline-find`, TMPDIR `roomcore-quit-99uooayy`.
+
+#### Feature surface matrix after three crash fixes
+
+All 18 feature triggers have run on the component build. The 17 completed
+drives below exit 0 without watchdog intervention; fullscreen exits 0 but its
+promise is rejected, so the driver correctly reports an error. This is **not**
+a claim that all 18 functional acceptance checks are complete. Native UI gaps
+are listed explicitly. The final regression is recorded below.
+
+`C` below is the common first-hit set observed in every feature process:
+`GetCanResize GetRestoredState GetStatusBubbles GetWindowShowState GetWorkspace
+IsVisibleOnAllWorkspaces OnTabDetached UpdateLoadingAnimations
+UpdateReloadStopState UpdateToolbar UpdateToolbarSecurityState`.
+The log lists called stubs, not every real member Chrome uses. Extra real
+interfaces required to repair a crash are named separately.
+
+| Feature | Chrome path driven | Window members needed / logged | Fix and observed result | Remaining acceptance |
+|---|---|---|---|---|
+| popups | Browser navigation / AddNewContents; Blink date picker | C + LinkOpeningFromGesture | 10 s, two windowOpen events; host still owns 1 page; popup Browsers fall back to Chrome BrowserView | Swift ownership of new pages/windows, native select/color/date anchoring |
+| dialogs | JavaScriptTabModalDialogViewViews / constrained_window | C + GetWebContentsModalDialogHostFor/GetWebContentsModalDialogHost | Modal-host fix; all 3 opening/closed events, cancelled undefined/false/null, exit 0 | Native focus/appearance, beforeunload |
+| keys | CDP Input.dispatchKeyEvent / renderer input | C | a/KeyA received, exit 0 | Native reserved shortcuts, alternate keyboard layout |
+| audio | Blink HTMLMediaElement → audio service | C | 11 s; playback clock reached 0.076211 s after 201.8 ms polling, readyState 4, not paused | Audible output and Web Audio oscillator |
+| scroll | Blink rAF / compositor scroll | C | 180 frames / 3006.4 ms, scrollY 1440; exit 0 in 12 s | Native wheel / clipped composite |
+| transparent | CDP Emulation background / Blink paint | C | alpha-zero background drive, exit 0 in 9 s | Native material composite capture |
+| corners | Blink paint / native web contents view | C | body rgb(208,16,90), exit 0 in 8 s | Native resize/clipping/hairline capture |
+| band | CDP Input.dispatchMouseEvent | C | page coordinates [200,8], [200,34], exit 0 in 9 s | Native toolbar hit testing |
+| form | Blink form submit / Chrome password manager | C | HTTP GET submitted test fields, password-save IPH code reached, exit 0 in 8 s | Save prompt and stored autocomplete selection |
+| extension | Chrome extension loader / MV3 worker / content script | C | worker-installed console message; content-script-ran after reload, exit 0 in 10 s | chrome.tabs/windows, action popup, extension manager |
+| downloads | Browser download manager, local Content-Disposition | C | exact 26-byte fixture saved, exit 0 in 8 s; CDP selects destination | Native destination chooser and cancellation UI |
+| permissions | PermissionPromptBubble → bubble_anchor_util_views | C + modal host; LocationBar.GetChipAnchor | Views anchor fix; 2 real Deny actions; notification denied + geolocation error 1; 19 s, exit 0 | Native prompt anchoring/focus and dismissal UI |
+| auth | HTTP login handler / constrained-window dialog | C + both modal-host getters | 401 challenge cancelled, then fixture credentials produce HTTP 200; serial 10 s, exit 0 | Native credential fields/focus; concurrent teardown failure retained below |
+| certificate | SSL blocking page / security interstitial | C | Privacy error title for self-signed fixture, exit 0 in 10 s | Back/leave action |
+| find | Chrome Find command / FindBarController / FindBarHost | C + CreateFindBar/modal host; FindBarOwner | Find owner fix; 400 matches / 400 DOM rows; next and close commands; 17 s, exit 0 | Native focus and typing |
+| zoom | Chrome zoom commands / ZoomController | C | scale ratios 2.2 → 2 → 1.8 → 2; exit 0 in 23 s | Native zoom feedback UI |
+| print | Chrome print command / print preview / constrained-window | C + both modal-host getters | Print trigger and close survive, exit 0 in 9 s | Preview contents and native cancellation; no print job sent |
+| fullscreen | FullscreenController / ExclusiveAccessContext | C + IsTabStripEditable | Safe rejection: TypeError not granted; exit 0 in 6 s | Unsupported: RoomExclusiveAccessContext::CanUserEnterFullscreen returns false |
+
+Chapter 3 must provide host ownership for popup/new-tab windows, native
+address/permission anchors, find focus and keyboard routing, permission/auth
+completion, download status/cancellation, extension actions, and a page
+fullscreen state machine with visible origin/escape affordance. Null-returning
+stubs cannot provide those contracts. A safe rejection is recorded as an
+unsupported surface, never as successful fullscreen. Native composition and
+input checks need reviewer interaction under the current AGENTS.md rule.
+
+#### Final regression after network and Crashpad changes
+
+2026-10-03, feature-final2-* evidence, ad-hoc packaged component build.
+The first final attempt found a driver race (pending URL before committed DOM),
+not an engine crash. After adding explicit document readiness, all 18 processes
+exit 0 without watchdog intervention. Fullscreen remains an explicit refused
+promise; this does not establish working fullscreen or close the native UI gaps.
+
+| Feature | Process seconds | Result |
+|---|---:|---|
+| popups | 16 | 2 windowOpen events; host-owned page count 1 |
+| dialogs | 9 | 3 dialogs dismissed through Chrome callbacks |
+| keys | 8 | a/KeyA received |
+| audio | 11 | Playback clock advanced |
+| scroll | 11 | rAF scrolling completed |
+| transparent | 8 | rgba(0,0,0,0) |
+| corners | 9 | Fixture loaded |
+| band | 8 | Both page coordinates received |
+| form | 8 | Form submitted |
+| extension | 10 | content-script-ran |
+| downloads | 8 | Exact 26 bytes saved; native chooser bypassed by CDP |
+| permissions | 8 | Prompt trigger survived |
+| auth | 10 | Challenge observed |
+| certificate | 10 | Privacy error interstitial observed |
+| find | 10 | Find/next commands survived |
+| zoom | 12 | Plus/reset/minus/reset completed |
+| print | 9 | Chrome print command survived |
+| fullscreen | 5 | Unsupported safe rejection; no functional pass |
+
+Last engine-change baseline: nav 19.676 s, ten loaded pages, quit 2.591 s,
+load1 43.40, 26 helpers observed, 0 left, 0 new crash reports, exit 0.
+The net-log parser's 8 regression tests pass. No public-header changes.
+
+#### Stronger completion probes
+
+- Permissions: 2 Chrome PermissionRequestManager::Deny calls complete the
+  actual page promises: notification "denied", geolocation PERMISSION_DENIED
+  (1). 19 s process, exit 0. No synthetic Browser.setPermission override.
+- HTTP auth: LoginHandler cancel, reload, supply room/spike, then fixture HTTP
+  200 and expected H1. Serial repeats exit 0 in 13 s and 10 s. The first
+  concurrent run hit Chrome's teardown watchdog and exited 2 after completion;
+  this is a rejected sample, not a pass. Raw evidence retained.
+- Find: private helper starts "Row", waits for the current request ID and full
+  count; 400 DOM rows / 400 matches, then Find Next and Close Find. 17 s, exit 0.
+  Earlier probe reads of 0 and 189 were rejected; the first was a stale query,
+  and the second was sampled before the count settled. No DCHECK disabled.
+- New actions are private ObjC selectors, require -RoomSpike and a 127.0.0.1
+  active page, and use Chrome's real completion paths. Public headers unchanged.
+
+Post-probe baseline: nav 11.274 s; ten-page quits 1.209 s (load1 23.93) and
+0.742 s (load1 46.18), each 26 helpers / 0 left / 0 crash reports, exit 0.
+Third repeat rejected: Stack Overflow remained loading at 63 s, only 9/10
+pages loaded. Earlier concurrent sample quit 1.910 s but retained 9 helpers
+past the unchanged 5 s grace; helpers later exited. Do not include either
+rejected sample in successful quit statistics. HTTP-auth concurrent teardown
+watchdog is a known unresolved load-sensitive failure despite serial passes.
+
+#### Regression after demand-CDM hook
+
+2026-10-03, feature-cdm-final-*; final patch 0007 / registration callback
+build. All 18 processes exit 0 without a timeout. The first 17 drives pass;
+fullscreen again rejects with TypeError: not granted, so its driver correctly
+returns failure. This is unsupported behavior, not a functional pass.
+Native UI gaps remain.
+
+| Feature | Process seconds |
+|---|---:|
+| popups | 9 |
+| dialogs | 9 |
+| keys | 8 |
+| audio | 10 |
+| scroll | 11 |
+| transparent | 8 |
+| corners | 8 |
+| band | 9 |
+| form | 10 |
+| extension | 11 |
+| downloads | 8 |
+| permissions | 10 |
+| auth | 10 |
+| certificate | 10 |
+| find | 9 |
+| zoom | 12 |
+| print | 10 |
+| fullscreen | 5 |
+
+Post-change baseline: nav 12.058 s; ten loaded pages, quit 0.354 s at
+load1 15.50, 26 helpers, 0 left, 0 new crash reports, exit 0.
+Widevine fresh installation and MediaKeys creation now pass; negative-key,
+installed-profile reuse and bounded offline behavior are recorded in the
+network audit. Licensed playback is not established by MediaKeys creation.
+
+#### Additional surface found by live open10: FedCM
+
+| Feature | Chrome path | Window members it needs | Fixed how / evidence |
+|---|---|---|---|
+| Federated sign-in bubble / modal | FedCmAccountSelectionView::CreateDialogWidget / GetAnchorView → BubbleDialogDelegate; then TabDialogManager::ShowDialog | Views anchor/native parent and initialized BrowserElements primary widget | Patch 0008 anchor hook returns the existing Room modal bridge only for Room windows; initialize BrowserElementsViewsImpl through Init(view). Private -RoomSpike fedcm opens and destroys a real passive failure bubble and active loading modal; both return true, 18 s process, exit 0 |
+
+Original live open10 aborted at bubble_dialog_delegate_view.cc:207 because
+kActiveContentsWebViewRetrievalId returned null. First probe after providing
+an anchor exposed a second null-primary-widget crash in TabDialogManager
+(line 360). That second dependency is supplied through the existing context
+initialization API, without another patch. The opaque Swift page view is not
+registered as a fake views::WebView. Native focus, account selection, IdP popup
+and token exchange remain unverified; this spike does not sign into a service.
+
+Post-FedCM baseline: nav 12.447 s; ten loaded pages, quit 0.635 s at load1
+28.40, 27 helpers / 0 left / 0 new crash reports, exit 0. The earlier failed
+open10 sample remains rejected and separate from the old shutdown watchdog.
+
+#### Full repeat on committed FedCM engine 2a04498
+
+All 18 original processes plus FedCM exit 0 without a watchdog; 18 drivers
+pass and fullscreen remains the explicit unsupported driver failure.
+
+| Feature | Process seconds | Driver exit |
+|---|---:|---:|
+| popups | 8 | 0 |
+| dialogs | 8 | 0 |
+| keys | 9 | 0 |
+| audio | 10 | 0 |
+| scroll | 11 | 0 |
+| transparent | 8 | 0 |
+| corners | 8 | 0 |
+| band | 9 | 0 |
+| form | 8 | 0 |
+| extension | 10 | 0 |
+| downloads | 8 | 0 |
+| permissions | 8 | 0 |
+| auth | 10 | 0 |
+| certificate | 10 | 0 |
+| find | 10 | 0 |
+| zoom | 13 | 0 |
+| print | 9 | 0 |
+| fullscreen | 4 | 1 |
+| fedcm | 10 | 0 |
+
+Raw evidence: feature-complete-*; receipts identify 2a04498.
+
+#### Extension tabs/windows lifecycle
+
+The stronger worker probe reached real chrome.tabs.create and initially got
+"Tabs cannot be edited right now (user may be dragging a tab)." The generated
+IsTabStripEditable stub always returned false. //room now permits edits while
+the TabStripModel is not closing and the explicit test-disable flag is unset.
+No patch/public API change; first-hit logging remains enabled.
+
+First post-fix run: content script marker present, service worker connected,
+tab count 1 → 2 → 1 across create/remove, popup window created then removed,
+process 24 s, exit 0. action.openPopup could not find an active browser window;
+this is an explicit UI gap, not a popup acceptance pass. A focused-window
+probe follows. Host tab/popup ownership and drag-state integration remain
+Chapter 3 requirements.
+
+Focused-window repeat still reports "Cannot show popup for an inactive
+window" after awaiting chrome.windows.update({focused:true}) with the explicit
+original window ID. Tab/window lifecycle assertions still pass. The action
+popup is therefore unverified; native activation and toolbar ownership are
+remaining Room/Chapter 3 work, not hidden by a passing process exit.
+
+Post-tab-edit baseline: nav 11.570 s; ten loaded pages, quit 0.534 s at load1
+12.39, 24 helpers / 0 left / 0 new crashes, exit 0.
+
+#### Explicit activation for extension action requests
+
+Room Activate now matches Chromium's application-before-key-window ordering.
+The 18 s extension run exits 0, with NSApp active and Room window key/main.
+Tabs/windows lifecycle still passes. The action API now reaches toolbar
+availability and returns "Browser window has no toolbar"; action UI is still
+unsupported and must be supplied by Chapter 3. Source path:
+NativeWidgetNSWindowBridge::SetVisibilityState and ActionOpenPopupFunction.
+No patch/public ObjC change. Baseline nav 11.419 s; ten-page quit 0.549 s,
+26 helpers / 0 left / 0 new crashes, exit 0.
+
+#### Completion probes on activation engine eb55062 — 2026-10-03
+
+| Feature | Measured result | Remaining boundary |
+|---|---|---|
+| Download completion/cancel | Exact 26-byte attachment; real Browser.cancelDownload yields canceled event for its GUID; server disconnect after 131,072 / 33,554,432 bytes; no finalized/partial slow file remains; 17 s process, exit 0 | Native chooser/cancel button and product status UI |
+| Certificate leave | net::ERR_CERT_AUTHORITY_INVALID, Privacy error page, real primary-button handler returns to committed safe HTTP fixture; 11 s process, exit 0 | Native pointer/focus; no certificate override used |
+| beforeunload | Actual Page.javascriptDialogOpening type beforeunload; Chrome cancellation callback preserves original page; handler cleared for cleanup; 16 s process including alert/confirm/prompt, exit 0 | Native focus/keyboard; window-close-specific prompt |
+| Web Audio | Muted oscillator, state running, 48,000 Hz, render clock advances 0.261333 s, AudioContext closes; media element also advances 0.120587 s; 11 s process, exit 0 | Audible output still needs listening |
+
+Raw feature-download-cancel, feature-certificate-leave, feature-beforeunload,
+feature-web-audio evidence retained locally. No additional engine fix was
+needed for these stronger probes. Probe receipts name engine commit eb55062;
+the tested host additions are committed separately. Destination selection and
+callback execution are never presented as native click acceptance.
+
+#### Renderer-loss containment — 2026-10-03
+
+| Feature | Chrome path | Window members it needs | Fixed how / measured result |
+|---|---|---|---|
+| Renderer crash/reload | SadTabHelper::PrimaryMainFrameRenderProcessGone → SadTab::Create → SadTabController::ReinstallInWebView → FindContentsWebView | A crash surface in the page native view; Room has no BrowserView or ContentsWebView. First-hit CreateSadTab logged | Patch 0009 nullable SadTab factory; Room-owned tabs get a Cocoa fallback owned by existing SadTabHelper, Chrome fallback windows retain default UI. Intentional Page.crash reaches crashed + overlay; reload reaches ready + overlay removed. 39 s process, exit 0 |
+
+The actual discovery was a renderer Blink layout DCHECK during a diagnostic
+--disable-gpu run, followed by a browser DCHECK on absent BrowserView. The
+renderer defect is not claimed fixed; its failure no longer takes down the
+Room host. No disable-gpu production switch was added. Patch 0009 is required
+because SadTab::Create directly constructs the Views controller and neither
+SadTab nor SadTabHelper has an existing replacement factory.
+
+Baseline: nav 21.170 s; ten loaded pages quit 0.554 s, load1 18.00,
+26 helpers / 0 left / 0 new crash reports, exit 0. Chapter 3 still needs
+accessible crash status, retry interaction and reporting controls. The fallback
+label is containment, not finished product UI. Public ObjC headers unchanged.
+
+
+### 2026-10-03 — bounded UI compatibility: address bubbles
+
+The new scope/results documents separate real Chrome UI from the original
+18 crash-survival drives. Address save reproduced SIGSEGV in ShowSaveBubble
+at the missing BrowserWindow lookup; its first repair still hit that lookup.
+Second/final repair provides a Room-tab lookup hook, lazily owns Chrome's
+AutofillBubbleHandlerImpl with the existing Views parent, and guards the
+Chrome-only iOS promotion after accept. New UI patch0011 is separate from
+the archived/deferred shutdown candidate0011. Original five patches and
+public ObjC headers unchanged.
+
+| Feature | Chrome path | Window members / ownership | Fixed how / measured result |
+|---|---|---|---|
+| Address save/update | AddressBubblesController → FindBrowserWindowWithWebContents → AutofillBubbleHandlerImpl → SaveAddressProfileView/UpdateAddressProfileView | Registered Room tab/window, GetAutofillBubbleHandler, stable Views anchor; handler owned by Room window | Tiny nullable lookup hook + optional promo guard, private anchor adapter. Save cancel/accept/owner-close each callback1; final-tab exit failed100s/143. Update with second tab passes11s/0 with one owned dialog and three exactly-once decisions. Persistent save/native focus not accepted. |
+| Web USB/HID/Serial chooser | chrome::ShowDeviceChooserDialog → ChooserBubbleUiViewDelegate → DeviceChooserContentView::Cancel | Existing permission anchor/native parent | No new engine repair needed. Each10s/exit0; one visible owned dialog; USB/Serial NotFoundError, HID empty list. No hardware connected. |
+
+Required new serial baseline nav15.105s, ten loaded pages quit2.933s,
+28helpers/0left,0crashes,exit0. Full evidence and remaining subfeatures are in
+roomcore-ui-compatibility-results.md. This checkpoint does not finish the Goal.
+
+
+### 2026-10-03 — UI pass: local card save registration
+
+| Feature | Chrome path / failure | Window requirement | Fix / verification |
+|---|---|---|---|
+| Synthetic local card save | SaveCardBubbleControllerImpl::DoShowBubble+156, null handler, SIGSEGV7s/exit139 | AutofillBubbleHandler registered on BrowserWindowInterface user-data host before any caller; Chrome payment path bypasses legacy getter | Initialize existing handler at Room window construction. One visible SaveCardBubble; cancel and accept each callback1,19s/exit0. Baseline nav17.169s,ten-page quit4.840s,26helpers0left0crashes. Final owner-close fixture fails third-bubble setup, so lifetime/persistence unaccepted. |
+
+No new raw patch/public header or network-policy change. Full bounded outcomes, including actual3-row suggestions without accepted fill and password toolbar prerequisite, live in roomcore-ui-compatibility-results.md.
+
+
+### 2026-10-03 — UI pass: extension device chooser
+
+| Feature | Chrome path / failure | Window requirement | Fix / verification |
+|---|---|---|---|
+| Extension-origin USB request | chrome::ShowDeviceChooserDialog+992 → BrowserView::toolbar_button_provider+0, SIGSEGV6s/139 | Registered ToolbarButtonProvider and extension container; Room has neither | Patch0012 uses nullable provider lookup and existing no-container rejection. Real request now NotFoundError/No device selected,18s/0; no functional chooser claim. Baseline nav12.168s,ten-loaded-page quit0.694s,25helpers0left0crashes. |
+
+Separate web USB owner cleanup11s/0 and local/loopback permission deny/allow/reuse/revoke19s/0 pass. All network fixture targets are127.0.0.1. Full qualification, identities and Chapter3 contracts: roomcore-ui-handoff.md and roomcore-ui-compatibility-results.md.

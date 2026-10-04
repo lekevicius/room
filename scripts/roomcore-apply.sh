@@ -52,7 +52,7 @@ applied=0 skipped=0
 while read -r patch; do
   [[ -z "$patch" || "$patch" == \#* ]] && continue
   subject="room: ${patch%.patch}"
-  if git log --format=%s "tags/$TAG..HEAD" | grep -qxF "$subject"; then
+  if git log --format=%s "tags/$TAG..HEAD" | grep -xF "$subject" >/dev/null; then
     skipped=$((skipped + 1))
     continue
   fi

@@ -35,23 +35,66 @@ enum HostSpike {
             switch name {
             case "open10": await openTen(host: host, profile: profile)
             case "nav": await navigation(host: host, profile: profile)
-            default: record("error", "unknown spike")
+            case "idle":
+                host.open(URL(string: "about:blank")!, in: profile, activate: true)
+                let seconds = max(1, UserDefaults.standard.integer(forKey: "RoomSpikeIdleSeconds"))
+                record("idle-start", Date().timeIntervalSince1970)
+                try? await Task.sleep(for: .seconds(seconds))
+                record("idle-complete", seconds)
+            default: await HostFeatureSpike.run(name, host: host, profile: profile)
             }
             record("end", name)
-            if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") { NSApp.terminate(nil) }
+            record("terminate-request-time", Date().timeIntervalSince1970)
+            if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") {
+                let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
+                if port > 0 {
+                    do { try await HostCDP.closeBrowser(port: port) }
+                    catch { record("error", "CDP shutdown: \(error)"); NSApp.terminate(nil) }
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
         }
     }
 
     private static func openTen(host: HostController, profile: RoomProfile) async {
-        for (i, site) in typicalSites.enumerated() {
+        let fixturePath = UserDefaults.standard.string(forKey: "RoomSpikeURLsJSON")
+        var sites = typicalSites
+        if let fixturePath {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: fixturePath))
+                sites = try JSONDecoder().decode([String].self, from: data)
+                guard sites.count == 10, sites.allSatisfy({ site in
+                    guard let url = URL(string: site), let hostname = url.host else { return false }
+                    return url.scheme == "http" && hostname.hasSuffix(".localhost") && url.port != nil
+                }) else { throw HostCDP.Failure("expected ten loopback fixture URLs") }
+            } catch {
+                record("error", "invalid loopback corpus: \(error)")
+                return
+            }
+        }
+        record("corpus", fixturePath == nil ? "external-typical-sites" : "loopback-storage-canvas-v1")
+        for (i, site) in sites.enumerated() {
             host.open(URL(string: site)!, in: profile, activate: i == 0)
         }
         let start = Date()
-        while host.pages.contains(where: { $0.isLoading }), Date().timeIntervalSince(start) < 60 {
+        func incomplete() -> Bool {
+            host.pages.count != 10 || host.pages.contains {
+                $0.isLoading || (fixturePath != nil && !$0.title.hasPrefix("Room shutdown ready "))
+            }
+        }
+        while incomplete(), Date().timeIntervalSince(start) < 60 {
             try? await Task.sleep(for: .milliseconds(250))
         }
         try? await Task.sleep(for: .seconds(3))
+        for (index, page) in host.pages.enumerated() {
+            record("page-\(index)", "url=\(page.url?.absoluteString ?? "nil") loading=\(page.isLoading) title=\(page.title)")
+        }
         record("pages", host.pages.count)
+        record("loading-at-ready", host.pages.filter { $0.isLoading }.count)
+        if incomplete() {
+            record("error", "ten-page load incomplete")
+        }
         record("ready", Int(Date().timeIntervalSince(start)))
     }
 

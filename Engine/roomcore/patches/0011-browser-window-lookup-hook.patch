@@ -1,0 +1,43 @@
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1152,9 +1152,19 @@
+   RemoveAllChildViews();
+ }
+ 
++namespace room {
++// Optional lookup for windows whose tab contents are not hosted by BrowserView.
++BrowserWindow* (*g_find_browser_window_hook)(content::WebContents*) = nullptr;
++}  // namespace room
++
+ // static
+ BrowserWindow* BrowserWindow::FindBrowserWindowWithWebContents(
+     content::WebContents* web_contents) {
++  if (room::g_find_browser_window_hook) {
++    if (auto* window = room::g_find_browser_window_hook(web_contents)) {
++      return window;
++    }
++  }
+   // Check first to see if the we can find a top level widget for the
+   // `web_contents`. This covers the case of searching for the browser window
+   // associated with a non-tab contents and the active tab contents. Fall back
+diff --git a/chrome/browser/ui/autofill/address_bubbles_controller.cc b/chrome/browser/ui/autofill/address_bubbles_controller.cc
+--- a/chrome/browser/ui/autofill/address_bubbles_controller.cc
++++ b/chrome/browser/ui/autofill/address_bubbles_controller.cc
+@@ -311,10 +311,12 @@
+ }
+ 
+ void AddressBubblesController::MaybeShowIOSDektopAddressPromo() {
+-  BrowserWindowInterface* browser =
+-      BrowserWindow::FindBrowserWindowWithWebContents(web_contents())
+-          ->AsBrowserView()
+-          ->browser();
++  auto* window = BrowserWindow::FindBrowserWindowWithWebContents(web_contents());
++  // Non-Chrome window hosts have no Chrome toolbar for this optional promo.
++  if (!window || !window->AsBrowserView()) {
++    return;
++  }
++  BrowserWindowInterface* browser = window->AsBrowserView()->browser();
+ 
+   // Verify if user is eligible for iOS promo, and attempt showing if they are.
+   ios_promos_utils::VerifyIOSPromoEligibility(

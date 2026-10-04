@@ -6,3 +6,9 @@
 0003-browser-window-factory-hook.patch
 0004-link-room-core.patch
 0005-read-anything-without-side-panel.patch
+0006-component-update-scheduler-hook.patch
+0007-demand-cdm-factory-hooks.patch
+0008-fedcm-anchor-hook.patch
+0009-sad-tab-factory-hook.patch
+0011-browser-window-lookup-hook.patch
+0012-extension-chooser-toolbar-guard.patch

@@ -1,0 +1,80 @@
+{
+  "source_parent": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60",
+  "chromium_head": "2f06f6d7533a515a94386027cc8020775f3aec9e",
+  "package": "build/roomcore/audit-ui-autofill/Room.app",
+  "binaries_sha256": {
+    "Contents/MacOS/Room.debug.dylib": "032ee042f1950c3a8800ee16fcda4a015a9f00bc7059ef899146cca4bd54ffb0",
+    "Contents/Frameworks/RoomCore.framework/Versions/Current/Libraries/libchrome_dll.dylib": "4ef6e194720a3fa2fb9ef444a94bfc919dc90ca55e8c0e5fdd22d500fd5b4493",
+    "Contents/Frameworks/RoomCore.framework/Versions/Current/Libraries/libbrowser_ui_views.dylib": "817701c8511faf033286298324634985d7992455419de075b631e5680e9b87ca"
+  },
+  "results": {
+    "autofill-save-initial": {
+      "feature": "autofill-save",
+      "exit_status": "139",
+      "elapsed_seconds": "15",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "autofill-save-repair1": {
+      "feature": "autofill-save",
+      "exit_status": "139",
+      "elapsed_seconds": "15",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "autofill-save-repair2": {
+      "feature": "autofill-save",
+      "exit_status": "143",
+      "elapsed_seconds": "100",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "autofill-update-initial": {
+      "feature": "autofill-update",
+      "exit_status": "0",
+      "elapsed_seconds": "11",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "usb-initial": {
+      "feature": "ui-usb",
+      "exit_status": "0",
+      "elapsed_seconds": "10",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "hid-initial": {
+      "feature": "ui-hid",
+      "exit_status": "0",
+      "elapsed_seconds": "10",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "serial-initial": {
+      "feature": "ui-serial",
+      "exit_status": "0",
+      "elapsed_seconds": "10",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "bluetooth-initial": {
+      "feature": "ui-bluetooth",
+      "exit_status": "0",
+      "elapsed_seconds": "7",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    },
+    "bluetooth-repair1": {
+      "feature": "ui-bluetooth",
+      "exit_status": "0",
+      "elapsed_seconds": "12",
+      "source_commit": "cdcb7a1c9a4e3651a22672af244114e89ba6fb60"
+    }
+  },
+  "baseline": {
+    "nav_seconds": 15.105,
+    "loaded_pages": 10,
+    "quit_seconds": 2.933,
+    "helpers_observed": 28,
+    "helpers_left": 0,
+    "new_crashes": 0,
+    "exit": 0
+  },
+  "qualifications": [
+    "Package contains browser-CDP Bluetooth correction; baseline/save repair2 ran before host-only rebuild. Engine unchanged except formatting.",
+    "Save repair2 observed callbacks but timed out after closing final tab; not a clean feature run.",
+    "Historical save repair2 host binary hash not captured."
+  ]
+}
