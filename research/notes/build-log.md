@@ -212,6 +212,19 @@ Other steps this session:
 | 2026-10-04 | Notarization zip + `notarytool submit --wait` | 61.3 s in the service | 161 MB zip; Accepted (bfee631a-5b17-4400-80f0-25433022a0a7), stapled |
 | 2026-10-05 | Sparkle DMG (`hdiutil`, UDZO) of the signed copy | 8.1 s | 184,497,802 bytes |
 
+### Phase 3.2a on the Mac mini (2026-10-05)
+
+`out/dev`, `ROOM_BUILD_JOBS=6`, nothing else building; `out/release` untouched (stale since the `//room` edits).
+
+| Step | Time | Notes |
+|---|---|---|
+| `scripts/roomcore-apply.sh` with patches 0014 and 0015 added | ~25 s | "2 applied, 11 already"; the run after: "0 applied, 13 already" |
+| `gn check out/dev '//room/*'` | 7.4 s | header dependencies OK |
+| `scripts/roomcore-build.sh` (`//room/browser` and `//room/core` rewritten, two patched Chromium files) | **77 s** build part | load 4.0 → 6.5; no warnings |
+| `scripts/roomcore-build.sh` (the fullscreen exit fix in `//room`) | **45 s** | load 4.1 → 3.7 |
+| `scripts/roomcore-package.sh` (both targets) | 30 s | host 8.6 s, app 16.2 s |
+| `scripts/roomcore-package.sh --app-only` / `--host-only` (spike changes) | 8–17 s each | |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior
