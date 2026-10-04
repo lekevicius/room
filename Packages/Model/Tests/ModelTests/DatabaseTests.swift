@@ -159,6 +159,9 @@ struct StateWriterTests {
         #expect(loaded.state.canonical() == state.canonical())
         #expect(try loaded.state.canonicalJSON() == state.canonicalJSON())
         #expect(loaded.state.settings.permanentCloseBehavior == .unloadSwitch)
+        // Settings v0 (ROADMAP 2.8 task 2).
+        #expect(loaded.state.settings == state.settings)
+        #expect(loaded.state.settings.sidebarSide == .right && loaded.state.settings.appearance == .dark)
     }
 
     @Test("Diffs: updates, inserts and deletes land; untouched rows stay")

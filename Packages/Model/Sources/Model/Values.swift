@@ -327,12 +327,16 @@ public struct Settings: Hashable, Sendable, Codable {
     public var showsToolbar: Bool = false
     /// Links ▸ "Open links to other sites from pinned tabs in Peek" (spec §A.4; on by default).
     public var peekOffSiteLinks: Bool = true
+    /// Appearance ▸ Sidebar: the window side the sidebar docks on (Settings v0, ROADMAP 2.8).
+    public var sidebarSide: SidebarSide = .left
+    /// Appearance ▸ Appearance: follow the system, or always light or dark (Settings v0).
+    public var appearance: AppearanceSetting = .system
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
-        case showsToolbar, peekOffSiteLinks
+        case showsToolbar, peekOffSiteLinks, sidebarSide, appearance
     }
 
     public init(from decoder: any Decoder) throws {
@@ -350,7 +354,19 @@ public struct Settings: Hashable, Sendable, Codable {
         downloadDirectory = (try? container.decodeIfPresent(String.self, forKey: .downloadDirectory)).flatMap { $0 }
         showsToolbar = (try? container.decodeIfPresent(Bool.self, forKey: .showsToolbar)).flatMap { $0 } ?? defaults.showsToolbar
         peekOffSiteLinks = (try? container.decodeIfPresent(Bool.self, forKey: .peekOffSiteLinks)).flatMap { $0 } ?? defaults.peekOffSiteLinks
+        sidebarSide = (try? container.decodeIfPresent(SidebarSide.self, forKey: .sidebarSide)).flatMap { $0 } ?? defaults.sidebarSide
+        appearance = (try? container.decodeIfPresent(AppearanceSetting.self, forKey: .appearance)).flatMap { $0 } ?? defaults.appearance
     }
+}
+
+/// The side of the window the sidebar docks on; the traffic lights stay where AppKit puts them.
+public enum SidebarSide: String, Hashable, Sendable, Codable, CaseIterable {
+    case left, right
+}
+
+/// Light, dark, or the system's choice.
+public enum AppearanceSetting: String, Hashable, Sendable, Codable, CaseIterable {
+    case system, light, dark
 }
 
 /// Everything the state pipeline persists, as one value.

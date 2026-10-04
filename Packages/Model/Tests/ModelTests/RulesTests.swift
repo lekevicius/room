@@ -296,6 +296,10 @@ struct ValueTests {
         #expect(partial.archiveAfterHours == 24 && partial.permanentCloseBehavior == .resetUnloadSwitch)
         // Suggestions are on and the engine is Google unless the user chose otherwise (2026-10-03).
         #expect(partial.searchSuggestions && partial.searchEngine == "google")
+        // Settings v0 (2.8a): a database written before them reads the left sidebar and the system appearance.
+        #expect(partial.sidebarSide == .left && partial.appearance == .system)
+        let unknown = try JSONDecoder().decode(Settings.self, from: Data(#"{"sidebarSide":"top","appearance":"sepia"}"#.utf8))
+        #expect(unknown.sidebarSide == .left && unknown.appearance == .system)
     }
 
     @Test("Timestamps round-trip through JSON and rounding is stable")

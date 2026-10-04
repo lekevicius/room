@@ -33,6 +33,13 @@ func sampleState() -> RoomState {
     window.frame = CGRect(x: 10, y: 20, width: 1200, height: 800)
     var settings = Settings()
     settings.permanentCloseBehavior = .unloadSwitch
+    // Settings v0 (2.8a), every field away from its default.
+    settings.searchEngine = "kagi"
+    settings.searchSuggestions = false
+    settings.downloadDirectory = "/tmp/Room Downloads"
+    settings.peekOffSiteLinks = false
+    settings.sidebarSide = .right
+    settings.appearance = .dark
     return RoomState(
         profiles: [profile], spaces: [work, home], entries: [essential, folder, pinned, today], splitGroups: [group],
         windows: [window], windowSpaces: [WindowSpace(windowID: window.id, spaceID: home.id, selectedEntryID: today.id)],

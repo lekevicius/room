@@ -314,6 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
         installSplit(pageHost: pageHost, sidebar: sidebar, tabs: tabs, palette: palette, store: store)
         installToolbar(controller, tabs: tabs, settings: store.settings)
+        applyLookSettings()
         trackFocusedPage(tabs)
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
@@ -415,6 +416,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         toolbar.onURLClick = { [weak tabs] in tabs?.openLocation() }
         controller.showsToolbar = settings.settings.showsToolbar
+    }
+
+    /// Settings ▸ Appearance (v0, ROADMAP 2.8 task 2): the app's appearance and the sidebar's side,
+    /// applied now and again whenever either changes.
+    private func applyLookSettings() {
+        guard let settings = store?.settings else { return }
+        let (appearance, side) = withObservationTracking {
+            (settings.settings.appearance, settings.settings.sidebarSide)
+        } onChange: { [weakSelf = MainActorWeak(self)] in
+            Task { @MainActor in weakSelf.value?.applyLookSettings() }
+        }
+        #if DEBUG
+        // Spikes set the appearance they capture in.
+        let spikeAppearance = UserDefaults.standard.string(forKey: "RoomSpikeAppearance") != nil
+        #else
+        let spikeAppearance = false
+        #endif
+        if !spikeAppearance {
+            NSApp.appearance = switch appearance {
+            case .system: nil
+            case .light: NSAppearance(named: .aqua)
+            case .dark: NSAppearance(named: .darkAqua)
+            }
+        }
+        windowController?.rootView.sidebarEdge = side == .right ? .right : .left
     }
 
     /// ⌘S, View ▸ Hide Sidebar / Show Sidebar (spec §E).
@@ -620,13 +646,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         palette?.toggleHistory()
     }
 
-    /// ⌘,: Settings (Search only until 2.8).
+    /// ⌘,: Settings v0 (General, Appearance, Search, Downloads).
     @objc func showSettings(_ sender: Any?) {
         guard let store else { return }
         if settingsWindow == nil { settingsWindow = SettingsWindowController(settings: store.settings) }
         settingsWindow?.showWindow(nil)
         settingsWindow?.window?.makeKeyAndOrderFront(nil)
     }
+
+    #if DEBUG
+    /// The Settings window (spikes capture each section).
+    var debugSettingsWindow: SettingsWindowController? { settingsWindow }
+    #endif
 
     /// ⌘W: the multi-selection or the selected entry, per spec §A.3.
     @objc func closeTab(_ sender: Any?) {
