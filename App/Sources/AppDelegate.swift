@@ -381,6 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         tabs.display = pageHost
+        tabs.window = controller.window
         tabs.sidebar = sidebar
         tabs.pageUIDelegate = pageDelegate
         #if DEBUG

@@ -126,6 +126,17 @@ struct ProfileTests {
         #expect(f.sidebarStore.entry(tab.id)?.profileID == work.profileID)
     }
 
+    @Test("Every page is created for the controller's window (RoomCore binds it to that window's Browser, 3.2a)")
+    func pagesAreCreatedForTheWindow() throws {
+        let f = try TabsFixture()
+        let window = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: true)
+        f.tabs.window = window
+        let tab = try f.today("https://a.example")
+        f.sidebar.select(tab.id)
+        let page = try #require(f.page(tab.id))
+        #expect(page.configuration.hostWindow === window)
+    }
+
     @Test("Moving within one profile keeps the page")
     func sameProfileMove() async throws {
         let f = try TabsFixture()

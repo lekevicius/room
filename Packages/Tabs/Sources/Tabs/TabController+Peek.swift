@@ -39,7 +39,8 @@ extension TabController {
         closePeek(over: entry, recordForReopen: true, animated: false)
         let contents: any WebContents
         do {
-            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: entry != currentEntryID))
+            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: entry != currentEntryID,
+                                                                              hostWindow: window))
         } catch {
             NSLog("Room: no Peek page: \(error)")
             return

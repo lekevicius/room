@@ -122,17 +122,40 @@ nonisolated public struct WebContentsConfiguration: Sendable, Hashable {
     public var transparentBackground: Bool
     public var initiallyMuted: Bool
     public var disallowAutoplay: Bool
+    /// The window whose card will show the page. RoomCore binds the page to
+    /// that window's Chrome `Browser` (one per window and profile; its tab
+    /// strip mirrors the window's loaded pages, and the pages it opens arrive
+    /// there too); CEF has no browser objects and ignores it. Read at
+    /// creation only: moving a page to another window is Chapter 4.8.
+    public weak var hostWindow: NSWindow?
 
     public init(
         initiallyHidden: Bool = false,
         transparentBackground: Bool = false,
         initiallyMuted: Bool = false,
-        disallowAutoplay: Bool = false
+        disallowAutoplay: Bool = false,
+        hostWindow: NSWindow? = nil
     ) {
         self.initiallyHidden = initiallyHidden
         self.transparentBackground = transparentBackground
         self.initiallyMuted = initiallyMuted
         self.disallowAutoplay = disallowAutoplay
+        self.hostWindow = hostWindow
+    }
+
+    // The window by identity.
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.initiallyHidden == rhs.initiallyHidden && lhs.transparentBackground == rhs.transparentBackground
+            && lhs.initiallyMuted == rhs.initiallyMuted && lhs.disallowAutoplay == rhs.disallowAutoplay
+            && lhs.hostWindow === rhs.hostWindow
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(initiallyHidden)
+        hasher.combine(transparentBackground)
+        hasher.combine(initiallyMuted)
+        hasher.combine(disallowAutoplay)
+        hasher.combine(hostWindow.map(ObjectIdentifier.init))
     }
 }
 

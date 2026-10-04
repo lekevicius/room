@@ -105,6 +105,20 @@ struct DelegateDispatchTests {
         #expect(created.configuration.initiallyHidden)
     }
 
+    /// RoomCore binds a page to its window's Chrome `Browser` by the host
+    /// window (3.2a), and the pages it opens arrive in that window.
+    @Test func hostWindowIsRecordedAndInherited() throws {
+        let (_, profile) = try makeProfile()
+        let window = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: true)
+        let page = profile.makeWebContents(WebContentsConfiguration(hostWindow: window))
+        #expect(page.configuration.hostWindow === window)
+        let ui = RecordingUIDelegate()
+        page.uiDelegate = ui
+        page.simulateLinkClick(to: url("https://opened.example"), disposition: .newForegroundTab)
+        let created = try #require(ui.createdContents.first as? FakeWebContents)
+        #expect(created.configuration.hostWindow === window)
+    }
+
     @Test func newContentsWithoutUIDelegateAreClosed() throws {
         let (_, profile) = try makeProfile()
         let page = profile.makeWebContents()

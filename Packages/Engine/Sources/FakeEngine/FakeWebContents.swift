@@ -173,7 +173,9 @@ public final class FakeWebContents: WebContents {
 
     private func openNewContents(_ url: URL, disposition: Disposition) {
         guard let profile else { return }
-        let contents = profile.makeWebContents(WebContentsConfiguration(initiallyHidden: disposition == .newBackgroundTab))
+        // As RoomCore: a page opens in its opener's window.
+        let contents = profile.makeWebContents(WebContentsConfiguration(initiallyHidden: disposition == .newBackgroundTab,
+                                                                        hostWindow: configuration.hostWindow))
         contents.loadsSynchronously = loadsSynchronously
         contents.load(url, transition: .link, fromAddressBar: false)
         if let uiDelegate {

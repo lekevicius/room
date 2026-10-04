@@ -79,6 +79,10 @@ final class Page {
 public final class TabController: SidebarHost {
     @ObservationIgnored public let store: RoomStore
     @ObservationIgnored public weak var display: (any PageDisplay)?
+    /// The window the pages are shown in: every page is created for it
+    /// (`WebContentsConfiguration.hostWindow`; RoomCore binds the page to
+    /// that window's Chrome `Browser`).
+    @ObservationIgnored public weak var window: NSWindow?
     @ObservationIgnored public weak var sidebar: SidebarController?
     /// Dialogs, permission prompts, context menus, file choosers, keys.
     @ObservationIgnored public weak var pageUIDelegate: (any WebContentsUIDelegate)?
@@ -490,7 +494,7 @@ public final class TabController: SidebarHost {
         }
         let contents: any WebContents
         do {
-            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden))
+            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden, hostWindow: window))
         } catch {
             NSLog("Room: no page for entry \(entry.id): \(error)")
             return nil

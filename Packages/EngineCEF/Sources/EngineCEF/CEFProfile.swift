@@ -21,6 +21,8 @@ public final class CEFProfile: Profile {
     /// Web contents of this profile that have a live browser.
     public var webContents: [CEFWebContents] { liveContents.allObjects }
 
+    /// `configuration.hostWindow` is ignored: CEF has no browser objects
+    /// (the page is a `SetAsChild` view the app places).
     public func createWebContents(_ configuration: WebContentsConfiguration) throws -> any WebContents {
         try makeWebContents(configuration)
     }

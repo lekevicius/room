@@ -3,16 +3,17 @@ import Engine
 import Observation
 import RoomCore
 
-/// `WebContents` over a `RoomWebContents` (Chromium `content::WebContents`),
-/// to the embryo's depth: load, history, reload/stop, title, URL, loading,
-/// the native view, close. The page is not in a Chrome tab strip yet (3.2:
-/// `RoomBrowser` per window), so Chrome's tab helpers are not attached; the
-/// members that need them are `notSupported` or inert (docs/engine-api.md).
+/// `WebContents` over a `RoomWebContents` (Chromium `content::WebContents`):
+/// load, history, reload/stop, title, URL, loading, the native view, close,
+/// and (3.2a) the pages it opens, the hovered link and element fullscreen.
+/// A page created for a host window is in that window's Chrome tab strip
+/// (`RoomBrowser`); the members that need Chrome's tab helpers wired to Room
+/// are `notSupported` or inert until their phase (docs/engine-api.md).
 ///
 /// `nativeView` is a view this object owns, with Chromium's
 /// `WebContentsViewCocoa` inside, so it stays valid after `close()`.
 @Observable
-public final class RoomCoreWebContents: NSObject, WebContents {
+public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDelegate {
     @ObservationIgnored public weak var uiDelegate: (any WebContentsUIDelegate)?
     @ObservationIgnored public weak var navigationDelegate: (any NavigationDelegate)?
 
@@ -35,18 +36,27 @@ public final class RoomCoreWebContents: NSObject, WebContents {
     public var isMuted: Bool
     public var zoomFactor = 1.0
 
+    /// What the page asked for when it opened this one: the window.open
+    /// rect or the picture-in-picture size (top-left screen coordinates);
+    /// `nil` for a page the host created or one opened without features.
+    /// Engine-specific until the host has a popup window (Chapter 4).
+    public private(set) var requestedBounds: CGRect?
+
     public var nativeView: NSView { pageView }
     public var devTools: (any DevTools)? { nil }
 
     @ObservationIgnored let page: RoomWebContents
+    @ObservationIgnored private weak var profile: RoomCoreProfile?
     @ObservationIgnored private let pageView = RoomCorePageView()
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
-    init(page: RoomWebContents, configuration: WebContentsConfiguration) {
+    init(page: RoomWebContents, configuration: WebContentsConfiguration, profile: RoomCoreProfile?) {
         self.page = page
         self.configuration = configuration
+        self.profile = profile
         isMuted = configuration.initiallyMuted
         super.init()
+        page.delegate = self
         if let view = page.nativeView { pageView.host(view) }
         let weakSelf = WeakContents(self)
         observations = [
@@ -129,7 +139,61 @@ public final class RoomCoreWebContents: NSObject, WebContents {
     }
 
     public func print() {}
-    public func exitFullscreen() {}
+
+    /// Leaves element fullscreen; `webContentsDidRequestExitFullscreen`
+    /// follows from Chrome's FullscreenController.
+    public func exitFullscreen() { page.exitFullscreen() }
+
+    // MARK: RoomWebContentsDelegate
+
+    /// A page this one opened, already in this page's `Browser` (never a
+    /// window of its own): the host places it, or closes it.
+    public func webContents(_ webContents: RoomWebContents, didCreate newContents: RoomWebContents, targetURL: URL?,
+                            disposition: RoomWindowOpenDisposition, requestedBounds: NSRect, userGesture: Bool) {
+        let mapped = Disposition(disposition)
+        let configuration = WebContentsConfiguration(initiallyHidden: mapped == .newBackgroundTab,
+                                                     hostWindow: self.configuration.hostWindow)
+        guard let profile else {
+            newContents.close()
+            return
+        }
+        let contents = profile.adoptOpened(newContents, configuration: configuration)
+        if requestedBounds.width > 0 || requestedBounds.height > 0 { contents.requestedBounds = requestedBounds }
+        guard let uiDelegate else {
+            contents.close()
+            return
+        }
+        uiDelegate.webContents(self, didCreate: contents, targetURL: targetURL, disposition: mapped)
+    }
+
+    public func webContents(_ webContents: RoomWebContents, didChangeStatusText text: String?) {
+        uiDelegate?.webContents(self, didChangeStatusText: text)
+    }
+
+    public func webContentsDidRequestEnterFullscreen(_ webContents: RoomWebContents, origin: URL?) {
+        uiDelegate?.webContentsDidRequestEnterFullscreen(self, origin: origin)
+    }
+
+    public func webContentsDidRequestExitFullscreen(_ webContents: RoomWebContents) {
+        uiDelegate?.webContentsDidRequestExitFullscreen(self)
+    }
+}
+
+extension Disposition {
+    /// RoomCore's dispositions in the `Engine` protocol's terms: a singleton
+    /// or switch-to-tab that Chromium had to open, and a split's new pane,
+    /// arrive as foreground tabs (the host has no such placement yet).
+    init(_ disposition: RoomWindowOpenDisposition) {
+        switch disposition {
+        case .newBackgroundTab: self = .newBackgroundTab
+        case .newPopup: self = .newPopup
+        case .newWindow: self = .newWindow
+        case .newPictureInPicture: self = .newPictureInPicture
+        case .offTheRecord: self = .offTheRecord
+        case .newForegroundTab, .singletonTab, .switchToTab, .newSplitView: self = .newForegroundTab
+        @unknown default: self = .newForegroundTab
+        }
+    }
 }
 
 /// Hands the contents through KVO's change handler and dereferences it on
