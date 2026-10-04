@@ -212,9 +212,11 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 - [x] By-hand list (implementer): `research/notes/chapter-2-by-hand.md`, every 2.4b–2.8b step, grouped by feature
 - [ ] Every spec §A–I feature reached once by hand in one build (the user, from that list, a day at most); friction into `docs/backlog.md` as "2.9 by-hand"
 - [x] Blockers fixed — none found: the tour's fixes are spikes; its product findings are B-41 to B-44
-- [x] `research/notes/chapter-2-review.md` drafted (implementer); the planner's columns and the user's pass still to add
-- [ ] Chapter 3 spec drafted (planner; written 2026-10-04, see the log: the planner ticks it)
-- [ ] Exit: as listed
+- [x] `research/notes/chapter-2-review.md`: implementer's draft, planner's columns and closing added 2026-10-04; the user's friction is triaged with the 3.9 week's
+- [x] Chapter 3 spec drafted (planner, 2026-10-04)
+- [x] Exit: every feature reached once in one build (the tour; the by-hand pass stays an open user item), no blockers, review written, Chapter 3 spec drafted
+
+**Phase 2.9 done; Chapter 2 closed (2026-10-04).** The user's by-hand pass (`research/notes/chapter-2-by-hand.md`) and four laptop measurements stay open as user items, triaged with the 3.9 week.
 
 ## Chapter 3 — RoomCore
 
@@ -474,3 +476,4 @@ Spec: `ROADMAP.md` Chapter 3 (written 2026-10-04). One line per task; exit crite
   - Tests: the unit tier 450 in 12 packages with `CI=1`; the Room scheme with the window tier 450, all passing. CI median 99 s over 38 green runs.
   - Deviations: (1) the tour keeps its captures and raw output in `build/grand-tour/` (not committed: a full set per appearance would double the 138 MB of committed captures; the summary is in `spike-results.md`). (2) The suggestion checks go through the logging proxy instead of to Google. (3) The net-log check runs on the tour's state, not a fresh one (the engine then asks three hosts instead of six; Room's own code still 0). (4) The RoomCore embryo spikes, B-1's Instruments trace and the 1.4 extension/autofill checks are not spikes and are not in the tour (listed in the by-hand list). (5) The session locked twice mid-run when Screen Sharing disconnected; the tour now stops on a locked session before a step.
   - Next: the user's by-hand pass from `research/notes/chapter-2-by-hand.md`; the planner's columns in the review; then Phase 2.9's exit.
+- 2026-10-04 — Phase 2.9 accepted and Chapter 2 closed (planner, laptop). Pulled 14 commits; CI green (77e7aa4). The grand tour (34 steps, ~490 checks per appearance, 36 min) is the right harness and found what sequencing finds: three spike bugs, seven fresh-state assumptions, and three product findings that are backlog rows (B-41 to B-43), none blocking. Review finished: the planner's risk column, B-34 placed in 3.3a, a closing section; PLAN §7 re-ranked (14 rows: rebase/official build, BrowserWindow, the tour skipping on RoomCore, network, 120 Hz budget, hybrid bubbles, Web Store/Widevine, shutdown watchdog, memory, keychain, passkeys, update size, Sentry, launch time). Two carry-overs into 3.1a: the engine-neutral spike driving surface (B-44) and `quick_check` at launch (B-42). Open for the user: the by-hand pass, B-16/B-18/B-20/B-21/B-26, the Sparkle key, the Sentry DSN, the feed URL, the passkey request. Next: the user decides what follows Chapter 2.

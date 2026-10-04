@@ -1,6 +1,6 @@
-# Chapter 2 review — The sidebar browser (draft)
+# Chapter 2 review — The sidebar browser
 
-Date: 2026-10-04. **Draft** by the implementer (Phase 2.9 task 3); the planner owns the Chapter 3 spec (written the same day, `ROADMAP.md` Chapter 3) and the planner columns below; the user's by-hand pass (`chapter-2-by-hand.md`) is still to come and its friction is not in here yet. Phases 2.1–2.8 are done (reviews in `docs/progress.md`). Numbers come from `spike-results.md`; the grand tour's are new measurements (Phase 2.9, same file, "Phase 2.9 — grand tour").
+Date: 2026-10-04. Drafted by the implementer (Phase 2.9 task 3), the planner's columns and closing section added the same day; the Chapter 3 spec is `ROADMAP.md` Chapter 3. The user's by-hand pass (`chapter-2-by-hand.md`) is still to come: its friction goes into `docs/backlog.md` as "2.9 by-hand" and is triaged at the 3.9 week, not appended here. Phases 2.1–2.8 are done (reviews in `docs/progress.md`). Numbers come from `spike-results.md`; the grand tour's are new measurements (Phase 2.9, same file, "Phase 2.9 — grand tour").
 
 ## End state against the ROADMAP
 
@@ -72,7 +72,7 @@ Every cap Chapter 2 ran into, where it is recorded and the RoomCore phase that l
 | Print is an app-modal panel, no preview | 2.6b | B-29 | 3.3b (print preview, Views) |
 | Site panel has permissions and site data only | 2.6b | B-30 | Chapter 4 |
 | Peek tells a link click from script by the status text | 2.7a | B-33 | 3.3a (`NavigationThrottle`) |
-| The Public Suffix List is a bundled copy without IDN rules | 2.7a | B-34 | 3.x per the backlog; **not placed in the Chapter 3 spec** (planner) |
+| The Public Suffix List is a bundled copy without IDN rules | 2.7a | B-34 | 3.3a (the `NavigationThrottle` uses `net::registry_controlled_domains`; `SiteRules` goes) |
 | `didConsumeKey` is never called | 1.2, 2.6b checklist | — (`engine-api.md`) | 3.2b (input-event ack) |
 | CEF behaviours with workarounds in `EngineCEF`: find's first request only counts; an `alert()` blocks a navigation's commit on Alloy; answered permission prompts also report "dismissed"; download updates lose the name; content settings answer with effective values | 2.6b | — (`engine-api.md` rows) | 3.3b (find), 3.4a (permissions, downloads), 3.4b (dialogs) |
 
@@ -121,18 +121,26 @@ Against PLAN §7 (re-ranked at the end of Chapter 1). "Implementer" is what Chap
 
 | # (PLAN §7) | Risk | Chapter 2 evidence (implementer) | Proposed | Planner |
 |---|---|---|---|---|
-| 1 | Rebase and build cost at a 2-week cadence | No fork work in the Chapter 2 phases; PR #1 ran beside them. Nothing new from the CEF side | unchanged | planner |
-| 2 | `BrowserWindow` entanglement | Not exercised on CEF. The Chapter 2 app now has a spike for every feature, so 3.2's "real input through a real window" can be the tour itself, section by section (`--groups`) | unchanged; mitigation stronger | planner |
-| 3 | Unrequested network calls | Room's own code: 0 requests, 0 bytes (2.8b, again in the tour). CEF's engine: six Google hosts on a fresh profile, three on the tour's reused one (B-19). PR #1 took RoomCore's idle traffic 62 → 0 | down: Room's half is proven, the engine's has a branch | planner |
-| 4 | Keychain and signing identity | CEF stayed on the mock keychain all chapter; nothing new. The identity is decided (`app.room.desktop`) | unchanged | planner |
-| 5 | Widevine | Not touched | unchanged | planner |
-| 6 | Web Store for non-Chrome brands | Not touched | unchanged | planner |
-| 7 | CEF caps make Chapter 2 a weak daily driver | Every cap was hit as listed and none surprised us (table above); the by-hand pass uses throwaway accounts | down; retires at 3.9 | planner |
-| 8 | Passkey entitlement lead time | Unblocked 2026-10-04 by the identity decision; the request can go now | unchanged until filed | planner |
-| 9 | Sparkle update size | Sparkle 2.10 wired behind its opt-in (2.8b); the size is still the release build's (3.1b) | unchanged | planner |
-| 10 | Crashpad → Sentry | Sentry 9.30 wired for the app process only, crash reports only (2.8b); helper crashes and minidumps are Chapter 3 | unchanged | planner |
-| 11 | CEF single maintainer | Ends at 3.9 | unchanged | planner |
-| new | **Main-thread budget at 120 Hz.** Every Chapter 2 timing is at 60 Hz. Visible-window tab switching is 14–15 ms median and 17–19 ms p95 (B-41); a query's first keystroke 18 ms on an E core; 2–8% of 120 Hz-sized scroll steps over 8.3 ms (B-16) | three 120 Hz measurements are user items (B-16, B-20, B-21); RoomCore's own numbers come in 3.3b | add, mid-table | planner |
-| new | **The tour as Chapter 3's harness can pass by skipping.** Seven spike files drive pages through CEF-only paths (`as? CEFWebContents`, CDP `Input.dispatchMouseEvent`, `Runtime.evaluate`) and `return` silently when the cast fails. The tour's checks require each result line, so a skipped section fails rather than passes; the spikes still need an engine-neutral input and script path before 3.2 | add, high for Chapter 3 | planner |
-| new | **Launch time grows with the state.** `RoomStorage.open` runs `PRAGMA integrity_check` over the whole database on the main thread at every launch: 0.35–0.56 s on the tour's 42 MB database (50,025 history URLs, 151,824 visits); relaunch to the selected page 1.41 s on that state against 0.48–0.60 s in 2.3 (B-42). History leaves `Room.sqlite` in 3.5/3.9; until then a check only after an unclean exit would do | add, low | planner |
-| (Chapter 3 spec) | Official build time and memory; rebase churn in `chrome/browser/ui/views/frame/`; hybrid Views bubbles; Web Store and Widevine; the shutdown watchdog (B-38); memory (4.1 GB for ten pages on CEF) | — | — | planner |
+| 1 | Rebase and build cost at a 2-week cadence | No fork work in the Chapter 2 phases; PR #1 ran beside them. Nothing new from the CEF side | unchanged | stays #1; the official build (3–6 h, LTO memory) joins it; 3.8 measures two rebases before the cadence is chosen |
+| 2 | `BrowserWindow` entanglement | Not exercised on CEF. The Chapter 2 app now has a spike for every feature, so 3.2's "real input through a real window" can be the tour itself, section by section (`--groups`) | unchanged; mitigation stronger | stays #2; the tour section by section is 3.2's harness, once B-44 is fixed in 3.1a |
+| 3 | Unrequested network calls | Room's own code: 0 requests, 0 bytes (2.8b, again in the tour). CEF's engine: six Google hosts on a fresh profile, three on the tour's reused one (B-19). PR #1 took RoomCore's idle traffic 62 → 0 | down: Room's half is proven, the engine's has a branch | down to #4: Room's half is proven by a check; PR #1's policy merges in 3.1a and the release build is net-logged in 3.1b |
+| 4 | Keychain and signing identity | CEF stayed on the mock keychain all chapter; nothing new. The identity is decided (`app.room.desktop`) | unchanged | down to #10; the identity is decided, the signed-build keychain check is a 3.1b task |
+| 5 | Widevine | Not touched | unchanged | #7 together with the Web Store: both verified in 3.1b/3.6a with fallbacks |
+| 6 | Web Store for non-Chrome brands | Not touched | unchanged | #7 with Widevine |
+| 7 | CEF caps make Chapter 2 a weak daily driver | Every cap was hit as listed and none surprised us (table above); the by-hand pass uses throwaway accounts | down; retires at 3.9 | retires at 3.9; the by-hand pass uses throwaway accounts |
+| 8 | Passkey entitlement lead time | Unblocked 2026-10-04 by the identity decision; the request can go now | unchanged until filed | #11; unblocked, the user files it |
+| 9 | Sparkle update size | Sparkle 2.10 wired behind its opt-in (2.8b); the size is still the release build's (3.1b) | unchanged | #12; a number in 3.1b |
+| 10 | Crashpad → Sentry | Sentry 9.30 wired for the app process only, crash reports only (2.8b); helper crashes and minidumps are Chapter 3 | unchanged | #13; one forced helper crash in 3.4b |
+| 11 | CEF single maintainer | Ends at 3.9 | unchanged | ends at 3.9 |
+| new | **Main-thread budget at 120 Hz.** Every Chapter 2 timing is at 60 Hz. Visible-window tab switching is 14–15 ms median and 17–19 ms p95 (B-41); a query's first keystroke 18 ms on an E core; 2–8% of 120 Hz-sized scroll steps over 8.3 ms (B-16) | three 120 Hz measurements are user items (B-16, B-20, B-21); RoomCore's own numbers come in 3.3b | add, mid-table | #5; three user runs on the laptop, and 3.3b takes RoomCore's numbers under the tour's conditions |
+| new | **The tour as Chapter 3's harness can pass by skipping.** Seven spike files drive pages through CEF-only paths (`as? CEFWebContents`, CDP `Input.dispatchMouseEvent`, `Runtime.evaluate`) and `return` silently when the cast fails. The tour's checks require each result line, so a skipped section fails rather than passes; the spikes still need an engine-neutral input and script path before 3.2 | add, high for Chapter 3 | #3 and a 3.1a task: an engine-neutral DEBUG driving surface (click, key, script, capture) before any tour section runs on RoomCore |
+| new | **Launch time grows with the state.** `RoomStorage.open` runs `PRAGMA integrity_check` over the whole database on the main thread at every launch: 0.35–0.56 s on the tour's 42 MB database (50,025 history URLs, 151,824 visits); relaunch to the selected page 1.41 s on that state against 0.48–0.60 s in 2.3 (B-42). History leaves `Room.sqlite` in 3.5/3.9; until then a check only after an unclean exit would do | add, low | #14 and a one-line 3.1a task: `quick_check` at every launch, the full `integrity_check` only after an unclean exit |
+| (Chapter 3 spec) | Official build time and memory; rebase churn in `chrome/browser/ui/views/frame/`; hybrid Views bubbles; Web Store and Widevine; the shutdown watchdog (B-38); memory (4.1 GB for ten pages on CEF) | — | — | #6 hybrid bubbles, #8 shutdown watchdog, #9 memory, and the build/rebase items folded into #1; the full ranking is PLAN §7 |
+
+## Planner's closing (2026-10-04)
+
+Chapter 2 did what its overview asked: every Arc/Zen interaction decision is implemented, measured and captured, on one engine, in nine phases over four days across two machines, with a spike for each feature and a tour that runs them all in 36 minutes. The only product findings of the integration check are three backlog rows and one bound missed by two milliseconds on a visible window. Nothing blocks Chapter 3.
+
+What Chapter 3 inherits from this review, now in its spec: the tour as the acceptance harness, which first needs an engine-neutral driving surface (B-44, 3.1a); the 120 Hz numbers as user items and 3.3b's conditions; the launch-time check (B-42, 3.1a); the Public Suffix List placed in 3.3a; and the CEF caps table as the checklist of what RoomCore must lift, phase by phase.
+
+What stays open from Chapter 2 itself: the user's by-hand pass, whose friction is triaged with the 3.9 week's; the four laptop measurements (B-16, B-18, B-20, B-21); camera, microphone and location on a machine with devices (B-26). The chapter is closed with those named; the risk ranking in PLAN §7 is the planner's.
