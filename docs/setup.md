@@ -74,7 +74,8 @@ bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
 #   clean component build of `chrome` (Room.app + RoomCore.framework): hours.
 #   Under ~32 GB RAM add ROOM_BUILD_JOBS=6 (inside the bash -c): ten parallel
 #   Blink compiles swap on a 24 GB Mac mini (4 h 15 min at 6 jobs)
-scripts/roomcore-package.sh   # stage the framework, build the Swift host (scheme "Room (RoomCore)")
+scripts/roomcore-package.sh   # stage the framework, build Room.app on RoomCore (scheme "Room (RoomCore)")
+#   and the embryo host (scheme "RoomCore Host", build/roomcore-host)
 ```
 
 Engine-level checks (from PR #1, merged in 3.1a), all on the packaged host
@@ -94,6 +95,14 @@ The full Chromium history is needed (the `room` branch is rebased onto new
 tags); do not use `--no-history`.
 
 ## 5. Signing (user)
+
+Identity (PLAN §4): bundle id `app.room.desktop` for Room.app on either
+engine and the embryo host; the CEF helpers are `app.room.desktop.helper`,
+`.helper.gpu`, `.helper.renderer`, `.helper.plugin`, `.helper.alerts`; the
+RoomCore framework's helpers take Chromium's own suffixes under the same id
+(`.helper`, `.helper.renderer`, `.framework.AlertNotificationService`). The
+defaults domain is `app.room.desktop` (it was `com.lekevicius.room` through
+Chapter 2).
 
 Ad-hoc builds get a new code identity per build, so the login keychain asks
 for the password whenever Chromium reads its Safe Storage item. Signing with

@@ -180,6 +180,37 @@ Counts are from one run of `scripts/chrome-surfaces.sh --session 2.6b` (light; t
 
 From PR #1 (`bg/roomcore-hardening`, merged in 3.1a); the planner's review is `research/notes/roomcore-hardening-review.md`. The shutdown watchdog these notes call open is B-38.
 
+### `EngineRoomCore` at the embryo's depth (3.1a)
+
+What `Packages/EngineRoomCore` implements over the public ObjC API today, and what each gap returns until its phase. No public header gained a member in 3.1a (`RoomApplication.h` documents the new defaults: data root, log file, mock keychain by signature). Pages are standalone `content::WebContents` (not in a Chrome tab strip until 3.2's `RoomBrowser` per window), so no Chrome tab helpers are attached.
+
+| Engine member | `EngineRoomCore` (3.1a) | RoomCore member / Chromium | Real in |
+|---|---|---|---|
+| `initialize(_:)` | `RoomApplication initializeWithArguments:applicationClass:userDataDirectory:` with `RoomCoreNSApplication`; `logFile` → `--enable-logging --log-file`, `locale` → `--lang`, `usesSystemKeychain == false` → `--use-mock-keychain`, `features` → `--enable-features`/`--disable-features`. RoomCore adds: data root `Application Support/Room/RoomCore` when none, `RoomCore.log` in it when no log was chosen, `--use-mock-keychain` when the build has no team signature, crash keys at launch | `ChromeMain` switches | 3.1a |
+| `run()` | `-[RoomApplication run]` (returns after Chromium shut down) | `ChromeMain` | 3.1a |
+| `tryToTerminate(_:)` / ⌘Q | closes every page (`-[RoomWebContents close]`), `completion(true)`, then `-[RoomApplication tryToTerminate]`; `RoomCoreNSApplication -terminate:` closes the pages first too. No beforeunload, never `completion(false)` | `BrowserCloseManager` | 3.2b |
+| `isTerminating` | `true` from the first termination request | `browser_shutdown::IsTryingToQuit()` | 3.2b |
+| `features` / `profiles` / `createProfile(name:)` | the configuration's features; `createProfile` → `-[RoomApplication createProfile:completion:]` with `Room Profile <name>` (the Chapter 2 layout) | `ProfileManager::CreateProfileAsync` | 3.1a |
+| `Profile.createWebContents(_:)` | `-[RoomProfile createWebContents]`; `initiallyHidden`, `transparentBackground`, `disallowAutoplay` ignored; `initiallyMuted` stored | `WebContents::Create` | 3.3a (options) |
+| `Profile.downloadsDelegate` | stored, never called | `DownloadManagerDelegate` | 3.4a |
+| `pause/resume/cancelDownload`, `setPermissionSetting` | no-op | — | 3.4a |
+| `favicon(for:)`, `permissionSetting`, `history`, `bookmarks`, `extensions`, `makeAutocompleteController()` | `nil` | — | 3.3a, 3.4a, 3.5, 4.3, 3.6, 3.5 |
+| `clearSiteData` | throws `notSupported` | `BrowsingDataRemover` | 3.4a |
+| `WebContents.nativeView` | a view `RoomCoreWebContents` owns with `WebContentsViewCocoa` filling it (stable after close) | `WebContents::GetNativeView()` | 3.1a |
+| `load` / `goBack` / `goForward` / `reload` / `stop` | `loadURL:` (always TYPED + FROM_ADDRESS_BAR), `goBack`, `goForward`, `reload`; `reloadIgnoringCache` = `reload` | `NavigationController` | 3.1a (transition, bypassing cache: 3.3a) |
+| `title` / `url` / `isLoading` / `canGoBack` / `canGoForward` | from the ObjC KVO properties; `loadProgress` 0.1 while loading, 1 when idle | `WebContentsObserver` | 3.1a (progress: 3.3a) |
+| `close()` / `webContentsDidClose` | `-[RoomWebContents close]` (no beforeunload); the `closed` KVO change fires the delegate, `state = .closed` | `WebContents` destruction | 3.1a (beforeunload: 3.3a) |
+| `uiDelegate` / `navigationDelegate` | stored; only `webContentsDidClose` is called (no commits, no policy, no dialogs, no permissions) | `WebContentsDelegate`, `NavigationThrottle` | 3.3a, 3.4 |
+| `favicon`, `themeColor`, `rootBackgroundColor`, `securityState`, `isAudible` | `nil` / `.none` / `false` | tab helpers | 3.3a |
+| `isMuted`, `zoomFactor` | stored only | `SetAudioMuted`, `ZoomController` | 3.3a |
+| `find` / `stopFind` / `findResult` | no-op / `nil` | `FindTabHelper` | 3.3b |
+| `discard()` | throws `notSupported` | `TabLifecycleUnitExternal` | 3.3a |
+| `captureViewport()` / `executeJavaScript(_:)` | throw `notSupported` (the spikes' `PageDriver` turns that into an `error:` line) | `CopyFromSurface`; isolated-world script | 3.3b |
+| `devTools` | `nil` | front-end `WebContents` in the host's pane | 3.3b |
+| `print()` / `exitFullscreen()` | no-op | print preview; `ExclusiveAccessContext` | 3.3b, 3.2a |
+
+Host side until 3.2b: `NSApp.delegate` is Chrome's `AppController`, so the app's `AppDelegate` is created and started from RoomCore's launch callback (`RoomCoreApplication.didFinishLaunching`) and reached through `AppDelegate.current`; links from other apps (`application(_:open:)`) and Dock reopen go to Chrome's controller, not to Room.
+
 ### RoomCore background hardening (2026-10-03 component build)
 
 The original feature drives do not cover the full Chrome UI contract. See

@@ -636,6 +636,66 @@ Run 3 (1280 × 800 display, no Screen Sharing) moved little: switching 11.5 / 18
 
 Not regressions: tab switching and the palette's first key are where the phases left them once conditions are equal; the visible-window switch and the relaunch are new conditions (B-41, B-42). Two findings that are the product's, both in the backlog: `RoomStorage.open` runs `PRAGMA integrity_check` over the whole database at every launch, 0.35–0.56 s at 50k history rows (B-42); a certificate exception cannot be revoked from Room (B-43). The spikes' CEF-only driving paths are B-44.
 
+## Phase 3.1a — merge, spike gate, identity, Room.app on RoomCore, bootstrap, driving surface (2026-10-04, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Component build `out/dev` (tag 154.0.8037.58, patches 0001–0009, 0011, 0012; 0010 parked), ad-hoc signed, mock keychain (no team signature). Load average 5–22 during the runs (Claude, VS Code and the usual background apps; the grand tours and builds in sequence, never concurrently). Console unlocked throughout.
+
+### The baseline (`scripts/roomcore-baseline.sh`, embryo host)
+
+| Run | nav (assertions) | Ten-page quit ×3 (`NSApp.terminate` → exit) | Helpers seen / left | Crash reports | load1 |
+|---|---|---|---|---|---|
+| After the merge (`build/baseline/3.1a-merge`) | passed, 17.4 s | **0.305 / 0.538 / 0.263 s** | 26 / 0 | 0 | 12.0 / 9.7 / 11.9 |
+| After the spike gate, identity and bootstrap (`build/baseline/3.1a-identity`) | passed, 12.7 s | **0.276 / 0.259 / 0.233 s** | 26, 26, 24 / 0 | 0 | 6.4 / 10.9 / 12.1 |
+
+Stub hits in the second nav run (first hit each): `GetAutofillBubbleHandler`, `GetCanResize`, `GetRestoredState`, `GetStatusBubbles`, `GetWindowShowState`, `GetWorkspace`, `IsVisibleOnAllWorkspaces`, `OnTabDetached`, `UpdateLoadingAnimations`, `UpdateReloadStopState`, `UpdateToolbar`, `UpdateToolbarSecurityState` (12). Room.app on RoomCore creates no `Browser` yet (pages are standalone `WebContents` until 3.2), so its runs hit no `RoomBrowserWindow` member.
+
+### Identity and the data root
+
+- `plutil -p` of `build/roomcore/DerivedData/Build/Products/Debug/Room.app`: `CFBundleIdentifier` app.room.desktop, `CFBundleName` Room; framework app.room.desktop.framework, `RoomCoreCommit` 13d9ebb-dirty. Helpers: Room Helper, (GPU), (Aperitif), (Aperitif GPU) → app.room.desktop.helper; (Renderer), (Aperitif Renderer) → app.room.desktop.helper.renderer; (Alerts), (Aperitif Alerts) → app.room.desktop.framework.AlertNotificationService (Chromium's own suffixes; PLAN's `.helper.gpu`/`.helper.plugin`/`.helper.alerts` are the CEF helpers', B-46).
+- Fresh `-RoomEngineDirectory /tmp/room-3.1a/engine` after one launch of Room.app on RoomCore with `-RoomSidebarFixture demo`: `Local State`, `Room Profile Default` (the app's profile, Chapter 2 layout), `Default` (Chromium's startup profile), `RoomCore.log`, `Crashpad/{attachments,completed,new,pending,settings.dat}`, plus Chromium's component directories (43 entries while running, 39 after the quit: the `Singleton*` locks and a journal go). `RoomCore.log` carries `Room crash keys: room-app-version=0.1.0 (1) room-chromium=154.0.8037.58 room-commit=13d9ebb-dirty`; after resolving `/tmp` → `/private/tmp` no helper logs "Unable to initialize logging" (before: one line per sandboxed helper).
+- Crashpad handlers (`ps`): `--database=/private/tmp/room-3.1a/engine/Crashpad --annotation=prod=Room_Mac --annotation=ver=154.0.8037.58`, no `--url` (B-14 verified).
+- `RoomCore.framework` staged: **916 MB with all 228 locales (51 MB), 864 MB without** (component build, 518 dylibs; the release size is 3.1b's).
+- `gn gen` of a scratch out directory with `room_enable_spikes = false`: 34,288 targets in 14.7 s, no `room_worker_shutdown_probe` target (deleted afterwards; no build).
+
+### Room.app on RoomCore
+
+`-RoomStateDirectory /tmp/room-3.1a -RoomEngineDirectory /tmp/room-3.1a/engine -RoomSidebarFixture demo`: the demo sidebar, the selected pinned entry (AppKit documentation) rendered in the card (`research/screenshots/phase-3.1a/roomcore-room-app-window.png`, a window-server capture; the in-process captures `roomcore-inprocess-card-page-{light,dark}.png` from `-RoomSpike capture` show the card empty, since own-window renders miss Chromium's GPU layer (B-9) and `captureViewport` is 3.3b). State opened in 10.4 ms (quick_check). AppleEvent quit: exit in ~1 s, no crash report; SIGTERM likewise.
+
+### The grand tour's layout and sidebar sections (`--groups layout,sidebar light`)
+
+| Engine | Tour | Checks | Wall time |
+|---|---|---|---|
+| CEF (`build/grand-tour/20261004-171019-cef`) | f736067 | **177 passed, 0 failed** | 7.5 min |
+| RoomCore (`build/grand-tour/20261004-172247-roomcore`) | f736067 | **137 passed, 38 failed** | 9.1 min |
+
+On RoomCore every step ran to its end line (no skipped section); the 38 failures, by cause:
+
+| Step | Failed / checks | Why |
+|---|---|---|
+| smoke | 2 / 6 | `helpers_left=1` at 0.5 s: Chrome's `code-sign-clone-cleanup` helper exits 1–1.8 s after the browser (B-45); quit 0.17 s |
+| quittiming | 3 / 9 | the same helper at 1 s; quits 0.30 / 0.29 / 0.42 s, 0 crash reports |
+| cdp | 2 / 12 | `executeJavaScript`, `captureViewport` not supported (3.3b) |
+| scroll | 3 / 10 | frame timing read by script (3.3b) |
+| memory | 3 / 16 | the hidden-page rAF probe is a script (3.3b); the RSS rows ran |
+| audio | 4 / 13 | `play()` and the oscillator are scripts (3.3b); `isAudible` is not reported (3.3a) |
+| popups | 6 / 12 | element positions by script (3.3b); `window.open`/`target=_blank` need `AddNewContents` (3.2a); alerts need the dialog manager (3.4b) |
+| hidden | 5 / 11 | the visibility probe is a script (3.3b) |
+| keys | 6 / 16 | the field setup is a script (3.3b); ⌘T/⌘L from the page need the keyboard hooks of a `WebContentsDelegate` (3.2b) |
+| devtools | 4 / 10 | no DevTools host (3.3b) |
+
+Passed in full on RoomCore: window, resize, open10, diaframe, killtest, sidebardemo, sidebar500.
+
+### B-42: the integrity check at launch
+
+50,000-URL history fixture (`-RoomHistoryRows 50000`, `Room.sqlite` 40 MB), CEF Debug app, the open of the state database as the app logs it (`RoomStore.open`), three launches each, load 9–13:
+
+| Previous session | Check | Open time |
+|---|---|---|
+| clean quit (after) | `PRAGMA quick_check` | **151.0 / 150.3 / 153.0 ms** |
+| `kill -9` (and every launch before 3.1a) | `PRAGMA integrity_check` | **317.9 / 328.7 / 313.8 ms** |
+
+A clean relaunch saves ~165 ms on this state.
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.
