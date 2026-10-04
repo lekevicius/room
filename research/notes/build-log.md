@@ -145,6 +145,30 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-04 | `scripts/roomcore-build.sh` after a one-file `//room` edit (real path of the data root) | 47 s build part | load 6.0 → 6.7 |
 | 2026-10-04 | `scripts/roomcore-package.sh` building both RoomCore targets | stage 4.8–8.5 s; host 7.4 s, Room.app on RoomCore 12.3–19.6 s (incremental) | Room.app on RoomCore 945 MB |
 
+### Phase 3.1b on the Mac mini (2026-10-04): the official release build
+
+`Engine/roomcore/args/release.gn` (`is_official_build=true`, `is_component_build=false`, `is_debug=false`, `symbol_level=1`, `enable_dsyms=true`, codecs, Widevine, `enable_updater=false`, branding, no `room_enable_spikes`); `gn args --list` shows `use_thin_lto = true` already implied, `is_cfi = false`, `use_lld = true`. Changed from the ROADMAP's list: **`chrome_pgo_phase = 0`** (the first `gn gen` failed: the official build wants `chrome/build/pgo_profiles/chrome-mac-arm-8037-….profdata`, which gclient downloads only with `custom_vars` `checkout_pgo_profiles`). `gn gen out/release`: 35,311 targets from 4,985 files in 13.1 s. Target `chrome`: **57,703 steps** (`third_party/ninja/ninja -C out/release -t commands chrome | wc -l`).
+
+Started **17:54:44** from bash with nohup (`ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn scripts/roomcore-build.sh`, pid 72579, log `build/roomcore-release-build.log`), nice 0, load 5.0. Siso prints only dots without a terminal; the step count is the number of lines in `out/release/siso_metrics.json` (one per finished step). The session's measurements ran beside it (load 11–49; the concurrent watchdog harness pushed load to 160 for 5 min).
+
+| Wall clock | Elapsed | Steps done / 57,703 | Rate since previous | Load (1 min) | Notes |
+|---|---|---|---|---|---|
+| 18:06 | 0:12 | 10,311 (17.9 %) | — | ~10 | mostly cheap steps (codegen, stamps, copies) |
+| 18:23 | 0:28 | 18,661 (32.3 %) | 491/min | 29 | |
+| 18:53 | 0:59 | 25,799 (44.7 %) | 238/min | 15 | pageouts 54,246, swap 1.59 of 2 GB used |
+| 19:02 | 1:08 | 26,649 (46.2 %) | 94/min | 76 | the concurrent watchdog harness (3 hosts × 10 pages) ran 18:56–19:01 |
+| 19:19 | 1:25 | 28,135 (48.8 %) | 87/min | 26 | the serial watchdog harness ran 19:03–19:18 |
+
+Other steps this session (component build, beside the release build):
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-04 | `scripts/roomcore-package.sh --app-only` after the `xcodegen/roomcore.yml` stage settings | 32.9 s | stage 12.1 s, Room.app on RoomCore 20.6 s; component link unchanged (`-lchrome_dll` by default) |
+| 2026-10-04 | `scripts/roomcore-sign.sh` (Developer ID, clone of the Debug app) | 31.4 s signing, 92 s with the clone | 945 MB app, 518 dylibs signed 8 at a time |
+| 2026-10-04 | Notarization zip (`ditto -c -k`) + `notarytool submit --wait` | 44 s + 134 s | 290 MB; Accepted (41d74c9a-dc7b-4fec-aaf7-f2ae65a8905b), stapled |
+| 2026-10-04 | Sparkle DMG (`hdiutil create -fs HFS+ -format UDZO`) | 14.1 s | 339,023,043 bytes |
+| 2026-10-04 | `swiftc -O scripts/lib/room-ae.swift` (first use of the wrappers) | 1.3 s | `build/tools/room-ae` |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior
