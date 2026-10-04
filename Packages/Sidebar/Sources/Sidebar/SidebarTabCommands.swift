@@ -37,6 +37,11 @@ extension SidebarController {
         select(target.id)
     }
 
+    /// ⌘1…⌘9 apply: the sidebar order has an entry for `digit` (⌘9 is the last).
+    public func canSelectTab(digit: Int) -> Bool {
+        NavigationRules.digitTarget(digit, in: sidebar.sidebarOrder(space: tree.spaceID)) != nil
+    }
+
     /// ⇧⌘] / ⌥⌘↓ (`offset` 1), ⇧⌘[ / ⌥⌘↑ (−1): the next entry in sidebar order, wrapping.
     public func selectAdjacentTab(_ offset: Int) {
         let order = sidebar.sidebarOrder(space: tree.spaceID)

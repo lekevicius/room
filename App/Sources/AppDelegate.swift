@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The address field's full-URL tooltip appears after 600 ms (spec §C).
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
-        NSApp.mainMenu = MainMenu.make()
+        NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()
         if Self.quitRequested {
             NSApp.terminate(nil)
@@ -649,7 +649,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌃⇧-: the focused pane leaves the split.
     @objc func removeSplitPane(_ sender: Any?) { sidebar?.removeFocusedPane() }
 
-    /// ⌥⌘G (tag 0), ⌥⌘V (1), ⌥⌘H (2).
+    /// ⌥⌘G (tag 0), ⌥⌘V (1), Stacked (2, no key: ⌥⌘H is Hide Others, B-36).
     @objc func setSplitLayout(_ sender: Any?) {
         guard let item = sender as? NSMenuItem else { return }
         sidebar?.setSplitLayout(Self.splitLayout(tag: item.tag))
@@ -796,81 +796,188 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         NSLog("Room: discarded \(ids.count) background page(s)")
     }
 
+    // MARK: Added with the full menu (2.8a)
+
+    /// ⌘N: the window again after ⇧⌘W; a second window is Chapter 4.8 (multi-window).
+    @objc func newRoomWindow(_ sender: Any?) {
+        showWindow()
+        NSApp.activate()
+    }
+
+    /// File ▸ Open File… (menu-only: ⌘O is Peek's, docs/shortcuts.md): a new Today tab on the file.
+    @objc func openFileInTab(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        tabs?.openNewTab(url: url.absoluteString)
+    }
+
+    /// File ▸ Commands…: the palette in its actions mode (spec §C).
+    @objc func showCommands(_ sender: Any?) { palette?.toggleCommands() }
+
+    /// ⇧⌘R (spec §G: Reload ignoring the cache; rename stays Return / double-click).
+    @objc func reloadIgnoringCache(_ sender: Any?) { tabs?.focusedPage?.reloadIgnoringCache() }
+
+    /// ⌘.
+    @objc func stopLoading(_ sender: Any?) { tabs?.focusedPage?.stop() }
+
+    /// Tab ▸ Switch to Recent Tab (⌃Tab, tag 1) / Switch Back (⌃⇧Tab, tag −1): one step of the
+    /// switcher without holding ⌃ (the keys themselves go to `TabSwitcher` first).
+    @objc func switchToRecentTab(_ sender: Any?) {
+        guard let sidebar, let item = sender as? NSMenuItem else { return }
+        let state = TabSwitcherState(items: sidebar.recentEntries(limit: TabSwitcherMetrics.limit).map(\.id), backwards: item.tag < 0)
+        guard let target = state.highlighted, target != sidebar.selectedEntryID else { return }
+        sidebar.select(target)
+    }
+
+    /// Tab ▸ Rename… (spec §I.9): the selected row's inline field; the hidden sidebar's overlay is pinned for it.
+    @objc func renameSelected(_ sender: Any?) {
+        hiddenSidebar?.revealForSpaceForm()
+        sidebar?.renameSelected()
+    }
+
+    @objc func duplicateSelected(_ sender: Any?) { sidebar?.duplicateSelected() }
+    @objc func unloadSelected(_ sender: Any?) { sidebar?.unloadSelected() }
+    @objc func resetSelected(_ sender: Any?) { sidebar?.resetSelected() }
+
+    /// Tab ▸ Close Peek (Esc, ⌘W).
+    @objc func closePeek(_ sender: Any?) { tabs?.closeShownPeek() }
+
+    // MARK: Validation
+
+    /// Every Room command validates here (ROADMAP 2.8 task 1); an action
+    /// without a case is disabled, so a new item cannot be enabled by accident.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        switch menuItem.action {
-        case #selector(togglePin(_:)):
-            menuItem.title = sidebar?.pinCommandTitle ?? CommandName.pinTab
-            return sidebar?.pinCommandTitle != nil
-        case #selector(toggleEssentials(_:)):
-            menuItem.title = sidebar?.essentialsCommandTitle ?? CommandName.addToEssentials
-            return sidebar?.essentialsCommandTitle != nil
-        case #selector(clearTodayTabs(_:)):
-            return sidebar?.canClearToday == true
-        case #selector(closeTab(_:)):
-            return tabs?.shownPeek != nil || sidebar?.canCloseCommandTargets == true
-        case #selector(reopenClosedTab(_:)):
-            return sidebar?.canReopenClosedTab == true
-        case #selector(selectSpaceByNumber(_:)):
-            guard let spaces = store?.sidebar.spaces else { return false }
-            let index = menuItem.tag == 0 ? 9 : menuItem.tag - 1
-            if spaces.indices.contains(index) { menuItem.title = spaces[index].name }
-            return spaces.indices.contains(index)
-        case #selector(selectAdjacentSpace(_:)):
-            return (store?.sidebar.spaces.count ?? 0) > 1
-        case #selector(toggleMute(_:)):
-            let muted = sidebar?.selectedEntryID.flatMap { tabs?.pageState(for: $0).isMuted } ?? false
-            menuItem.title = muted ? CommandName.unmuteTab : CommandName.muteTab
-            return sidebar?.selectedHasPage == true
-        case #selector(toggleDevTools(_:)):
-            menuItem.title = pageHost?.isDevToolsOpen == true ? "Close Developer Tools" : "Developer Tools"
-            return tabs?.current != nil
-        case #selector(reloadPage(_:)), #selector(showFindBar(_:)), #selector(findNext(_:)), #selector(printPage(_:)),
-             #selector(showJavaScriptConsole(_:)), #selector(inspectElements(_:)):
-            return tabs?.focusedPage != nil
-        case #selector(zoomPage(_:)):
-            guard let page = tabs?.focusedPage else { return false }
-            switch menuItem.tag {
+        guard let action = menuItem.action, let validate = Self.validators[action] else {
+            #if DEBUG
+            NSLog("Room: no validation for \(menuItem.action.map(NSStringFromSelector) ?? "nil") (\(menuItem.title))")
+            #endif
+            return false
+        }
+        return validate(self, menuItem)
+    }
+
+    /// Whether a text field or text view is being edited in the key window (⌘← / ⌘→ stay the field's).
+    private var isEditingText: Bool {
+        NSApp.keyWindow?.firstResponder is NSText
+    }
+
+    private var hasPage: Bool { tabs?.focusedPage != nil }
+
+    /// Every `.app` action of `MainMenuTable` and the Debug menu (the `menus` spike checks none is missing).
+    static let validators: [Selector: (AppDelegate, NSMenuItem) -> Bool] = [
+        // App, File
+        #selector(showSettings(_:)): { app, _ in app.store != nil },
+        #selector(newPage(_:)): { app, _ in app.tabs != nil },
+        #selector(newRoomWindow(_:)): { app, item in
+            let shows = app.windowController?.window?.isVisible == true
+            item.toolTip = shows ? "A second window comes in Chapter 4.8" : nil
+            return !shows && app.store != nil
+        },
+        #selector(newSpace(_:)): { app, _ in app.sidebar != nil },
+        #selector(openLocation(_:)): { app, _ in app.tabs != nil },
+        #selector(openFileInTab(_:)): { app, _ in app.tabs?.profile != nil },
+        #selector(showCommands(_:)): { app, _ in app.palette != nil },
+        #selector(closeTab(_:)): { app, _ in app.tabs?.shownPeek != nil || app.sidebar?.canCloseCommandTargets == true },
+        #selector(reopenClosedTab(_:)): { app, _ in app.sidebar?.canReopenClosedTab == true },
+        #selector(printPage(_:)): { app, _ in app.hasPage },
+        // Edit
+        #selector(copyPageURL(_:)): { app, _ in app.sidebar?.selectedHasURL == true },
+        #selector(showFindBar(_:)): { app, _ in app.hasPage },
+        #selector(findNext(_:)): { app, _ in app.hasPage },
+        // View
+        #selector(hideOrShowSidebar(_:)): { app, item in
+            // Enabled whenever the window exists and no page is in element fullscreen (ROADMAP 2.7b).
+            item.title = app.windowController?.isSidebarOpen == false ? "Show Sidebar" : "Hide Sidebar"
+            return app.windowController.map { !$0.rootView.isPageFullscreen } ?? false
+        },
+        #selector(keepSidebarOpen(_:)): { app, item in
+            item.state = app.windowController?.reveal.isPinned == true ? .on : .off
+            return app.windowController.map { !$0.rootView.isPageFullscreen } ?? false
+        },
+        #selector(toggleToolbar(_:)): { app, item in
+            item.state = app.windowController?.showsToolbar == true ? .on : .off
+            return app.windowController != nil
+        },
+        #selector(reloadPage(_:)): { app, _ in app.hasPage },
+        #selector(reloadIgnoringCache(_:)): { app, _ in app.hasPage },
+        #selector(stopLoading(_:)): { app, _ in app.tabs?.focusedPage?.isLoading == true },
+        #selector(zoomPage(_:)): { app, item in
+            guard let page = app.tabs?.focusedPage else { return false }
+            switch item.tag {
             case 1: return page.zoomFactor < ZoomRules.steps.last! - 0.001
             case -1: return page.zoomFactor > ZoomRules.steps.first! + 0.001
             default: return !ZoomRules.isDefault(page.zoomFactor)
             }
-        case #selector(expandPeek(_:)):
-            return tabs?.shownPeek != nil
-        case #selector(splitPeek(_:)):
-            return tabs?.shownPeek != nil
-        case #selector(newSplitPane(_:)):
-            return sidebar?.selectedEntryID != nil
-        case #selector(removeSplitPane(_:)), #selector(unsplit(_:)):
-            return sidebar?.selectedSplit != nil
-        case #selector(setSplitLayout(_:)):
-            let split = sidebar?.selectedSplit
-            menuItem.state = split.map { $0.layout == Self.splitLayout(tag: menuItem.tag) } == true ? .on : .off
+        },
+        #selector(toggleDevTools(_:)): { app, item in
+            item.title = app.pageHost?.isDevToolsOpen == true ? "Close Developer Tools" : "Developer Tools"
+            return app.tabs?.current != nil
+        },
+        #selector(showJavaScriptConsole(_:)): { app, _ in app.hasPage },
+        #selector(inspectElements(_:)): { app, _ in app.hasPage },
+        // History (tag 2: the ⌘← / ⌘→ aliases, outside text fields)
+        #selector(goBack(_:)): { app, item in
+            (item.tag != 2 || !app.isEditingText) && app.tabs?.focusedPage?.canGoBack == true
+        },
+        #selector(goForward(_:)): { app, item in
+            (item.tag != 2 || !app.isEditingText) && app.tabs?.focusedPage?.canGoForward == true
+        },
+        #selector(showHistory(_:)): { app, _ in app.palette != nil },
+        // Tab
+        #selector(selectAdjacentTab(_:)): { app, _ in app.sidebar?.selectedEntryID != nil },
+        #selector(switchToRecentTab(_:)): { app, _ in (app.sidebar?.recentEntries(limit: 2).count ?? 0) > 1 },
+        #selector(selectTabByNumber(_:)): { app, item in app.sidebar?.canSelectTab(digit: item.tag) == true },
+        #selector(togglePin(_:)): { app, item in
+            item.title = app.sidebar?.pinCommandTitle ?? "Pin Tab"
+            return app.sidebar?.pinCommandTitle != nil
+        },
+        #selector(toggleEssentials(_:)): { app, item in
+            item.title = app.sidebar?.essentialsCommandTitle ?? "Add to Essentials"
+            return app.sidebar?.essentialsCommandTitle != nil
+        },
+        #selector(toggleMute(_:)): { app, item in
+            let muted = app.sidebar?.selectedEntryID.flatMap { app.tabs?.pageState(for: $0).isMuted } ?? false
+            item.title = muted ? CommandName.unmuteTab : CommandName.muteTab
+            return app.sidebar?.selectedHasPage == true
+        },
+        #selector(renameSelected(_:)): { app, _ in app.sidebar?.canRenameSelected == true },
+        #selector(duplicateSelected(_:)): { app, _ in app.sidebar?.selectedHasURL == true },
+        #selector(unloadSelected(_:)): { app, _ in app.sidebar?.selectedHasPage == true },
+        #selector(resetSelected(_:)): { app, _ in app.sidebar?.canResetSelected == true },
+        #selector(clearTodayTabs(_:)): { app, _ in app.sidebar?.canClearToday == true },
+        #selector(newSplitPane(_:)): { app, _ in app.sidebar?.selectedEntryID != nil },
+        #selector(removeSplitPane(_:)): { app, _ in app.sidebar?.selectedSplit != nil },
+        #selector(unsplit(_:)): { app, _ in app.sidebar?.selectedSplit != nil },
+        #selector(setSplitLayout(_:)): { app, item in
+            let split = app.sidebar?.selectedSplit
+            item.state = split.map { $0.layout == AppDelegate.splitLayout(tag: item.tag) } == true ? .on : .off
             // Outside a split it splits the selected entry with the next one (Zen).
-            return sidebar?.selectedEntryID != nil
-        case #selector(focusSplitPane(_:)):
-            return (sidebar?.selectedSplit?.members.count ?? 0) >= menuItem.tag
-        case #selector(focusAdjacentPane(_:)):
-            return sidebar?.selectedSplit != nil
-        case #selector(hideOrShowSidebar(_:)):
-            // Enabled whenever the window exists and no page is in element fullscreen (ROADMAP 2.7b).
-            menuItem.title = windowController?.isSidebarOpen == false ? "Show Sidebar" : "Hide Sidebar"
-            return windowController.map { !$0.rootView.isPageFullscreen } ?? false
-        case #selector(keepSidebarOpen(_:)):
-            menuItem.state = windowController?.reveal.isPinned == true ? .on : .off
-            return windowController.map { !$0.rootView.isPageFullscreen } ?? false
-        case #selector(toggleToolbar(_:)):
-            menuItem.state = windowController?.showsToolbar == true ? .on : .off
-            return windowController != nil
-        case #selector(copyPageURL(_:)):
-            return sidebar?.selectedHasURL == true
-        case #selector(goBack(_:)):
-            return tabs?.focusedPage?.canGoBack == true
-        case #selector(goForward(_:)):
-            return tabs?.focusedPage?.canGoForward == true
-        default:
-            return true
-        }
-    }
+            return app.sidebar?.selectedEntryID != nil
+        },
+        #selector(focusSplitPane(_:)): { app, item in (app.sidebar?.selectedSplit?.members.count ?? 0) >= item.tag },
+        #selector(focusAdjacentPane(_:)): { app, _ in app.sidebar?.selectedSplit != nil },
+        #selector(expandPeek(_:)): { app, _ in app.tabs?.shownPeek != nil },
+        #selector(splitPeek(_:)): { app, _ in app.tabs?.shownPeek != nil },
+        #selector(closePeek(_:)): { app, _ in app.tabs?.shownPeek != nil },
+        // Spaces
+        #selector(selectAdjacentSpace(_:)): { app, _ in (app.store?.sidebar.spaces.count ?? 0) > 1 },
+        #selector(selectSpaceByNumber(_:)): { app, item in
+            guard let spaces = app.store?.sidebar.spaces else { return false }
+            let index = item.tag == 0 ? 9 : item.tag - 1
+            if spaces.indices.contains(index) { item.title = spaces[index].name }
+            return spaces.indices.contains(index)
+        },
+        // Window
+        #selector(showDownloads(_:)): { app, _ in app.downloads != nil },
+        // Debug
+        #selector(simulateMemoryPressure(_:)): { app, _ in app.tabs != nil },
+        #selector(discardBackgroundPages(_:)): { app, _ in app.tabs != nil },
+        // The pane header's layout menu.
+        #selector(paneLayoutChosen(_:)): { _, _ in true },
+    ]
 }
 
 extension SpaceTint {

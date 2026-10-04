@@ -122,6 +122,13 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         open(.new, presentation: .centered)
     }
 
+    /// File ▸ Commands…: the palette in its actions mode (spec §C, `>`); again closes it.
+    public func toggleCommands() {
+        if isOpen { return dismiss() }
+        open(.new, presentation: .centered)
+        setText(">")
+    }
+
     /// ⌘L (`docked` false) or a click on the header field (`docked` true):
     /// prefilled with the current URL, selected. Without a page in the card
     /// it is ⌘T. Closes the palette if it is open.

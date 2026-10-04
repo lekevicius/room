@@ -33,6 +33,15 @@ extension SidebarController {
         reset(id)
     }
 
+    /// Tab ▸ Rename… applies: the selected entry has a row in the list (essentials are tiles).
+    public var canRenameSelected: Bool { selectedEntryID.flatMap { tree.displayedNode(for: $0) } != nil }
+
+    /// Tab ▸ Rename…: the inline rename of the selected row (spec §I.9; Return on a focused row).
+    public func renameSelected() {
+        guard let id = selectedEntryID else { return }
+        beginRename(id)
+    }
+
     /// A new top-level folder in the pinned section, renamed inline.
     public func newFolderCommand() { newFolder(parent: nil) }
 
