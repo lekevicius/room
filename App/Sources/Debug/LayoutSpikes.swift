@@ -270,6 +270,13 @@ extension SpikeRunner.Context {
             return SpikeRunner.record("error", "no pinned page for Peek")
         }
         controller.isSidebarOpen = true
+        // The reveal check's clicks over the overlay land on rows when the sidebar has any (a fixture, the
+        // grand tour's shared state) and can select another entry: Peek's checks start on the pinned page.
+        SpikeRunner.record("peek_start", "selected is the pinned entry=\(sidebar.selectedEntryID == pinned)")
+        if sidebar.selectedEntryID != pinned {
+            sidebar.select(pinned)
+            await waitLoaded(page)
+        }
         var decisions: [String] = []
         var decidedAt: (uptime: TimeInterval, epoch: Double)?
         tabs.debugPeekDecisions = { action, decision in
