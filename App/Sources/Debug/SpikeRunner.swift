@@ -434,9 +434,24 @@ enum SpikeRunner {
             func newPage(after before: [any WebContents]) -> (any WebContents)? {
                 session.pages.first { page in !before.contains { $0 === page } }
             }
+            // The three openers sit at fixed places in the fixture: where the
+            // engine runs no script (RoomCore until 3.3b), click by point.
+            let runsScript = await PageDriver.evaluate(page, "1", "popups: probe whether the engine runs script") != nil
+            func clickOpener(_ selector: String, _ point: CGPoint) async {
+                if !runsScript {
+                    // A first click on an empty spot: an inactive window takes the
+                    // first mouse-down for activation, not for the page.
+                    PageDriver.click(page, at: CGPoint(x: 800, y: 600), "focus the page")
+                    try? await Task.sleep(for: .milliseconds(300))
+                    SpikeRunner.record("click_state", "appActive=\(NSApp.isActive) key=\(window.isKeyWindow)")
+                    PageDriver.click(page, at: point, "click \(selector) by point")
+                } else {
+                    await click(page, selector)
+                }
+            }
             let before = session.pages.count
             let pagesBefore = session.pages
-            await click(page, "#blank")
+            await clickOpener("#blank", CGPoint(x: 510, y: 96))
             _ = await waitUntil(5) { self.session.pages.count > before }
             let blank = newPage(after: pagesBefore)
             if let blank { await waitLoaded(blank) }
@@ -445,11 +460,34 @@ enum SpikeRunner {
             try? await Task.sleep(for: .milliseconds(500))
             let before2 = session.pages.count
             let pagesBefore2 = session.pages
-            await click(page, "#open")
+            await clickOpener("#open", CGPoint(x: 510, y: 146))
             _ = await waitUntil(5) { self.session.pages.count > before2 }
             let popup = newPage(after: pagesBefore2)
             if let popup { await waitLoaded(popup) }
             SpikeRunner.record("window_open", "pages \(before2)→\(session.pages.count) title=\(popup?.title ?? "nil") inCard=\(popup?.nativeView.window === window)")
+            // 3.2a: a window capture with the popup placed as a Today tab
+            // (scripts answer `capture:` lines; only when asked).
+            if UserDefaults.standard.bool(forKey: "RoomSpikePopupsCapture") {
+                SpikeRunner.record("window_id", window.windowNumber)
+                try? await Task.sleep(for: .milliseconds(800))
+                SpikeRunner.record("capture", "popups-window-open-today-tab")
+                let output = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeOutput") ?? "")
+                let ack = output.deletingLastPathComponent().appending(path: output.lastPathComponent + ".ack-popups-window-open-today-tab")
+                _ = await waitUntil(20) { FileManager.default.fileExists(atPath: ack.path) }
+            }
+            session.select(session.pages.firstIndex { $0 === page } ?? 0)
+            try? await Task.sleep(for: .milliseconds(500))
+
+            // A document picture-in-picture window (3.2a): a page the host places too.
+            let before3 = session.pages.count
+            let pagesBefore3 = session.pages
+            await clickOpener("#pip", CGPoint(x: 510, y: 196))
+            _ = await waitUntil(5) { self.session.pages.count > before3 }
+            let pip = newPage(after: pagesBefore3)
+            if let pip { await waitLoaded(pip) }
+            SpikeRunner.record("picture_in_picture", "pages \(before3)→\(session.pages.count) title=\(pip?.title ?? "nil") inCard=\(pip?.nativeView.window === window)")
+            // Every window the app has: the host's, its panels, and no Chrome window (3.2a).
+            SpikeRunner.record("windows", NSApp.windows.map { "\(Swift.type(of: $0)) \"\($0.title)\" visible=\($0.isVisible) \(Int($0.frame.width))x\(Int($0.frame.height))" }.joined(separator: " | "))
             session.select(session.pages.firstIndex { $0 === page } ?? 0)
             try? await Task.sleep(for: .milliseconds(500))
 

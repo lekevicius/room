@@ -1,10 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Popups</title>
-<style>body{font:15px -apple-system;margin:24px} a,button,select,input{display:block;margin:12px 0;font-size:15px}</style>
+<style>body{font:15px -apple-system;margin:24px} a,button,select,input{display:block;margin:12px 0;font-size:15px}
+/* Fixed places (3.2a): spikes click them by point where the engine runs no script. */
+#blank,#open,#pip{position:absolute;left:360px;width:300px;height:32px;margin:0;line-height:32px;box-sizing:border-box}
+#blank{top:80px} #open{top:130px} #pip{top:180px}</style>
 <h1>Popup and form-control spike</h1>
 <a id="blank" href="popup-target.html#blank" target="_blank">target=_blank link</a>
 <button id="open" onclick="window.__popup = window.open('popup-target.html#open', 'w', 'width=400,height=300')">window.open()</button>
+<button id="pip" onclick="documentPictureInPicture.requestWindow({width:320,height:180}).then(w => { w.document.title = 'Room PiP'; w.document.body.textContent = 'Room document picture-in-picture'; window.__pip = w; }, e => { window.__pipError = e.name; })">documentPictureInPicture.requestWindow()</button>
 <select id="sel"><option>One</option><option>Two</option><option>Three</option><option>Four</option></select>
 <input id="date" type="date">
 <input id="color" type="color">

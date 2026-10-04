@@ -370,7 +370,12 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(500))
         let enters = DelegateRecorder.shared.count("webContentsDidRequestEnterFullscreen")
         let lightsBefore = trafficLightsState
-        await click(page, "#enter")
+        if await PageDriver.evaluate(page, "1", "fullscreen: probe whether the engine runs script") == nil {
+            // RoomCore until 3.3b: the button's fixed place in the fixture.
+            PageDriver.click(page, at: CGPoint(x: 680, y: 56), "click #enter by point")
+        } else {
+            await click(page, "#enter")
+        }
         let entered = await waitUntil(8) { self.window.styleMask.contains(.fullScreen) && self.controller.rootView.isPageFullscreen }
         try? await Task.sleep(for: .milliseconds(1200))
         SpikeRunner.record("element_fullscreen_enter", "window fullscreen=\(entered) enter calls \(enters)→\(DelegateRecorder.shared.count("webContentsDidRequestEnterFullscreen")) "

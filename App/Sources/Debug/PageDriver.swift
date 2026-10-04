@@ -68,12 +68,26 @@ enum PageDriver {
         case .otherMouseDown: .otherMouseUp
         default: .leftMouseUp
         }
+        // A window that is not key takes the first mouse-down for activation;
+        // while another application holds the screen (a system dialog), the
+        // window never becomes key, so the press goes to the page's view itself.
+        let target = window.isKeyWindow ? nil : window.contentView?.hitTest(window.contentView!.convert(location, from: nil))
         for type in [button, up] {
             guard let event = mouseEvent(type, location, window, modifiers, clickCount) else {
                 SpikeRunner.record("error", "\(purpose): could not make a \(type) event")
                 return false
             }
-            window.sendEvent(event)
+            if let target {
+                switch type {
+                case .leftMouseDown: target.mouseDown(with: event)
+                case .leftMouseUp: target.mouseUp(with: event)
+                case .rightMouseDown: target.rightMouseDown(with: event)
+                case .rightMouseUp: target.rightMouseUp(with: event)
+                default: window.sendEvent(event)
+                }
+            } else {
+                window.sendEvent(event)
+            }
         }
         return true
     }

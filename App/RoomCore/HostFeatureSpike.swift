@@ -33,6 +33,9 @@ enum HostFeatureSpike {
         guard let url = URL(string: address), let page = host.open(url, in: profile, activate: true) else {
             HostSpike.record("error", "failed to create page"); return
         }
+        // What the page asks of the host (3.2a): new contents, fullscreen.
+        let recorder = HostPageRecorder()
+        page.delegate = recorder
         do {
             try await Task.sleep(for: .seconds(2))
             if name == "auth" {
@@ -129,7 +132,9 @@ enum HostFeatureSpike {
                 try await cdp.evaluate("document.querySelector('#blank').click(); true", userGesture: true)
                 try await cdp.evaluate("document.querySelector('#open').click(); true", userGesture: true)
                 try await cdp.evaluate("document.querySelector('#date').showPicker(); true", userGesture: true)
+                try await Task.sleep(for: .seconds(1))
                 HostSpike.record("popup-pages", host.pages.count)
+                HostSpike.record("new-contents", recorder.created.joined(separator: " | "))
             case "dialogs":
                 for expression in ["alert('Room spike')", "confirm('Room spike')", "prompt('Room spike', 'value')"] {
                     HostSpike.record("dialog-result", try await cdp.evaluate(expression, userGesture: true))
@@ -404,7 +409,17 @@ enum HostFeatureSpike {
             case "fullscreen":
                 try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)
                 HostSpike.record("fullscreen", try await cdp.evaluate("!!document.fullscreenElement"))
+                try await Task.sleep(for: .milliseconds(300))
                 try await cdp.evaluate("document.exitFullscreen().then(()=>true)")
+                try await Task.sleep(for: .milliseconds(300))
+                HostSpike.record("fullscreen-after-exit", try await cdp.evaluate("!!document.fullscreenElement"))
+                // The host's exit (Esc, another page shown): RoomWebContents.exitFullscreen.
+                try await cdp.evaluate("document.documentElement.requestFullscreen().then(()=>true)", userGesture: true)
+                try await Task.sleep(for: .milliseconds(300))
+                page.exitFullscreen()
+                try await Task.sleep(for: .milliseconds(300))
+                HostSpike.record("fullscreen-after-host-exit", try await cdp.evaluate("!!document.fullscreenElement"))
+                HostSpike.record("fullscreen-delegate", recorder.fullscreenEvents.joined(separator: ","))
             default: break
             }
             try await Task.sleep(for: .seconds(3))
@@ -413,6 +428,25 @@ enum HostFeatureSpike {
         } catch {
             HostSpike.record("error", "\(name): \(error)")
         }
+    }
+}
+
+/// Records what a spike page asks of its host through `RoomWebContentsDelegate`.
+final class HostPageRecorder: NSObject, RoomWebContentsDelegate {
+    private(set) var created: [String] = []
+    private(set) var fullscreenEvents: [String] = []
+
+    func webContents(_ webContents: RoomWebContents, didCreate newContents: RoomWebContents, targetURL: URL?,
+                     disposition: RoomWindowOpenDisposition, requestedBounds: NSRect, userGesture: Bool) {
+        created.append("disposition=\(disposition.rawValue) url=\(targetURL?.absoluteString ?? "nil") bounds=\(NSStringFromRect(requestedBounds)) gesture=\(userGesture)")
+    }
+
+    func webContentsDidRequestEnterFullscreen(_ webContents: RoomWebContents, origin: URL?) {
+        fullscreenEvents.append("enter(\(origin?.absoluteString ?? "nil"))")
+    }
+
+    func webContentsDidRequestExitFullscreen(_ webContents: RoomWebContents) {
+        fullscreenEvents.append("exit")
     }
 }
 #endif
