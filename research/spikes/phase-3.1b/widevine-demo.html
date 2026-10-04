@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Widevine demo: starting</title>
+<!-- 3.1b: licensed Widevine playback without a click. Shaka Player (jsDelivr)
+     plays Shaka's public Sintel Widevine test stream with Google's no-auth
+     test license proxy, muted autoplay; the page writes its own evidence
+     (readyState, currentTime, decoded and dropped frames from
+     getVideoPlaybackQuality) into the title and the status line every second.
+     Served from 127.0.0.1 (a trustworthy origin, as EME requires). -->
+<style>
+  body { margin: 0; background: #111; color: #eee; font: 20px -apple-system, sans-serif; }
+  video { width: 100%; max-height: 70vh; background: #000; display: block; }
+  #status { padding: 12px 16px; white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+</style>
+<video id="v" muted autoplay playsinline></video>
+<div id="status">loading Shaka Player…</div>
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/shaka-player.compiled.js"></script>
+<script>
+const manifest = 'https://storage.googleapis.com/shaka-demo-assets/sintel-widevine/dash.mpd';
+const license = 'https://cwip-shaka-proxy.appspot.com/no_auth';
+const video = document.getElementById('v'), status = document.getElementById('status');
+const t0 = performance.now();
+let state = 'starting', keySystem = '-';
+function report() {
+  const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : {};
+  const line = `${state} | keySystem=${keySystem} readyState=${video.readyState} currentTime=${video.currentTime.toFixed(2)} ` +
+    `decoded=${q.totalVideoFrames ?? '-'} dropped=${q.droppedVideoFrames ?? '-'} paused=${video.paused} ` +
+    `t=${((performance.now() - t0) / 1000).toFixed(1)}s`;
+  status.textContent = line;
+  document.title = 'Widevine demo: ' + line;
+  console.log('widevine-demo: ' + line);
+}
+setInterval(report, 1000);
+(async () => {
+  try {
+    shaka.polyfill.installAll();
+    if (!shaka.Player.isBrowserSupported()) throw Error('browser not supported by Shaka');
+    const player = new shaka.Player();
+    await player.attach(video);
+    player.configure({ drm: { servers: { 'com.widevine.alpha': license } } });
+    player.addEventListener('error', e => { state = 'error ' + (e.detail && e.detail.code); report(); });
+    state = 'loading manifest';
+    await player.load(manifest);
+    const drm = player.getDrmInfo && player.getDrmInfo();
+    keySystem = (drm && drm.keySystem) || player.keySystem?.() || '-';
+    state = 'loaded';
+    await video.play().catch(e => { state = 'play() rejected: ' + e.name; });
+    if (!video.paused) state = 'playing';
+  } catch (e) {
+    state = 'error ' + (e.code || '') + ' ' + (e.message || e);
+  }
+  report();
+})();
+video.addEventListener('playing', () => { state = 'playing'; report(); });
+</script>
