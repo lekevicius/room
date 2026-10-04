@@ -331,12 +331,21 @@ public struct Settings: Hashable, Sendable, Codable {
     public var sidebarSide: SidebarSide = .left
     /// Appearance ▸ Appearance: follow the system, or always light or dark (Settings v0).
     public var appearance: AppearanceSetting = .system
+    /// The first-run card in the sidebar (search engine, default browser,
+    /// the two opt-ins) was finished; Settings ▸ General shows it again (ROADMAP 2.8 task 4).
+    public var firstRunDone: Bool = false
+    /// Crash reports to Sentry: off unless the user turns it on (first run or
+    /// Settings ▸ Privacy); while off the SDK is never started (ROADMAP 2.8 task 5).
+    public var crashReports: Bool = false
+    /// Sparkle's scheduled update checks: off unless the user turns them on;
+    /// while off the updater is not started at launch (ROADMAP 2.8 task 5).
+    public var automaticUpdateChecks: Bool = false
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
-        case showsToolbar, peekOffSiteLinks, sidebarSide, appearance
+        case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
     }
 
     public init(from decoder: any Decoder) throws {
@@ -356,6 +365,10 @@ public struct Settings: Hashable, Sendable, Codable {
         peekOffSiteLinks = (try? container.decodeIfPresent(Bool.self, forKey: .peekOffSiteLinks)).flatMap { $0 } ?? defaults.peekOffSiteLinks
         sidebarSide = (try? container.decodeIfPresent(SidebarSide.self, forKey: .sidebarSide)).flatMap { $0 } ?? defaults.sidebarSide
         appearance = (try? container.decodeIfPresent(AppearanceSetting.self, forKey: .appearance)).flatMap { $0 } ?? defaults.appearance
+        firstRunDone = (try? container.decodeIfPresent(Bool.self, forKey: .firstRunDone)).flatMap { $0 } ?? defaults.firstRunDone
+        crashReports = (try? container.decodeIfPresent(Bool.self, forKey: .crashReports)).flatMap { $0 } ?? defaults.crashReports
+        automaticUpdateChecks = (try? container.decodeIfPresent(Bool.self, forKey: .automaticUpdateChecks)).flatMap { $0 }
+            ?? defaults.automaticUpdateChecks
     }
 }
 

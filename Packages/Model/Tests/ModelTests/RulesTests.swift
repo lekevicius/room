@@ -300,6 +300,10 @@ struct ValueTests {
         #expect(partial.sidebarSide == .left && partial.appearance == .system)
         let unknown = try JSONDecoder().decode(Settings.self, from: Data(#"{"sidebarSide":"top","appearance":"sepia"}"#.utf8))
         #expect(unknown.sidebarSide == .left && unknown.appearance == .system)
+        // 2.8b: a database written before the first run shows the card once; both opt-ins read off.
+        #expect(!partial.firstRunDone && !partial.crashReports && !partial.automaticUpdateChecks)
+        let wrong = try JSONDecoder().decode(Settings.self, from: Data(#"{"crashReports":"yes","automaticUpdateChecks":1}"#.utf8))
+        #expect(!wrong.crashReports && !wrong.automaticUpdateChecks)
     }
 
     @Test("Timestamps round-trip through JSON and rounding is stable")

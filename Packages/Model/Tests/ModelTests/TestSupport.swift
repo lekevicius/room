@@ -40,6 +40,10 @@ func sampleState() -> RoomState {
     settings.peekOffSiteLinks = false
     settings.sidebarSide = .right
     settings.appearance = .dark
+    // 2.8b: the first run and the two opt-ins.
+    settings.firstRunDone = true
+    settings.crashReports = true
+    settings.automaticUpdateChecks = true
     return RoomState(
         profiles: [profile], spaces: [work, home], entries: [essential, folder, pinned, today], splitGroups: [group],
         windows: [window], windowSpaces: [WindowSpace(windowID: window.id, spaceID: home.id, selectedEntryID: today.id)],
