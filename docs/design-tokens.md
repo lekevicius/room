@@ -290,3 +290,14 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Settings section symbols | `gearshape` / `paintpalette` / `magnifyingglass` / `arrow.down.circle` | chosen (system settings conventions) |
 | Sidebar on the right | the docked layout mirrored with the same tokens (`CardMetrics.inset` on the card's outer sides, `sidebarSideInset` against the sidebar, the splitter's hit area mostly inside the sidebar), the reveal band (`RevealMetrics.edgeBand`) and the overlay (`overlayInset`) at the right edge; the traffic lights stay where AppKit puts them, over the card, with the floating cluster (`ClusterMetrics`) and the card-top drag band; the header starts at `SidebarMetrics.edgeInset` | Settings v0 (ROADMAP 2.8 task 2); Chapter 1 traffic-light rule |
 | Planned menu items | present, disabled, tooltip "Comes in Chapter N"; keys the menu cannot carry (Esc, Return) named in the tooltip | ROADMAP 2.8 task 1 |
+
+## Added in Phase 2.8b (the first-run card, Settings ▸ Privacy)
+
+| Token | Value | Provenance |
+|---|---|---|
+| First-run card (`FirstRunCardView`) | in the sidebar above the footer (`SidebarBodyView.accessoryView`), the rows' width (6 pt inset each side); fill `Palette.sidebarSelection`, corner `FirstRunMetrics.cornerRadius` = `Radius.medium` (10, the selection pill's), continuous; shadow `Palette.cardShadow` at 0.08, radius 3, 1 pt down | `macos-ui-stack.md` §7.4 ("an in-sidebar card, never a modal"); look chosen: one of the sidebar's own surfaces |
+| `FirstRunMetrics.padding` / `rowSpacing` | 12 / 8 pt | chosen (the overlays' 12 pt) |
+| `FirstRunMetrics.gapAboveFooter` / `gapAboveList` | 4 / 8 pt; the list ends above the card | chosen |
+| Card content | SwiftUI leaf, `.controlSize(.small)`: title `.headline`, caption `.caption` secondary; Search with (menu picker), Make Room Your Default Browser (or a check and "Room is your default browser"), two checkboxes with a one-line note, Done trailing (no default-button key: Return belongs to the fields) | chosen |
+| Card dismissal | fades out over `Motion.fast` (0.12 s), then the list takes the space | chosen |
+| Settings ▸ Privacy | symbol `hand.raised`; "Send crash reports", "Check for updates automatically", Check Now beside the version | chosen (system settings conventions) |

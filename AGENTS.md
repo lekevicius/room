@@ -13,7 +13,7 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 - Swift 6 language mode. UI packages use MainActor default isolation. AppKit for window, sidebar, card, address field, menus, key routing; SwiftUI only in leaf views via `NSHostingView` (settings, onboarding, toasts, forms); list rows that update per keystroke or per frame (palette rows, PLAN §4) are AppKit.
 - The engine is reached only through the `Engine` protocol package. Nothing but `App` may import a concrete engine (`EngineCEF`, later `EngineRoomCore`).
 - ObjC/ObjC++ bridge rule: only Foundation/AppKit types and C structs cross the boundary. Never `std::`/`base::` types (Chromium's libc++ ABI differs from Xcode's). Engine ObjC classes are `NS_SWIFT_UI_ACTOR`; callbacks are on the main thread.
-- Minimum macOS 26. Deployment target, entitlements and helper layout are defined in `project.yml`; never hand-edit the generated `.xcodeproj`.
+- Minimum macOS 26. Deployment target, entitlements and helper layout are defined in `project.yml`; never hand-edit the generated `.xcodeproj`. The app's `Info.plist` is generated too (the `info:` block in `xcodegen/base.yml`, since 2.8b): add keys there, never in the plist.
 - Traffic lights are never repositioned; layout derives from `standardWindowButton` frames.
 - `research/repos/arccore-headers/` is proprietary (copied from Dia.app) and exists for study only. Never copy code or comments from it; our API is our own.
 - Fork hygiene (Chapter 3+): all our Chromium code lives in `//room/`; `chromium_src/` shadows for renames; raw patches only for factory redirects and tiny hooks. Keep patches trivially rebaseable.

@@ -518,3 +518,48 @@ Settings sections (window width 480): General 220 pt tall, Appearance 269, Searc
 | … → the header laid out after the traffic lights again (x = buttons' maxX + 12) | 575 / 594 / 565 ms | 587 / 583 / 592 |
 
 Our part after the system's notification is 5–24 ms (the poll's resolution is a few ms). In fullscreen the window filled the 1920 × 1080 screen, the traffic lights left the window (`buttonsRect` nil), the header moved from x 91 to **16**, the empty `NSToolbar` was hidden (visible again after each exit), the card kept its 6 pt inset (280, 6, 1634 × 1068). Hover reveal in fullscreen: the sidebar hidden, a move into the 4 pt band showed the overlay after **432 / 452 ms** including the 150 ms dwell and the 250 ms slide, at {10, 10, 280, 1060}, its navigation row at the 16 pt inset; leaving hid it again. Back in the window the header was at x 91 as before.
+
+## Phase 2.8b — links from other apps, the first run, Sparkle and Sentry behind opt-ins, the no-request check (2026-10-04, Mac mini M4, 24 GB, CEF, Debug)
+
+Method: `scripts/app-integration.sh --session 2.8b` (spike `appintegration2`, `App/Sources/Debug/AppIntegration2Spikes.swift`): serves `research/spikes/phase-2.7/` on 127.0.0.1:8770 and `research/spikes/phase-2.8/server.py` on :8771 (a one-entry dev appcast, a stand-in Sentry endpoint, a refusing proxy; every request logged), launches Room **by a link** (`open -n -a Room.app <url> --args …`) on a throwaway state with the first-run card shown (`-RoomFirstRun YES`), and hands Room further links on request. The window 1244 × 818, sidebar 280 pt, 1920 × 1080 display at 60 Hz, load average 4.6–10.1 (screen sharing on). Hand-over times are wall clock (`perl Time::HiRes` in the script, `Date` in the app); event, requested and loaded are in-process. "Requested" = `TabController.openNewTab` returned (the entry made and selected, its CEF page created and told to load); "loaded" = the card's page at that URL with `isLoading` false.
+
+### Links from other apps (ROADMAP 2.8 task 3)
+
+| Measure | Light | Dark |
+|---|---|---|
+| Cold launch by a link: `application(_:open:)` after process start (inbox still closed, the link queued) | 294 ms | 225 ms |
+| … queued → page requested (the inbox opens once the engine profile exists) | 183 ms | 205 ms |
+| … requested → loaded | 73 ms | 72 ms |
+| Running, `open -a Room.app <url>`: hand-over → event / event → requested / requested → loaded | 50.6 / 26.8 / 26.6 ms | 63.6 / 27.3 / 26.9 |
+| Running, AppleScript `tell application id "com.lekevicius.room" to open location` (from `osascript`) | 109.6 / 25.2 / 26.4 ms | 92.5 / 25.9 / 26.5 |
+| Running, another process's `NSWorkspace.open(_:withApplicationAt:)` (`scripts/lib/open-with-workspace.swift`) | 47.9 / 26.0 / 25.9 ms | 47.8 / 25.3 / 26.4 |
+| After ⇧⌘W (no window shown): `open -a` → window shown again, main, tab selected; event → requested | 39.6 ms | 34.4 ms |
+
+Every link became a Today tab at the end of the active space's list and was selected; the cold one was the selected entry once the spike started. All three routes arrive through `application(_:open:)` (no Apple-event handler is registered, `macos-ui-stack.md` §7.4). Room is not the default browser on this Mac (`http` and `https` → Google Chrome.app), so "a link clicked in another app opens in Room" is the user's check after the system dialog; the routes above are what such a click becomes once LaunchServices picks Room.
+
+### The first run (task 4)
+
+The card (238 pt tall at the 268 pt row width, above the footer) shows on a new profile docked left, docked right (window x 970) and inside the hidden sidebar's overlay (pinned; the card is a descendant of the overlay view). Choosing DuckDuckGo on it: the palette's engine read `google` before and `duckduckgo` after, the same `Settings.searchEngine`. Done: the card gone and the list back over the space in **150–153 ms** (a `Motion.fast` fade), `firstRunDone` stored; Settings ▸ Show Welcome Card brought it back (`firstRunDone` false) with the choices kept.
+
+### Sparkle and Sentry behind their opt-ins (task 5)
+
+At launch with both opt-ins off: no `SparkleUpdater` (so no `SPUStandardUpdaterController`) and no `SentryCrashReporter` exist; nothing reached :8771. Automatic checks on: the updater was made and started with `automaticallyChecksForUpdates` true and, with no earlier check in Sparkle's defaults, fetched the dev feed **9–45 ms** later (5 runs) (one `GET /appcast.xml`, user agent `Room/0.1.0 Sparkle/2.10.0`) and showed "A new version of Room is available!" (532 × 402); off again: the schedule off. Check for Updates… then resumed that pending update without a second request; on a run where the feed had been checked minutes before (light then dark, Sparkle's defaults kept), turning automatic checks on made **no** request (Sparkle's 1-day interval) and Check for Updates… made exactly one (the progress window 400 × 146, then the result). Crash reports on with a DSN pointing at :8771: the SDK started (`isReportingCrashes`), **0** requests over 2–3 s (no sessions, tracing or breadcrumbs are enabled; only a crash sends); off: `SentrySDK.close()`. With the build's real DSN (empty) the switch is kept and the reporter is never started.
+
+### The no-request check (exit criterion)
+
+`scripts/netlog-check.sh` (spike `netcheck`): a fresh state and engine directory, the first-run card shown and finished with nothing switched on (suggestions at their default, on), 8 s idle, a browse (`site.html` on 127.0.0.1, `other.html` on localhost, a same-tab navigation to `offsite.html`, a reload), 8 s idle, quit through `NSApp.terminate`. Sparkle's feed, Sentry's DSN and the suggestion proxy all point at the logging server, so any request from Room's own code would land there; `nettop` records every Room process; CEF writes its net-log (`--log-net-log`, capture mode Everything). Two runs, identical:
+
+- **Room's own code: 0 requests** — the logging server got nothing; Room's main process (the app, Sparkle, Sentry, URLSession) moved **0 bytes in, 0 out** over the whole run, its only socket the DEBUG DevTools listener (`*:*` on lo0). No updater or crash reporter was ever created.
+- **The engine** (CEF's network service in a `Room Helper` process, 83–87 KB in, 33–39 KB out including the pages), every request by host, attributed by Chromium's traffic annotation (hash → id from the checkout's `tools/traffic_annotation/summary/annotations.xml`), all with initiator "not an origin":
+
+| Host | Requests (URL request jobs) | Traffic annotation | When |
+|---|---|---|---|
+| accounts.google.com | `POST /ListAccounts` (2 jobs) | `gaia_auth_list_accounts` | launch |
+| www.google.com | `GET /async/folae` (3 jobs); a preconnect and a DNS lookup at quit | `aim_eligibility_fetch` | launch, launch idle, browse, quit |
+| update.googleapis.com | `POST /service/update2/json` (2), QUIC | `update_client` (component updater) | launch, browse |
+| edgedl.me.gvt1.com | `GET /edgedl/diffgen-puffin/…` (1) | `update_client` (a component download) | launch idle |
+| clients2.google.com | `GET /time/1/current` (1) | `network_time_component` | launch |
+| www.gstatic.com | `GET …/translate_ranker_model_20170329.pb.bin` (1) | `ranker_url_fetcher` (Translate's ranker) | browse |
+| 127.0.0.1, localhost | 3 + 5 jobs | page loads and favicons | browse (excluded as page traffic) |
+
+Against 2.4b's B-19 list this adds network time, the component download from `edgedl.me.gvt1.com` and the Translate ranker model (2.4b looked at a typing window only). All are the engine's, not fixed here (B-19, Chapter 3.1).

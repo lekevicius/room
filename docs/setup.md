@@ -94,6 +94,19 @@ the team identity avoids that and is needed for the notarization pipeline.
    `xcrun notarytool store-credentials room --apple-id <id> --team-id N56PMJ99UT`
 3. Check: `security find-identity -v -p codesigning` lists
    `Developer ID Application: Jonas Lekevicius (N56PMJ99UT)`.
+4. Sparkle's EdDSA update-signing key (2.8b). The key pair was generated on
+   the Mac mini on 2026-10-04 with Sparkle's `generate_keys` (in the resolved
+   package: `Packages/Integration/.build/artifacts/sparkle/Sparkle/bin/`); the
+   private key is in that Mac's login keychain (account `ed25519`), the public
+   key is `SPARKLE_PUBLIC_ED_KEY` in `xcodegen/base.yml`. On the machine that
+   signs releases: `generate_keys -x sparkle-private-key` on the Mac mini,
+   move the file privately, `generate_keys -f sparkle-private-key` there, then
+   delete the file. Never commit it; losing it means a new key and a release
+   that every installed copy must take by hand.
+5. Update feed and crash reports: `ROOM_UPDATE_FEED_URL` (a `.invalid`
+   placeholder until the product name and domain are settled, B-6) and
+   `ROOM_SENTRY_DSN` (empty until a Sentry project exists) in
+   `xcodegen/base.yml` are the one place for both.
 
 ## 6. Reference material (optional)
 
