@@ -23,8 +23,8 @@
 # --release (3.1b): the shipping build. Stages the static framework from
 # out/release into build/roomcore-release (never touching build/roomcore, the
 # component stage the Debug apps link), builds both targets in the Release
-# configuration into build/roomcore-release/DerivedData{,-host}, signs Room.app
-# with the team identity (scripts/sign-and-notarize.sh --no-notarize;
+# configuration into build/roomcore-release/DerivedData{,-host}, leaves them ad
+# hoc (ROOM_TEAM_SIGN=1 signs Room.app with the team identity in place,
 # ROOM_NOTARIZE=1 notarizes and staples too) and copies the dSYMs GN made
 # (enable_dsyms) to build/roomcore-release/dSYMs. The component-only steps
 # (copying the dylibs into Libraries/, -lchrome_dll and the Libraries search
@@ -121,8 +121,14 @@ locales_kb=$(du -ck "$V"/Resources/*.lproj | tail -1 | cut -f1)
 fw_kb=$(du -sk "$FW" | cut -f1)
 if [[ $RELEASE -eq 1 ]]; then
   # dSYMs beside the stage (not in the app): what a crash symbolicates against.
+  # Only the binaries the framework ships: out/ also holds dSYMs of build
+  # tools (mksnapshot, the snapshot generator: 1.2 GB of 3.6 GB, 3.1b-2).
   rm -rf "$STAGE/dSYMs"; mkdir -p "$STAGE/dSYMs"
-  find "$OUT_DIR" -maxdepth 1 -name '*.dSYM' -exec cp -Rc {} "$STAGE/dSYMs/" \;
+  while IFS= read -r binary; do
+    dsym="$OUT_DIR/$(basename "$binary").dSYM"
+    [[ -d "$dsym" ]] && cp -Rc "$dsym" "$STAGE/dSYMs/"
+  done < <({ find "$V/RoomCore" "$V/Helpers" "$V/Libraries" -type f -perm +111; \
+             find "$V/Libraries" -name '*.dylib'; } 2>/dev/null | sort -u)
   echo "dSYMs: $(ls "$STAGE/dSYMs" | wc -l | tr -d ' ') in $STAGE/dSYMs ($(du -sh "$STAGE/dSYMs" | cut -f1))"
 fi
 echo "staged $FW (component=$component, $dylibs dylibs, $(du -sh "$FW" | cut -f1); $(ls -d "$V"/Resources/*.lproj | wc -l | tr -d ' ') locales $((locales_kb / 1024)) MB, without them $(((fw_kb - locales_kb) / 1024)) MB; RoomCoreCommit $commit) in $(perl -e "print $t1 - $t0") s"
@@ -153,12 +159,16 @@ t2=$(now)
 if [[ $BUILD_APP -eq 1 ]]; then
   build_scheme "Room (RoomCore)" "$DERIVED" xcodebuild.log "${link_settings[@]}"
   codesign --verify --deep --strict "$APP" && echo "signature: valid (ad hoc)"
-  if [[ $RELEASE -eq 1 ]]; then
-    if [[ "${ROOM_NOTARIZE:-0}" == 1 ]]; then
-      "$ROOT/scripts/sign-and-notarize.sh" "$APP"
-    else
-      "$ROOT/scripts/sign-and-notarize.sh" "$APP" --no-notarize
-    fi
+  # The release app stays ad hoc unless asked (3.1b-2): a team-signed
+  # app.room.desktop uses the login keychain, whose "Room Safe Storage" item
+  # prompts until the user answers it, so measurements run ad hoc (mock
+  # keychain) and the signed product is a copy (scripts/roomcore-sign.sh with
+  # ROOM_SIGN_COPY). ROOM_TEAM_SIGN=1 signs in place; ROOM_NOTARIZE=1 also
+  # notarizes.
+  if [[ $RELEASE -eq 1 && "${ROOM_NOTARIZE:-0}" == 1 ]]; then
+    "$ROOT/scripts/sign-and-notarize.sh" "$APP"
+  elif [[ $RELEASE -eq 1 && "${ROOM_TEAM_SIGN:-0}" == 1 ]]; then
+    "$ROOT/scripts/sign-and-notarize.sh" "$APP" --no-notarize
   fi
   echo "app: $APP ($(du -sh "$APP" | cut -f1))"
 fi
