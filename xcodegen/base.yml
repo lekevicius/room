@@ -49,6 +49,8 @@ packages:
     path: Packages/Omnibox
   Palette:
     path: Packages/Palette
+  Integration:
+    path: Packages/Integration
 targets:
   Room:
     type: application
@@ -57,12 +59,63 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
+    # Info.plist is generated from here (xcodegen writes App/Resources/Info.plist).
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: Room
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.productivity
+        LSEnvironment:
+          MallocNanoZone: "0"
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSPrincipalClass: NSApplication
+        NSSupportsAutomaticGraphicsSwitching: true
+        NSCameraUsageDescription: Websites you allow can use the camera.
+        NSMicrophoneUsageDescription: Websites you allow can use the microphone.
+        NSLocationUsageDescription: Websites you allow can use your location.
+        NSLocationWhenInUseUsageDescription: Websites you allow can use your location.
+        # A web browser (ROADMAP 2.8 task 3, macos-ui-stack.md §7.4): http and https links,
+        # and HTML documents and URL files from Finder's Open With.
+        CFBundleURLTypes:
+          - CFBundleURLName: Web site URL
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [http, https]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: HTML document
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.html, public.xhtml]
+          - CFBundleTypeName: Web location
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.url]
+        # Sparkle 2 (ROADMAP 2.8 task 5): the updater stays stopped until the user turns
+        # automatic checks on (Room's setting drives the schedule; Sparkle never asks itself).
+        SUFeedURL: $(ROOM_UPDATE_FEED_URL)
+        SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
+        SUEnableAutomaticChecks: false
+        SUAutomaticallyUpdate: false
+        SUEnableSystemProfiling: false
+        # Sentry (ROADMAP 2.8 task 5): read by BuildConfiguration.sentryDSN; empty = crash reports unavailable.
+        RoomSentryDSN: $(ROOM_SENTRY_DSN)
     settings:
       base:
         PRODUCT_NAME: Room
         PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room
-        INFOPLIST_FILE: App/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
+        # The one place for the update feed and the crash-report DSN (2.8b report).
+        # Placeholder feed: the product name and domain are provisional (B-6); `.invalid` never resolves.
+        ROOM_UPDATE_FEED_URL: https://updates.room.invalid/appcast.xml
+        # Empty until a Sentry project exists; with it empty, crash reports stay off whatever the setting.
+        ROOM_SENTRY_DSN: ""
+        # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
+        # key is in that Mac's login keychain, account "ed25519").
+        SPARKLE_PUBLIC_ED_KEY: z1WE/kOA/sLq7Ou7T/lQ19moA5XdXnXOPkf1Gqxqh5Q=
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_STRICT_CONCURRENCY: complete
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
@@ -79,6 +132,12 @@ targets:
       - package: Tabs
       - package: Omnibox
       - package: Palette
+      - package: Integration
+        product: Integration
+      - package: Integration
+        product: Updates
+      - package: Integration
+        product: CrashReports
       # DEBUG sidebar captures run the tab controller on FakeEngine pages.
       - package: Engine
         product: FakeEngine
@@ -104,5 +163,6 @@ schemes:
         - package: Tabs/TabsTests
         - package: Omnibox/OmniboxTests
         - package: Palette/PaletteTests
+        - package: Integration/IntegrationTests
     archive:
       config: Release
