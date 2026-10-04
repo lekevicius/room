@@ -85,9 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         #if DEBUG
-        // Spikes, captures and fixtures run on a throwaway store without the card, unless they ask for it.
-        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil,
-           !UserDefaults.standard.bool(forKey: "RoomFirstRun") {
+        // Spikes, captures and fixtures run on a throwaway store without the card, unless they ask for it;
+        // `-RoomFirstRun YES` shows it even on a state where it was done (the grand tour's one state, Phase 2.9).
+        if UserDefaults.standard.bool(forKey: "RoomFirstRun") {
+            store?.settings.update { $0.firstRunDone = false }
+        } else if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
             store?.settings.update { $0.firstRunDone = true }
         }
         #endif

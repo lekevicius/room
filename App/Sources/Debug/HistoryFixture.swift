@@ -16,7 +16,8 @@ enum HistoryFixture {
     }
 
     static func populate(_ history: History, rows: Int, profile: UUID, now: Date = Date()) {
-        guard (try? history.count(profile: profile)) == 0 else { return }
+        // Fills up to `rows`: a state directory other runs used (the grand tour, Phase 2.9) has some history already.
+        guard let existing = try? history.count(profile: profile), existing < rows else { return }
         var random = SplitMix64(seed: 2_404)
         let words = ["swift", "apple", "room", "browser", "news", "docs", "guide", "api", "design", "music", "video", "travel", "recipe",
                      "garden", "linux", "rust", "kernel", "photo", "maps", "market", "weather", "sport", "chess", "physics", "history",
@@ -33,7 +34,7 @@ enum HistoryFixture {
         var imports: [HistoryImport] = []
         imports.reserveCapacity(rows)
         var seen = Set<String>()
-        while imports.count < rows {
+        while imports.count < rows - existing {
             // u³: index 0 (github.com) is the most visited host.
             let u = random.double()
             let host = hosts[min(hosts.count - 1, Int(Double(hosts.count) * u * u * u))]

@@ -17,8 +17,18 @@ import Store
 enum SidebarFixtures {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSidebarFixture") }
 
+    /// `-RoomFixtureReplaces YES` (the grand tour, Phase 2.9, which runs every
+    /// spike on one state directory): a fixture asked for on a state that
+    /// already holds a sidebar replaces it (spaces, entries, the first
+    /// space's look) instead of leaving it as it is; history, favicons,
+    /// settings, profiles and windows stay. Without it a fixture fills only
+    /// an empty sidebar, so a by-hand relaunch with the same arguments keeps
+    /// what was done in it.
+    static var replaces: Bool { UserDefaults.standard.bool(forKey: "RoomFixtureReplaces") }
+
     static func populate(_ store: RoomStore, _ name: String, window: UUID) {
         let sidebar = store.sidebar
+        if replaces { clear(store) }
         guard let space = sidebar.spaces.first, sidebar.entries.isEmpty else { return }
         var selected: UUID?
         do {
@@ -94,6 +104,27 @@ enum SidebarFixtures {
 }
 
 extension SidebarFixtures {
+    /// The sidebar back to the first-launch seed's shape: one space named
+    /// "Space" in the first profile, no look, no entries.
+    static func clear(_ store: RoomStore) {
+        let sidebar = store.sidebar
+        for space in sidebar.spaces.dropFirst() { _ = try? sidebar.deleteSpace(space.id) }
+        guard let space = sidebar.spaces.first else { return }
+        if let profile = sidebar.profiles.first { _ = try? sidebar.setSpaceProfile(space.id, to: profile.id) }
+        try? sidebar.updateSpace(space.id) {
+            $0.name = "Space"; $0.icon = nil; $0.themeColors = []; $0.themeAlgorithm = .floating; $0.themeOpacity = 0.5
+            $0.pinnedCollapsed = false
+        }
+        // A folder's removal moves its children up, so this runs until nothing is left.
+        while let id = sidebar.entries.keys.first { _ = try? sidebar.remove(id) }
+    }
+
+    /// The "Work" profile, made once: a second fixture on the same state
+    /// would otherwise get "Work 2" and a second engine profile directory.
+    static func workProfile(_ sidebar: SidebarStore) -> Profile {
+        sidebar.profiles.first { $0.name == "Work" } ?? sidebar.createProfile(name: "Work")
+    }
+
     /// `research/spikes/phase-2.5/<name>` in the source tree this build came from.
     static func phase25Page(_ name: String) -> URL {
         SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-2.5/\(name)")
@@ -112,7 +143,7 @@ extension SidebarFixtures {
     static func populateSpaces(_ store: RoomStore, first space: Space, window: UUID) throws {
         let sidebar = store.sidebar
         populate(store, "demo", window: window)
-        let work = sidebar.createProfile(name: "Work")
+        let work = workProfile(sidebar)
         let spaces = [
             try sidebar.createSpace(name: "Work", profile: work.id, icon: "briefcase", themeColors: ["#3B6FD8"], themeAlgorithm: .triadic,
                                     themeOpacity: 0.6),
@@ -147,7 +178,7 @@ extension SidebarFixtures {
     /// selects its first page; the spaces alternate two profiles.
     static func populateSpaces500(_ store: RoomStore, first space: Space, window: UUID) throws {
         let sidebar = store.sidebar
-        let work = sidebar.createProfile(name: "Work")
+        let work = workProfile(sidebar)
         try sidebar.updateSpace(space.id) { $0.name = "Space 1"; $0.themeColors = ["#5B8DEF"]; $0.themeAlgorithm = .analogous }
         var spaces = [space]
         let colours = ["#3E9B5B", "#E0663A", "#9B59B6", "#D4A72C"]
