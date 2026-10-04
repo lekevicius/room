@@ -491,3 +491,30 @@ Keys through the main menu (four panes): ⌥⌘G → grid, ⌃⇧1 → pane 1, �
 Event isolation with Peek over a three-pane split (Phase 1.4 method): Peek's overlay covers the whole card (the panes together, spec §D); 7 moves at points over the dim on every pane reached **no** pane's page (`__clicks 0`, `__downs 0`, `__moves 0` on A, B and C), and the click on the dim that closed Peek reached none either; the focus stayed on A. Both appearances.
 
 The 2.7a checks re-run on the new card (the page container now inside a `SplitPaneView`): reveal 174.5 / 173.9 ms median, slide frames 16.67 ms throughout, grace 155.8 / 170.1 ms, cluster fade 2172 / 2167 ms, Peek decision → overlay frame 22.1 / 22.9 ms, every Peek rule as in 2.7a, event isolation 0 under the overlay and the dim. The 2.6b delegate checklist (`scripts/chrome-surfaces.sh --session 2.6b`, light): all 26 members called on CEF again (`didConsumeKey` as before never).
+
+## Phase 2.8a — the menu bar, Settings v0, the sidebar on the right, fullscreen on a real Space (2026-10-04, Mac mini M4, 24 GB, CEF, Debug)
+
+Method: `scripts/app-integration.sh` (spike `appintegration`, `App/Sources/Debug/AppIntegrationSpikes.swift`; serves `research/spikes/phase-2.7/` on 127.0.0.1:8770). One pinned entry and two Today tabs on `site.html`, the window 1244 × 818 with the sidebar at 280 pt, on a 1920 × 1080 display at **60 Hz**; load average 4.4–6.1; light and dark. Keys are `NSEvent` key-downs handed to `NSApp.mainMenu.performKeyEquivalent` (the path a page's unhandled key takes); pointer input is synthetic `NSEvent`s through `NSApp`. Captures in `research/screenshots/phase-2.8a/`.
+
+### The menu bar (ROADMAP 2.8 task 1)
+
+| Measure | Light | Dark |
+|---|---|---|
+| `NSMenu.update()` of every menu and submenu in the bar (validation of all 118 items, a CEF page focused), 50 runs | 0.60 ms median, 1.20 p95, 7.44 max (the first) | 0.32 / 1.27 / 6.72 |
+
+The walk (every item, its key, validation state, the object its action reaches): 118 items incl. what AppKit adds (AutoFill, Start Dictation, Emoji & Symbols, Close All, the window list), 67 enabled in that state, 4 planned items without an action (⇧⌘N 4.8, ⇧⌘2 4.7, ⌥⇧⌘R 4.7, ⇧⌘L 4.1), 96 with a key. Every Room item reaches `AppDelegate` (none elsewhere) and every one has a validator; no key on two commands (AppKit's own hidden twins, Start Dictation 🌐D, share an action). AppKit hides an app's own `toggleFullScreen:` item and shows its own Enter Full Screen with 🌐F; the hidden item keeps ⌃⌘F (the fullscreen check below enters and leaves with it). ⌘← (History ▸ Back's alias): enabled with the page focused and Back possible, disabled while the palette's field edits, so the field keeps the key.
+
+### Settings v0 and the sidebar on the right (task 2)
+
+Settings sections (window width 480): General 220 pt tall, Appearance 269, Search 233, Downloads 168; the window's title follows the section. Settings ▸ Sidebar Right reached the window **22.4 / 21.9 ms** after the store changed (observation, next turn). Docked on the right: sidebar {964, 0, 280, 818}, card {6, 6, 958, 806}, splitter {962, 0, 8, 818} across the sidebar's edge; the traffic lights (19, 19, 60 × 14) sit over the card with the floating cluster shown, the header starts at the 16 pt edge inset. Hidden on the right: the band at the right edge revealed the overlay at {954, 10, 280, 798}; the cluster stays (the overlay is not under the buttons).
+
+### Fullscreen on a real Space (task 6)
+
+| Measure (3 rounds each) | Light | Dark |
+|---|---|---|
+| ⌃⌘F → `didEnterFullScreen` (the system's Space transition) | 575 / 572 / 561 ms | 568 / 586 / 576 |
+| ⌃⌘F → the header laid out on the 16 pt fallback | 593 / 592 / 572 ms | 578 / 605 / 590 |
+| ⌃⌘F again → `didExitFullScreen` | 563 / 570 / 560 ms | 572 / 563 / 581 |
+| … → the header laid out after the traffic lights again (x = buttons' maxX + 12) | 575 / 594 / 565 ms | 587 / 583 / 592 |
+
+Our part after the system's notification is 5–24 ms (the poll's resolution is a few ms). In fullscreen the window filled the 1920 × 1080 screen, the traffic lights left the window (`buttonsRect` nil), the header moved from x 91 to **16**, the empty `NSToolbar` was hidden (visible again after each exit), the card kept its 6 pt inset (280, 6, 1634 × 1068). Hover reveal in fullscreen: the sidebar hidden, a move into the 4 pt band showed the overlay after **432 / 452 ms** including the 150 ms dwell and the 250 ms slide, at {10, 10, 280, 1060}, its navigation row at the 16 pt inset; leaving hid it again. Back in the window the header was at x 91 as before.

@@ -281,3 +281,12 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `SplitMetrics.dropEdgeBand` / `dropPreviewFraction` / `dropPreviewAlpha` | an entry dragged into the card: within 40 pt of a pane's edge it splits to that side (the nearest edge in a corner), elsewhere it replaces the pane; the preview covers the half the new pane gets, accent at 18% with a 2 pt accent border, 10 pt corners | spec §D (40 px band); preview chosen |
 | `Timing.splitJoinDwell` (= `DropRules.holdDelay`) | a single entry resting 500 ms on a tab row's middle 60% joins it into a split (a pinned entry onto a pinned entry still makes a folder, §A.6) | spec §D, §A.6 |
 | `SplitMetrics.segmentTitleMinWidth` / `focusedSegmentAlpha` | the group row's segments show a title when at least 64 pt wide (else the favicon alone); the focused pane's segment is tinted with the accent at 16% | spec §D ("tinted"); values chosen |
+
+## Added in Phase 2.8a (menus, Settings v0, the sidebar on the right)
+
+| Token | Value | Provenance |
+|---|---|---|
+| Settings window | toolbar tabs (`NSTabViewController.tabStyle = .toolbar`, `toolbarStyle = .preference`), sections General, Appearance, Search, Downloads; each a grouped SwiftUI `Form` 480 pt wide at its own height; the title follows the section | the Mac's settings windows; width chosen (460 in 2.4b, wider for the segmented pickers) |
+| Settings section symbols | `gearshape` / `paintpalette` / `magnifyingglass` / `arrow.down.circle` | chosen (system settings conventions) |
+| Sidebar on the right | the docked layout mirrored with the same tokens (`CardMetrics.inset` on the card's outer sides, `sidebarSideInset` against the sidebar, the splitter's hit area mostly inside the sidebar), the reveal band (`RevealMetrics.edgeBand`) and the overlay (`overlayInset`) at the right edge; the traffic lights stay where AppKit puts them, over the card, with the floating cluster (`ClusterMetrics`) and the card-top drag band; the header starts at `SidebarMetrics.edgeInset` | Settings v0 (ROADMAP 2.8 task 2); Chapter 1 traffic-light rule |
+| Planned menu items | present, disabled, tooltip "Comes in Chapter N"; keys the menu cannot carry (Esc, Return) named in the tooltip | ROADMAP 2.8 task 1 |
