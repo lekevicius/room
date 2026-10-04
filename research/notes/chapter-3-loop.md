@@ -8,3 +8,7 @@ Started 2026-10-04 16:20.
 
 ## Sessions
 
+### 3.1a — accepted (2026-10-04 16:26 → 17:43, 77 min)
+
+Outcome: accepted. Tasks 1–5a done and verified; CI green on the implementer's push. Decisions: the `--no-ff` merge (the rebase's conflict threshold was hit); the embryo host stays its own target ("RoomCore Host"); B-46 helper suffixes: keep Chromium's, amend PLAN §4 at 3.9 (user row); the keychain check on the signed build will need a hand if the prompt blocks. For 3.1b: start the release build first thing (it is the long pole; the session's other tasks do not touch `//room`), fix B-47 (activate by pid) and decide B-45 before any further tour section on RoomCore; the release-build-dependent items (watchdog ×20 on release, size, cold launch, Sparkle size) go to a follow-up 3.1b-2 if the build outlives the session. User's list: `chapter-3-by-hand.md` 3.1a steps 1–5 (the laptop drops 0010, the by-hand run on RoomCore, the notifications prompt, the stray `Application Support/Room/RoomCore`, the old defaults domain).
+
