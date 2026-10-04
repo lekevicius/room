@@ -44,8 +44,10 @@ guards cover call sites that offer no Room hook:
 | `0009-sad-tab-factory-hook` | contain renderer loss in a Cocoa fallback; SadTab::Create otherwise directly constructs a BrowserView-dependent controller |
 | `0011-browser-window-lookup-hook` | Room window lookup for legacy autofill callers; guard the optional Chrome-only address-save promo |
 | `0012-extension-chooser-toolbar-guard` | extension-origin chooser uses the nullable registered toolbar provider; reject safely when no extension container exists instead of dereferencing a missing BrowserView |
+| `0014-navigator-browser-for-disposition-hook` | (3.2a) `GetBrowserAndTabForDisposition()` asks `//room` first: from a Room Browser the popup, window and picture-in-picture dispositions stay in that Browser (the host places the contents), off-the-record is cancelled until Chapter 4.8; Chrome would otherwise create a Browser, hence a BrowserView, per popup |
+| `0015-target-url-hook` | (3.2a) `BrowserWebContentsDelegate::UpdateTargetURL` hands the hovered link of a Room page to `//room` (the host's status pill); Chrome's own path static_casts every status bubble to `StatusBubbleViews` |
 
-Patch `0010-shutdown-worker-start-priority` (PR #1) is parked in `patches/parked/` (B-40; the README there says why and when it comes back). The series has eleven patches.
+Patch `0010-shutdown-worker-start-priority` (PR #1) is parked in `patches/parked/` (B-40; the README there says why and when it comes back). The series has thirteen patches (0013 is reserved for 3.2b's `AppController` hook).
 
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's
@@ -84,9 +86,15 @@ and navigations wait on the cookie store until it is answered); team-signed
 builds use the keychain.
 
 Things Chrome expects of a browser window that the host does not provide are
-met inside `//room`: `RoomLocationBar`, `RoomExclusiveAccessContext`, a hidden
-Bookmarks menu item (`RoomCrApplication -setMainMenu:`), and
-`TearDownPreBrowserWindowDestruction()` in `~RoomBrowserWindow`. Two Xcode targets link the staged framework (`xcodegen/roomcore.yml`; all
+met inside `//room`: `RoomLocationBar`, `RoomExclusiveAccessContext` (tab
+fullscreen through the host's delegate since 3.2a), `RoomFindBar` (inert: find
+is the host's), a hidden Bookmarks menu item (`RoomCrApplication
+-setMainMenu:`), and `TearDownPreBrowserWindowDestruction()` in
+`~RoomBrowserWindow`. A Browser `//room` did not create gets a headless
+`RoomBrowserWindow` (no NSWindow, a log line), never Chrome's BrowserView.
+After a change to `tools/browser_window_real_members.txt`, regenerate the
+stubs with `tools/gen_browser_window_stubs.py $CHROMIUM_SRC
+tools/browser_window_real_members.txt --write room`. Two Xcode targets link the staged framework (`xcodegen/roomcore.yml`; all
 three products are `Room.app`, so each has its own DerivedData):
 
 - `RoomCoreApp`, scheme "Room (RoomCore)": the Chapter 2 app (`App/Sources`)
