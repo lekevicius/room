@@ -157,6 +157,9 @@ extension SpikeRunner.Context {
         restorePaletteHooks()
         guard let palette else { return SpikeRunner.record("error", "no palette") }
         let settings = tabs.store.settings
+        // `-RoomSuggestionsOff` holds for this run only: later runs on the same state (the grand tour) read the setting.
+        let suggestionsWere = settings.settings.searchSuggestions
+        defer { settings.update { $0.searchSuggestions = suggestionsWere } }
         if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff") { settings.update { $0.searchSuggestions = false } }
         SpikeRunner.record("suggestions", settings.settings.searchSuggestions ? "on" : "off")
         SpikeRunner.record("engine", settings.settings.searchEngine)

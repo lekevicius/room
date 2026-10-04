@@ -207,6 +207,9 @@ extension SpikeRunner.Context {
         SpikeRunner.record("entries", entries)
         SpikeRunner.record("history_rows", (try? tabs.store.history.count()) ?? -1)
         // The no-network check types with suggestions off (`-RoomSuggestionsOff YES`).
+        // `-RoomSuggestionsOff` holds for this run only: later runs on the same state (the grand tour) read the setting.
+        let suggestionsWere = tabs.store.settings.settings.searchSuggestions
+        defer { tabs.store.settings.update { $0.searchSuggestions = suggestionsWere } }
         if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff") { tabs.store.settings.update { $0.searchSuggestions = false } }
         SpikeRunner.record("suggestions", tabs.store.settings.settings.searchSuggestions ? "on" : "off")
         if let page = tabs.current { await waitLoaded(page, timeout: 20) }
