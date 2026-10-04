@@ -64,7 +64,7 @@ private struct FirstRunCardContent: View {
         VStack(alignment: .leading, spacing: FirstRunMetrics.rowSpacing) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Welcome to Room").font(.headline)
-                Text("Nothing leaves Room on its own unless you turn it on.")
+                Text("Crash reports and update checks stay off unless you turn them on.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

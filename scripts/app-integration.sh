@@ -56,10 +56,6 @@ if [[ $session == 2.8b ]]; then
   pids="$pids $!"
   for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8771/appcast.xml') == 200 ]] && break; sleep 0.1; done
   : > "$endpoints"   # the readiness probe is not Room's
-  # Sparkle keeps its schedule in the app's defaults (SULastCheckTime …): start each run from none.
-  for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
-    defaults delete com.lekevicius.room "$key" 2>/dev/null || true
-  done
   swiftc -O scripts/lib/open-with-workspace.swift -o "$work/open-with-workspace" 2>>"$log"
   spike_args=(-RoomSpikeCaptures28b "$captures" -RoomFirstRun YES -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml
               -RoomSentryDSN http://public@127.0.0.1:8771/1)
@@ -67,6 +63,12 @@ fi
 now() { perl -MTime::HiRes=time -e 'printf "%.6f\n", time'; }
 
 for appearance in "${appearances[@]}"; do
+  if [[ $session == 2.8b ]]; then
+    # Sparkle keeps its schedule in the app's defaults (SULastCheckTime …): each run starts from none.
+    for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
+      defaults delete com.lekevicius.room "$key" 2>/dev/null || true
+    done
+  fi
   OUT="$work/spike-$spike-$appearance.txt"
   engine_dir="$(mktemp -d)/engine"
   open_url=""

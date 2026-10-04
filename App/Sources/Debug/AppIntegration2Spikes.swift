@@ -260,7 +260,8 @@ extension SpikeRunner.Context {
         // A check the user asks for: Sparkle fetches the dev feed and shows its window.
         SpikeRunner.record("update_check_can", "\(optIns.canCheckForUpdates)")
         app.checkForAppUpdates(nil)
-        let appeared = await waitUntil(10) { sparkleWindow() != nil }
+        // The progress window ("Checking for updates…") comes first; the result replaces it.
+        let appeared = await waitUntil(10) { sparkleWindow().map { $0.frame.height > 200 } ?? false }
         SpikeRunner.record("update_check_window", appeared ? describe(sparkleWindow()!) : "none in 10 s")
         if let shown = sparkleWindow() {
             try? await Task.sleep(for: .milliseconds(600))

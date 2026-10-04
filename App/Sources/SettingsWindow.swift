@@ -155,12 +155,12 @@ private struct SettingsSectionView: View {
                      : "When Room crashes, a report of the crash goes to Room's developer (Sentry). Off: the reporter is not started.")
             }
         } header: {
-            Text("Room makes no request on its own unless you turn it on here.")
+            Text("Room sends crash reports and checks for updates only if you turn them on here.")
         }
         Section {
             Toggle(isOn: binding(\.automaticUpdateChecks)) {
                 Text("Check for updates automatically")
-                Text("Asks Room's update server once a day (Sparkle). Off: no request unless you choose Check for Updates….")
+                Text("Asks Room's update server once a day (Sparkle). Off: Room asks only when you choose Check for Updates or Check Now.")
             }
             LabeledContent {
                 Button("Check Now") { services.checkForUpdates() }
