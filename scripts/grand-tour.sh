@@ -108,6 +108,9 @@ ready http://127.0.0.1:8771/appcast.xml && ready http://127.0.0.1:8770/site.html
   && ready http://127.0.0.1:8765/cookies.html || { echo "a test server did not start: $(tail -3 "$server_log")" >&2; exit 1; }
 : > "$endpoints"   # the readiness probes are not Room's
 export ROOM_TOUR_SERVERS=1 ROOM_ENDPOINTS_LOG="$endpoints"
+# An idle display sleep locks the session, and a locked session has no window captures and no
+# activation (found in 2.9): keep the display awake for the tour's length.
+caffeinate -dimsu -w $$ &
 
 # --- Steps -------------------------------------------------------------------
 # step <name> <group> <command...>: runs one spike (or wrapper), keeps its
@@ -125,6 +128,9 @@ step() {
   local crashes_before helpers_before t0 t1 status=0 left
   crashes_before=$(crash_count)
   helpers_before=$(helper_crash_count)
+  if ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked | grep -q '<true/>'; then
+    echo "the screen locked before $name; stopping (unlock and rerun with --from $name)" >&2; exit 1
+  fi
   echo "[$appearance] $(date +%H:%M:%S) $group / $name" >&2
   t0=$(now)
   "$@" >"$log" 2>"$err" || status=$?
