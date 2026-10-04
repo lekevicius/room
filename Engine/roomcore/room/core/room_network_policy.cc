@@ -55,6 +55,21 @@ base::CallbackListSubscription InstallNetworkPolicy() {
               "PreconnectFromKeyedService,OptimizationHints,"
               "OptimizationTargetPrediction,OptimizationGuideModelExecution,"
               "OnDeviceModelBackgroundDownload,PreemptiveSodaDownload";
+  // Translate's ranker fetches its model from www.gstatic.com (traffic
+  // annotation ranker_url_fetcher) when the first WebContents creates
+  // TranslateRankerImpl; either feature on is enough. 3.1b net-log on Room.app:
+  // the one engine request over launch + 600 s idle + quit, 0 with both off.
+  // The translate offer itself does not need the ranker.
+  disabled += ",TranslateRankerQuery,TranslateRankerEnforcement";
+  // Autofill's crowdsourced field-type query (autofill_query to
+  // content-autofill.googleapis.com) on every page with a form. 3.1b
+  // browsing ten real sites: 13 requests. Local autofill keeps working.
+  disabled += ",AutofillServerCommunication";
+  // Not network: Chrome clones the app bundle at launch so a running copy
+  // survives an in-place update, and a code-sign-clone-cleanup helper deletes
+  // it after quit (1-2 s past the browser; B-45). Sparkle replaces the whole
+  // bundle and relaunches, so the clone buys Room nothing.
+  disabled += ",MacAppCodeSignClone";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with
