@@ -26,7 +26,7 @@ extension SpikeRunner.Context {
     static let site = "http://127.0.0.1:8770/"
     static let otherSite = "http://localhost:8770/"
 
-    private var app27: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app27: AppDelegate? { AppDelegate.current }
 
     func layoutModes() async {
         NSApp.appearance = NSAppearance(named: appearanceSuffix == "dark" ? .darkAqua : .aqua)
@@ -45,10 +45,8 @@ extension SpikeRunner.Context {
         if runs("reveal") { await revealCheck() }
         if runs("cluster") { await clusterCheck() }
         if runs("toolbar") { await toolbarCheck() }
-        #if canImport(EngineCEF)
         if runs("peek") { await peekCheck(pinned: pinned) }
         if runs("split") { await splitCheck(pinned: pinned) }
-        #endif
         controller.isSidebarOpen = true
     }
 
@@ -252,21 +250,20 @@ extension SpikeRunner.Context {
     }
 }
 
-#if canImport(EngineCEF)
 extension SpikeRunner.Context {
     // MARK: Peek (spec §A.4, §I.6)
 
-    /// The pointer over an element (CDP: Chromium reports the link as status text), then a click, as a person would.
-    fileprivate func hoverAndClick(_ page: CEFWebContents, _ selector: String, modifiers: Int = 0) async {
-        let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
-        guard let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 else { return }
-        _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": "mouseMoved", "x": point[0], "y": point[1]])
+    /// The pointer over an element (Chromium reports the link as status text), then a click, as a person
+    /// would: real mouse events on the page's view (`PageDriver`).
+    fileprivate func hoverAndClick(_ page: any WebContents, _ selector: String, modifiers: NSEvent.ModifierFlags = []) async {
+        guard let point = await PageDriver.center(of: selector, in: page, "hover \(selector)") else { return }
+        PageDriver.hover(page, at: point, "hover \(selector)")
         try? await Task.sleep(for: .milliseconds(150))
-        await click(page, selector, modifiers: modifiers)
+        PageDriver.click(page, at: point, modifiers: modifiers, "click \(selector)")
     }
 
     fileprivate func peekCheck(pinned: UUID) async {
-        guard let app = app27, let peek = app.peek, let page = tabs.contents(for: pinned) as? CEFWebContents else {
+        guard let app = app27, let peek = app.peek, let page = tabs.contents(for: pinned) else {
             return SpikeRunner.record("error", "no pinned page for Peek")
         }
         controller.isSidebarOpen = true
@@ -295,7 +292,7 @@ extension SpikeRunner.Context {
             try? await Task.sleep(for: .milliseconds(300))
         }
         /// Clicks, then says where the navigation went.
-        func outcome(_ selector: String, modifiers: Int = 0, gestureAgo: TimeInterval? = nil) async -> String {
+        func outcome(_ selector: String, modifiers: NSEvent.ModifierFlags = [], gestureAgo: TimeInterval? = nil) async -> String {
             await reset()
             tabs.lastUserInput = gestureAgo.map { ProcessInfo.processInfo.systemUptime - $0 }
             await hoverAndClick(page, selector, modifiers: modifiers)
@@ -404,7 +401,7 @@ extension SpikeRunner.Context {
         SpikeRunner.record("peek_form_post", await outcome("#post"))
         SpikeRunner.record("peek_script_within_2s", await outcome("#script", gestureAgo: 0.2))
         SpikeRunner.record("peek_script_after_2s", await outcome("#script", gestureAgo: 3))
-        SpikeRunner.record("peek_shift_click", await outcome("#offsite2", modifiers: 8))
+        SpikeRunner.record("peek_shift_click", await outcome("#offsite2", modifiers: .shift))
         SpikeRunner.record("peek_target_blank", await outcome("#blank") + " selected=\(tabs.current?.url?.absoluteString ?? "nil")")
         sidebar.select(pinned)
         await reset()
@@ -412,7 +409,6 @@ extension SpikeRunner.Context {
         tabs.debugPeekDecisions = nil
     }
 }
-#endif
 
 /// Collects display-link timestamps.
 final class FrameRecorder: NSObject {

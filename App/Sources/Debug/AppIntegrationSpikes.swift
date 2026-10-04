@@ -19,7 +19,7 @@ import UIKitCore
 /// Captures are named `phase-2.8a-<name>-<appearance>`; a request for another
 /// window than Room's main window carries its number (`capture: name@123`).
 extension SpikeRunner.Context {
-    private var app28: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app28: AppDelegate? { AppDelegate.current }
 
     func appIntegration() async {
         NSApp.appearance = NSAppearance(named: appearanceSuffix == "dark" ? .darkAqua : .aqua)
@@ -181,7 +181,7 @@ extension SpikeRunner.Context {
 // MARK: Settings, the sidebar on the right, fullscreen (ROADMAP 2.8 tasks 2 and 6)
 
 extension SpikeRunner.Context {
-    private var app28b: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app28b: AppDelegate? { AppDelegate.current }
 
     /// Where the header (the address field) starts, in the sidebar view.
     private var headerX: CGFloat { controller.sidebarView.headerView?.frame.minX ?? -1 }

@@ -83,6 +83,9 @@ enum SpikeRunner {
         if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") { NSApp.terminate(nil) }
     }
 
+    /// `js` reported once that the engine runs no scripts.
+    static var reportedNoScript = false
+
     static func record(_ key: String, _ value: Any) {
         let line = "\(key): \(value)\n"
         if let handle = try? FileHandle(forWritingTo: output) {
@@ -144,8 +147,20 @@ enum SpikeRunner {
             }
         }
 
+        /// The script's JSON result, or "error". An engine that cannot run
+        /// scripts at all (RoomCore before 3.3b) leaves an `error:` line, once.
         func js(_ page: any WebContents, _ script: String) async -> String {
-            (try? await page.executeJavaScript(script)) ?? "error"
+            do {
+                return try await page.executeJavaScript(script)
+            } catch EngineError.notSupported(let member) {
+                if !SpikeRunner.reportedNoScript {
+                    SpikeRunner.reportedNoScript = true
+                    SpikeRunner.record("error", "script: \(member) is not supported on this engine; the checks that read the page cannot run")
+                }
+                return "error"
+            } catch {
+                return "error"
+            }
         }
 
         /// Milliseconds since `start`.
@@ -174,6 +189,7 @@ enum SpikeRunner {
                 capture.append(ms(since: start))
             }
             SpikeRunner.record("page_capture_screenshot_rtt", SpikeRunner.stats(capture) + " size=\(Int(size.width))x\(Int(size.height))pt")
+            if size == .zero { _ = await PageDriver.capture(page, "cdp: page capture") }
             SpikeRunner.record("rootBackgroundColor", page.rootBackgroundColor.map { "\($0)" } ?? "nil")
             SpikeRunner.record("themeColor", page.themeColor.map { "\($0)" } ?? "nil")
 
@@ -361,9 +377,13 @@ enum SpikeRunner {
         // MARK: Audibility
 
         func audio() async {
+            guard let page = await open(SpikeRunner.page("audio.html")) else {
+                SpikeRunner.record("error", "audio: audio.html did not open")
+                return
+            }
             #if canImport(EngineCEF)
-            guard let page = await open(SpikeRunner.page("audio.html")) as? CEFWebContents else { return }
-            page.audibilityPollInterval = .milliseconds(500)
+            (page as? CEFWebContents)?.audibilityPollInterval = .milliseconds(500)
+            #endif
             var cost: [Double] = []
             for _ in 0..<30 {
                 let start = ContinuousClock.now
@@ -373,7 +393,7 @@ enum SpikeRunner {
             SpikeRunner.record("poll_cost", SpikeRunner.stats(cost))
             for round in 1...2 {
                 let playAt = ContinuousClock.now
-                _ = try? await page.devToolsMethod("Runtime.evaluate", params: ["expression": "document.getElementById('a').play()", "userGesture": true, "awaitPromise": true])
+                _ = await PageDriver.evaluateWithGesture(page, "document.getElementById('a').play().then(() => 0)", "audio play")
                 let became = await waitUntil(5) { page.isAudible }
                 SpikeRunner.record("round\(round)_became_audible", became ? String(format: "%.0fms", ms(since: playAt)) : "no edge within 5s")
                 try? await Task.sleep(for: .seconds(2))
@@ -385,13 +405,12 @@ enum SpikeRunner {
             }
             // Web Audio: an oscillator, which the media-element poll cannot see.
             let webAudioAt = ContinuousClock.now
-            _ = try? await page.devToolsMethod("Runtime.evaluate", params: ["expression": PageScriptsSpike.oscillator, "userGesture": true, "awaitPromise": true])
+            _ = await PageDriver.evaluateWithGesture(page, PageScriptsSpike.oscillator, "audio oscillator")
             let webAudible = await waitUntil(5) { page.isAudible }
             SpikeRunner.record("webaudio_became_audible", webAudible ? String(format: "%.0fms", ms(since: webAudioAt)) : "no edge within 5s")
             try? await Task.sleep(for: .seconds(2))
             SpikeRunner.record("webaudio_still_audible_after_2s_playing", page.isAudible)
             _ = await js(page, "window.__osc && window.__osc.stop(); 0")
-            #endif
         }
 
         func waitUntil(_ seconds: Double, _ condition: () -> Bool) async -> Bool {
@@ -406,8 +425,10 @@ enum SpikeRunner {
         // MARK: Popups, select, date picker, JS dialogs
 
         func popups() async {
-            #if canImport(EngineCEF)
-            guard let page = await open(SpikeRunner.page("popups.html")) as? CEFWebContents else { return }
+            guard let page = await open(SpikeRunner.page("popups.html")) else {
+                SpikeRunner.record("error", "popups: popups.html did not open")
+                return
+            }
             try? await Task.sleep(for: .seconds(1))
             // A new page by identity: since 2.3 a page opened from another goes right below it, not last.
             func newPage(after before: [any WebContents]) -> (any WebContents)? {
@@ -455,26 +476,18 @@ enum SpikeRunner {
             _ = await waitUntil(3) { prompts.visibleDialog == nil }
             try? await Task.sleep(for: .milliseconds(300))
             SpikeRunner.record("alert_completed", await js(page, "String(window.__alerted === true)"))
-            #endif
         }
 
-        #if canImport(EngineCEF)
-        /// Clicks an element through CDP input events (a real user gesture in the renderer).
-        /// `fromRight` clicks that many points left of the element's right edge
-        /// (the date input's calendar button) instead of its centre.
-        func click(_ page: CEFWebContents, _ selector: String, fromRight: Double? = nil, modifiers: Int = 0) async {
-            let x = fromRight.map { "r.right - \($0)" } ?? "r.x + r.width / 2"
-            let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [\(x), r.y + r.height / 2] })()")
-            guard let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 else { return }
-            for type in ["mousePressed", "mouseReleased"] {
-                _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": type, "x": point[0], "y": point[1], "button": "left",
-                                                                                     "clickCount": 1, "modifiers": modifiers])
-            }
+        /// Clicks an element with real mouse events on the page's view (a user
+        /// gesture in the renderer; `PageDriver`). `fromRight` clicks that many
+        /// points left of the element's right edge instead of its centre.
+        func click(_ page: any WebContents, _ selector: String, fromRight: Double? = nil, modifiers: NSEvent.ModifierFlags = []) async {
+            await PageDriver.click(page, selector, fromRight: fromRight, modifiers: modifiers, "click \(selector)")
         }
 
         /// Opens the control's popup and compares the popup window's screen
         /// position with the element's (both top-left screen points).
-        func popupGeometry(_ page: CEFWebContents, _ selector: String) async -> String {
+        func popupGeometry(_ page: any WebContents, _ selector: String) async -> String {
             let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [r.x, r.y, r.width, r.height] })()")
             guard let rect = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], rect.count == 4 else { return "no element" }
             let view = page.nativeView
@@ -488,8 +501,8 @@ enum SpikeRunner {
             // measure and dismiss it from another thread.
             let probe = PopupWindows.probe(pid: pid, excluding: before)
             if selector == "#date" {
-                // A CDP click on the calendar glyph does not open it; showPicker() with a gesture does.
-                _ = try? await page.devToolsMethod("Runtime.evaluate", params: ["expression": "document.querySelector('#date').showPicker()", "userGesture": true])
+                // A click on the calendar glyph does not open it; showPicker() with a gesture does.
+                _ = await PageDriver.evaluateWithGesture(page, "document.querySelector('#date').showPicker(); 0", "date picker")
             } else {
                 await click(page, selector)
             }
@@ -503,7 +516,6 @@ enum SpikeRunner {
                           popup.bounds.minX, popup.bounds.minY, popup.bounds.width, popup.bounds.height, popup.layer,
                           elementBottomLeft.x, elementBottomLeft.y, dx, dy)
         }
-        #endif
 
         // MARK: Keyboard routing
 
@@ -511,8 +523,10 @@ enum SpikeRunner {
         /// (UCKeyTranslate on the layout data) through NSApp.sendEvent, and
         /// checks reserved shortcuts, menu fall-through and editing commands.
         func keys() async {
-            #if canImport(EngineCEF)
-            guard let page = await open(SpikeRunner.page("keys.html")) as? CEFWebContents else { return }
+            guard let page = await open(SpikeRunner.page("keys.html")) else {
+                SpikeRunner.record("error", "keys: keys.html did not open")
+                return
+            }
             try? await Task.sleep(for: .milliseconds(500))
             await click(page, "#t")
             focusPage(page)
@@ -573,7 +587,6 @@ enum SpikeRunner {
                 SpikeRunner.record("keys_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))", results.joined(separator: "; "))
             }
             SpikeRunner.record("delegate_key_log", session.keyLog.suffix(12).joined(separator: " | "))
-            #endif
         }
 
         /// Makes the page's innermost view (Chromium's RenderWidgetHostViewCocoa) first responder.
@@ -600,8 +613,14 @@ enum SpikeRunner {
         // MARK: DevTools
 
         func devTools() async {
-            #if canImport(EngineCEF)
-            guard let page = await open(SpikeRunner.page("popups.html")) as? CEFWebContents else { return }
+            guard let page = await open(SpikeRunner.page("popups.html")) else {
+                SpikeRunner.record("error", "devtools: popups.html did not open")
+                return
+            }
+            guard page.devTools != nil else {
+                SpikeRunner.record("error", "devtools: this engine hosts no DevTools for the page (RoomCore: 3.3b)")
+                return
+            }
             let pagesBefore = session.pages.count
             // The element under (60, 160) in page coordinates: the <select>.
             let target = await js(page, "(() => { const e = document.elementFromPoint(60, 160); return e ? e.tagName + '#' + e.id : 'none' })()")
@@ -609,8 +628,14 @@ enum SpikeRunner {
             session.host.toggleDevTools(inspecting: NSPoint(x: 60, y: 160))
             let opened = await waitUntil(10) { page.devTools?.isOpen == true }
             SpikeRunner.record("devtools_open", "\(opened) after \(String(format: "%.0f", ms(since: start)))ms docked=\(session.host.isDevToolsOpen)")
-            guard let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage else {
+            #if canImport(EngineCEF)
+            let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage
+            #else
+            let frontend: (any WebContents)? = nil
+            #endif
+            guard let frontend else {
                 SpikeRunner.record("devtools_frontend", "none")
+                SpikeRunner.record("error", "devtools: no front-end page to read the selected node from")
                 return
             }
             var selected = "none"
@@ -625,7 +650,6 @@ enum SpikeRunner {
             let closed = await waitUntil(5) { page.devTools?.isOpen == false }
             try? await Task.sleep(for: .seconds(1))
             SpikeRunner.record("devtools_close", "closed=\(closed) pane=\(session.host.isDevToolsOpen) pages \(pagesBefore)→\(session.pages.count) frontendState=\(frontend.state) pageState=\(page.state)")
-            #endif
         }
 
         // MARK: Dia framing for external captures

@@ -1,9 +1,8 @@
-#if DEBUG && canImport(EngineCEF)
+#if DEBUG
 import AppKit
 import Card
 import Design
 import Engine
-import EngineCEF
 import Model
 import QuartzCore
 import Sidebar
@@ -18,7 +17,7 @@ import UIKitCore
 /// Peek over a split (events under the dim) and Peek ▸ Split, element
 /// fullscreen of the focused pane; captures (`-RoomSpikeCapturePrefix phase-2.7b`).
 extension SpikeRunner.Context {
-    private var app27b: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app27b: AppDelegate? { AppDelegate.current }
 
     /// A Today tab on the test site, loaded (in the background unless `select`).
     private func testTab(_ query: String, host: String = SpikeRunner.Context.site, select: Bool = false) async -> UUID? {

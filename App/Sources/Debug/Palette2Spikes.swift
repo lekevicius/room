@@ -120,9 +120,7 @@ extension SpikeRunner.Context {
             if let page = tabs.current {
                 await waitLoaded(page, timeout: 30)
                 try? await Task.sleep(for: .seconds(2))
-                #if canImport(EngineCEF)
-                pageImage = try? await (page as? CEFWebContents)?.captureViewport()
-                #endif
+                pageImage = await PageDriver.capture(page, "page capture")
             }
             let states: [(String, () async -> Void)] = [
                 ("history-inline", { self.press("⌘T"); self.type("gi") }),

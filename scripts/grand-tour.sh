@@ -26,11 +26,20 @@
 # Groups (`--groups layout,tabs`, Chapter 3 runs the tour section by section on
 # RoomCore): layout, sidebar, spaces, palette, tabs, chrome, layoutmodes,
 # appintegration, netlog. `--only` takes step names, `--from` a step to start at.
+# ROOM_TOUR_ENGINE=roomcore runs the tour on Room.app on RoomCore (scheme
+# "Room (RoomCore)", build/roomcore/DerivedData; the framework staged by
+# scripts/roomcore-package.sh); the default is the CEF app (scheme "Room").
 # Usage: scripts/grand-tour.sh [--no-build] [--groups <group,...>] [--from <step>] [--only <step,...>] [light] [dark]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-APP="build/DerivedData/Build/Products/Debug/Room.app"
+ENGINE_NAME="${ROOM_TOUR_ENGINE:-cef}"
+case "$ENGINE_NAME" in
+  cef) SCHEME="Room"; DERIVED="build/DerivedData" ;;
+  roomcore) SCHEME="Room (RoomCore)"; DERIVED="build/roomcore/DerivedData" ;;
+  *) echo "ROOM_TOUR_ENGINE must be cef or roomcore" >&2; exit 2 ;;
+esac
+APP="$DERIVED/Build/Products/Debug/Room.app"
 export ROOM_APP="$APP"
 
 build=YES
@@ -57,7 +66,7 @@ helper_crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c
 room_pids() { pgrep -f "Room.app/Contents/MacOS/Room" || true; }
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-TOUR="$ROOT/build/grand-tour/$STAMP"
+TOUR="$ROOT/build/grand-tour/$STAMP-$ENGINE_NAME"
 mkdir -p "$TOUR"
 tour_start=$(now)
 
@@ -74,10 +83,10 @@ done
 commit="$(git rev-parse --short HEAD)"
 [[ -n "$(git status --porcelain -- App Packages Engine project.yml xcodegen)" ]] && commit="$commit+dirty"
 if [[ $build == YES ]]; then
-  echo "building Debug at $commit" >&2
+  echo "building Debug ($ENGINE_NAME) at $commit" >&2
   b0=$(now)
   xcodegen -q
-  xcodebuild -scheme Room -configuration Debug -derivedDataPath build/DerivedData build -quiet 2>&1 | grep -v "Using the first of multiple\|platform:macOS" >&2 || true
+  xcodebuild -scheme "$SCHEME" -configuration Debug -derivedDataPath "$DERIVED" build -quiet 2>&1 | grep -v "Using the first of multiple\|platform:macOS" >&2 || true
   [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "build failed" >&2; exit 1; }
   printf 'build_seconds\t%.1f\n' "$(perl -e "print $(now) - $b0")" > "$TOUR/build.tsv"
 fi
@@ -211,10 +220,10 @@ for appearance in "${appearances[@]}"; do
   run netlog scripts/netlog-check.sh "$STEPS/netlog"
 
   printf 'run_seconds\t%.1f\n' "$(perl -e "print $(now) - $run_start")" > "$RUN/run.tsv"
-  python3 scripts/lib/tour-summary.py "$RUN" --commit "$commit" --binary "$binary_sha" > "$RUN/summary.md" || true
+  python3 scripts/lib/tour-summary.py "$RUN" --commit "$commit ($ENGINE_NAME)" --binary "$binary_sha" > "$RUN/summary.md" || true
 done
 
 printf 'tour_seconds\t%.1f\n' "$(perl -e "print $(now) - $tour_start")" > "$TOUR/tour.tsv"
-python3 scripts/lib/tour-summary.py "$TOUR" --commit "$commit" --binary "$binary_sha" > "$TOUR/summary.md" || true
+python3 scripts/lib/tour-summary.py "$TOUR" --commit "$commit ($ENGINE_NAME)" --binary "$binary_sha" > "$TOUR/summary.md" || true
 cat "$TOUR/summary.md"
 echo "tour output: $TOUR" >&2

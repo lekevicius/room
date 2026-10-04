@@ -97,11 +97,10 @@ extension SpikeRunner.Context {
         if let page = tabs.contents(for: pinned.id) { await waitLoaded(page) }
         SpikeRunner.record("reopen_pinned", "selected=\(sidebar.selectedEntryID == pinned.id) url=\(tabs.contents(for: pinned.id)?.url?.absoluteString ?? "nil")")
 
-        #if canImport(EngineCEF)
         // Related tabs (§A.7): target=_blank opens below the opener, selected; ⌘-clicks open in the background, in order.
         guard let opener = try? store.addEntry(.today, url: SpikeRunner.page("popups.html").absoluteString, space: space, at: 0) else { return }
         sidebar.select(opener.id)
-        guard let openerPage = tabs.contents(for: opener.id) as? CEFWebContents else { return }
+        guard let openerPage = tabs.contents(for: opener.id) else { SpikeRunner.record("error", "no page for openerPage"); return }
         await waitLoaded(openerPage)
         try? await Task.sleep(for: .milliseconds(500))
         let countBefore = store.today(space: space).count
@@ -115,7 +114,7 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(500))
         for _ in 0..<2 {
             let before = store.today(space: space).count
-            await click(openerPage, "#blank", modifiers: 4)
+            await click(openerPage, "#blank", modifiers: .command)
             _ = await waitUntil(5) { self.store.today(space: space).count > before }
         }
         let order = store.today(space: space).map(\.id)
@@ -123,7 +122,6 @@ extension SpikeRunner.Context {
         SpikeRunner.record("related_background", "selectedStaysOpener=\(sidebar.selectedEntryID == opener.id) "
             + "openerIndex=\(order.firstIndex(of: opener.id) ?? -1) backgroundIndexes=\(newIDs.compactMap { order.firstIndex(of: $0) }.sorted()) "
             + "earlierForegroundIndex=\(foregroundTab.flatMap { order.firstIndex(of: $0) } ?? -1)")
-        #endif
 
         // Discard every background page; reselecting one reloads it.
         try? await Task.sleep(for: .seconds(2))
@@ -295,9 +293,7 @@ extension SpikeRunner.Context {
                 await waitLoaded(page, timeout: 30)
                 try? await Task.sleep(for: .seconds(3))
                 var pageImage: NSImage?
-                #if canImport(EngineCEF)
-                pageImage = try? await (page as? CEFWebContents)?.captureViewport()
-                #endif
+                pageImage = await PageDriver.capture(page, "page capture")
                 SpikeRunner.record("capture_page_\(suffix)", writeComposite(page: pageImage, pageView: page.nativeView,
                                                                            to: directory.appending(path: "phase-2.3-card-page-\(suffix).png")))
             }
@@ -309,7 +305,7 @@ extension SpikeRunner.Context {
                 }
                 sendKey("\t", keyCode: 48, [.control])
                 try? await Task.sleep(for: .milliseconds(500))
-                let switcher = (NSApp.delegate as? AppDelegate)?.switcher
+                let switcher = AppDelegate.current?.switcher
                 SpikeRunner.record("switcher_state", "active=\(switcher?.isActive ?? false) panel=\(switcher?.debugPanelFrame.map(NSStringFromRect) ?? "none")")
                 SpikeRunner.record("capture_switcher", writeComposite(page: nil, pageView: nil, overlay: switcher?.debugPanel,
                                                                       to: directory.appending(path: "phase-2.3-tab-switcher-light.png")))

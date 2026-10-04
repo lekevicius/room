@@ -23,7 +23,7 @@ import UIKitCore
 /// - `closedwindow`: a link after ⇧⌘W brings the window back with the tab.
 /// Captures are named `phase-2.8b-<name>-<appearance>`.
 extension SpikeRunner.Context {
-    private var app2: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app2: AppDelegate? { AppDelegate.current }
 
     func appIntegration2() async {
         NSApp.appearance = NSAppearance(named: appearanceSuffix == "dark" ? .darkAqua : .aqua)
@@ -297,7 +297,7 @@ extension SpikeRunner.Context {
     }
 
     func netCheck() async {
-        guard let app = NSApp.delegate as? AppDelegate, let tabs = app.tabs, let settings = app.store?.settings.settings else { return }
+        guard let app = AppDelegate.current, let tabs = app.tabs, let settings = app.store?.settings.settings else { return }
         SpikeRunner.record("phase", String(format: "launch %.3f", Self.processStartDate().timeIntervalSince1970))
         SpikeRunner.record("opt_ins", "crashReports=\(settings.crashReports) automaticUpdateChecks=\(settings.automaticUpdateChecks) "
             + "searchSuggestions=\(settings.searchSuggestions) first-run card shown=\(app.firstRunCard != nil) "

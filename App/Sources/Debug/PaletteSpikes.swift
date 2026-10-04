@@ -22,7 +22,7 @@ import EngineCEF
 /// - `palettemeasure` (with `-RoomSidebarFixture 500`): open-to-first-frame
 ///   and keystroke-to-rows with the three 2.4a providers.
 extension SpikeRunner.Context {
-    var palette: PaletteController? { (NSApp.delegate as? AppDelegate)?.palette }
+    var palette: PaletteController? { AppDelegate.current?.palette }
 
     /// The spike session counts ⌘T/⌘L for the keyboard spike; here they open the palette.
     func restorePaletteHooks() {
@@ -175,9 +175,7 @@ extension SpikeRunner.Context {
             if let page = tabs.current {
                 await waitLoaded(page, timeout: 30)
                 try? await Task.sleep(for: .seconds(2))
-                #if canImport(EngineCEF)
-                pageImage = try? await (page as? CEFWebContents)?.captureViewport()
-                #endif
+                pageImage = await PageDriver.capture(page, "page capture")
             }
             let states: [(String, () -> Void)] = [
                 ("empty", { self.press("⌘T") }),

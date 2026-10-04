@@ -24,7 +24,7 @@ import EngineCEF
 extension SpikeRunner.Context {
     var chrome: PageChrome { session.pageDelegate.chrome }
     var prompts: PagePrompts { chrome.prompts }
-    var presenter: PagePromptPresenter? { (NSApp.delegate as? AppDelegate)?.promptPresenter }
+    var presenter: PagePromptPresenter? { AppDelegate.current?.promptPresenter }
 
     static let server = "http://127.0.0.1:8766/"
     static let secureServer = "https://127.0.0.1:8767/"
@@ -32,7 +32,6 @@ extension SpikeRunner.Context {
     var appearanceSuffix: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
 
     func chromeSurfaces() async {
-        #if canImport(EngineCEF)
         NSApp.appearance = NSAppearance(named: appearanceSuffix == "dark" ? .darkAqua : .aqua)
         SpikeRunner.record("window_id", window.windowNumber)
         window.setContentSize(NSSize(width: 1244, height: 818))
@@ -47,10 +46,8 @@ extension SpikeRunner.Context {
         await filesCheck()
         await contextMenuCheck()
         await popupsCheck()
-        #endif
     }
 
-    #if canImport(EngineCEF)
     /// Chromium remembers a profile's answers (a certificate exception, a
     /// denied permission); on a state an earlier run used (the grand tour,
     /// Phase 2.9) the checks below would find them and see no prompt. Every
@@ -66,8 +63,8 @@ extension SpikeRunner.Context {
         }
     }
 
-    func openTest(_ path: String, server: String = "http://127.0.0.1:8766/") async -> CEFWebContents? {
-        guard let page = await open(URL(string: server + path)!) as? CEFWebContents else {
+    func openTest(_ path: String, server: String = "http://127.0.0.1:8766/") async -> (any WebContents)? {
+        guard let page = await open(URL(string: server + path)!) else {
             SpikeRunner.record("error", "no page for \(path)")
             return nil
         }
@@ -199,7 +196,7 @@ extension SpikeRunner.Context {
 
     func certificateCheck() async {
         let url = URL(string: Self.secureServer + "secure.html")!
-        guard let first = session.newPage(url) as? CEFWebContents else { return }
+        guard let first = session.newPage(url) else { SpikeRunner.record("error", "no page for first"); return }
         let entry = tabs.entryID(for: first)
         var state = await waitForDialog()
         if case .certificate(let error)? = prompts.visibleDialog?.dialog {
@@ -213,12 +210,12 @@ extension SpikeRunner.Context {
         _ = await waitUntil(5) { self.prompts.visibleDialog == nil }
         try? await Task.sleep(for: .milliseconds(800))
         // B-25: nothing to go back to: the page goes, the entry stays (titled with the host), the card shows the empty state.
-        let emptyState = (NSApp.delegate as? AppDelegate)?.pageHostContainer?.pageView?.accessibilityIdentifier() ?? "nil"
+        let emptyState = AppDelegate.current?.pageHostContainer?.pageView?.accessibilityIdentifier() ?? "nil"
         SpikeRunner.record("certificate_go_back", "entry kept=\(entry.flatMap { store.entry($0) } != nil) page closed=\(first.state == .closed) "
             + "row title=\(entry.flatMap { store.entry($0)?.liveTitle } ?? "nil") card=\(emptyState) selected=\(sidebar.selectedEntryID == entry)")
         await captureB("certificate-go-back-empty-state")
 
-        guard let page = session.newPage(url) as? CEFWebContents else { return }
+        guard let page = session.newPage(url) else { SpikeRunner.record("error", "no page for page"); return }
         _ = await waitForDialog()
         button(titled: "Show Details", in: presenter?.dialogView)?.performClick(nil)
         try? await Task.sleep(for: .milliseconds(300))
@@ -323,16 +320,12 @@ extension SpikeRunner.Context {
         driver.waitForFile(output.deletingLastPathComponent().appending(path: output.lastPathComponent + ".ack-" + full))
     }
 
-    /// A right-click through CDP input events (the renderer asks for its context menu).
-    private func rightClick(_ page: CEFWebContents, _ selector: String) async {
-        let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
-        guard let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 else { return }
-        Task {
-            for type in ["mousePressed", "mouseReleased"] {
-                _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": type, "x": point[0], "y": point[1],
-                                                                                     "button": "right", "clickCount": 1])
-            }
-        }
+    /// A right-click with real mouse events on the page's view (the renderer
+    /// asks for its context menu; `PageDriver`). The menu's tracking loop runs
+    /// later, from the engine's callback.
+    private func rightClick(_ page: any WebContents, _ selector: String) async {
+        guard let point = await PageDriver.center(of: selector, in: page, "right-click \(selector)") else { return }
+        Task { PageDriver.click(page, at: point, button: .rightMouseDown, "right-click \(selector)") }
     }
 
     // MARK: Popups
@@ -346,7 +339,7 @@ extension SpikeRunner.Context {
         if let child { await waitLoaded(child) }
         try? await Task.sleep(for: .milliseconds(500))
         SpikeRunner.record("popup_window_open", "today \(before)→\(store.today(space: sidebar.activeSpaceID).count) selected=\(child !== page) title=\(child?.title ?? "nil") opener messages=\(await js(page, "JSON.stringify(window.__messages)"))")
-        if let child = child as? CEFWebContents, child !== page {
+        if let child, child !== page {
             await click(child, "#close")
             let closed = await waitUntil(5) { self.tabs.entryID(for: child) == nil }
             SpikeRunner.record("popup_window_close", "entry closed=\(closed) today=\(store.today(space: sidebar.activeSpaceID).count)")
@@ -359,7 +352,6 @@ extension SpikeRunner.Context {
         if let blank = session.current { await waitLoaded(blank) }
         SpikeRunner.record("popup_target_blank", "today \(before2)→\(store.today(space: sidebar.activeSpaceID).count) title=\(session.current?.title ?? "nil")")
     }
-    #endif
 
     // MARK: View lookup
 

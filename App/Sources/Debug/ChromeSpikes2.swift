@@ -22,10 +22,9 @@ import EngineCEF
 /// CEF actually called. Captures (`-RoomSpikeCaptures2b YES`) are named
 /// `phase-2.6b-<name>-<appearance>`.
 extension SpikeRunner.Context {
-    private var app: AppDelegate? { NSApp.delegate as? AppDelegate }
+    private var app: AppDelegate? { AppDelegate.current }
 
     func chromeSurfaces2() async {
-        #if canImport(EngineCEF)
         NSApp.appearance = NSAppearance(named: appearanceSuffix == "dark" ? .darkAqua : .aqua)
         SpikeRunner.record("window_id", window.windowNumber)
         window.setContentSize(NSSize(width: 1244, height: 818))
@@ -66,7 +65,6 @@ extension SpikeRunner.Context {
         if runs("keys") { await audioAndKeysCheck() }
         SpikeRunner.record("delegate_calls", recorder.summary)
         try? FileManager.default.removeItem(at: downloadFolder)
-        #endif
     }
 
     /// A window capture for 2.6b (the script answers it; popovers are child windows and come along).
@@ -79,7 +77,6 @@ extension SpikeRunner.Context {
         if !(await waitUntil(20) { FileManager.default.fileExists(atPath: ack.path) }) { SpikeRunner.record("capture_timeout", full) }
     }
 
-    #if canImport(EngineCEF)
     // MARK: Downloads
 
     private func downloadsCheck(folder: URL) async {
@@ -214,7 +211,7 @@ extension SpikeRunner.Context {
     /// spike runs meanwhile): a timer in the common modes finds it, records
     /// it and aborts it, so nothing prints.
     private func printCheck() async {
-        guard let page = session.current as? CEFWebContents else { return }
+        guard let page = session.current else { SpikeRunner.record("error", "no page for page"); return }
         let watch = ModalWatch(window: window)
         watch.start()
         page.print()
@@ -276,14 +273,15 @@ extension SpikeRunner.Context {
         SpikeRunner.record("status_pill_hides", hidden)
     }
 
-    /// The pointer over an element (CDP mouse move: Chromium reports the link as status text), or away from links.
-    private func hover(_ page: CEFWebContents, _ selector: String?) async {
-        var x = 600.0, y = 20.0
+    /// The pointer over an element (a real mouse move on the page's view: Chromium reports the link as
+    /// status text), or away from links.
+    private func hover(_ page: any WebContents, _ selector: String?) async {
+        var point = CGPoint(x: 600, y: 20)
         if let selector {
-            let json = await js(page, "(() => { const r = document.querySelector('\(selector)').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
-            if let point = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Double], point.count == 2 { (x, y) = (point[0], point[1]) }
+            guard let center = await PageDriver.center(of: selector, in: page, "hover \(selector)") else { return }
+            point = center
         }
-        _ = try? await page.devToolsMethod("Input.dispatchMouseEvent", params: ["type": "mouseMoved", "x": x, "y": y])
+        PageDriver.hover(page, at: point, "hover \(selector ?? "away")")
     }
 
     private func postMouseMoved(at point: NSPoint) {
@@ -390,13 +388,16 @@ extension SpikeRunner.Context {
 
     private func devToolsPaneCheck() async {
         guard let page = await openTest("find.html"), let container = app?.pageHostContainer else { return }
+        guard page.devTools != nil else {
+            return SpikeRunner.record("error", "devtools: this engine hosts no DevTools for the page (RoomCore: 3.3b)")
+        }
         var loaded: [Double] = []
         var attached: [Double] = []
         for round in 0..<4 {
             let start = ContinuousClock.now
             session.host.toggleDevTools()
-            guard await waitUntil(10, { (page.devTools as? CEFDevToolsInspectable)?.frontendPage != nil }),
-                  let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage else { break }
+            guard await waitUntil(10, { devToolsFrontend(page) != nil }),
+                  let frontend = devToolsFrontend(page) else { break }
             await waitLoaded(frontend, timeout: 10)
             loaded.append(ms(since: start))
             for _ in 0..<100 {
@@ -421,7 +422,7 @@ extension SpikeRunner.Context {
         // ⌥⌘J: the console.
         sendKey("j", keyCode: 38, [.command, .option])
         let opened = await waitUntil(10) { page.devTools?.isOpen == true }
-        if let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage {
+        if let frontend = devToolsFrontend(page) {
             await waitLoaded(frontend, timeout: 10)
             var panel = "none"
             for _ in 0..<50 {
@@ -489,7 +490,6 @@ extension SpikeRunner.Context {
         NSPasteboard.general.clearContents()
         if let saved { NSPasteboard.general.setString(saved, forType: .string) }
     }
-    #endif
 }
 
 /// Watches a page's find results for the first one with a highlighted match
@@ -728,6 +728,16 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
     func profile(_ profile: any Profile, didUpdateDownload item: DownloadItem) {
         note("didUpdateDownload")
         downloads?.profile(profile, didUpdateDownload: item)
+    }
+}
+extension SpikeRunner.Context {
+    /// The DevTools front-end page, where the engine exposes it (CEF's docked front-end).
+    func devToolsFrontend(_ page: any WebContents) -> (any WebContents)? {
+        #if canImport(EngineCEF)
+        (page.devTools as? CEFDevToolsInspectable)?.frontendPage
+        #else
+        nil
+        #endif
     }
 }
 #endif
