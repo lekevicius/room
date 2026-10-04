@@ -28,6 +28,20 @@ public final class RoomDatabase: Sendable {
         try pool.read { db in try String.fetchAll(db, sql: "PRAGMA integrity_check") }
     }
 
+    /// `PRAGMA quick_check` lines: the integrity check without the index
+    /// cross-checks, O(N) instead of O(N log N); `["ok"]` when sound.
+    public func quickCheck() throws -> [String] {
+        try pool.read { db in try String.fetchAll(db, sql: "PRAGMA quick_check") }
+    }
+
+    /// Whether the previous session left the running flag set (it ended
+    /// without a clean quit). Reads only; `beginSession` sets the flag.
+    public func previousSessionRunning() throws -> Bool {
+        try pool.read { db in
+            try String.fetchOne(db, sql: "SELECT value FROM kv WHERE key = ?", arguments: [KVKey.running]) == "1"
+        }
+    }
+
     /// Rows that violate a foreign key (empty when consistent).
     public func foreignKeyViolations() throws -> Int {
         try pool.read { db in try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").count }

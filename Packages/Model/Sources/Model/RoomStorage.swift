@@ -3,7 +3,8 @@ import GRDB
 
 /// Opens the database in a directory, recovering from the JSON snapshot only
 /// when the file is damaged: SQLite reports it corrupt or not a database, or
-/// `PRAGMA integrity_check` finds faults. Any other failure (above all a
+/// the integrity check finds faults (`PRAGMA quick_check` at every launch,
+/// the full `integrity_check` only after an unclean exit; B-42). Any other failure (above all a
 /// database another process holds locked) fails the open and leaves the file
 /// where it is.
 public struct RoomStorage: Sendable {
@@ -47,6 +48,25 @@ public struct RoomStorage: Sendable {
         /// The database was unusable and was rebuilt (from the snapshot if
         /// there was one); the broken file was moved aside.
         public let recovery: Recovery?
+        /// Which check the open ran (`nil` after a recovery).
+        public var check: IntegrityCheck? = nil
+    }
+
+    /// The check run when a database opens.
+    public enum IntegrityCheck: Sendable, Equatable {
+        /// `PRAGMA quick_check`: page and record structure, no index cross-check.
+        case quick
+        /// `PRAGMA integrity_check`: everything, O(N log N) in the rows (0.35–0.56 s at
+        /// 50k history rows, B-42).
+        case full
+    }
+
+    /// The rule (B-42): the full check only when the previous session ended
+    /// without a clean quit (a crash, a kill, a power loss); otherwise the quick
+    /// one. Damage the quick check misses surfaces as `SQLITE_CORRUPT` from the
+    /// load, which recovers the same way.
+    public static func integrityCheck(afterUncleanExit unclean: Bool) -> IntegrityCheck {
+        unclean ? .full : .quick
     }
 
     public enum Recovery: Sendable, Equatable {
@@ -63,7 +83,12 @@ public struct RoomStorage: Sendable {
         do {
             let database = try RoomDatabase(url: databaseURL, busyTimeout: busyTimeout)
             opened = database
-            guard try database.integrityCheck() == ["ok"] else {
+            let check = Self.integrityCheck(afterUncleanExit: try database.previousSessionRunning())
+            let result = switch check {
+            case .quick: try database.quickCheck()
+            case .full: try database.integrityCheck()
+            }
+            guard result == ["ok"] else {
                 try? database.pool.close()
                 return try recover()
             }
@@ -71,7 +96,7 @@ public struct RoomStorage: Sendable {
             let unclean = try database.beginSession()
             refreshSnapshot(loaded.state, generation: loaded.generation)
             return Opened(database: database, state: loaded.state, generation: loaded.generation,
-                          uncleanExit: unclean, recovery: nil)
+                          uncleanExit: unclean, recovery: nil, check: check)
         } catch let error as DatabaseError {
             try? opened?.pool.close()
             switch error.resultCode {

@@ -16,6 +16,8 @@ public final class RoomStore {
     public let uncleanExit: Bool
     /// The database was unusable at launch and was rebuilt.
     public let recovery: RoomStorage.Recovery?
+    /// The integrity check the open ran (B-42); `nil` after a recovery.
+    public let integrityCheck: RoomStorage.IntegrityCheck?
 
     private var sidebarToken: ObservationToken?
 
@@ -33,6 +35,7 @@ public final class RoomStore {
         self.storage = storage
         uncleanExit = opened.uncleanExit
         recovery = opened.recovery
+        integrityCheck = opened.check
         let state = opened.state
         sidebar = SidebarStore(state: state)
         windows = WindowStore(state: state)

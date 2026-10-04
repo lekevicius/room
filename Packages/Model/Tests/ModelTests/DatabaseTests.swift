@@ -263,6 +263,22 @@ struct StorageTests {
         #expect(try !storage.open().uncleanExit)
     }
 
+    @Test("Opening runs quick_check after a clean quit and the full integrity_check only after an unclean exit (B-42)")
+    func integrityCheckByExit() throws {
+        #expect(RoomStorage.integrityCheck(afterUncleanExit: false) == .quick)
+        #expect(RoomStorage.integrityCheck(afterUncleanExit: true) == .full)
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let storage = RoomStorage(directory: directory.url)
+        let first = try storage.open()
+        #expect(first.check == .quick)  // a new database: no previous session
+        // Reopen without a clean exit: as after kill -9.
+        let second = try storage.open()
+        #expect(second.check == .full)
+        try storage.makeWriter(for: second).writeAndWait(sampleState(), generation: 1, cleanExit: true)
+        #expect(try storage.open().check == .quick)
+    }
+
     @Test("A clean exit with nothing new to write still clears the flag")
     func cleanExitStale() throws {
         let directory = try TemporaryDirectory()
