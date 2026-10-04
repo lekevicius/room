@@ -40,15 +40,22 @@ fi
 
 # 1. Framework internals (dylibs: in parallel, the component build has ~500),
 # then helper executables that are not app bundles.
-find "$FWV/Libraries" -name '*.dylib' -print0 \
-  | xargs -0 -P 8 -n 16 codesign --force --options runtime --timestamp --sign "$IDENTITY"
+# A static (release) RoomCore keeps only the ANGLE/SwiftShader dylibs there.
+if [[ -d "$FWV/Libraries" ]]; then
+  find "$FWV/Libraries" -name '*.dylib' -print0 \
+    | xargs -0 -P 8 -n 16 codesign --force --options runtime --timestamp --sign "$IDENTITY"
+fi
 for tool in chrome_crashpad_handler app_mode_loader web_app_shortcut_copier; do
   [[ -f "$HELPERS/$tool" ]] && sign "$HELPERS/$tool"
 done
 
 # 2. Helpers: Renderer and GPU (and their Aperitif twins on RoomCore) get
-# allow-jit, the rest nothing (as Chrome). On M154 the GPU process runs from
-# the base helper; measured in Phase 1.4, it runs without allow-jit
+# allow-jit, the rest nothing, exactly as Chrome's own signing config
+# (chrome/installer/mac/signing/parts.py: helper-renderer and helper-gpu with
+# allow-jit, the base, Alerts and plain Aperitif helpers with none). On M154
+# the GPU process runs from the base helper unless SwiftShader is allowed;
+# Chrome ships that helper without allow-jit, Phase 1.4 measured CEF's GPU
+# process running without it, and 3.1b keeps it so on RoomCore
 # (ROOM_BASE_HELPER_ENTITLEMENTS to experiment).
 for helper in "$HELPERS"/Room\ Helper*.app; do
   case "$helper" in
@@ -62,7 +69,22 @@ done
 # 3. The framework (after its nested code).
 sign "$FWV"
 
-# 4. Anything else Xcode embedded (debug dylibs in Debug builds), then the app.
+# 4. The other embedded frameworks, inside-out (Sparkle's XPC services,
+# Autoupdate and Updater.app keep their own entitlements), then anything else
+# Xcode embedded (debug dylibs in Debug builds), then the app.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+if [[ -d "$SPARKLE" ]]; then
+  for xpc in "$SPARKLE"/XPCServices/*.xpc; do
+    [[ -e "$xpc" ]] && sign --preserve-metadata=entitlements "$xpc"
+  done
+  [[ -e "$SPARKLE/Autoupdate" ]] && sign "$SPARKLE/Autoupdate"
+  [[ -e "$SPARKLE/Updater.app" ]] && sign "$SPARKLE/Updater.app"
+  sign "$APP/Contents/Frameworks/Sparkle.framework"
+fi
+for framework in "$APP"/Contents/Frameworks/*.framework; do
+  case "$framework" in */RoomCore.framework|*/Sparkle.framework|*"/Chromium Embedded Framework.framework") continue ;; esac
+  sign "$framework"
+done
 find "$APP/Contents/MacOS" -name '*.dylib' -print0 | while IFS= read -r -d '' lib; do sign "$lib"; done
 sign --entitlements "$ENT_APP" "$APP"
 t1=$(now)
