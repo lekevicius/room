@@ -307,6 +307,8 @@ Tasks:
 2. Fix what blocks Chapter 3 or makes a feature unusable; everything else waits for 3.9's triage.
 3. `research/notes/chapter-2-review.md`: what worked, CEF caps hit, numbers (memory, switching latency, launch time), re-ranked risks; confirm the order of Chapter 3 phases.
 
+Who does what (2026-10-04): the implementer runs every spike of Chapters 1–2 in one build on one state directory, in sequence (a "grand tour" script), fixes blockers, consolidates the by-hand try-lists from 2.4b to 2.8b into one ordered list with launch commands, and drafts `chapter-2-review.md` (numbers, caps, what worked, friction into the backlog); the user does the by-hand pass from that list (a day at most) and adds friction to the backlog; the planner reviews the background hardening branch (`bg/roomcore-hardening`, PR #1), writes the Chapter 3 spec and re-ranks the risks in the review.
+
 Exit criteria: every §A–I feature reached once in one build; blockers fixed; review written; Chapter 3 spec drafted.
 
 ---
