@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # B-38 shutdown watchdog, both harnesses, on the packaged embryo host:
-#   (a) serial: scripts/roomcore-baseline.sh with ROOM_BASELINE_QUIT_RUNS=N
-#       (nav assertions, then N ten-real-page quits through NSApp.terminate);
+#   (a) serial: N ten-real-page quits through NSApp.terminate, one
+#       roomcore-quit-timing.py run each (what roomcore-baseline.sh's quit part
+#       runs; rejected fixtures are retried, up to 2N attempts);
 #   (b) concurrent: N rounds of scripts/roomcore-shutdown-local.py --mode room
 #       --corpus real (three hosts load ten real pages each, then quit), the
 #       branch's reproduction (roomcore-shutdown-investigation.md).
@@ -20,8 +21,24 @@ APP="${ROOM_APP:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug/Room
 export ROOM_APP="$APP"
 echo "host $APP; N=$N; $(date '+%F %T'); load $(sysctl -n vm.loadavg)" | tee "$DEST/run.txt"
 if [[ $WHICH != concurrent ]]; then
-  ROOM_BASELINE_QUIT_RUNS="$N" "$ROOT/scripts/roomcore-baseline.sh" "$DEST/serial" > "$DEST/serial.log" 2>&1
-  echo "serial exit $? $(date +%T)" | tee -a "$DEST/run.txt"
+  # One ten-page quit per invocation: a page still loading at "ready" rejects
+  # that fixture (not a quit sample) and would end a multi-run invocation, so
+  # attempts repeat until N quits were measured (at most 2N attempts).
+  mkdir -p "$DEST/serial"
+  measured=0 attempt=0
+  while (( measured < N && attempt < 2 * N )); do
+    attempt=$((attempt + 1))
+    python3 "$ROOT/scripts/roomcore-quit-timing.py" --app "$APP" --runs 1 \
+      --output "$DEST/serial/attempt-$attempt" > "$DEST/serial/attempt-$attempt.log" 2>&1
+    status=$?
+    if grep -q 'ten-page fixture incomplete' "$DEST/serial/attempt-$attempt.log"; then
+      echo "serial attempt $attempt: fixture rejected (a page still loading) $(date +%T)" | tee -a "$DEST/run.txt"
+    else
+      measured=$((measured + 1))
+      echo "serial attempt $attempt: quit $measured, runner exit $status $(date +%T) load $(sysctl -n vm.loadavg)" | tee -a "$DEST/run.txt"
+    fi
+    sleep 3
+  done
 fi
 if [[ $WHICH != serial ]]; then
   mkdir -p "$DEST/concurrent"
@@ -43,13 +60,17 @@ def rows(kind, files):
     for f in sorted(files, key=lambda p: [int(x) if x.isdigit() else x for x in p.as_posix().replace('-', '/').split('/')]):
         d = json.loads(f.read_text())
         ok = f.name == 'receipt.json'
+        log = f.parent / 'host.log'
+        watchdog = log.exists() and 'Teardown watchdog expired' in log.read_text(errors='replace')
+        left = d.get('helpers_left', len(d.get('remaining_helpers', d.get('leftover_helpers', {})) or {}))
+        note = '' if ok else ('teardown watchdog' if watchdog else d.get('error', 'failure')[:120])
         out.append((kind, f.parent.relative_to(dest).as_posix(), d.get('quit_seconds'), d.get('exit_status'),
-                    d.get('helpers_left', len(d.get('leftover_helpers', {}) or {})), len(d.get('new_crash_reports', []) or []),
-                    d.get('load1'), '' if ok else d.get('error', 'failure')[:120]))
+                    left, len(d.get('new_crash_reports', []) or []),
+                    round(d['load1'], 1) if isinstance(d.get('load1'), float) else d.get('load1'), note))
     return out
 serial = rows('serial', list((dest / 'serial').rglob('receipt.json')) + list((dest / 'serial').rglob('failure.json'))) if (dest / 'serial').exists() else []
 conc = rows('concurrent', list((dest / 'concurrent').rglob('receipt.json')) + list((dest / 'concurrent').rglob('failure.json'))) if (dest / 'concurrent').exists() else []
-print('| Harness | Run | Quit s | Exit | Helpers left | Crash reports | load1 | Failure |')
+print('| Harness | Run | Quit s | Exit | Helpers left | Crash reports | load1 | Failure |')  # exit 2 = teardown watchdog
 print('|---|---|---:|---:|---:|---:|---:|---|')
 for r in serial + conc:
     print('| ' + ' | '.join('' if v is None else str(v) for v in r) + ' |')
