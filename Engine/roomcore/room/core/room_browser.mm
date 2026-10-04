@@ -184,6 +184,11 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
                                      *chromeProfile,
                                      /*from_user_gesture=*/true);
+    // Room's store restores the host's entries (Phase 2.1). Tracked by
+    // Chrome's SessionService, the first Browser of a launch also restored
+    // the previous launch's tabs into its strip (seen in the 3.2a tour:
+    // duplicate Today tabs); 3.7b decides what SessionService records.
+    params.omit_from_session_restore = true;
     _browser = CreateBrowserWindow(std::move(params));
     _stripObserver = std::make_unique<StripObserver>(self);
     _browser->GetTabStripModel()->AddObserver(_stripObserver.get());
