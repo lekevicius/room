@@ -31,13 +31,17 @@ while [[ $# -gt 0 ]]; do
 done
 [[ ${#appearances[@]} -eq 0 ]] && appearances=(light dark)
 mkdir -p "$DIR"
-python3 research/spikes/phase-2.6/server.py 2>/tmp/room-2.6a-server.log &
-server=$!
-trap 'kill $server 2>/dev/null || true' EXIT
+# ROOM_TOUR_SERVERS=1 (scripts/grand-tour.sh): the tour started the server once; use it.
+server=""
+if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
+  python3 research/spikes/phase-2.6/server.py 2>/tmp/room-2.6a-server.log &
+  server=$!
+  trap 'kill $server 2>/dev/null || true' EXIT
+fi
 # This session's server (a stale one without /download would serve the pages but no downloads).
 for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8766/download?size=1') == 200 ]] && break; sleep 0.1; done
-if ! kill -0 $server 2>/dev/null || [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8766/download?size=1') != 200 ]]; then
-  echo "test server did not start (port 8766 or 8767 taken?): $(tail -1 /tmp/room-2.6a-server.log)" >&2
+if { [[ -n "$server" ]] && ! kill -0 $server 2>/dev/null; } || [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8766/download?size=1') != 200 ]]; then
+  echo "test server did not start (port 8766 or 8767 taken?): $(tail -1 /tmp/room-2.6a-server.log 2>/dev/null)" >&2
   exit 1
 fi
 

@@ -3,6 +3,7 @@
 # spike runner, waits until they loaded, then quits through the AppleEvent path
 # (as ⌘Q does) and measures exit time, leftover helpers and crash reports.
 # Usage: scripts/quit-timing.sh [runs]
+# ROOM_TOUR_ARGS (scripts/grand-tour.sh) is passed to the app.
 set -euo pipefail
 
 RUNS="${1:-3}"
@@ -13,7 +14,8 @@ now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 for run in $(seq 1 "$RUNS"); do
   out=$(mktemp -d)/open10.txt
   reports_before=$(ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room' || true)
-  open -n "$APP" --args -RoomSpike open10 -RoomSpikeOutput "$out" -RoomSpikeKeepRunning YES
+  # shellcheck disable=SC2086
+  open -n "$APP" --args -RoomSpike open10 -RoomSpikeOutput "$out" -RoomSpikeKeepRunning YES ${ROOM_TOUR_ARGS:-}
   sleep 2
   pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
   for _ in $(seq 1 120); do grep -q '^ready:' "$out" 2>/dev/null && break; sleep 1; done

@@ -3,6 +3,7 @@
 # directory, through the app's DEBUG snapshot runner. The app may not be
 # allowed to activate itself, so this script activates it from outside.
 # Usage: scripts/window-snapshots.sh [output-dir] [path/to/Room.app]
+# ROOM_TOUR_ARGS (scripts/grand-tour.sh) is passed to the app.
 set -euo pipefail
 
 OUT="$(cd "$(dirname "${1:-research/screenshots/phase-1.3}")" && pwd)/$(basename "${1:-research/screenshots/phase-1.3}")"
@@ -11,7 +12,8 @@ BUNDLE_ID="com.lekevicius.room"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 rm -rf "$OUT"
-open -n "$APP" --args -RoomSnapshotDirectory "$OUT" ${ROOM_SNAPSHOT_PAGE_URL:+-RoomSnapshotPageURL "$ROOM_SNAPSHOT_PAGE_URL"}
+# shellcheck disable=SC2086
+open -n "$APP" --args -RoomSnapshotDirectory "$OUT" ${ROOM_SNAPSHOT_PAGE_URL:+-RoomSnapshotPageURL "$ROOM_SNAPSHOT_PAGE_URL"} ${ROOM_TOUR_ARGS:-}
 # The last capture that needs the app frontmost (inactive states follow).
 last_active="phase-1.3-dark-dia-compare.png"
 [[ -n "${ROOM_SNAPSHOT_PAGE_URL:-}" ]] && last_active="phase-1.4-light-page-closed.png"

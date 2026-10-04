@@ -38,12 +38,18 @@ done
 mkdir -p "$DIR"
 work="$(mktemp -d)"
 log="$work/server.log"
-python3 research/spikes/phase-2.7/server.py 2>"$log" &
-server=$!
-pids=$server
-trap 'kill $pids 2>/dev/null || true' EXIT
+# ROOM_TOUR_SERVERS=1 (scripts/grand-tour.sh): the tour started both servers once (the
+# endpoints' log is ROOM_ENDPOINTS_LOG); use them.
+server=""
+pids=""
+if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
+  python3 research/spikes/phase-2.7/server.py 2>"$log" &
+  server=$!
+  pids=$server
+  trap 'kill $pids 2>/dev/null || true' EXIT
+fi
 for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8770/site.html') == 200 ]] && break; sleep 0.1; done
-if ! kill -0 $server 2>/dev/null; then
+if { [[ -n "$server" ]] && ! kill -0 $server 2>/dev/null; } || [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8770/site.html') != 200 ]]; then
   echo "test server did not start (port 8770 taken?): $(tail -1 "$log")" >&2
   exit 1
 fi
@@ -51,9 +57,11 @@ spike=appintegration
 spike_args=(-RoomSpikeCaptures28 "$captures")
 if [[ $session == 2.8b ]]; then
   spike=appintegration2
-  endpoints="$work/endpoints.log"
-  python3 research/spikes/phase-2.8/server.py "$endpoints" 2>>"$log" &
-  pids="$pids $!"
+  endpoints="${ROOM_ENDPOINTS_LOG:-$work/endpoints.log}"
+  if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
+    python3 research/spikes/phase-2.8/server.py "$endpoints" 2>>"$log" &
+    pids="$pids $!"
+  fi
   for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8771/appcast.xml') == 200 ]] && break; sleep 0.1; done
   : > "$endpoints"   # the readiness probe is not Room's
   swiftc -O scripts/lib/open-with-workspace.swift -o "$work/open-with-workspace" 2>>"$log"

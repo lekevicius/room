@@ -2,6 +2,7 @@
 # Launches Room.app, waits, quits it through the normal AppleEvent path and
 # checks for a clean exit: status 0, no helper processes left, no crash report.
 # Usage: scripts/smoke-launch.sh [path/to/Room.app] [seconds-before-quit]
+# ROOM_TOUR_ARGS (scripts/grand-tour.sh) is passed to the app.
 set -euo pipefail
 
 APP="${1:-build/DerivedData/Build/Products/Debug/Room.app}"
@@ -16,7 +17,8 @@ fi
 reports_before=$(ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room' || true)
 
 t_launch=$(now)
-"$APP/Contents/MacOS/Room" >/dev/null 2>&1 &
+# shellcheck disable=SC2086
+"$APP/Contents/MacOS/Room" ${ROOM_TOUR_ARGS:-} >/dev/null 2>&1 &
 pid=$!
 sleep "$WAIT"
 kill -0 "$pid" 2>/dev/null || { echo "FAIL: Room exited during launch" >&2; exit 1; }

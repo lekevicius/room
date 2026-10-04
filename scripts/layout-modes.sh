@@ -23,11 +23,15 @@ done
 [[ ${#appearances[@]} -eq 0 ]] && appearances=(light dark)
 mkdir -p "$DIR"
 log="$(mktemp -d)/server.log"
-python3 research/spikes/phase-2.7/server.py 2>"$log" &
-server=$!
-trap 'kill $server 2>/dev/null || true' EXIT
+# ROOM_TOUR_SERVERS=1 (scripts/grand-tour.sh): the tour started the server once; use it.
+server=""
+if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
+  python3 research/spikes/phase-2.7/server.py 2>"$log" &
+  server=$!
+  trap 'kill $server 2>/dev/null || true' EXIT
+fi
 for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8770/site.html') == 200 ]] && break; sleep 0.1; done
-if ! kill -0 $server 2>/dev/null; then
+if { [[ -n "$server" ]] && ! kill -0 $server 2>/dev/null; } || [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8770/site.html') != 200 ]]; then
   echo "test server did not start (port 8770 taken?): $(tail -1 "$log")" >&2
   exit 1
 fi

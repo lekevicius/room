@@ -4,9 +4,15 @@
 # refuses self-activation of script-launched apps while the user works elsewhere.
 # Usage: scripts/run-spike.sh <cdp|scroll|resize|memory|audio|popups|hidden|open10> [extra app args...]
 # ROOM_SPIKE_OPEN_URL=<url> launches Room with that link (open -a App URL).
+# ROOM_TOUR_ARGS (scripts/grand-tour.sh) is appended to the app's arguments;
+# the last occurrence of a `-Key value` pair wins, so the tour's state and
+# engine directories and appearance override a wrapper's own.
 set -euo pipefail
 
 SPIKE="$1"; shift
+# shellcheck disable=SC2206
+tour_args=(${ROOM_TOUR_ARGS:-})
+set -- "$@" ${tour_args[@]+"${tour_args[@]}"}
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
 OUT="${ROOM_SPIKE_OUT:-$(mktemp -d)/spike-$SPIKE.txt}"
 BUNDLE_ID="com.lekevicius.room"

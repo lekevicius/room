@@ -5,6 +5,7 @@
 # The app may not be allowed to activate itself, so this script activates
 # it from outside until the runner finishes.
 # Usage: scripts/sidebar-snapshots.sh [demo|500] [output-dir] [path/to/Room.app]
+# ROOM_TOUR_ARGS (scripts/grand-tour.sh) is passed to the app.
 set -euo pipefail
 
 FIXTURE="${1:-demo}"
@@ -19,7 +20,8 @@ mkdir -p "$OUT"
 # Room instances without arguments that were already running (the user's own).
 before=$(pgrep -f "Room.app/Contents/MacOS/Room$" || true)
 rm -f "$OUT/states.txt"
-open -n "$APP" --args -RoomSnapshotDirectory "$OUT" -RoomSidebarFixture "$FIXTURE"
+# shellcheck disable=SC2086
+open -n "$APP" --args -RoomSnapshotDirectory "$OUT" -RoomSidebarFixture "$FIXTURE" ${ROOM_TOUR_ARGS:-}
 sleep 2
 # Our instance, by its arguments: `osascript … activate` can relaunch Room
 # without arguments if it lands just after a quit (Phase 1.4 note).
