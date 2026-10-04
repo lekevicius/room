@@ -13,7 +13,13 @@ DEST="${2:-$ROOT/research/notes/feature-$FEATURE-$(date +%Y%m%d-%H%M%S)}"
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "missing packaged host: $APP" >&2; exit 1; }
 mkdir "$DEST"
 DEST="$(cd "$DEST" && pwd)"
-mkdir "$DEST/profile"
+# ROOM_FEATURE_PROFILE_FROM=<earlier evidence dir>: start from a copy of that
+# run's profile (3.1b: Widevine with the CDM already installed), else fresh.
+if [[ -n "${ROOM_FEATURE_PROFILE_FROM:-}" ]]; then
+  cp -R "$ROOM_FEATURE_PROFILE_FROM/profile" "$DEST/profile"
+else
+  mkdir "$DEST/profile"
+fi
 # Capture the actual tested binary identities before launch; a source HEAD
 # alone is insufficient for locally edited engine/host probe builds.
 python3 - "$ROOT" "$APP" "$DEST" <<'PY_IDENTITY'
