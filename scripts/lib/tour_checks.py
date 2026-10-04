@@ -126,6 +126,25 @@ def _smoke(c):
     c.number("quit_seconds", field(line, "quit_seconds"))
 
 
+def display_height(c):
+    """The main display's height in points from the run's display.tsv (`1280 x 800 @ 60.00Hz`), or None."""
+    try:
+        with open(os.path.join(c.run, "display.tsv")) as f:
+            m = re.search(r"\d+ x (\d+)", f.read())
+            return int(m.group(1)) if m else None
+    except FileNotFoundError:
+        return None
+
+
+def dia_framing(c, ok, label, detail):
+    """Dia's 1244 × 818 framing needs a display taller than 818 pt; on a shorter one the card is shorter, by design."""
+    h = display_height(c)
+    if h is not None and h < 830:
+        c.notes.append(f"{label}: not checked, the display is {h} pt tall (the window cannot be 818 pt); got {detail}")
+    else:
+        c.check(label, ok, detail)
+
+
 @step_check("window")
 def _window(c):
     states = {}
@@ -138,7 +157,8 @@ def _window(c):
     c.check("traffic lights at AppKit's place (19,19 60×14) in every state", len(lights) == len(states), f"{len(lights)}/{len(states)}")
     c.check("active states main", all("main=true" in v for k, v in states.items() if "-active-" in k or "compare" in k or "page-" in k), "")
     c.check("inactive states not main", all("main=false" in v for k, v in states.items() if "-inactive-" in k), "")
-    c.check("Dia framing: card {{280, 6}, {958, 806}}", all("card={{280, 6}, {958, 806}}" in v for k, v in states.items() if "compare" in k), "")
+    dia_framing(c, all("card={{280, 6}, {958, 806}}" in v for k, v in states.items() if "compare" in k), "Dia framing: card {{280, 6}, {958, 806}}",
+                next((v.split("card=")[1].split(" title")[0] for k, v in states.items() if "compare" in k), ""))
     c.check("sidebar open: card at x 240, closed: at x 6",
             all("card={{240, 6}" in v for k, v in states.items() if k.endswith("-open")) and
             all("card={{6, 6}" in v for k, v in states.items() if k.endswith("-closed")), "")
@@ -237,7 +257,7 @@ def _open10(c):
 
 @step_check("diaframe")
 def _diaframe(c):
-    c.check("card at Dia's framing", c.first("card") == "{{280, 6}, {958, 806}}", c.first("card") or "missing")
+    dia_framing(c, c.first("card") == "{{280, 6}, {958, 806}}", "card at Dia's framing", c.first("card") or "missing")
 
 
 @step_check("keys")

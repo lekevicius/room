@@ -158,6 +158,8 @@ for appearance in "${appearances[@]}"; do
   printf 'name\tgroup\tstatus\tseconds\tcrash_reports\tleft_running\thelper_crash_reports\n' > "$RUN/steps.tsv"
   export ROOM_TOUR_ARGS="-RoomStateDirectory $STATE -RoomEngineDirectory $ENGINE -RoomSpikeAppearance $appearance -RoomFixtureReplaces YES -ApplePersistenceIgnoreState YES"
   run_start=$(now)
+  # The main display's mode: window-size checks (Dia's 1244 × 818 framing) need a screen taller than 818 pt.
+  printf 'display\t%s\n' "$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F': ' '/UI Looks like/ {print $2; exit}')" > "$RUN/display.tsv"
 
   group=layout
   run smoke scripts/smoke-launch.sh "$APP" 5
