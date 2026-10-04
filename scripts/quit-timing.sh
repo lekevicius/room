@@ -17,7 +17,8 @@ fi
 
 RUNS="${1:-3}"
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="app.room.desktop"
+# Quit goes to our process by pid, never by bundle id (B-47).
+source "$(dirname "$0")/lib/room-process.sh"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 
 for run in $(seq 1 "$RUNS"); do
@@ -32,16 +33,18 @@ for run in $(seq 1 "$RUNS"); do
   helpers=$( (pgrep -f "Room Helper" || true) | wc -l | tr -d ' ')
   load=$(sysctl -n vm.loadavg | awk '{print $2}')
   t0=$(now)
-  osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null
+  room_quit "$pid"
   while kill -0 "$pid" 2>/dev/null; do
     if perl -e "exit !($(now) - $t0 > 15)"; then echo "run $run: did not exit within 15 s" >&2; kill -9 "$pid"; break; fi
     sleep 0.02
   done
   t1=$(now)
   sleep 1
-  left=$( (pgrep -f "Room Helper" || true) | wc -l | tr -d ' ')
+  # Not counting Chrome's code-sign clone cleanup helper when it exits within
+  # 5 s more (B-45, RoomCore).
+  read -r left clone <<<"$(room_helpers_left 5)"
   reports_after=$(ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room' || true)
-  printf 'run=%s pages=%s helpers_running=%s load1=%s quit_seconds=%.2f helpers_left=%s new_crash_reports=%s\n' \
-    "$run" "$pages" "$helpers" "$load" "$(perl -e "print $t1 - $t0")" "$left" "$((reports_after - reports_before))"
+  printf 'run=%s pages=%s helpers_running=%s load1=%s quit_seconds=%.2f helpers_left=%s new_crash_reports=%s clone_cleanup_seconds=%s\n' \
+    "$run" "$pages" "$helpers" "$load" "$(perl -e "print $t1 - $t0")" "$left" "$((reports_after - reports_before))" "$clone"
   sleep 3
 done

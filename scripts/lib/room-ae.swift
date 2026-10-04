@@ -28,9 +28,21 @@ case "quit":  // 'aevt'/'quit', the ⌘Q path
 default:
     exit(2)
 }
-do {
-    _ = try event.sendEvent(options: [.noReply], timeout: 5)
-} catch {
-    FileHandle.standardError.write(Data("room-ae \(args[1]) \(pid): \(error)\n".utf8))
-    exit(1)
+// A process that is still launching is not yet eligible for events
+// (procNotFound until NSApplication checks in; up to ~9 s on RoomCore under a
+// build's load), so retry while it lives: 1 s for activate, 15 s for quit.
+let deadline = Date().addingTimeInterval(args[1] == "quit" ? 15 : 1)
+while true {
+    do {
+        _ = try event.sendEvent(options: [.noReply], timeout: 5)
+        exit(0)
+    } catch {
+        let notYet = (error as NSError).code == Int(procNotFound)
+        if notYet && kill(pid, 0) == 0 && Date() < deadline {
+            usleep(200_000)
+            continue
+        }
+        FileHandle.standardError.write(Data("room-ae \(args[1]) \(pid): \(error)\n".utf8))
+        exit(1)
+    }
 }
