@@ -213,6 +213,92 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 - [ ] `research/notes/chapter-2-review.md`; Chapter 3 spec drafted
 - [ ] Exit: as listed
 
+## Chapter 3 — RoomCore
+
+Spec: `ROADMAP.md` Chapter 3 (written 2026-10-04). One line per task; exit criteria last.
+
+### Phase 3.1 — Bootstrap, merge, policy, packaging
+- [ ] 3.1a: Merge PR #1 (rebase, three append conflicts, 0010 parked, backlog ids B-38–B-40, apply 0/11 on both Macs)
+- [ ] 3.1a: `room_enable_spikes` GN arg gates spike hooks and diagnostics
+- [ ] 3.1a: Identity `app.room.desktop` everywhere (BRANDING, project.yml, Info.plist, Crashpad prod)
+- [ ] 3.1a: `Packages/EngineRoomCore` to the embryo's depth; `ROOM_ENGINE` build setting; Room.app on RoomCore
+- [ ] 3.1a: Production bootstrap (profiles layout, Local State, crash keys, features, log, resources, locales)
+- [ ] 3.1b: Release GN args; overnight official build; time, size, cold launch recorded
+- [ ] 3.1b: Sign and notarize app, framework, helpers; keychain check on the signed build
+- [ ] 3.1b: Net-log silence on the product; Widevine on demand and one licensed playback
+- [ ] 3.1b: Shutdown watchdog ×20 on the release build (B-38); 0010's fate
+- [ ] 3.1b: Sparkle packaging of the real app once (update size)
+- [ ] Exit: signed RoomCore Room.app renders ten sites, quits clean 20/20 under 1 s median; 0 engine requests; numbers recorded
+
+### Phase 3.2 — RoomBrowserWindow, RoomBrowser, menu, lifecycle
+- [ ] 3.2a: Real window members (activation, bounds, status bubble, exclusive access with the host's fullscreen); real-vs-stub table
+- [ ] 3.2a: `RoomBrowser` per window; tab strip mirrors the host's loaded entries
+- [ ] 3.2a: New contents of every disposition arrive as host-owned contents; no Chrome window ever
+- [ ] 3.2b: Patch 0013 + `RoomAppController`; hidden Bookmarks item removed
+- [ ] 3.2b: App lifecycle (terminate with beforeunload, isTerminating, clean-exit flag)
+- [ ] 3.2b: Keyboard routing (reserved, unhandled, consumed); the 1.4 keys spike on RoomCore
+- [ ] Exit: grand-tour layout/sidebar/spaces/tabs/layout-modes on RoomCore; popups host-owned; ⌘Q per §A.3; stub-hit log recorded
+
+### Phase 3.3 — RoomWebContents parity
+- [ ] 3.3a: Navigation with real transitions; throttle-based `decidePolicy` (B-33); `didCommitNavigation`
+- [ ] 3.3a: Observable state from real sources (favicon service, theme/background colour, security, audible both edges, zoom)
+- [ ] 3.3a: Discard keeps history (B-13); freeze; close with beforeunload
+- [ ] 3.3b: Find via FindTabHelper, capture, isolated-world JS, print preview, exitFullscreen
+- [ ] 3.3b: DevTools front-end in the host's pane, no debugging port in the product
+- [ ] 3.3b: Memory with 10 and 50 pages (B-2), switching, relaunch, against CEF
+- [ ] Exit: grand-tour tabs and chrome surfaces on RoomCore; discarded page keeps history; audible on and off; numbers table
+
+### Phase 3.4 — UI delegates
+- [ ] 3.4a: Permission prompt factory for every desktop type; grants persist (B-26); macOS camera/mic state
+- [ ] 3.4a: Context menu with link text and spellcheck
+- [ ] 3.4a: Downloads via DownloadManager with history (B-28), resume, close decision
+- [ ] 3.4a: Auth through LoginHandler; HSTS-aware certificate errors (B-24); client certificates; file chooser
+- [ ] 3.4b: JS dialogs and beforeunload through Room's manager
+- [ ] 3.4b: Hung renderer, external protocol, infobars to the delegate
+- [ ] 3.4b: `captureState` on WebContents; media session metadata
+- [ ] 3.4b: FedCM and device choosers kept Views, anchored on the site button, each cancelled once
+- [ ] Exit: the 2.6 checklist plus new rows on RoomCore via the chrome-surfaces spike; no "not available" left in the RoomCore column
+
+### Phase 3.5 — Omnibox and history
+- [ ] `ProfileHistory` over HistoryService
+- [ ] `AutocompleteController` wrapper with streaming results; suggestions switch chooses providers
+- [ ] Omnibox engine providers mapped into Room's bands
+- [ ] `LocationBar` interface backed by the host's field
+- [ ] History migration into HistoryService; local recording stops
+- [ ] Exit: palette section on RoomCore; p95 < 16 ms at 50k rows; suggestions off = 0 requests
+
+### Phase 3.6 — Extensions
+- [ ] 3.6a: `ProfileExtensions` list and management; unpacked load; chrome://extensions
+- [ ] 3.6a: Web Store install with Room's consent prompt, verified on three extensions
+- [ ] 3.6a: Update checks only once an extension is installed
+- [ ] 3.6b: `ExtensionsContainer`; action popups in an NSPopover from the header; commands
+- [ ] 3.6b: Side panel stated unsupported
+- [ ] Exit: three real extensions installed, popups open, scripts run, uninstall with consent; popup open time
+
+### Phase 3.7 — Passwords, autofill, session, lifecycle, translate
+- [ ] 3.7a: Password manager with keychain; save/update bubbles via a minimal ToolbarButtonProvider
+- [ ] 3.7a: Autofill popup anchored on the field; fill verified with real keys; address/card save bubbles
+- [ ] 3.7b: SessionService restore of navigation state per entry; crash recovery
+- [ ] 3.7b: Discard policy through TabLifecycleUnit with exemptions (B-17); memory-pressure votes
+- [ ] 3.7b: Translate offer and bubble; spellcheck
+- [ ] Exit: two sites fill saved passwords after relaunch; address autofills; history survives relaunch and crash; dirty form not discarded; one page translated
+
+### Phase 3.8 — Rebase automation
+- [ ] `scripts/roomcore-rebase.sh`
+- [ ] First rebase by hand, recorded
+- [ ] Second rebase by script
+- [ ] Stable vs Extended Stable decided (PLAN §4)
+- [ ] Exit: two rebases, cost per rebase recorded
+
+### Phase 3.9 — Switch and delete CEF; the week of use
+- [ ] RoomCore default; CEF deleted; CI spec unchanged
+- [ ] Schema v5 drops local history tables
+- [ ] Grand tour green on RoomCore; by-hand list once more (user)
+- [ ] Seven days of exclusive use; friction logged daily
+- [ ] Top 20 fixed
+- [ ] `chapter-3-review.md`
+- [ ] Exit: one engine; tour green; week logged; review written; Chapter 4 spec drafted
+
 ## Log
 
 - 2026-10-01 — Research completed (`research/notes/`), `PLAN.md` and `ROADMAP.md` written, repository initialized. Next: Phase 1.1.
@@ -376,3 +462,4 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
   - For 2.9 (every feature's entry point, one build): sidebar §A — drag rows, ⌘D pin, ⇧⌘D Essentials, double-click empty sidebar = new tab, Return / Tab ▸ Rename…, Duplicate / Unload / Reset Pinned Tab, ⌘W, ⇧⌘T, ⌘1–9, ⇧⌘[ / ⇧⌘], ⌃Tab switcher, ⇧⌘M, ⇧⌘K Clear (Undo toast); spaces §B — footer icons, + ▸ New Space or File ▸ New Space, the space title's … (theme, profile), ⌃1–9, ⌥⌘← / ⌥⌘→, two-finger swipe, ⌃ + wheel; palette §C — ⌘T, ⌘L, a click on the header field, ⌘Y, `>` or File ▸ Commands…, a keyword + ⇥ (yt, wiki, gh, maps, ddg), Paste and Go on an empty ⌘T; split §D — ⇧⌘=, ⌃⇧-, ⌥⌘G / ⌥⌘V / Tab ▸ Split View ▸ Stacked, ⌥⌘U, ⌃⇧1–4, ⌃⇧[ / ], a row dragged into the card, ⌥-click; hide/reveal §E — ⌘S, ⌥⌘S, the left (or right) edge, View ▸ Show Toolbar, ⌃⌘F; footer and toasts §F — the downloads button and ⇧⌘J, ⇧⌘C / ⌥⇧⌘C; lifecycle §H — 12 h archive, Debug ▸ Simulate Memory Pressure, Discard Background Pages; Peek §I.6 — an off-site link from a pinned entry, ⇧-click, ⌘O, ⇧⌘O, Esc / ⌘W; page surfaces — ⌘F / ⌘G, ⌘= / ⌘- / ⌘0, ⌘P, the header's site button (site panel, permissions), the page context menu, ⌥⌘I / ⌥⌘J / ⌥⌘C, ⇧⌘R, ⌘.; app integration — ⌘, (General, Appearance, Search, Downloads, Privacy), the first-run card (Settings ▸ General ▸ Show Welcome Card), Room ▸ Set as Default Browser…, Room ▸ Check for Updates…, links from other apps, ⌘N after ⇧⌘W, File ▸ Open File….
   - Next: Phase 2.9, when the user says go.
 - 2026-10-04 — Phase 2.8 accepted (planner, laptop). Pulled 8 commits; Integration 10, Model 86, UIKitCore 47 tests pass here; CI green (046d8d2). Captures: the first-run card docked, on the right and in the overlay; Settings ▸ Privacy with both opt-ins off; Sparkle's window against the dev feed. The net-log check is the right proof: Room's own code sends nothing, and every engine request is named by its Chromium traffic annotation (B-19 widened). Deviations 1–9 accepted; the card's visual polish is Chapter 5's. ROADMAP 2.9 now says who does what: implementer (grand-tour run, consolidated try-list, review draft), user (by-hand pass), planner (bg branch review, Chapter 3 spec). For the user: the default-browser dialog and a real link click, the Sparkle private key, the Sentry project, the feed URL after B-6. Next: 2.9, when the user says go.
+- 2026-10-04 — Chapter 3 spec (planner, laptop). Product name Room, bundle id `app.room.desktop` (user): B-6 closed, the passkey request can go. PR #1 (`bg/roomcore-hardening`, 57 commits) reviewed in `research/notes/roomcore-hardening-review.md`: merge in 3.1a with patch 0010 parked, spike hooks gated by a GN arg, backlog ids renumbered (B-38 shutdown watchdog, B-39 Mac mini TLS, B-40 parked patch); B-3 closed for the laptop (DNS sinkholes). ROADMAP Chapter 3 fully detailed (3.1–3.9, two sessions each, exit criteria with numbers; the 2.9 grand tour on `EngineRoomCore` is the acceptance harness); decisions in PLAN §4: host-owned main menu via a small `AppController` hook, hybrid Views bubbles kept for Chapter 3, patch policy, engine selection by build setting, find and DevTools owned by the host. 2.9's "Chapter 3 spec drafted" is done; the implementer's grand tour and the user's by-hand pass remain.
