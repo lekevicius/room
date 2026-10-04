@@ -57,8 +57,11 @@ The sessions, in order, are the ones ROADMAP Chapter 3 names: 3.1a, 3.1b,
 each session:
 
 1. Write the session prompt (format below) and start the implementer with
-   the Agent tool: model opus, foreground (wait for it), no worktree
-   isolation. The subagent starts with no memory of this conversation, so
+   the Agent tool: `subagent_type: "implementer"` (the project agent in
+   .claude/agents/implementer.md: Opus, reasoning effort high; the Agent
+   tool has no effort parameter of its own, the definition carries it),
+   foreground (wait for it), no worktree isolation, prompt = the whole
+   session prompt. The subagent starts with no memory of this conversation, so
    the prompt is self-contained and points at the files, never at "what
    we discussed". One subagent per session; never two at once.
 2. When the report arrives, review it (checklist below). The report is not
