@@ -179,7 +179,8 @@ extension SpikeRunner.Context {
             turn.append(timing.turn)
             try? await Task.sleep(for: .milliseconds(400))
             if let page = tabs.contents(for: target.id),
-               let values = try? JSONSerialization.jsonObject(with: Data(await js(page, "JSON.stringify(window.__roomVis)").utf8),
+               // `__roomVis` is already a JSON string; the engine returns it JSON-encoded once more.
+               let values = try? JSONSerialization.jsonObject(with: Data(await js(page, "window.__roomVis").utf8),
                                                               options: .fragmentsAllowed) as? String,
                let pair = try? JSONSerialization.jsonObject(with: Data(values.utf8)) as? [Double], pair.count == 2 {
                 visible.append(pair[0] - epoch)

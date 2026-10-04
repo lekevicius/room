@@ -35,8 +35,12 @@ extension SpikeRunner.Context {
         recorder.install(tabs: tabs, profiles: Array(tabs.engineProfiles.values), downloads: app?.downloads?.list)
         // Downloads go to a throwaway folder, never ~/Downloads.
         let downloadFolder = FileManager.default.temporaryDirectory.appending(path: "room-2.6b-downloads-\(UUID().uuidString)")
+        // The setting comes back as it was: later runs on the same state (the grand tour) read it.
+        let downloadDirectoryWas = sidebar.store.settings.settings.downloadDirectory
+        defer { sidebar.store.settings.update { $0.downloadDirectory = downloadDirectoryWas } }
         sidebar.store.settings.update { $0.downloadDirectory = downloadFolder.path }
         await activate()
+        await forgetTestSiteDecisions()
         // `-RoomSpikeOnly downloads,fullscreen` runs only those checks (reruns while fixing).
         let only = Set((UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "").split(separator: ",").map(String.init))
         func runs(_ name: String) -> Bool { only.isEmpty || only.contains(name) }

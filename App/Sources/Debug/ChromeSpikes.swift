@@ -39,6 +39,7 @@ extension SpikeRunner.Context {
         controller.sidebarWidth = 280
         controller.activityOverride = true
         await activate()
+        await forgetTestSiteDecisions()
         await dialogsCheck()
         await authCheck()
         await certificateCheck()
@@ -50,6 +51,21 @@ extension SpikeRunner.Context {
     }
 
     #if canImport(EngineCEF)
+    /// Chromium remembers a profile's answers (a certificate exception, a
+    /// denied permission); on a state an earlier run used (the grand tour,
+    /// Phase 2.9) the checks below would find them and see no prompt. Every
+    /// test origin starts with none.
+    func forgetTestSiteDecisions() async {
+        for profile in tabs.engineProfiles.values {
+            for origin in ["http://127.0.0.1:8766", "https://127.0.0.1:8767", "http://localhost:8766"].compactMap(URL.init(string:)) {
+                for permission in SitePermission.allCases where profile.permissionSetting(permission, for: origin) != nil {
+                    profile.setPermissionSetting(nil, for: permission, origin: origin)
+                }
+                try? await profile.clearSiteData([.permissions, .httpAuthCredentials], for: origin)
+            }
+        }
+    }
+
     func openTest(_ path: String, server: String = "http://127.0.0.1:8766/") async -> CEFWebContents? {
         guard let page = await open(URL(string: server + path)!) as? CEFWebContents else {
             SpikeRunner.record("error", "no page for \(path)")

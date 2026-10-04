@@ -326,7 +326,13 @@ extension SpikeRunner.Context {
         _ = await waitUntil(4) { self.tabs.shownPeek?.isLoading == false }
         try? await Task.sleep(for: .milliseconds(600))
         await capture27("peek")
-        guard let peeked = tabs.shownPeek else { return SpikeRunner.record("error", "Peek did not open") }
+        guard let peeked = tabs.shownPeek else {
+            // What the navigations were decided as, and where Peek stood, for the run that failed.
+            SpikeRunner.record("peek_decisions", decisions.joined(separator: " | "))
+            SpikeRunner.record("peek_state", "shown=\(tabs.shownPeek != nil) page=\(page.url?.absoluteString ?? "nil") loading=\(page.isLoading) "
+                + "linksInPeek=\(sidebar.store.settings.settings.peekOffSiteLinks) lastUserInput=\(tabs.lastUserInput.map { String(format: "%.1f s ago", ProcessInfo.processInfo.systemUptime - $0) } ?? "nil")")
+            return SpikeRunner.record("error", "Peek did not open")
+        }
         _ = await js(page, "window.__clicks = 0; window.__moves = 0; window.__downs = 0")
         _ = await js(peeked, "window.__clicks = 0")
         let overlayFrame = peek.overlay.frame

@@ -42,6 +42,10 @@ enum SpikeRunner {
         record("loadavg", loadAverage())
         // Before the activation attempts below (up to 5 s when macOS refuses them).
         record("launch_to_spike_s", String(format: "%.2f", Date().timeIntervalSince(Context.processStartDate())))
+        // The grand tour (Phase 2.9) runs every spike in one appearance; spikes that capture both still switch themselves.
+        if let appearance = UserDefaults.standard.string(forKey: "RoomSpikeAppearance") {
+            NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+        }
         // The relaunch timing must not include the activation attempts.
         if name != "relaunch" { await context.activate() }
         switch name {
@@ -180,7 +184,10 @@ enum SpikeRunner {
             await waitLoaded(transparent)
             controller.cardView.backgroundColor = .clear
             try? await Task.sleep(for: .seconds(1.5))
-            let shots = SpikeRunner.pagesDirectory.deletingLastPathComponent().deletingLastPathComponent().appending(path: "screenshots/phase-1.4")
+            // `-RoomSpikeCaptureDirectory` (the grand tour) keeps the committed Phase 1.4 captures as they are.
+            let shots = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory").map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? SpikeRunner.pagesDirectory.deletingLastPathComponent().deletingLastPathComponent().appending(path: "screenshots/phase-1.4")
+            try? FileManager.default.createDirectory(at: shots, withIntermediateDirectories: true)
             try? FileManager.default.createDirectory(at: shots, withIntermediateDirectories: true)
             _ = try? WindowSnapshot.writePNG(window, to: shots.appending(path: "phase-1.4-transparent-background.png"))
             SpikeRunner.record("transparent_snapshot", "phase-1.4-transparent-background.png")
@@ -402,18 +409,24 @@ enum SpikeRunner {
             #if canImport(EngineCEF)
             guard let page = await open(SpikeRunner.page("popups.html")) as? CEFWebContents else { return }
             try? await Task.sleep(for: .seconds(1))
+            // A new page by identity: since 2.3 a page opened from another goes right below it, not last.
+            func newPage(after before: [any WebContents]) -> (any WebContents)? {
+                session.pages.first { page in !before.contains { $0 === page } }
+            }
             let before = session.pages.count
+            let pagesBefore = session.pages
             await click(page, "#blank")
             _ = await waitUntil(5) { self.session.pages.count > before }
-            let blank = session.pages.last
+            let blank = newPage(after: pagesBefore)
             if let blank { await waitLoaded(blank) }
             SpikeRunner.record("target_blank", "pages \(before)→\(session.pages.count) current=\(session.current === blank) title=\(blank?.title ?? "nil") inCard=\(blank?.nativeView.window === window)")
             session.select(session.pages.firstIndex { $0 === page } ?? 0)
             try? await Task.sleep(for: .milliseconds(500))
             let before2 = session.pages.count
+            let pagesBefore2 = session.pages
             await click(page, "#open")
             _ = await waitUntil(5) { self.session.pages.count > before2 }
-            let popup = session.pages.last
+            let popup = newPage(after: pagesBefore2)
             if let popup { await waitLoaded(popup) }
             SpikeRunner.record("window_open", "pages \(before2)→\(session.pages.count) title=\(popup?.title ?? "nil") inCard=\(popup?.nativeView.window === window)")
             session.select(session.pages.firstIndex { $0 === page } ?? 0)

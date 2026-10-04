@@ -104,6 +104,9 @@ extension SpikeRunner.Context {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         seedCaptureHistory(tabs.store.history)
         // Captures without live suggestions: deterministic, and no third-party text in the repository.
+        // The setting comes back as it was: later runs on the same state (the grand tour) read it.
+        let suggestionsWere = tabs.store.settings.settings.searchSuggestions
+        defer { tabs.store.settings.update { $0.searchSuggestions = suggestionsWere } }
         tabs.store.settings.update { $0.searchSuggestions = false }
         window.setContentSize(NSSize(width: 1244, height: 818))
         controller.sidebarWidth = 280
