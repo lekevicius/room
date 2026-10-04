@@ -3,6 +3,7 @@
 # and prints its results. Keeps the app frontmost from outside, because macOS
 # refuses self-activation of script-launched apps while the user works elsewhere.
 # Usage: scripts/run-spike.sh <cdp|scroll|resize|memory|audio|popups|hidden|open10> [extra app args...]
+# ROOM_SPIKE_OPEN_URL=<url> launches Room with that link (open -a App URL).
 set -euo pipefail
 
 SPIKE="$1"; shift
@@ -13,7 +14,12 @@ BUNDLE_ID="com.lekevicius.room"
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then echo "Room is already running" >&2; exit 1; fi
 rm -f "$OUT"
-open -n "$APP" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
+if [[ -n "${ROOM_SPIKE_OPEN_URL:-}" ]]; then
+  # Launched by a link (Phase 2.8b): the URL reaches the app before it finishes launching.
+  open -n -a "$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")" "$ROOM_SPIKE_OPEN_URL" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
+else
+  open -n "$APP" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
+fi
 sleep 2
 # Our instance, by its arguments (an `activate` that lands just after a quit
 # relaunches Room without arguments, on the real state directory).

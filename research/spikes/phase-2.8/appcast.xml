@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 2.8b dev feed: one entry newer than any dev build, with no archive
+     behind it (the check stops at Sparkle's "update available" window). -->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Room (dev feed)</title>
+    <item>
+      <title>Room 9.9</title>
+      <pubDate>Sun, 04 Oct 2026 12:00:00 +0000</pubDate>
+      <sparkle:version>999</sparkle:version>
+      <sparkle:shortVersionString>9.9</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>A dev-feed entry for the Phase 2.8b check. There is no archive behind it.</p>]]></description>
+      <enclosure url="http://127.0.0.1:8771/Room-9.9.zip" length="1024" type="application/octet-stream"
+                 sparkle:edSignature="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" />
+    </item>
+  </channel>
+</rss>

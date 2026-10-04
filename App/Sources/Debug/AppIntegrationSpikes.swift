@@ -337,7 +337,7 @@ private final class FullscreenWatcher {
 }
 
 /// Finds the open menu's window, asks the script for its capture, and closes the menu once captured.
-private final class MenuCaptureDriver: NSObject {
+final class MenuCaptureDriver: NSObject {
     let menu: NSMenu
     let name: String
     let ackPath: (String) -> String
