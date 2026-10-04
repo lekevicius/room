@@ -164,7 +164,12 @@ extension SpikeRunner.Context {
         keys.append("⌃⇧] handled=\(key("}", code: 30, [.control, .shift])) focused pane=\(store.splitGroup(of: a)?.members.firstIndex(of: tabs.currentEntryID ?? UUID()).map { $0 + 1 } ?? 0)")
         keys.append("⌃⇧[ handled=\(key("{", code: 33, [.control, .shift])) focused pane=\(store.splitGroup(of: a)?.members.firstIndex(of: tabs.currentEntryID ?? UUID()).map { $0 + 1 } ?? 0)")
         keys.append("⌥⌘V handled=\(key("v", code: 9, [.command, .option])) layout=\(store.splitGroup(of: a)?.layout.rawValue ?? "nil")")
-        keys.append("⌥⌘H handled=\(key("h", code: 4, [.command, .option])) layout=\(store.splitGroup(of: a)?.layout.rawValue ?? "nil")")
+        // Stacked has no key (⌥⌘H is Hide Others, B-36): its menu item.
+        if let stacked = NSApp.mainMenu?.item(withTitle: "Tab")?.submenu?.item(withTitle: "Split View")?.submenu?.item(withTitle: "Stacked"),
+           let menu = stacked.menu {
+            menu.performActionForItem(at: menu.index(of: stacked))
+        }
+        keys.append("Split View ▸ Stacked layout=\(store.splitGroup(of: a)?.layout.rawValue ?? "nil")")
         keys.append("⌥⌘G handled=\(key("g", code: 5, [.command, .option])) layout=\(store.splitGroup(of: a)?.layout.rawValue ?? "nil")")
         keys.append("⇧⌘= handled=\(key("+", code: 24, [.command, .shift])) (a fifth pane: refused) panes=\(store.splitGroup(of: a)?.members.count ?? 0)")
         app.palette?.dismiss()

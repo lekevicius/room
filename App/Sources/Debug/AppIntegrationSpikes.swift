@@ -320,11 +320,11 @@ private final class FullscreenWatcher {
 
     init(window: NSWindow) {
         let center = NotificationCenter.default
-        tokens.append(center.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.didEnter = .now }
+        tokens.append(center.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: window, queue: .main) { [weakSelf = MainActorWeak(self)] _ in
+            MainActor.assumeIsolated { weakSelf.value?.didEnter = .now }
         })
-        tokens.append(center.addObserver(forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.didExit = .now }
+        tokens.append(center.addObserver(forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main) { [weakSelf = MainActorWeak(self)] _ in
+            MainActor.assumeIsolated { weakSelf.value?.didExit = .now }
         })
     }
 
