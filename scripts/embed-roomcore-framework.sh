@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Xcode build phase (RoomCoreHost target): copies the staged RoomCore.framework
+# Xcode build phase (RoomCoreApp and RoomCoreHost targets): copies the staged RoomCore.framework
 # (scripts/roomcore-package.sh --stage) into Contents/Frameworks and signs the
 # app's nested code ad hoc. The framework's own dylibs and helpers were signed
 # when staged; APFS clones keep the ~1 GB copy instant.
 set -euo pipefail
 
-SRC="$SRCROOT/build/roomcore/RoomCore.framework"
+# ROOMCORE_STAGE (xcodegen/roomcore.yml): build/roomcore, or build/roomcore-release
+# for scripts/roomcore-package.sh --release.
+SRC="${ROOMCORE_STAGE:-$SRCROOT/build/roomcore}/RoomCore.framework"
 DEST="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/RoomCore.framework"
 
 if [[ ! -d "$SRC" ]]; then

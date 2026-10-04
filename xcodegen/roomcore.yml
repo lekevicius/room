@@ -15,17 +15,25 @@ packages:
     path: Packages/EngineRoomCore
 settingGroups:
   RoomCoreLink:
-    FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/build/roomcore"
+    # Where scripts/roomcore-package.sh staged the framework: build/roomcore
+    # (component, out/dev) or, with --release, build/roomcore-release (static,
+    # out/release; the script passes ROOMCORE_STAGE on the xcodebuild command
+    # line, and this entry comes first in the search paths).
+    ROOMCORE_STAGE: "$(SRCROOT)/build/roomcore"
+    FRAMEWORK_SEARCH_PATHS: "$(ROOMCORE_STAGE)"
     # Component build: RoomCore re-exports libchrome_dll and ~500 dylibs
     # staged in the framework's Libraries/. The framework binary has no
     # header room for its own rpath, so the host supplies it (dyld also
     # searches the main executable's rpaths for @rpath loads).
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../Frameworks/RoomCore.framework/Versions/Current/Libraries"
     # ld does not resolve the re-exported @rpath/libchrome_dll.dylib at
-    # link time, so the component-build host links it directly. A
-    # non-component (release) RoomCore has no libchrome_dll: drop this then.
-    LIBRARY_SEARCH_PATHS: "$(SRCROOT)/build/roomcore/RoomCore.framework/Versions/Current/Libraries"
-    OTHER_LDFLAGS: "$(inherited) -lchrome_dll"
+    # link time, so the component-build host links it directly. A static
+    # (release) RoomCore has no libchrome_dll: the package script empties
+    # both settings for it.
+    ROOMCORE_LIBRARY_PATH: "$(ROOMCORE_STAGE)/RoomCore.framework/Versions/Current/Libraries"
+    ROOMCORE_COMPONENT_LDFLAGS: "-lchrome_dll"
+    LIBRARY_SEARCH_PATHS: "$(inherited) $(ROOMCORE_LIBRARY_PATH)"
+    OTHER_LDFLAGS: "$(inherited) $(ROOMCORE_COMPONENT_LDFLAGS)"
     # "ROOM_SPIKES" when the staged framework was built with
     # room_enable_spikes=true (scripts/roomcore-package.sh passes it).
     ROOM_SPIKES_CONDITION: ""

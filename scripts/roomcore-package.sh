@@ -15,26 +15,49 @@
 # The framework's Info.plist gains RoomCoreCommit (the last commit touching
 # //room, "-dirty" with local changes; a crash key), and the host is compiled
 # with ROOM_SPIKES when the GN args set room_enable_spikes = true.
-# Usage: scripts/roomcore-package.sh [--stage-only] [--launch] [--app-only|--host-only]
+# Usage: scripts/roomcore-package.sh [--release] [--stage-only] [--launch] [--app-only|--host-only]
 # Env: OUT (out/dev), CONFIGURATION (Debug); checkout location from
 # scripts/lib/chromium-env.sh (local.env).
 # Developer ID signing of the result: scripts/sign-and-notarize.sh <app>.
+#
+# --release (3.1b): the shipping build. Stages the static framework from
+# out/release into build/roomcore-release (never touching build/roomcore, the
+# component stage the Debug apps link), builds both targets in the Release
+# configuration into build/roomcore-release/DerivedData{,-host}, signs Room.app
+# with the team identity (scripts/sign-and-notarize.sh --no-notarize;
+# ROOM_NOTARIZE=1 notarizes and staples too) and copies the dSYMs GN made
+# (enable_dsyms) to build/roomcore-release/dSYMs. The component-only steps
+# (copying the dylibs into Libraries/, -lchrome_dll and the Libraries search
+# path) are skipped for a framework that does not link libchrome_dll.
+# CONFIGURATION=Debug with --release builds the DEBUG Swift app (spike runner)
+# over the release engine, for the spikes and the shutdown harnesses.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$(dirname "$0")/lib/chromium-env.sh"
 SRC="$CHROMIUM_SRC"
-OUT_DIR="$SRC/${OUT:-out/dev}"
-CONFIGURATION="${CONFIGURATION:-Debug}"
-STAGE="$ROOT/build/roomcore"
+RELEASE=0
+for arg in "$@"; do [[ "$arg" == --release ]] && RELEASE=1; done
+if [[ $RELEASE -eq 1 ]]; then
+  OUT_DIR="$SRC/${OUT:-out/release}"
+  CONFIGURATION="${CONFIGURATION:-Release}"
+  STAGE="$ROOT/build/roomcore-release"
+  DERIVED="$STAGE/DerivedData"
+  HOST_DERIVED="$STAGE/DerivedData-host"
+else
+  OUT_DIR="$SRC/${OUT:-out/dev}"
+  CONFIGURATION="${CONFIGURATION:-Debug}"
+  STAGE="$ROOT/build/roomcore"
+  DERIVED="$STAGE/DerivedData"
+  HOST_DERIVED="$ROOT/build/roomcore-host/DerivedData"
+fi
 FW="$STAGE/RoomCore.framework"
-DERIVED="$STAGE/DerivedData"
 APP="$DERIVED/Build/Products/$CONFIGURATION/Room.app"
-HOST_DERIVED="$ROOT/build/roomcore-host/DerivedData"
 HOST_APP="$HOST_DERIVED/Build/Products/$CONFIGURATION/Room.app"
 STAGE_ONLY=0 LAUNCH=0 BUILD_APP=1 BUILD_HOST=1
 for arg in "$@"; do
   case "$arg" in
+    --release) ;;
     --stage-only) STAGE_ONLY=1 ;;
     --launch) LAUNCH=1 ;;
     --app-only) BUILD_HOST=0 ;;
@@ -93,9 +116,15 @@ done
 codesign --force --sign - "$V/RoomCore"
 codesign --force --sign - "$V"
 t1=$(now)
-dylibs=$(find "$V/Libraries" -name '*.dylib' | wc -l | tr -d ' ')
+dylibs=$( (find "$V/Libraries" -name '*.dylib' 2>/dev/null || true) | wc -l | tr -d ' ')
 locales_kb=$(du -ck "$V"/Resources/*.lproj | tail -1 | cut -f1)
 fw_kb=$(du -sk "$FW" | cut -f1)
+if [[ $RELEASE -eq 1 ]]; then
+  # dSYMs beside the stage (not in the app): what a crash symbolicates against.
+  rm -rf "$STAGE/dSYMs"; mkdir -p "$STAGE/dSYMs"
+  find "$OUT_DIR" -maxdepth 1 -name '*.dSYM' -exec cp -Rc {} "$STAGE/dSYMs/" \;
+  echo "dSYMs: $(ls "$STAGE/dSYMs" | wc -l | tr -d ' ') in $STAGE/dSYMs ($(du -sh "$STAGE/dSYMs" | cut -f1))"
+fi
 echo "staged $FW (component=$component, $dylibs dylibs, $(du -sh "$FW" | cut -f1); $(ls -d "$V"/Resources/*.lproj | wc -l | tr -d ' ') locales $((locales_kb / 1024)) MB, without them $(((fw_kb - locales_kb) / 1024)) MB; RoomCoreCommit $commit) in $(perl -e "print $t1 - $t0") s"
 [[ $STAGE_ONLY -eq 1 ]] && exit 0
 
@@ -103,6 +132,9 @@ echo "staged $FW (component=$component, $dylibs dylibs, $(du -sh "$FW" | cut -f1
 cd "$ROOT"
 spikes=""
 grep -Eq '^[[:space:]]*room_enable_spikes[[:space:]]*=[[:space:]]*true' "$OUT_DIR/args.gn" && spikes=ROOM_SPIKES
+# The stage this build links, and for a static framework no libchrome_dll.
+link_settings=(ROOMCORE_STAGE="$STAGE")
+[[ $component -eq 1 ]] || link_settings+=(ROOMCORE_COMPONENT_LDFLAGS= ROOMCORE_LIBRARY_PATH=)
 xcodegen --quiet
 build_scheme() {  # scheme, derived data, log name, extra settings...
   local scheme="$1" derived="$2" log="$STAGE/$3"; shift 3
@@ -114,18 +146,25 @@ build_scheme() {  # scheme, derived data, log name, extra settings...
   fi
 }
 if [[ $BUILD_HOST -eq 1 ]]; then
-  build_scheme "RoomCore Host" "$HOST_DERIVED" xcodebuild-host.log ROOM_SPIKES_CONDITION="$spikes"
+  build_scheme "RoomCore Host" "$HOST_DERIVED" xcodebuild-host.log ROOM_SPIKES_CONDITION="$spikes" "${link_settings[@]}"
   codesign --verify --deep --strict "$HOST_APP" && echo "host: $HOST_APP (spike hooks: ${spikes:-off})"
 fi
 t2=$(now)
 if [[ $BUILD_APP -eq 1 ]]; then
-  build_scheme "Room (RoomCore)" "$DERIVED" xcodebuild.log
+  build_scheme "Room (RoomCore)" "$DERIVED" xcodebuild.log "${link_settings[@]}"
   codesign --verify --deep --strict "$APP" && echo "signature: valid (ad hoc)"
+  if [[ $RELEASE -eq 1 ]]; then
+    if [[ "${ROOM_NOTARIZE:-0}" == 1 ]]; then
+      "$ROOT/scripts/sign-and-notarize.sh" "$APP"
+    else
+      "$ROOT/scripts/sign-and-notarize.sh" "$APP" --no-notarize
+    fi
+  fi
   echo "app: $APP ($(du -sh "$APP" | cut -f1))"
 fi
 t3=$(now)
 echo "swift builds: host $(perl -e "print $t2 - $t1") s, app $(perl -e "print $t3 - $t2") s"
-echo "framework binary: $(du -h "$V/RoomCore" | cut -f1); libchrome_dll: $( [[ -f "$V/Libraries/libchrome_dll.dylib" ]] && du -h "$V/Libraries/libchrome_dll.dylib" | cut -f1 || echo n/a)"
+echo "framework binary: $(du -h "$V/RoomCore" | cut -f1); helpers $(du -sh "$V/Helpers" | cut -f1); resources $(du -sh "$V/Resources" | cut -f1); libchrome_dll: $( [[ -f "$V/Libraries/libchrome_dll.dylib" ]] && du -h "$V/Libraries/libchrome_dll.dylib" | cut -f1 || echo n/a)"
 
 if [[ $LAUNCH -eq 1 ]]; then
   open -n "$APP"
