@@ -1,3 +1,20 @@
+Room: the engine framework is RoomCore.framework (binary RoomCore), not
+"$chrome_product_full_name Framework": chrome_framework_name, kFrameworkName
+and the helpers' dlopen path. The Swift app imports it as a Clang module,
+which needs a framework named after the module (//room/build/config.gni).
+
+content/public/app/BUILD.gn (added 2026-10-04, Phase 3.1b-2): in
+non-component builds libaperitif's install name is built from
+"$chrome_product_full_name Framework.framework", while chrome/BUILD.gn's
+installnametool -change for the Aperitif helpers looks for
+$chrome_framework_name.framework, so the change never matched. Reproducible
+release-build failure (args/release.gn, out/release, 57,373 of 57,727 steps):
+//chrome:verify_libraries_chrome_helper_app_aperitif_alerts failed with
+"Room Helper (Aperitif Alerts)" linking
+@executable_path/../Frameworks/Room Framework.framework/Versions/154.0.8037.58/Libraries/libaperitif.dylib
+where @executable_path/../../../../Libraries/libaperitif.dylib is expected.
+The component build is unaffected (@rpath install name).
+
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
 index ce7ebbe4f6b68..790bbb541e410 100644
 --- a/chrome/BUILD.gn
@@ -61,3 +78,25 @@ index 1a6b899b4bc3a..5a5382d69e86a 100644
  const char kMacHelperSuffixAlerts[] = " (Alerts)";
  #endif  // BUILDFLAG(IS_MAC)
  
+diff --git a/content/public/app/BUILD.gn b/content/public/app/BUILD.gn
+index 0a7825672de16..b08f7203cf612 100644
+--- a/content/public/app/BUILD.gn
++++ b/content/public/app/BUILD.gn
+@@ -100,6 +100,7 @@ if (is_component_build) {
+ if (is_mac) {
+   import("//build/util/branding.gni")
+   import("//chrome/version.gni")
++  import("//room/build/config.gni")  # Room: room_framework_name
+   shared_library("aperitif") {
+     sources = [ "aperitif_mac.h" ]
+ 
+@@ -122,7 +123,8 @@ if (is_mac) {
+         "-Wl,-rpath,@loader_path/../../../../../../..",
+       ]
+     } else {
+-      ldflags += [ "-Wl,-install_name,@executable_path/../Frameworks/$chrome_product_full_name Framework.framework/Versions/$chrome_version_full/Libraries/libaperitif.dylib" ]
++      # Room: the framework is $room_framework_name.framework (patch 0001).
++      ldflags += [ "-Wl,-install_name,@executable_path/../Frameworks/$room_framework_name.framework/Versions/$chrome_version_full/Libraries/libaperitif.dylib" ]
+     }
+ 
+     allow_circular_includes_from = [
