@@ -78,7 +78,8 @@ for name, rs in (('serial', serial), ('concurrent', conc)):
     q = [r[2] for r in rs if isinstance(r[2], (int, float))]
     clean = [r for r in rs if r[3] == 0 and r[4] == 0 and r[5] == 0 and not r[7]]
     wd = [r for r in rs if r[3] == 2]
+    rejected = [r for r in rs if 'fixture incomplete' in (r[7] or '')]
     if rs:
-        print(f'\n{name}: {len(rs)} quits, clean {len(clean)}, watchdog exits {len(wd)}, '
+        print(f'\n{name}: {len(rs) - len(rejected)} quits ({len(rejected)} fixtures rejected), clean {len(clean)}, watchdog exits {len(wd)}, '
               + (f'median {statistics.median(q):.3f} s, max {max(q):.3f} s' if q else 'no timings'))
 PY
