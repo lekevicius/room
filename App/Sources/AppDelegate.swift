@@ -1,9 +1,11 @@
 import AppKit
 import Chrome
+import CrashReports
 import Design
 import Engine
 import FakeEngine
 import Infra
+import Integration
 import Model
 import Omnibox
 import Palette
@@ -12,6 +14,7 @@ import Store
 import SwiftUI
 import Tabs
 import UIKitCore
+import Updates
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let engine: any EngineApplication
@@ -50,6 +53,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var lastClick: (point: CGPoint, time: TimeInterval)?
     /// The hidden sidebar's overlay header, keep-open checks and toasts (2.7a).
     private(set) var hiddenSidebar: HiddenSidebar?
+    /// Links from the system, held until the store and the engine are up (ROADMAP 2.8 task 3).
+    let inbox = URLInbox()
+    /// Whether Room is the default browser, and the request (2.8b).
+    let defaultBrowser = DefaultBrowser()
+    /// Sparkle and Sentry behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
+    private(set) var optIns: OptInServices?
+    /// The first run over Settings and its card in the sidebar (ROADMAP 2.8 task 4).
+    private(set) var firstRun: FirstRun?
+    private(set) var firstRunCard: FirstRunCardView?
+    #if DEBUG
+    /// URL ingestion as it happens (the 2.8b spike reads it): each event, whether it was queued, each tab opened.
+    private(set) var debugIncomingLog: [(event: String, url: URL, at: Date)] = []
+    #endif
     #if DEBUG
     /// Sidebar captures run on FakeEngine pages (no network, stable states).
     private let fakeEngine = FakeApplication()
@@ -68,6 +84,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             NSApp.terminate(nil)
             return
         }
+        #if DEBUG
+        // Spikes, captures and fixtures run on a throwaway store without the card, unless they ask for it.
+        if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil,
+           !UserDefaults.standard.bool(forKey: "RoomFirstRun") {
+            store?.settings.update { $0.firstRunDone = true }
+        }
+        #endif
+        // Before anything else runs: crash reports start here when the user opted in, and only then.
+        optIns = makeOptIns()
+        applyOptIns()
         showWindow()
         NSApp.activate()
         Task { await startSession() }
@@ -93,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
         }
+        // The store and the engine are up: links that came with the launch open now, later ones as they come.
+        inbox.open { [weak self] urls in self?.openIncoming(urls) }
         #if DEBUG
         guard let sidebar, let profile = tabs.profile else { return }
         if let directory = SnapshotRunner.directory {
@@ -116,6 +144,116 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
+    }
+
+    // MARK: Links from other apps (ROADMAP 2.8 task 3)
+
+    /// Every way a link reaches Room (another app once Room is the default
+    /// browser, `open`, Finder's Open With, AppleScript's `open location`). On a
+    /// cold launch this runs before `applicationDidFinishLaunching`.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        #if DEBUG
+        let queued = !inbox.isOpen
+        for url in urls { debugIncomingLog.append((queued ? "queued" : "event", url, Date())) }
+        #endif
+        let taken = inbox.receive(urls)
+        if taken.count < urls.count { NSLog("Room: ignored \(urls.count - taken.count) link(s) of a scheme Room does not open") }
+    }
+
+    /// Each link as a Today tab at the end of the active space's list, the last
+    /// one selected; with no window showing (after ⇧⌘W) the window comes back first.
+    private func openIncoming(_ urls: [URL]) {
+        guard let tabs else { return NSLog("Room: no sidebar to open \(urls.count) link(s) in") }
+        if windowController?.window?.isVisible != true { newRoomWindow(nil) }
+        for url in urls {
+            tabs.openNewTab(url: url.absoluteString, transition: .link)
+            #if DEBUG
+            debugIncomingLog.append(("requested", url, Date()))
+            #endif
+        }
+    }
+
+    // MARK: Opt-ins (ROADMAP 2.8 task 5)
+
+    private func makeOptIns() -> OptInServices? {
+        guard store != nil else { return nil }
+        var dsn = BuildConfiguration.sentryDSN()
+        var feed: String?
+        #if DEBUG
+        // The opt-in checks point both at local endpoints (`scripts/app-integration.sh --session 2.8b`).
+        if let override = UserDefaults.standard.string(forKey: "RoomSentryDSN") { dsn = override }
+        feed = UserDefaults.standard.string(forKey: "RoomUpdateFeedURL")
+        #endif
+        return OptInServices(dsn: dsn, makeUpdater: { SparkleUpdater(feedOverride: feed) },
+                             makeCrashReporter: { SentryCrashReporter() })
+    }
+
+    /// The services follow the two settings at once, from the first run's card or Settings ▸ Privacy.
+    private func applyOptIns() {
+        guard let settings = store?.settings, let optIns else { return }
+        let (crashReports, updateChecks) = withObservationTracking {
+            (settings.settings.crashReports, settings.settings.automaticUpdateChecks)
+        } onChange: { [weakSelf = MainActorWeak(self)] in
+            Task { @MainActor in weakSelf.value?.applyOptIns() }
+        }
+        optIns.apply(crashReports: crashReports, automaticUpdateChecks: updateChecks)
+    }
+
+    // MARK: First run (ROADMAP 2.8 task 4)
+
+    private func installFirstRun(sidebar: SidebarController, settings: SettingsStore) {
+        firstRun = FirstRun(read: { [weak settings] in settings?.settings ?? Settings() },
+                            write: { [weak settings] body in settings?.update(body) })
+        updateFirstRunCard(sidebar: sidebar, settings: settings)
+    }
+
+    /// The card shows while the first run is not done: at the first launch and after Settings ▸ Show Welcome Card.
+    private func updateFirstRunCard(sidebar: SidebarController, settings: SettingsStore) {
+        let showing = withObservationTracking {
+            !settings.settings.firstRunDone
+        } onChange: { [weakSelf = MainActorWeak(self), weakSidebar = MainActorWeak(sidebar), weakSettings = MainActorWeak(settings)] in
+            Task { @MainActor in
+                guard let sidebar = weakSidebar.value, let settings = weakSettings.value else { return }
+                weakSelf.value?.updateFirstRunCard(sidebar: sidebar, settings: settings)
+            }
+        }
+        let body = sidebar.bodyView
+        if showing, firstRunCard == nil, let firstRun {
+            let card = FirstRunCardView(firstRun: firstRun, defaultBrowser: defaultBrowser,
+                                        crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true) { [weak firstRun] in
+                firstRun?.finish()
+            }
+            firstRunCard = card
+            body.accessoryHeight = { [weak card] width in card?.height(forWidth: width) ?? 0 }
+            body.accessoryView = card
+        } else if !showing, let card = firstRunCard {
+            firstRunCard = nil
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.fast
+                card.animator().alphaValue = 0
+            } completionHandler: {
+                MainActor.assumeIsolated {
+                    if body.accessoryView === card { body.accessoryView = nil }
+                }
+            }
+        }
+    }
+
+    /// Settings ▸ General ▸ Show Welcome Card: the card again, in sight (the hidden sidebar's overlay is pinned for it).
+    func showWelcomeCard() {
+        firstRun?.showAgain()
+        newRoomWindow(nil)
+        if windowController?.isSidebarOpen == false { hiddenSidebar?.revealForSpaceForm() }
+    }
+
+    /// App ▸ Check for Updates…, Settings ▸ Privacy ▸ Check Now.
+    @objc func checkForAppUpdates(_ sender: Any?) {
+        optIns?.checkForUpdates(automaticUpdateChecks: store?.settings.settings.automaticUpdateChecks ?? false)
+    }
+
+    /// App ▸ Set as Default Browser…, Settings ▸ General, the first-run card: the system's dialog.
+    @objc func makeDefaultBrowser(_ sender: Any?) {
+        defaultBrowser.setAsDefault()
     }
 
     private func showWindow() {
@@ -325,6 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         self.tabs = tabs
         self.pageDelegate = pageDelegate
         toastCenter = toasts
+        installFirstRun(sidebar: sidebar, settings: store.settings)
         tabs.startLifecycle()
         // Only the selected entry loads at launch (spec §H); it waits for the profile.
         tabs.showSelection()
@@ -649,7 +788,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌘,: Settings v0 (General, Appearance, Search, Downloads).
     @objc func showSettings(_ sender: Any?) {
         guard let store else { return }
-        if settingsWindow == nil { settingsWindow = SettingsWindowController(settings: store.settings) }
+        if settingsWindow == nil {
+            let services = SettingsServices(
+                defaultBrowser: defaultBrowser, crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
+                showWelcomeCard: { [weak self] in self?.showWelcomeCard() },
+                checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
+                canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false })
+            settingsWindow = SettingsWindowController(settings: store.settings, services: services)
+        }
         settingsWindow?.showWindow(nil)
         settingsWindow?.window?.makeKeyAndOrderFront(nil)
     }
@@ -901,6 +1047,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     static let validators: [Selector: (AppDelegate, NSMenuItem) -> Bool] = [
         // App, File
         #selector(showSettings(_:)): { app, _ in app.store != nil },
+        #selector(checkForAppUpdates(_:)): { app, _ in app.optIns?.canCheckForUpdates ?? false },
+        #selector(makeDefaultBrowser(_:)): { app, item in
+            let isDefault = app.defaultBrowser.isDefault
+            item.toolTip = isDefault ? "Room is your default browser" : nil
+            return !isDefault && !app.defaultBrowser.isAsking
+        },
         #selector(newPage(_:)): { app, _ in app.tabs != nil },
         #selector(newRoomWindow(_:)): { app, item in
             let shows = app.windowController?.window?.isVisible == true

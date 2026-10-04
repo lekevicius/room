@@ -999,6 +999,18 @@ public final class SidebarBodyView: NSView {
     var onScrollWheel: ((NSEvent) -> Bool)?
     /// Stretches the slide (DEBUG captures of a mid-slide frame).
     var slideSlowdown: Double = 1
+    /// A card above the footer at the rows' width (2.8b: the first-run card); the list ends above it.
+    /// It moves with the sidebar into the hidden sidebar's overlay.
+    public var accessoryView: NSView? {
+        didSet {
+            guard accessoryView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let accessoryView { addSubview(accessoryView) }
+            needsLayout = true
+        }
+    }
+    /// The accessory's height at a width (its content wraps).
+    public var accessoryHeight: ((CGFloat) -> CGFloat)?
     /// Finishes the running slide at once (a new switch starts from the end state).
     private var finishSlide: (() -> Void)?
     /// The lists under a two-finger swipe: the current one and its neighbour.
@@ -1221,7 +1233,13 @@ public final class SidebarBodyView: NSView {
         let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + Spacing.xs : 0
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
-        listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - footerHeight - top))
+        var listBottom = bounds.height - footerHeight
+        if let accessoryView, !accessoryView.isHidden {
+            let height = ceil(accessoryHeight?(width) ?? accessoryView.fittingSize.height)
+            accessoryView.frame = NSRect(x: inset, y: listBottom - FirstRunMetrics.gapAboveFooter - height, width: width, height: height)
+            listBottom = accessoryView.frame.minY - FirstRunMetrics.gapAboveList
+        }
+        listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
         for list in listContainer.subviews {
             list.frame = listContainer.bounds
             guard !list.isHidden, let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { continue }

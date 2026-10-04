@@ -1,5 +1,6 @@
 import AppKit
 import Chrome
+import Integration
 import Model
 import Omnibox
 import Store
@@ -8,10 +9,12 @@ import SwiftUI
 /// Settings (⌘,), v0 (ROADMAP 2.8 task 2): a toolbar-tabbed window as in
 /// every Mac app, one SwiftUI leaf per section (PLAN §4 UI framework). The
 /// values live in Model's `Settings`, written through `SettingsStore`; the
-/// rest of the window (shortcuts, profiles, privacy) lands in 4.4.
+/// rest of the window (shortcuts, profiles) lands in 4.4. 2.8b adds the
+/// default browser and the welcome card to General, and Privacy for the two
+/// opt-ins.
 final class SettingsWindowController: NSWindowController {
     enum Section: String, CaseIterable {
-        case general, appearance, search, downloads
+        case general, appearance, search, downloads, privacy
 
         var title: String {
             switch self {
@@ -19,6 +22,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "Appearance"
             case .search: "Search"
             case .downloads: "Downloads"
+            case .privacy: "Privacy"
             }
         }
 
@@ -28,16 +32,17 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "paintpalette"
             case .search: "magnifyingglass"
             case .downloads: "arrow.down.circle"
+            case .privacy: "hand.raised"
             }
         }
     }
 
     private let tabs = SettingsTabsController()
 
-    init(settings: SettingsStore) {
+    init(settings: SettingsStore, services: SettingsServices) {
         tabs.tabStyle = .toolbar
         for section in Section.allCases {
-            let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings))
+            let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings, services: services))
             // The window takes each section's height as it is chosen.
             hosting.sizingOptions = [.preferredContentSize]
             let item = NSTabViewItem(viewController: hosting)
@@ -73,9 +78,20 @@ private final class SettingsTabsController: NSTabViewController {
     }
 }
 
+/// What Settings reaches beyond the settings values (2.8b).
+struct SettingsServices {
+    let defaultBrowser: DefaultBrowser
+    /// No Sentry project in this build: the switch is kept, nothing can be sent.
+    let crashReportsUnavailable: Bool
+    let showWelcomeCard: () -> Void
+    let checkForUpdates: () -> Void
+    let canCheckForUpdates: () -> Bool
+}
+
 private struct SettingsSectionView: View {
     let section: SettingsWindowController.Section
     let settings: SettingsStore
+    let services: SettingsServices
 
     var body: some View {
         Form {
@@ -84,6 +100,7 @@ private struct SettingsSectionView: View {
             case .appearance: appearance
             case .search: search
             case .downloads: downloads
+            case .privacy: privacy
             }
         }
         .formStyle(.grouped)
@@ -98,10 +115,58 @@ private struct SettingsSectionView: View {
     // MARK: General
 
     @ViewBuilder private var general: some View {
+        Section("Default browser") {
+            LabeledContent {
+                if services.defaultBrowser.isDefault {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.secondary)
+                } else {
+                    Button("Set as Default…") { services.defaultBrowser.setAsDefault() }
+                        .disabled(services.defaultBrowser.isAsking)
+                }
+            } label: {
+                Text(services.defaultBrowser.isDefault ? "Room is your default browser" : "Room is not your default browser")
+                Text("Links you open in other apps open in Room's window, as Today tabs in the active space.")
+            }
+        }
         Section("Links") {
             Toggle(isOn: binding(\.peekOffSiteLinks)) {
                 Text("Open links to other sites from pinned tabs in Peek")
                 Text("Sign-in pages, form posts and redirects still open in the tab. ⇧-click any link to Peek it.")
+            }
+        }
+        Section {
+            LabeledContent {
+                Button("Show Welcome Card") { services.showWelcomeCard() }
+            } label: {
+                Text("Welcome card")
+                Text("The first-run choices in the sidebar: search engine, default browser, crash reports and updates.")
+            }
+        }
+    }
+
+    // MARK: Privacy (2.8b)
+
+    @ViewBuilder private var privacy: some View {
+        Section {
+            Toggle(isOn: binding(\.crashReports)) {
+                Text("Send crash reports")
+                Text(services.crashReportsUnavailable
+                     ? "This build has no crash-report project yet: nothing can be sent, whatever this says."
+                     : "When Room crashes, a report of the crash goes to Room's developer (Sentry). Off: the reporter is not started.")
+            }
+        } header: {
+            Text("Room makes no request on its own unless you turn it on here.")
+        }
+        Section {
+            Toggle(isOn: binding(\.automaticUpdateChecks)) {
+                Text("Check for updates automatically")
+                Text("Asks Room's update server once a day (Sparkle). Off: no request unless you choose Check for Updates….")
+            }
+            LabeledContent {
+                Button("Check Now") { services.checkForUpdates() }
+                    .disabled(!services.canCheckForUpdates())
+            } label: {
+                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
             }
         }
     }

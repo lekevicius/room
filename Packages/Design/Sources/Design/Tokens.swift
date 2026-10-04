@@ -437,3 +437,20 @@ public enum DevToolsMetrics {
     /// The divider's drag area, centred on its 1 pt line (chosen, as the sidebar splitter).
     public static let dividerHitHeight: CGFloat = 8
 }
+
+/// The first-run card above the sidebar's footer (ROADMAP 2.8 task 4,
+/// `macos-ui-stack.md` §7.4 "an in-sidebar card, never a modal").
+public enum FirstRunMetrics {
+    /// Inside the card (chosen: the overlay panels' 12 pt).
+    public static let padding: CGFloat = Spacing.m
+    /// Between the card's rows (chosen).
+    public static let rowSpacing: CGFloat = Spacing.s
+    /// The selection pill's radius, so the card reads as one of the sidebar's own surfaces (chosen).
+    public static let cornerRadius: CGFloat = Radius.medium
+    /// Between the card and the footer, and between the list and the card (chosen).
+    public static let gapAboveFooter: CGFloat = Spacing.xs
+    public static let gapAboveList: CGFloat = Spacing.s
+    /// The card's shadow, as the pill's lift (chosen).
+    public static let shadowOpacity: Float = 0.08
+    public static let shadowRadius: CGFloat = 3
+}

@@ -96,8 +96,12 @@ public enum MainMenuTable {
     private static func app(_ name: String) -> MenuSpec {
         MenuSpec(name, [
             item("About \(name)", "orderFrontStandardAboutPanel:", target: .responderChain),
+            // Sparkle, a check the user asks for (ROADMAP 2.8 task 5).
+            item("Check for Updates…", "checkForAppUpdates:"),
             .separator,
             item("Settings…", "showSettings:", key: k(",", .command), row: "Settings"),
+            // The system's confirmation dialog (ROADMAP 2.8 task 3).
+            item("Set as Default Browser…", "makeDefaultBrowser:"),
             .separator,
             .submenu("Services", []),
             .separator,
