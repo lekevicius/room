@@ -563,3 +563,75 @@ At launch with both opt-ins off: no `SparkleUpdater` (so no `SPUStandardUpdaterC
 | 127.0.0.1, localhost | 3 + 5 jobs | page loads and favicons | browse (excluded as page traffic) |
 
 Against 2.4b's B-19 list this adds network time, the component download from `edgedl.me.gvt1.com` and the Translate ranker model (2.4b looked at a typing window only). All are the engine's, not fixed here (B-19, Chapter 3.1).
+
+## Phase 2.9 — grand tour (2026-10-04, Mac mini M4, 24 GB, CEF, Debug)
+
+Method: `scripts/grand-tour.sh` runs every Chapter 1–2 spike in sequence on one Debug build and, per appearance, one state directory and one engine directory, so each spike starts from what the ones before it left (sidebar, history, favicons, settings, profiles, cookies, permissions, windows). Order: layout (smoke launch, the 1.3/1.4 window captures, the 1.4 engine spikes, quit timing), sidebar (the 2.1 kill test, the 2.2 captures and scroll), spaces (2.5), palette (2.4, the suggestion checks through the logging proxy on :8771 so no query leaves the Mac), tabs (2.3), chrome surfaces (2.6a, 2.6b), layout modes (2.7), app integration (2.8a, 2.8b), and the net-log check last. The four test servers start once (:8765, :8766/:8767, :8770, :8771). Fixtures replace the sidebar they find (`-RoomFixtureReplaces YES`), so a spike that needs the 500 or `spaces` fixture gets it on the shared state; everything else accumulates (by the palette group the database holds 50,025 history URLs). `scripts/lib/tour_checks.py` judges each step: exit status, crash reports (the app's, and its helpers' apart: 2.6b's `chrome://crash` renderer is expected), nothing left running, the spike's end line, no `error:` or `capture_timeout:` line, then the phase's own criteria; a result line that is missing fails, so a section a spike skipped cannot pass. Display at **60 Hz**, Room frontmost, load average 4–10. Raw output and captures: `build/grand-tour/<stamp>/` (not committed; the summary below and `summary.md` there list every check, number and capture).
+
+### Runs
+
+| Run | Build | Wall time | Checks | What failed |
+|---|---|---|---|---|
+| 1, light only (20261004-124944) | 7ac5d84 + the tour's first changes | 20.0 min | 479 passed, 13 failed | the spike bugs and shared-state breaks below (11), Peek (2) |
+| 2, light + dark (20261004-131719) | 868f996 | 37.6 min (19.0 + 18.5, build 6 s) | light 488 / 5, dark 488 / 5 | Peek (3, a spike assumption, below), the switch's p95 (1), suggestions left off by the tour's own `suggestoff` step (1) |
+| 3, light + dark (20261004-145059) | bd98bf9 | **36.3 min** (18.6 + 17.6) | light **490 / 1**, dark **489 / 2** | the switch's p95 (B-41, both); one 29 ms frame in dark's reveal slide (2.7's bound is none dropped). Screen Sharing had disconnected and the display was a 1280 × 800 pt virtual one, so Dia's 818 pt framing could not fit (card 758 pt tall): reported as a note, not checked |
+
+What running in sequence found (run 1 unless said), each fixed in a spike, not in the product:
+
+| Finding | Kind | Fix |
+|---|---|---|
+| A fixture asked for on a state that already has entries did nothing (`guard entries.isEmpty`): 500-entry measurements would run on the demo | shared state | `-RoomFixtureReplaces YES` (tour only): the fixture replaces the sidebar; by-hand relaunches keep today's behaviour |
+| `HistoryFixture` imported only into an empty history: `palettemeasure` would type over the few rows earlier spikes left | shared state | tops up to the asked row count |
+| A second fixture with a "Work" profile made "Work 2" (and a second engine profile directory) | shared state | fixtures reuse "Work" |
+| `-RoomFirstRun YES` only skipped auto-finishing: on a state where the first run was done, 2.8b's card checks and the net-log check had no card | shared state | it now resets `firstRunDone` (identical on a fresh state) |
+| `palette2`'s captures switch search suggestions off and never back; run 2: `suggestcheck -RoomSuggestionsOff` and `palettemeasure` likewise. The "suggestions on" check then saw 0 requests, the net-log check launched with suggestions off | shared state | each spike restores the setting it found |
+| Chromium remembers a profile's answers: 2.6b's re-run of the 2.6a checks found 2.6a's certificate exception and notification denial: no interstitial (B-25's empty card unchecked), no notification prompt, `didFailCertificateCheck` never called | shared state (and B-43) | the 2.6 spikes clear the test origins' permissions and certificate exceptions first |
+| `chromesurfaces2` points Settings' download folder at a temp folder and leaves it | shared state | restored |
+| `cdp` writes its two captures into `research/screenshots/phase-1.4/` (committed files overwritten) | shared path | writes to `-RoomSpikeCaptureDirectory` when given |
+| `popups` took the new popup as `pages.last`; since 2.3 a page opened from another goes right below its opener, so `window.open` reported `inCard=false` | spike bug since 2.3 (fails alone too) | the new page by identity |
+| `switch`'s page-visible probe decoded one JSON level too few and never recorded a sample (B-18 blamed the locked screen) | spike bug since 2.3 | decodes; first numbers below |
+| Peek did not open in `layoutmodes` after 2.6b (runs 1 and 2, both appearances): the off-site click started no navigation. Bisected outside the tour to a fresh state with the `demo` fixture + the reveal check + Peek: the reveal check's five clicks over the overlay land on rows when the sidebar has any and select another entry, so the pinned page was in the background when Peek's clicks reached it (`peek_start: selected is the pinned entry=false`). An empty sidebar (2.7a/2.7b's runs) has no rows there | spike assumption (an empty sidebar) | Peek's checks select the pinned entry first; Peek decision → overlay frame 21.8 ms median after it |
+| Only `layoutmodes`, `chromesurfaces*` and `appintegration*` set the tour's appearance; the 1.4 spikes followed the system | tour | `SpikeRunner` applies `-RoomSpikeAppearance` to every spike |
+
+The screen locked during a later bisect run (macOS locks the session when a Screen Sharing connection drops; the session lock time matched `screensharingd` releasing its assertion both times): window captures fail and activation is refused. The tour now holds `caffeinate -dimsu` and stops with a message when it finds the session locked before a step.
+
+### Numbers (run 2, light / dark; the phase's number for comparison)
+
+| Measure | Light | Dark | Phase |
+|---|---|---|---|
+| Smoke quit | 0.24 s | 0.22 s | 1.1: 0.23–0.33 s |
+| Quit with ten pages (3 runs) | 0.50 / 0.35 / 0.39 s | 0.31 / 0.32 / 0.32 s | 1.4: 0.54–0.66 s at load 35–40 |
+| CDP `Runtime.evaluate` round trip, median / p95 | 0.07 / 0.15 ms | 0.17 / 0.45 ms | 1.4: 0.21 / 0.40 ms |
+| Memory: baseline; per hidden page at 1 / 10 / 30 | 849 MB; +169 / +270 / +215 MB | 857 MB; +169 / +237 / +210 MB | 1.4: 670 MB; +193 / +327 / +242 MB |
+| 30 hidden pages summed RSS, loaded | 7,292 MB, 30/30 | 7,145 MB, 30/30 | 1.4: 7,921 MB, 27/30 |
+| Scroll (rAF, mask on), 60 Hz | 60.0 fps, one frame of 31–34 ms per run | 60.0–60.3 fps, one late frame in one run | 1.4: 120 fps, 0 frames > 12.5 ms (120 Hz panel) |
+| Kill test, 100 kills | 0 failures, 43 mid-transaction rolled back, commit 6.9 / 13.7 ms | 0 failures, 45 rolled back, 7.0 / 12.4 ms | 2.1: 0 failures, 35 rolled back, 7.3 / 14.2 ms |
+| 500 entries: full reload; select; 10-tab drop | 42.9 ms; 3.80 ms; 10.5 ms | 41.0; 3.42; 11.3 ms | 2.2b: 40.6; 0.93; 9.5 ms (select now drives the tab controller) |
+| 500-entry scroll, 60 Hz: late frames; proxy120 steps over 8.33 ms | 0; 7 / 4 / 11 of 240 | 0; 7 / 4 / 10 of 240 | 2.2b: 1 in 1,437; 20 / 4 / 4 |
+| Space switch, ⌃digit → first slide frame, median / p95 | 12.8 / 15.8 ms | 10.8 / 16.4 ms | 2.5: 10.9 / 17.1 ms |
+| Space switch, our code; lists loaded during 60 switches | 6.3 ms; 0 | 5.6 ms; 0 | 2.5: 6.4 ms; 0 |
+| 50 loaded pages over 5 spaces, summed RSS | 6,495 MB | 6,509 MB | 2.5: 5.9–6.5 GB |
+| Palette open: our code; to the next frame (median / p95) | 2.7 ms; 6.0 / 13.9 ms | 2.5 ms; 5.5 / 14.1 ms | 2.4b: 2.3 ms; 6.2 / 15.0 ms |
+| Palette at 50k rows: local results p95; later keys' turn p95; first key median | 7.9; 11.6; 18.8 ms | 7.9; 11.5; 17.9 ms | 2.6a: 6.5–6.7; 9.6–10.4; 17.9–18.9 ms |
+| Suggestions through the proxy, on / off | 3 / 0 requests | 3 / 0 | 2.4b: 3 / 0 |
+| Tab switch, visible window: `select` call; click → page committed in the card (median / p95) | 5.4 ms; 13.7 / 17.5 ms | 5.7 ms; 14.5 / 18.2 ms | 2.3 (occluded): 4.9; 9.4 / 14.5 ms — B-41 |
+| … the page visible after the click; its first frame | 4.2 ms median | 3.9 ms | first measurement (isolated run: first frame 15.1 / 23.0 ms) |
+| 10 loaded pages, summed RSS | 3,572 MB | 3,560 MB | 2.3: 4,095–4,215 MB |
+| Relaunch: load start; selected page loaded | 0.82 s; 1.44 s | 0.83 s; 1.49 s | 2.3: 0.33–0.45 s; 0.48–0.60 s — B-42 |
+| Discard 10 background pages | renderers 10 → 2, 1,853 → 800 MB | 10 → 2, 1,863 → 810 MB | 2.3: 9 → 2, 1,685 → 765 MB |
+| Find, keystroke → highlighted match, median / p95 | 15.4 / 26.2 ms | 14.4 / 25.5 ms | 2.6b: 20.7–21.3 / 23.8–26.5 ms |
+| DevTools ⌥⌘I → front-end loaded | 329 ms | 340 ms | 2.6b: 328–335 ms |
+| Status text → pill (600 ms configured) | 608 ms | 602 ms | 2.6b: 605–619 ms |
+| Hide/reveal: band → shown (150 ms dwell); leave → hidden (150 ms grace) | 193; 172 ms | 192; 156 ms | 2.7a: 177; 157–170 ms |
+| Split created → laid out; → next frame | 14.2; 22.9 ms | 11.8; 22.3 ms | 2.7b: 12.8–13.5; 21.2–22.0 ms |
+| Pane focus click → field; → next frame | 1.6; 5.9 ms | 2.0; 7.1 ms | 2.7b: 2.4–2.7; 6.5–7.0 ms |
+| Peek decision → overlay frame; → the Peek page's first contentful paint (run 3) | 21.4; 91.7 ms | 30.0; 102.2 ms | 2.7a: 22.4; 99.7–113.7 ms |
+| Menu bar `NSMenu.update()` (121 items) | 0.82 / 2.39 ms | 0.83 / 2.42 ms | 2.8a: 0.32–0.60 / 1.2 ms (118 items) |
+| ⌃⌘F → header on the fallback; exit → header back | 625; 588 ms | 631; 592 ms | 2.8a: 572–605; 565–594 ms |
+| Cold launch by a link: event → page requested; → loaded | 598; 68 ms | 610; 74 ms | 2.8b: 183–205; 72–73 ms — B-42 |
+| Running link, event → requested (`open` / AppleScript / `NSWorkspace`) | 22.4 / 22.9 / 22.5 ms | 23.1 / 21.9 / 23.1 ms | 2.8b: 25.2–27.3 ms |
+| Net-log: Room's own requests; main process bytes; engine hosts | 0; 0 in, 0 out; 3 (accounts.google.com, update.googleapis.com, www.google.com) | same | 2.8b: 0; 0; 6 on a fresh profile (B-19) |
+
+Run 3 (1280 × 800 display, no Screen Sharing) moved little: switching 11.5 / 18.2 and 13.2 / 19.1 ms, the page visible after 4.1 / 3.9 ms, relaunch to the selected page 1.40 / 1.28 s.
+
+Not regressions: tab switching and the palette's first key are where the phases left them once conditions are equal; the visible-window switch and the relaunch are new conditions (B-41, B-42). Two findings that are the product's, both in the backlog: `RoomStorage.open` runs `PRAGMA integrity_check` over the whole database at every launch, 0.35–0.56 s at 50k history rows (B-42); a certificate exception cannot be revoked from Room (B-43). The spikes' CEF-only driving paths are B-44.
