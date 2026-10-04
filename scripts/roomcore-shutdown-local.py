@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Bounded ten-origin loopback shutdown comparison; not a real-site baseline.
 
-Run --mode room or stock in a NEW output directory. Stock requires ROOM_COMPARE_APP
+Run --mode room or stock in a NEW output directory. --corpus real (3.1b, B-38)
+runs the same concurrent browsers on roomcore-quit-timing.py's ten external
+sites instead: the branch's "Concurrent reproduction" (three browsers loading
+ten real pages each, then quitting), which is where the watchdog appeared. Stock requires ROOM_COMPARE_APP
 and, for the component bundle, DYLD_LIBRARY_PATH pointing at its own Libraries.
 The server binds only 127.0.0.1; Chromium resolves *.localhost to loopback.
 """
@@ -67,6 +70,7 @@ def main():
     parser.add_argument('--mode', choices=['room', 'stock'], required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--count', type=int, choices=[1, 2, 3], default=3)
+    parser.add_argument('--corpus', choices=['loopback', 'real'], default='loopback')
     parser.add_argument('--app', type=Path, default=ROOT / 'build/roomcore-host/DerivedData/Build/Products/Debug/Room.app')
     args = parser.parse_args()
     directory = args.output.resolve()
@@ -84,8 +88,9 @@ def main():
     def run(group):
         out = directory / f'group-{group}'
         command = ['python3', str(ROOT / 'scripts/roomcore-quit-timing.py'),
-                   '--app', str(args.app), '--runs', '1', '--output', str(out),
-                   '--urls-json', str(manifest)]
+                   '--app', str(args.app), '--runs', '1', '--output', str(out)]
+        if args.corpus == 'loopback':
+            command += ['--urls-json', str(manifest)]
         with (directory / f'group-{group}.log').open('w') as log:
             return subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=160).returncode
 
@@ -99,7 +104,8 @@ def main():
                 status = [subprocess.run(['node', str(ROOT / 'research/notes/roomcore-shutdown-comparison.mjs'),
                                          str(directory / 'stock'), str(args.count)], env=environment,
                                         stdout=log, stderr=subprocess.STDOUT, timeout=220).returncode]
-        receipt = {'mode': args.mode, 'corpus': 'loopback-storage-canvas-v1', 'browsers': args.count,
+        receipt = {'mode': args.mode,
+                   'corpus': 'loopback-storage-canvas-v1' if args.corpus == 'loopback' else 'external-typical-sites', 'browsers': args.count,
                    'elapsed_seconds': round(time.time() - started, 3), 'runner_exits': status,
                    'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()}
         (directory / 'exercise.json').write_text(json.dumps(receipt, indent=2) + '\n')
