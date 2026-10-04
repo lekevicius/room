@@ -696,6 +696,85 @@ Passed in full on RoomCore: window, resize, open10, diaframe, killtest, sidebard
 
 A clean relaunch saves ~165 ms on this state.
 
+## Phase 3.1b — release build, signing, notarization, network silence, Widevine, shutdown watchdog, Sparkle (2026-10-04, Mac mini M4, 24 GB, RoomCore)
+
+**Conditions.** Every run below is on the **component build** (`out/dev`, tag 154.0.8037.58, eleven patches, `room_enable_spikes=true`) while the **official release build** (`out/release`, `args/release.gn`) compiled beside it at 6 jobs from 17:54: load average 11–35 for single-instance runs (160 at the concurrent watchdog harness), swap 1.6 of 2 GB used, `vm_stat` pageouts 53,796 at the build's start, 55,877 at 19:18 (+1,416 of that during the concurrent watchdog harness, which was stopped for it; swapouts flat at 359,844 after 18:23). Console unlocked throughout. Evidence (not committed): `build/evidence-3.1b/`.
+
+### Signing and notarization (`scripts/roomcore-sign.sh`, component build)
+
+`ROOM_SIGN_COPY=build/roomcore-signed scripts/roomcore-sign.sh build/roomcore/DerivedData/Build/Products/Debug/Room.app --no-notarize`: Developer ID Application: Jonas Lekevicius (N56PMJ99UT), hardened runtime, secure timestamp, inside-out (518 framework dylibs, crashpad handler and the two tools, eight helpers, the framework, Sparkle's two XPC services, Autoupdate and Updater.app, Sparkle and Sentry, the two debug dylibs, the app): **31.4 s**. Helper entitlements as Chrome's own signing config: `allow-jit` on (GPU), (Renderer), (Aperitif GPU), (Aperitif Renderer); none on Room Helper, (Aperitif), (Alerts), (Aperitif Alerts).
+
+- `codesign --verify --deep --strict --verbose=2`: "valid on disk", "satisfies its Designated Requirement".
+- `spctl --assess --type execute` before notarization: "rejected, source=Unnotarized Developer ID".
+- Notarization: `ditto` zip **290 MB** in 44 s; `notarytool submit --keychain-profile room --wait`: submission **41d74c9a-dc7b-4fec-aaf7-f2ae65a8905b**, **Accepted** in 134 s, log: 0 issues, "Ready for distribution". The notary service accepted the component layout (945 MB app, 518 dylibs) as it is.
+- `stapler staple`: "The staple and validate action worked!"; `spctl --assess`: "**accepted, source=Notarized Developer ID**".
+
+### The keychain check on the signed build
+
+`build/roomcore-signed/Room.app/Contents/MacOS/Room -RoomStateDirectory /tmp/room-3.1b/kc -RoomEngineDirectory /tmp/room-3.1b/kc/engine -RoomStartURL https://example.com/` (team-signed, so `RoomApplication` uses the login keychain): 8 helpers by 10 s, and **SecurityAgent showed "Room wants to use your confidential information stored in “Room Safe Storage” in your keychain"** (`research/screenshots/phase-3.1b/keychain-check-prompt.png`) from ~10 s to the 60 s limit; the card stayed white with the row's spinner (the navigation waits on the cookie store, `keychain-check-page-waiting.png`); the net-log has the example.com request started and nothing completed. The item is from 2026-10-02 (created by the `com.lekevicius.room` identity), so the new identity is not on its access list: one prompt is the expected first-launch behaviour (PLAN §4 Keychain). Room was killed at 60 s; the dialog was left alone (by-hand 3.1b steps 1–2). The same net-log shows one engine request at launch: `www.gstatic.com` translate ranker model (below).
+
+### Network silence
+
+**Room.app on RoomCore, launch + 10 min idle + browse + quit** (`ROOM_APP=build/roomcore/…/Debug/Room.app ROOM_NETCHECK_IDLE=600 scripts/netlog-check.sh`; fresh state, first-run card shown and finished with nothing switched on; load 29 at launch, 17–21 during the idle): launch → idle 600.0 s → browse (`site.html`, `other.html`, a same-tab navigation, a reload on 127.0.0.1:8770/localhost:8770) → 8 s → quit.
+
+| Who | Requests |
+|---|---|
+| Room's own code (logging server for the feed, the crash endpoint and the suggestion proxy; `nettop` of the main process) | **0** (main process 0 bytes in, 0 out; no updater or crash reporter created) |
+| Page traffic (excluded) | 127.0.0.1 1, localhost 3 |
+| **Engine** | **1**: `GET https://www.gstatic.com/chrome/intelligence/assist/ranker/models/translate/2017/03/translate_ranker_model_20170329.pb.bin`, traffic annotation `ranker_url_fetcher`, initiator "not an origin", in the **launch** phase (the first `WebContents` creates Translate's ranker, `TranslateRankerImpl`, which fetches its model when `TranslateRankerQuery` or `TranslateRankerEnforcement` is on; both are enabled by default) |
+
+Not covered by `room/core/room_network_policy.cc` (the branch's idle audit ran on the embryo host's about:blank, where no Translate client is created). The same run with `--disable-features=TranslateRankerQuery,TranslateRankerEnforcement,MacAppCodeSignClone` appended (`netcheck-roomcore-ranker-off`, 8 s idle): **0 engine requests** (page traffic only; the network helper's only sockets loopback). The `//room` default is the follow-up's edit (the build reads `//room`).
+
+**Embryo host, 600 s idle** (`scripts/roomcore-netlog.sh`, about:blank, fresh profile, load 18–21): exit 0, 645 s process, idle-complete 600; net-log 18 events over 637.9 s: **0 requests, 0 connections, 0 DNS, 0 TLS errors**. The branch's 62 → 0 holds on this machine's build.
+
+**Browsing (B-39)**: `-RoomSpike open10` on the host with `--log-net-log` (ten real sites ready in 38 s, load 11–19, `roomcore-netlog-summary.py`): 3,384 request attempts, 640 connections; **94 TLS −107 failures on 26 hosts**, every one an ad or analytics host (googlesyndication, doubleclick, googletagmanager, google-analytics, optimizely, scorecardresearch, chartbeat, securemetrics.apple.com …) requested by the pages themselves (`blink_resource_loader`, initiators nytimes.com 14, theverge.com 12, bbc.com 8, stackoverflow.com 4, developer.apple.com 1); each resolves to `0.0.0.0` / `::` on this Mac (resolvers 100.100.100.100 and the router): DNS sinkholes, as on the laptop. Not the engine's. The engine's own requests while browsing: FedCM well-known fetches from pages (accounts.google.com, google.com, www.google.com; initiator null, page-triggered) and **`autofill_query` to content-autofill.googleapis.com, 13 attempts** (Autofill's crowdsourced field-type query, sent when a page has forms; feature `AutofillServerCommunication`, enabled by default): a request the user did not ask for and the policy does not cover (a `//room` default for the follow-up).
+
+### Widevine on demand (`scripts/roomcore-features.sh widevine`, host)
+
+| Run | EME result | Engine requests | Load |
+|---|---|---|---|
+| Fresh profile | `com.widevine.alpha` supported, MediaKeys created, **7.96 s** after the request; WidevineCdm 4.10.3050.0 installed | `update_client` only: `POST update.googleapis.com/service/update2/json` +0.006 s, `GET edgedl.me.gvt1.com/…/4.10.3050.0/` +0.198 s, completion ping `POST update.googleapis.com` +5.274 s (the stated exception) | 16 |
+| Same profile, CDM installed (`ROOM_FEATURE_PROFILE_FROM`) | supported, MediaKeys created in **2.74 s** | **0 external** (loopback page and favicon only) | 15 |
+
+### Licensed playback (Room.app on RoomCore)
+
+`research/spikes/phase-3.1b/widevine-demo.html` served on 127.0.0.1:8790 (Shaka Player 4 from jsDelivr, Shaka's public Sintel Widevine DASH stream, Google's no-auth test license proxy `cwip-shaka-proxy.appspot.com/no_auth`, muted autoplay, the page's own `getVideoPlaybackQuality` counters in its title and status line), `-RoomStartURL` on a fresh state and engine directory: the CDM provisioned on the page's request (update_client 2 + 1, then the license POST from the page), and **playback started**: at 19 s "playing, keySystem=com.widevine.alpha, readyState=4, currentTime=4.39, decoded=109, dropped=0"; at 81 s currentTime 66.39, **decoded 1,597 frames, dropped 0** (`research/screenshots/phase-3.1b/widevine-demo-playing-{30,90}s.png`, window-server captures). The video rectangle is black in the captures (protected frames are not in a window capture); the counters are the evidence. The same run's net-log again has the `ranker_url_fetcher` request at launch. A real service (Netflix, Spotify) is the user's (by-hand 3.1b step 4).
+
+### Shutdown watchdog (B-38, `scripts/roomcore-watchdog.sh`, embryo host on the component build)
+
+**Serial** (`roomcore-watchdog.sh … 20 serial`: one ten-real-page quit through `NSApp.terminate` per run, fresh profile each, the `roomcore-baseline.sh` quit; nav baseline before it passed in 15.9 s): **20 quits, 20 clean** (exit 0, 0 helpers left after the 5 s grace, 0 crash reports), load1 33–49:
+
+0.467, 0.836, 0.584, 0.830, 0.392, 0.597, 0.346, 1.222, 3.751, 0.468, 0.677, 1.007, 2.024, 0.860, 2.093, 0.530, 0.968, 0.729, 0.945, 0.973 s — **median 0.833 s**, max 3.751 s. Seven more attempts were rejected fixtures (a page, mostly Stack Overflow, still loading at "ready"; not quit samples). An earlier serial pass (`watchdog-component/serial`, load 15–26) quit 0.498 / 0.872 / 0.616 / 0.438 / 0.639 / 0.341 s, all clean, before its seventh fixture was rejected (that pass stopped at the first rejection, which is why the harness now retries).
+
+**Concurrent** (the branch's reproduction, `roomcore-shutdown-local.py --mode room --corpus real`: three hosts each load the ten real sites, then quit): **stopped after 4 of 20 rounds** because `vm_stat` pageouts grew (+1,416 pages) while it ran beside the release build (load1 at the rounds' start 27 / 155 / 123 / 147; the release build's step rate fell from ~150 to ~70 a minute). Of the 12 quits, **11 hit Chrome's 10 s teardown watchdog** ("Teardown watchdog expired; recording dump and terminating", exit 2, a minidump each), one exited 0; helpers left after the 5 s grace 1–13 (all exited later); 0 macOS crash reports.
+
+| Round / host | Ready s | Exit | Main thread in the watchdog dump | Threads not yet started |
+|---|---:|---:|---|---:|
+| 1/1, 1/3 | 50, 50 | 2, 2 | `ThreadPoolImpl::Shutdown` → `TaskTracker::CompleteShutdown` | 3, 3 |
+| 1/2 | 49 | 2 | `BrowserProcessIOThread::ProcessHostCleanUp` (the network service wait) | 2 |
+| 2/1, 2/2 | 45, 46 | 2, 2 | `CompleteShutdown` | 0, 0 |
+| 2/3 | 47 | 2 | network service wait | 0 |
+| 3/1, 3/2 | 48, 49 | 2, 2 | `CompleteShutdown` | 0, 0 |
+| 3/3 | 63 | 2 | network service wait | 0 |
+| 4/1, 4/3 | 46, 46 | 2, 2 | network service wait | 1, 1 |
+| 4/2 | 63 | 0 | — | — |
+
+(`scripts/roomcore-watchdog-stacks.py`: LLDB over each dump against the host that ran; full backtraces beside the dumps.) The two waits are the branch's two (its groups 2 and 3). "Threads not yet started" are threads in `ThreadFunc` → `_pthread_set_properties_self` (created during shutdown, not running yet: the worker-start/QoS lead behind parked 0010); present in 4 of the 11 dumps, absent in the other 7. In a `CompleteShutdown` dump without them (2/1) a background pooled worker is inside `fsync` (`sql::Transaction::Commit` from `PredictorDatabaseInternal::Initialize`, a SKIP_ON_SHUTDOWN task) while the release build loads the disk; background-QoS threads are I/O-throttled on macOS, which would make the stall load-sensitive (a lead, not investigated). After `NSApp.terminate` the host logs launches of new utility processes (audio, video capture enumeration) during teardown. Reproduction rate on the component build under this load: 11 / 12; serial with one host: 0 / 20.
+
+### Sparkle packaging (`scripts/sparkle-package.sh`, the notarized component build)
+
+`hdiutil create -fs HFS+ -format UDZO -srcfolder build/roomcore-signed/Room.app`: **DMG 339,023,043 bytes (323 MiB)** in 14.1 s from a 949 MiB app (the notarization zip of the same app: 290 MB). This is the component build (518 dylibs, `Room.debug.dylib`); the release build's archive is the number that matters (PLAN §7 risk 12), repeated by the follow-up. **The EdDSA signature and the appcast entry were not made**: `sign_update` blocked in `SecItemCopyMatching` → `SecKeychainItemCopyContent` reading the private key (login keychain, account `ed25519`), waiting on a keychain access prompt queued behind the stale "Room Safe Storage" dialog; killed after 2 min (by-hand 3.1b step 3).
+
+### B-47 and B-45
+
+- **B-47** (`scripts/lib/room-ae.swift` through `scripts/lib/room-process.sh`; `run-spike.sh`, `sidebar-snapshots.sh`, `window-snapshots.sh`, `smoke-launch.sh`, `quit-timing.sh`): `-RoomSpike diaframe` with `pgrep` afterwards — RoomCore ×2 and CEF ×4: Room frontmost from its window's appearance to its quit (`lsappinfo front` each second: RoomCore 5 of 5 s, CEF 2–3 s), exit 0, **no Room process left and no stray relaunch** in any run. The first attempt (JXA `Application(pid).activate()`) relaunched the CEF app without arguments once, when the 1 s spike quit during the call ("stopping stray relaunch 97471"; it opened the real CEF state for 3 s): JXA resolves the pid to the app and activates by bundle. A raw AppleEvent addressed to the pid (`NSAppleEventDescriptor(processIdentifier:)`) fails with procNotFound instead; it is retried for up to 1 s (activate) or 15 s (quit) while the pid lives, because a RoomCore app still launching under this load is not eligible for events for ~5–9 s.
+- **B-45**: `--disable-features=MacAppCodeSignClone` (the feature in `chrome/browser/mac/code_sign_clone_manager.mm`, enabled by default) removes the `code-sign-clone-cleanup` helper (`smoke-launch.sh` with it: `clone_cleanup_seconds=0`); the `//room` default is the follow-up's edit. Meanwhile `smoke-launch.sh` and `quit-timing.sh` wait up to 5 s for that one helper type by name and report it as `clone_cleanup_seconds`. `smoke-launch.sh` on Room.app on RoomCore, 15 s before the quit, ×3: quit 0.12 / 0.11 / 0.12 s, exit 0, **helpers_left=0**, 0 crash reports, clone cleanup 1.7 / 2.0 / 1.7 s (load 14–19); with the default 5 s before the quit the app had not finished launching (quit 5.5–6.4 s, the AppleEvent waited for it; load 22–25). `quit-timing.sh` (ten real pages, AppleEvent quit) ×3: quit **1.67 / 0.62 / 0.39 s**, helpers_left=0, 0 crash reports, clone cleanup 1.4–1.5 s (load 15–29); the first is over the tour's 1.5 s bound at load 15.
+
+### The release build
+
+Still compiling at the end of the session (`build-log.md` "Phase 3.1b on the Mac mini"): its wall time, Room.app size (framework, helpers, locales, dSYMs apart), cold launch (three launches, process start to the first page loaded), the signing, notarization, keychain, watchdog (both harnesses, then 0010's comparison) and Sparkle numbers are the follow-up's, on `scripts/roomcore-package.sh --release`.
+
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.
