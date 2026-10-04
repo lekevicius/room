@@ -141,6 +141,9 @@ Takeaway for 24 GB machines: build with `ROOM_BUILD_JOBS=6`; at 10 jobs the Blin
 | 2026-10-04 | `scripts/roomcore-apply.sh` after the PR #1 merge (six new patches 0006–0009, 0011, 0012 committed on `room`) | ~2 min | "patches: 6 applied, 5 already on the room branch"; the second run "patches: 0 applied, 11 already on the room branch" in 21 s |
 | 2026-10-04 | `scripts/roomcore-build.sh` (`ROOM_BUILD_JOBS=6`), first build after the merge (patches in `chrome/`, `content/`, `base/` untouched since 0010 is parked; `//room` +1,600 lines) | **91 s** build part | load 4.3 → 7.4; component build, so only the touched objects and their dylibs relink |
 | 2026-10-04 | `scripts/roomcore-package.sh` | 99 s | stage 5.8 s (916 MB, 518 dylibs), host build 92.8 s (first build of the branch's host spikes); `Room.app` 919 MB |
+| 2026-10-04 | `scripts/roomcore-build.sh` after the spike gate, BRANDING `app.room.desktop`, `args/dev.gn` (`gn gen` by the apply step) and the bootstrap edits | 112 s build part | load 5.2 → 5.5 |
+| 2026-10-04 | `scripts/roomcore-build.sh` after a one-file `//room` edit (real path of the data root) | 47 s build part | load 6.0 → 6.7 |
+| 2026-10-04 | `scripts/roomcore-package.sh` building both RoomCore targets | stage 4.8–8.5 s; host 7.4 s, Room.app on RoomCore 12.3–19.6 s (incremental) | Room.app on RoomCore 945 MB |
 
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
