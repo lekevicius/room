@@ -72,6 +72,7 @@ enum SpikeRunner {
         case "layoutmodes": await context.layoutModes()
         case "appintegration": await context.appIntegration()
         case "appintegration2": await context.appIntegration2()
+        case "netcheck": await context.netCheck()
         default: record("error", "unknown spike")
         }
         record("end", name)

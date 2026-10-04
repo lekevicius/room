@@ -280,4 +280,46 @@ extension SpikeRunner.Context {
         await activate()
     }
 }
+
+// MARK: The no-request check (ROADMAP 2.8 exit criterion)
+
+/// `netcheck` (`scripts/netlog-check.sh`, which records CEF's net-log, a
+/// logging endpoint and `nettop` around it): a first launch with every
+/// opt-in declined (the first-run card left as it is and finished), idle;
+/// a short browse on the local test site (two hosts, a same-site
+/// navigation, a reload); idle; quit. Each phase is stamped in seconds
+/// since 1970 so the script can sort the requests into launch, browse,
+/// idle and quit.
+extension SpikeRunner.Context {
+    private func stamp(_ phase: String) {
+        SpikeRunner.record("phase", String(format: "%@ %.3f", phase, Date().timeIntervalSince1970))
+    }
+
+    func netCheck() async {
+        guard let app = NSApp.delegate as? AppDelegate, let tabs = app.tabs, let settings = app.store?.settings.settings else { return }
+        SpikeRunner.record("phase", String(format: "launch %.3f", Self.processStartDate().timeIntervalSince1970))
+        SpikeRunner.record("opt_ins", "crashReports=\(settings.crashReports) automaticUpdateChecks=\(settings.automaticUpdateChecks) "
+            + "searchSuggestions=\(settings.searchSuggestions) first-run card shown=\(app.firstRunCard != nil) "
+            + "updater created=\(app.optIns?.updater != nil) crash reporter created=\(app.optIns?.crashReporter != nil)")
+        stamp("launch_idle")
+        try? await Task.sleep(for: .seconds(8))
+        // Declined: nothing switched on, Done.
+        app.firstRun?.finish()
+        stamp("browse")
+        for url in ["http://127.0.0.1:8770/site.html", "http://localhost:8770/other.html"] {
+            tabs.openNewTab(url: url)
+            if let page = tabs.current { await waitLoaded(page) }
+            try? await Task.sleep(for: .seconds(2))
+        }
+        tabs.navigateSelected(to: "http://localhost:8770/offsite.html")
+        if let page = tabs.current { await waitLoaded(page) }
+        try? await Task.sleep(for: .seconds(2))
+        tabs.current?.reload()
+        if let page = tabs.current { await waitLoaded(page) }
+        stamp("browse_idle")
+        try? await Task.sleep(for: .seconds(8))
+        SpikeRunner.record("opt_ins_end", "updater created=\(app.optIns?.updater != nil) crash reporter created=\(app.optIns?.crashReporter != nil)")
+        stamp("quit")
+    }
+}
 #endif
