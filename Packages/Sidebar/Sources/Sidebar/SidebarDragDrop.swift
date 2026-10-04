@@ -15,9 +15,9 @@ import Store
 /// The sidebar's own drag types, for drop targets outside it (the card's split drop zones, spec §D).
 public enum SidebarDragTypes {
     /// One sidebar entry: its id.
-    public static let entry = NSPasteboard.PasteboardType("com.lekevicius.room.sidebar-entry")
+    public static let entry = NSPasteboard.PasteboardType("app.room.desktop.sidebar-entry")
     /// A split's row: all its panes' ids, in order.
-    public static let splitPanes = NSPasteboard.PasteboardType("com.lekevicius.room.split-panes")
+    public static let splitPanes = NSPasteboard.PasteboardType("app.room.desktop.split-panes")
 }
 
 extension SidebarController {

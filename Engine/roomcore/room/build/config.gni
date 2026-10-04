@@ -5,3 +5,12 @@
 # "$chrome_product_full_name Framework" ("Room Framework"); the Swift app
 # links it as a Clang module, which needs a framework named after the module.
 room_framework_name = "RoomCore"
+
+declare_args() {
+  # Spike hooks and diagnostics (PLAN §4 patch policy): the private
+  # -RoomSpike command and action selectors on RoomBrowser and the
+  # diagnostic executables. true in args/dev.gn; release builds leave it
+  # false, so the shipped framework carries no probe code. The packaging
+  # script tells the Swift host whether the hooks exist (ROOM_SPIKES).
+  room_enable_spikes = false
+}

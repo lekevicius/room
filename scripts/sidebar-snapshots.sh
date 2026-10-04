@@ -13,7 +13,7 @@ OUT_ARG="${2:-research/screenshots/phase-2.2b}"
 mkdir -p "$(dirname "$OUT_ARG")"
 OUT="$(cd "$(dirname "$OUT_ARG")" && pwd)/$(basename "$OUT_ARG")"
 APP="${3:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="com.lekevicius.room"
+BUNDLE_ID="app.room.desktop"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 mkdir -p "$OUT"

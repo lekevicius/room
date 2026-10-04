@@ -59,6 +59,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
+#include "room/build/buildflags.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
@@ -92,9 +93,11 @@ class Client : public room::RoomBrowserWindowClient {
   NSWindow* __weak _window;
   raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
+#if BUILDFLAG(ROOM_ENABLE_SPIKES)
   std::unique_ptr<IdentityDialogController> _spike_identity_controller;
   std::shared_ptr<int> _spike_address_decisions;
   std::shared_ptr<int> _spike_card_decisions;
+#endif
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
@@ -185,7 +188,9 @@ class Client : public room::RoomBrowserWindowClient {
 }
 
 - (void)room_windowWillClose {
+#if BUILDFLAG(ROOM_ENABLE_SPIKES)
   _spike_identity_controller.reset();
+#endif
   id<RoomBrowserDelegate> delegate = self.delegate;
   if ([delegate respondsToSelector:@selector(browserWillClose:)]) {
     [delegate browserWillClose:self];
@@ -203,6 +208,10 @@ class Client : public room::RoomBrowserWindowClient {
   }
 }
 
+#if BUILDFLAG(ROOM_ENABLE_SPIKES)
+// Spike hooks (room_enable_spikes=true, args/dev.gn only): private selectors
+// the Swift host calls with -performSelector:, absent from the public API
+// and from release builds.
 // Spike-only entry point; intentionally absent from the public API.
 - (NSNumber*)roomSpikeCommand:(NSNumber*)command {
   if (!_browser ||
@@ -610,5 +619,6 @@ class Client : public room::RoomBrowserWindowClient {
   }
   return @(-1);
 }
+#endif  // BUILDFLAG(ROOM_ENABLE_SPIKES)
 
 @end

@@ -24,29 +24,29 @@ targets:
     templates: [Helper]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room.helper
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop.helper
   Room Helper (GPU):
     templates: [Helper]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room.helper.gpu
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop.helper.gpu
         CODE_SIGN_ENTITLEMENTS: Helpers/Resources/Helper-JIT.entitlements
   Room Helper (Renderer):
     templates: [Helper]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room.helper.renderer
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop.helper.renderer
         CODE_SIGN_ENTITLEMENTS: Helpers/Resources/Helper-JIT.entitlements
   Room Helper (Plugin):
     templates: [Helper]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room.helper.plugin
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop.helper.plugin
   Room Helper (Alerts):
     templates: [Helper]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room.helper.alerts
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop.helper.alerts
   Room:
     dependencies:
       - package: EngineCEF

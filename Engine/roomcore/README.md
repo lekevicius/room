@@ -13,7 +13,7 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | `room/` | `//room`, symlinked into the checkout as `$CHROMIUM_SRC/room` (location per machine: `local.env`) |
 | `room/core/` | the public ObjC API (`public/RoomCore.h` umbrella, `module.modulemap`) and its ObjC++ implementation |
 | `room/browser/` | `RoomBrowserWindow`, Chrome's `BrowserWindow` for a host-owned `NSWindow` |
-| `room/branding/BRANDING` | product name Room, bundle id `com.lekevicius.room` (helpers `.helper*`) |
+| `room/branding/BRANDING` | product name Room, bundle id `app.room.desktop` (helpers `.helper*`) |
 | `room/build/config.gni` | `room_framework_name = "RoomCore"` |
 | `patches/` | quilt-style patches, applied in `series` order, one commit each on the `room` branch |
 | `chromium_src/` | Brave-style shadow sources (empty) |

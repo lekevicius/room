@@ -1,3 +1,7 @@
+// Feature drives over the private spike hooks: compiled only when the
+// framework has them (room_enable_spikes=true; ROOM_SPIKES, set by
+// scripts/roomcore-package.sh from the GN args).
+#if ROOM_SPIKES
 import Foundation
 import RoomCore
 
@@ -106,3 +110,4 @@ enum HostAutofillUISpike {
         guard values["name"] as? String == "Room Fixture", values["street"] as? String == "1 Test Street" else { throw HostCDP.Failure("suggestion selection did not fill the synthetic address") }
     }
 }
+#endif

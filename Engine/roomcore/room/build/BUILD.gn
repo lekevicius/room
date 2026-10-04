@@ -1,0 +1,10 @@
+# Build flags //room code reads with BUILDFLAG(...).
+
+import("//build/buildflag_header.gni")
+import("//room/build/config.gni")
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  visibility = [ "//room/*" ]
+  flags = [ "ROOM_ENABLE_SPIKES=$room_enable_spikes" ]
+}

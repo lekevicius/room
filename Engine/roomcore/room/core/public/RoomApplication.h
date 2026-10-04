@@ -36,8 +36,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 
 // Records the process arguments and startup options; does not start anything.
 // `applicationClass` must be RoomCrApplication or a subclass. With a nil
-// `userDataDirectory` Chromium's default (~/Library/Application Support/
-// Chromium) is used, so hosts should always pass one.
+// `userDataDirectory` the data root is ~/Library/Application Support/Room/
+// RoomCore. Unless `arguments` say otherwise, the engine logs to
+// RoomCore.log in the data root (--enable-logging/--log-file override it) and
+// a build without a team signature runs with --use-mock-keychain.
 - (BOOL)initializeWithArguments:(NSArray<NSString*>*)arguments
                applicationClass:(Class)applicationClass
               userDataDirectory:(nullable NSURL*)userDataDirectory

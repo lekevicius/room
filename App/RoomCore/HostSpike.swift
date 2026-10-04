@@ -41,7 +41,12 @@ enum HostSpike {
                 record("idle-start", Date().timeIntervalSince1970)
                 try? await Task.sleep(for: .seconds(seconds))
                 record("idle-complete", seconds)
-            default: await HostFeatureSpike.run(name, host: host, profile: profile)
+            default:
+                #if ROOM_SPIKES
+                await HostFeatureSpike.run(name, host: host, profile: profile)
+                #else
+                record("error", "feature spike \(name) needs a framework built with room_enable_spikes=true")
+                #endif
             }
             record("end", name)
             record("terminate-request-time", Date().timeIntervalSince1970)

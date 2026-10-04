@@ -1,3 +1,7 @@
+// Feature drives over the private spike hooks: compiled only when the
+// framework has them (room_enable_spikes=true; ROOM_SPIKES, set by
+// scripts/roomcore-package.sh from the GN args).
+#if ROOM_SPIKES
 import Foundation
 import RoomCore
 
@@ -90,3 +94,4 @@ enum HostDeviceChooserSpike {
         HostSpike.record("review-required", "Chrome chooser cancellation only; native focus/anchor and real device grants remain unverified")
     }
 }
+#endif

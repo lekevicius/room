@@ -1,3 +1,7 @@
+// Feature drives over the private spike hooks: compiled only when the
+// framework has them (room_enable_spikes=true; ROOM_SPIKES, set by
+// scripts/roomcore-package.sh from the GN args).
+#if ROOM_SPIKES
 import AppKit
 import RoomCore
 
@@ -411,3 +415,4 @@ enum HostFeatureSpike {
         }
     }
 }
+#endif

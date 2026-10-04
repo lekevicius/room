@@ -11,13 +11,13 @@ set -euo pipefail
 if [[ "${ROOM_QUIT_MODE:-appleevent}" == spike ]]; then
   ROOT="$(cd "$(dirname "$0")/.." && pwd)"
   exec python3 "$ROOT/scripts/roomcore-quit-timing.py" \
-    --app "${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}" \
+    --app "${ROOM_APP:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug/Room.app}" \
     --runs "${1:-3}"
 fi
 
 RUNS="${1:-3}"
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="com.lekevicius.room"
+BUNDLE_ID="app.room.desktop"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 
 for run in $(seq 1 "$RUNS"); do

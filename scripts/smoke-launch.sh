@@ -7,7 +7,7 @@ set -euo pipefail
 
 APP="${1:-build/DerivedData/Build/Products/Debug/Room.app}"
 WAIT="${2:-5}"
-BUNDLE_ID="com.lekevicius.room"
+BUNDLE_ID="app.room.desktop"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }

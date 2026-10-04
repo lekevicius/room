@@ -43,7 +43,7 @@ done
 : > "$endpoints"   # the readiness probes are not Room's
 # Sparkle has never run for this check (its defaults would only matter once it is created).
 for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
-  defaults delete com.lekevicius.room "$key" 2>/dev/null || true
+  defaults delete app.room.desktop "$key" 2>/dev/null || true
 done
 
 nettop -L 0 -n -x -s 1 > "$work/nettop.csv" 2>/dev/null &

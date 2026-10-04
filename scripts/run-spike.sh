@@ -15,7 +15,7 @@ tour_args=(${ROOM_TOUR_ARGS:-})
 set -- "$@" ${tour_args[@]+"${tour_args[@]}"}
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
 OUT="${ROOM_SPIKE_OUT:-$(mktemp -d)/spike-$SPIKE.txt}"
-BUNDLE_ID="com.lekevicius.room"
+BUNDLE_ID="app.room.desktop"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then echo "Room is already running" >&2; exit 1; fi

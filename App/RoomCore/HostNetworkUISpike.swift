@@ -1,3 +1,7 @@
+// Feature drives over the private spike hooks: compiled only when the
+// framework has them (room_enable_spikes=true; ROOM_SPIKES, set by
+// scripts/roomcore-package.sh from the GN args).
+#if ROOM_SPIKES
 import Foundation
 import RoomCore
 
@@ -103,3 +107,4 @@ enum HostNetworkUISpike {
         guard replacement.isClosed, pending == 0 else { throw HostCDP.Failure("network permission request survived owner close") }
     }
 }
+#endif

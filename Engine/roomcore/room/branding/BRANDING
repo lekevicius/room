@@ -5,6 +5,6 @@ PRODUCT_SHORTNAME=Room
 PRODUCT_INSTALLER_FULLNAME=Room Installer
 PRODUCT_INSTALLER_SHORTNAME=Room Installer
 COPYRIGHT=Copyright @LASTCHANGE_YEAR@ Jonas Lekevicius. All rights reserved.
-MAC_BUNDLE_ID=com.lekevicius.room
+MAC_BUNDLE_ID=app.room.desktop
 MAC_CREATOR_CODE=Room
 MAC_TEAM_ID=

@@ -4,6 +4,7 @@
 # build, re-exports) via patches/0004-link-room-core.patch.
 
 import("//mojo/public/tools/bindings/mojom.gni")
+import("//room/build/config.gni")
 
 mojom("cdm_mojom") {
   sources = [ "room_cdm.mojom" ]
@@ -46,6 +47,7 @@ source_set("core") {
     "//chrome/browser/invalidation",
     "//chrome/browser/signin",
     "//components/component_updater",
+    "//components/crash/core/common:crash_key",
     "//components/find_in_page",
     "//components/permissions",
     "//components/prefs",
@@ -75,6 +77,7 @@ source_set("core") {
     "//content/public/browser",
     "//net",
     "//room/browser",
+    "//room/build:buildflags",
     "//ui/base",
     "//ui/views",
     "//url",
@@ -82,12 +85,15 @@ source_set("core") {
   frameworks = [
     "AppKit.framework",
     "Foundation.framework",
+    "Security.framework",
   ]
 }
 
-# Explicitly built diagnostic; not linked into RoomCore or the host.
-executable("room_worker_shutdown_probe") {
-  testonly = true
-  sources = [ "../diagnostics/worker_shutdown_probe.cc" ]
-  deps = [ "//base" ]
+if (room_enable_spikes) {
+  # Explicitly built diagnostic; not linked into RoomCore or the host.
+  executable("room_worker_shutdown_probe") {
+    testonly = true
+    sources = [ "../diagnostics/worker_shutdown_probe.cc" ]
+    deps = [ "//base" ]
+  }
 }

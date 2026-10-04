@@ -117,6 +117,7 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
 
     var pages: [RoomWebContents] { browser?.webContents ?? [] }
 
+    #if ROOM_SPIKES
     func runSpikeCommand(_ command: Int) throws {
         let selector = NSSelectorFromString("roomSpikeCommand:")
         guard let browser, browser.responds(to: selector) else {
@@ -136,6 +137,7 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
         }
         return result.intValue
     }
+    #endif
 
     private func show(_ page: RoomWebContents?) {
         guard page !== current || windowController?.cardView.contentView !== page?.nativeView else { return }

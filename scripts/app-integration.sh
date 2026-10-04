@@ -74,7 +74,7 @@ for appearance in "${appearances[@]}"; do
   if [[ $session == 2.8b ]]; then
     # Sparkle keeps its schedule in the app's defaults (SULastCheckTime …): each run starts from none.
     for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
-      defaults delete com.lekevicius.room "$key" 2>/dev/null || true
+      defaults delete app.room.desktop "$key" 2>/dev/null || true
     done
   fi
   OUT="$work/spike-$spike-$appearance.txt"
@@ -104,7 +104,7 @@ for appearance in "${appearances[@]}"; do
         [[ " $done_names " == *" $name "* ]] && continue
         case "$method" in
           open) sent=$(now); open -a "$APP_ABS" "$url" ;;
-          applescript) sent=$(now); osascript -e "tell application id \"com.lekevicius.room\" to open location \"$url\"" ;;
+          applescript) sent=$(now); osascript -e "tell application id \"app.room.desktop\" to open location \"$url\"" ;;
           workspace) sent=$("$work/open-with-workspace" "$APP_ABS" "$url") ;;
         esac
         echo "$sent" > "$OUT.ack-$name"

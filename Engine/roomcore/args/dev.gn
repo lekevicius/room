@@ -16,10 +16,13 @@ enable_updater = false
 use_siso = true
 
 # Room branding (Engine/roomcore/room/branding): product "Room", bundle ids
-# com.lekevicius.room*, icons from the "room" theme component (placeholders
+# app.room.desktop*, icons from the "room" theme component (placeholders
 # that point at Chromium's icons until Room has its own).
 branding_file_path = "//room/branding/BRANDING"
 branding_path_component = "room"
 
 # Google-specific pieces Room does not want.
 enable_hangout_services_extension = false
+
+# Spike hooks and diagnostics (//room/build/config.gni): on in dev builds only.
+room_enable_spikes = true

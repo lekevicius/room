@@ -8,7 +8,7 @@ set -euo pipefail
 
 OUT="$(cd "$(dirname "${1:-research/screenshots/phase-1.3}")" && pwd)/$(basename "${1:-research/screenshots/phase-1.3}")"
 APP="${2:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="com.lekevicius.room"
+BUNDLE_ID="app.room.desktop"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 rm -rf "$OUT"

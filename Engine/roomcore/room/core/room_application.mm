@@ -2,14 +2,18 @@
 
 #import "room/core/room_application_internal.h"
 
+#include <Security/Security.h>
 #include <crt_externs.h>
+#include <stdlib.h>
 
 #include <string>
 #include <vector>
 
+#include "base/apple/bundle_locations.h"
 #include "base/check.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/browser_process.h"
@@ -18,7 +22,9 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
+#include "components/crash/core/common/crash_key.h"
 #import "room/browser/room_browser_window.h"
+#import "room/core/public/RoomCore.h"
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_profile_internal.h"
 #include "room/core/room_network_policy.h"
@@ -36,6 +42,89 @@ constexpr const char* kDefaultSwitches[] = {
     "--no-first-run",
     "--no-default-browser-check",
 };
+
+// Whether `arguments` (after argv[0]) carry `name`, alone or as `name=…`.
+bool HasSwitch(const std::vector<std::string>& arguments, const char* name) {
+  const std::string bare = std::string("--") + name;
+  for (size_t i = 1; i < arguments.size(); ++i) {
+    const std::string& argument = arguments[i];
+    if (argument == bare || argument.starts_with(bare + "=")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Room's engine data root when the host names none:
+// ~/Library/Application Support/Room/RoomCore (never Chromium's own
+// ~/Library/Application Support/Chromium).
+NSURL* DefaultUserDataDirectory() {
+  NSURL* support =
+      [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory
+                                           inDomains:NSUserDomainMask]
+          .firstObject;
+  return [[support URLByAppendingPathComponent:@"Room" isDirectory:YES]
+      URLByAppendingPathComponent:@"RoomCore"
+                      isDirectory:YES];
+}
+
+// Team ID of the running process's signature; empty for ad-hoc or unsigned
+// builds. Ad-hoc builds get a new code identity per build, so macOS asks for
+// the login password before every read of "Room Safe Storage" (PLAN §4
+// Keychain); those run with the mock keychain.
+bool IsTeamSigned() {
+  SecCodeRef code = nullptr;
+  if (SecCodeCopySelf(kSecCSDefaultFlags, &code) != errSecSuccess || !code) {
+    return false;
+  }
+  SecStaticCodeRef static_code = nullptr;
+  OSStatus status =
+      SecCodeCopyStaticCode(code, kSecCSDefaultFlags, &static_code);
+  CFRelease(code);
+  if (status != errSecSuccess || !static_code) {
+    return false;
+  }
+  CFDictionaryRef info = nullptr;
+  status = SecCodeCopySigningInformation(
+      static_code, kSecCSSigningInformation, &info);
+  CFRelease(static_code);
+  if (status != errSecSuccess || !info) {
+    return false;
+  }
+  const bool team_signed =
+      CFDictionaryGetValue(info, kSecCodeInfoTeamIdentifier) != nullptr;
+  CFRelease(info);
+  return team_signed;
+}
+
+NSString* InfoString(NSBundle* bundle, NSString* key) {
+  id value = [bundle objectForInfoDictionaryKey:key];
+  return [value isKindOfClass:NSString.class] ? value : nil;
+}
+
+// Crash keys every browser-process report carries: the host's version, the
+// Chromium tag and the //room commit (written into the framework's
+// Info.plist as RoomCoreCommit by scripts/roomcore-package.sh).
+void SetCrashKeys() {
+  static crash_reporter::CrashKeyString<32> app_version("room-app-version");
+  static crash_reporter::CrashKeyString<32> chromium("room-chromium");
+  static crash_reporter::CrashKeyString<48> commit("room-commit");
+  NSBundle* outer = base::apple::OuterBundle();
+  NSString* short_version =
+      InfoString(outer, @"CFBundleShortVersionString") ?: @"?";
+  NSString* build = InfoString(outer, @"CFBundleVersion") ?: @"?";
+  const std::string version = base::SysNSStringToUTF8(
+      [NSString stringWithFormat:@"%@ (%@)", short_version, build]);
+  const std::string room_commit = base::SysNSStringToUTF8(
+      InfoString(base::apple::FrameworkBundle(), @"RoomCoreCommit")
+          ?: @"unknown");
+  app_version.Set(version);
+  chromium.Set(RoomCoreChromiumVersion());
+  commit.Set(room_commit);
+  LOG(INFO) << "Room crash keys: room-app-version=" << version
+            << " room-chromium=" << RoomCoreChromiumVersion()
+            << " room-commit=" << room_commit;
+}
 
 }  // namespace
 
@@ -90,10 +179,33 @@ constexpr const char* kDefaultSwitches[] = {
   for (const char* item : kDefaultSwitches) {
     _arguments.insert(_arguments.begin() + 1, item);
   }
-  if (userDataDirectory) {
-    _arguments.insert(_arguments.begin() + 1,
-                      std::string("--") + switches::kUserDataDir + "=" +
-                          userDataDirectory.fileSystemRepresentation);
+  NSURL* dataRoot = userDataDirectory ?: DefaultUserDataDirectory();
+  [NSFileManager.defaultManager createDirectoryAtURL:dataRoot
+                         withIntermediateDirectories:YES
+                                          attributes:nil
+                                               error:nil];
+  // The real path: the helpers' sandbox profiles allow the log file by its
+  // literal path, and /tmp is a symlink to /private/tmp.
+  if (char* real = realpath(dataRoot.fileSystemRepresentation, nullptr)) {
+    dataRoot = [NSURL fileURLWithFileSystemRepresentation:real
+                                              isDirectory:YES
+                                            relativeToURL:nil];
+    free(real);
+  }
+  _arguments.insert(_arguments.begin() + 1,
+                    std::string("--") + switches::kUserDataDir + "=" +
+                        dataRoot.fileSystemRepresentation);
+  // A log file under the data root unless the host chose where logs go.
+  if (!HasSwitch(_arguments, "enable-logging") &&
+      !HasSwitch(_arguments, "log-file")) {
+    _arguments.push_back("--enable-logging");
+    _arguments.push_back(
+        std::string("--log-file=") +
+        [dataRoot URLByAppendingPathComponent:@"RoomCore.log"]
+            .fileSystemRepresentation);
+  }
+  if (!HasSwitch(_arguments, "use-mock-keychain") && !IsTeamSigned()) {
+    _arguments.push_back("--use-mock-keychain");
   }
   _initialized = YES;
   return YES;
@@ -137,11 +249,10 @@ constexpr const char* kDefaultSwitches[] = {
   // Chrome's default crash path ignores --user-data-dir. Keep each host's
   // crash database inside the same selected profile root. Overrides survive
   // ChromeMain's later path-provider registration.
+  // -initialize always passes --user-data-dir (the host's or Room's default).
   base::FilePath user_data = base::CommandLine::ForCurrentProcess()
                                  ->GetSwitchValuePath(switches::kUserDataDir);
-  if (user_data.empty()) {
-    CHECK(chrome::GetDefaultUserDataDirectory(&user_data));
-  }
+  CHECK(!user_data.empty());
   CHECK(base::PathService::Override(chrome::DIR_CRASH_DUMPS,
                                     user_data.AppendASCII("Crashpad")));
 
@@ -201,6 +312,7 @@ constexpr const char* kDefaultSwitches[] = {
 }
 
 - (void)room_didFinishLaunching {
+  SetCrashKeys();
   id<RoomApplicationDelegate> delegate = self.delegate;
   [delegate roomApplicationDidFinishLaunching:self];
 }
