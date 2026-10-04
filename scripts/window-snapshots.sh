@@ -8,7 +8,8 @@ set -euo pipefail
 
 OUT="$(cd "$(dirname "${1:-research/screenshots/phase-1.3}")" && pwd)/$(basename "${1:-research/screenshots/phase-1.3}")"
 APP="${2:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="app.room.desktop"
+# Activate goes to our process by pid, never by bundle id (B-47).
+source "$(dirname "$0")/lib/room-process.sh"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 rm -rf "$OUT"
@@ -23,7 +24,7 @@ pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   if [[ -f "$OUT/states.txt" ]]; then break; fi
   if ! ls "$OUT/$last_active" >/dev/null 2>&1; then
-    osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
+    room_activate "$pid"
   fi
   sleep 1
 done

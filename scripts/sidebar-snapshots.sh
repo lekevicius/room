@@ -13,7 +13,8 @@ OUT_ARG="${2:-research/screenshots/phase-2.2b}"
 mkdir -p "$(dirname "$OUT_ARG")"
 OUT="$(cd "$(dirname "$OUT_ARG")" && pwd)/$(basename "$OUT_ARG")"
 APP="${3:-build/DerivedData/Build/Products/Debug/Room.app}"
-BUNDLE_ID="app.room.desktop"
+# Activate goes to our process by pid, never by bundle id (B-47).
+source "$(dirname "$0")/lib/room-process.sh"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 mkdir -p "$OUT"
@@ -28,7 +29,7 @@ sleep 2
 pid=$(pgrep -nf "RoomSnapshotDirectory $OUT" || true)
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   [[ -f "$OUT/states.txt" ]] && break
-  osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
+  room_activate "$pid"
   sleep 1
 done
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do sleep 0.5; done

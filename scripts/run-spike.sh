@@ -15,7 +15,8 @@ tour_args=(${ROOM_TOUR_ARGS:-})
 set -- "$@" ${tour_args[@]+"${tour_args[@]}"}
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
 OUT="${ROOM_SPIKE_OUT:-$(mktemp -d)/spike-$SPIKE.txt}"
-BUNDLE_ID="app.room.desktop"
+# Activate and quit go to our process by pid, never by bundle id (B-47).
+source "$(dirname "$0")/lib/room-process.sh"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then echo "Room is already running" >&2; exit 1; fi
@@ -33,17 +34,18 @@ pid=$(pgrep -nf "RoomSpikeOutput $OUT" || true)
 while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do
   # Stop activating once the spike has ended: the quit follows.
   if [[ "${ROOM_SPIKE_NO_ACTIVATE:-0}" != 1 ]] && ! grep -q '^end:' "$OUT" 2>/dev/null; then
-    osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to activate" >/dev/null 2>&1 || true
+    room_activate "$pid"
   fi
   grep -q '^end:' "$OUT" 2>/dev/null && [[ "$*" == *KeepRunning* ]] && break
   sleep 1
 done
-# Stop a relaunch without arguments that an activate caused anyway.
+# A relaunch without arguments (what an activate by bundle id used to cause,
+# B-47) should not happen any more; stop one if it does, by its pid.
 if [[ "$*" != *KeepRunning* ]]; then
   sleep 2
   for stray in $(pgrep -f "Room.app/Contents/MacOS/Room$" || true); do
     echo "stopping stray relaunch $stray" >&2
-    osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || kill -TERM "$stray"
+    room_quit "$stray" || kill -TERM "$stray"
   done
   while pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; do sleep 0.5; done
 fi
