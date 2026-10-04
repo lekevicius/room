@@ -71,7 +71,8 @@ for port in 8765 8766 8767 8770 8771; do
 done
 
 # --- One build ----------------------------------------------------------------
-commit="$(git rev-parse --short HEAD)$( [[ -n "$(git status --porcelain -- App Packages Engine project.yml xcodegen)" ]] && echo '+dirty' )"
+commit="$(git rev-parse --short HEAD)"
+[[ -n "$(git status --porcelain -- App Packages Engine project.yml xcodegen)" ]] && commit="$commit+dirty"
 if [[ $build == YES ]]; then
   echo "building Debug at $commit" >&2
   b0=$(now)
