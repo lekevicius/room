@@ -93,19 +93,27 @@ tests the summariser.
 
 Release (3.1b): `Engine/roomcore/args/release.gn` (official, static, ThinLTO,
 dSYMs, no PGO profile unless gclient's `checkout_pgo_profiles` is on) builds
-into `out/release`; on the Mac mini expect well over four hours at 6 jobs:
+into `out/release`; on the Mac mini a clean build is 4 h 43 min at 6 jobs, the
+framework's ThinLTO link 18 min at 6.8 GiB (it fits in 24 GB; 3.1b-2). The
+internal disk needs ~5 GB free for packaging (stage, dSYMs, two apps):
 
 ```bash
 bash -c 'ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn nohup scripts/roomcore-build.sh > build/roomcore-release-build.log 2>&1 &'
 #   progress: wc -l out/release/siso_metrics.json (one line per finished step)
 #   against `third_party/ninja/ninja -C out/release -t commands chrome | wc -l`
 scripts/roomcore-package.sh --release   # build/roomcore-release: static framework, Release
-#   Room.app signed with the team identity, dSYMs beside it; ROOM_NOTARIZE=1 also notarizes;
+#   Room.app and the host, ad hoc (mock keychain), the shipped binaries' dSYMs beside them
+#   (2.2 GB); ROOM_TEAM_SIGN=1 signs Room.app in place, ROOM_NOTARIZE=1 also notarizes;
 #   CONFIGURATION=Debug builds the DEBUG app (spike runner) over the release engine
 scripts/roomcore-sign.sh [Room.app] [--no-notarize]   # Developer ID + notarization
 #   (ROOM_SIGN_COPY=<dir> signs a clone, leaving the ad-hoc product alone)
+scripts/roomcore-cold-launch.py <Room.app> <new-dir> [3]   # process start to first page loaded
+#   (any configuration; scratch state and --user-data-dir, never the real data root)
 scripts/sparkle-package.sh <signed Room.app> build/sparkle   # DMG, EdDSA signature, appcast entry
+#   (ROOM_SPARKLE_UNSIGNED=1: DMG and an unsigned entry, no keychain access)
 scripts/roomcore-watchdog.sh <new-dir> [20]   # B-38: both shutdown harnesses N times
+#   (ROOM_APP=build/roomcore-release/DerivedData-host/Build/Products/Release/Room.app runs
+#   them on the release build; ROOM_WATCHDOG_PRUNE=1 deletes clean runs' profiles)
 ```
 
 The spike wrappers talk to Room by pid (`scripts/lib/room-process.sh`,

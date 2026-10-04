@@ -775,6 +775,96 @@ Not covered by `room/core/room_network_policy.cc` (the branch's idle audit ran o
 Still compiling at the end of the session (`build-log.md` "Phase 3.1b on the Mac mini"): its wall time, Room.app size (framework, helpers, locales, dSYMs apart), cold launch (three launches, process start to the first page loaded), the signing, notarization, keychain, watchdog (both harnesses, then 0010's comparison) and Sparkle numbers are the follow-up's, on `scripts/roomcore-package.sh --release`.
 
 
+## Phase 3.1b-2 — release build measured, signed and notarized, network defaults, watchdog on the release build (2026-10-04/05, Mac mini M4, 24 GB, RoomCore release build)
+
+**Builds and apps.** The official release build (`out/release`, `args/release.gn`, eleven patches with the amended 0001 and 0004, `//room` at `3086f4b`) and the component build (`out/dev`, same series and `//room`). Apps, each named per row below: **Release app** = Room.app on RoomCore, Release configuration, ad hoc (`build/roomcore-release/DerivedData/Build/Products/Release/Room.app`, mock keychain by itself); **Debug app over release** = the same Swift app in the Debug configuration over the same release framework (`CONFIGURATION=Debug scripts/roomcore-package.sh --release --app-only`; its DEBUG spikes go through the `Engine` protocol); **release host** = the embryo host, Release configuration, over the release framework (its `nav`/`open10`/`idle` drives are not spike-gated, so both watchdog harnesses run on it unchanged); **signed copy** = a Developer ID clone of the Release app (`build/roomcore-release-signed`), used only for `codesign`/`spctl`/notarization/size/DMG. **Dev app** = Room.app on RoomCore, component Debug build. No build ran during any measurement below; load is stated per run. Evidence (not committed): `build/evidence-3.1b2/`.
+
+### `//room` defaults on the component build (dev app, the changed code)
+
+`room/core/room_network_policy.cc` now disables `TranslateRankerQuery`, `TranslateRankerEnforcement`, `AutofillServerCommunication` and `MacAppCodeSignClone` (names checked in the M154 checkout: `components/translate/core/browser/translate_ranker_impl.cc:96–97`, `components/autofill/core/common/autofill_debug_features.cc:138`, `chrome/browser/mac/code_sign_clone_manager.mm:513`).
+
+- **Baseline** (`scripts/roomcore-baseline.sh`, embryo host, dev): nav passed (10.6 s), ten-page quits **0.269 / 0.261 / 0.240 s**, 26 helpers observed, 0 left, 0 crash reports, exit 0 (load 11–15). A first pass (nav 20.6 s, quit 0.293 s) stopped when its second fixture was rejected (Stack Overflow still loading).
+- **`smoke-launch.sh` ×3** (dev app, 15 s, throwaway state): quit **0.13 / 0.09 / 0.13 s**, exit 0, helpers_left 0, 0 crash reports, **`clone_cleanup_seconds` 0** each (3.1b: 1.7–2.0 s; B-45's helper is gone) (load 6–8).
+- **`quit-timing.sh` ×3** (dev app, ten real pages, AppleEvent quit): **0.40 / 0.29 / 0.24 s**, helpers_left 0, 0 crash reports, `clone_cleanup_seconds` 0 (load 7–11).
+- **Net-log, launch + 600 s idle + browse + quit** (`ROOM_NETCHECK_IDLE=600 scripts/netlog-check.sh`, dev app, fresh state, first-run card shown; 639 s from launch to browse; load 18–32 at launch, falling): Room's own code **0** (main process 0 bytes in/out); page traffic 127.0.0.1 1, localhost 3; **engine 0 requests** (3.1b: 1, `ranker_url_fetcher`).
+- **Translate without the ranker** (dev app, `-RoomStartURL https://de.wikipedia.org/wiki/Webbrowser`, 25 s, `--vmodule=*translate*=2`): the page rendered (`research/screenshots/phase-3.1b-2/translate-de-wikipedia-dev.png`), exit 0, 0 helpers left, 0 crash reports, net-log 7 requests all page (`blink_resource_loader` 5, `navigation_url_loader` 1), no ranker fetch. No translate offer appears and the log has no language-detection line, only "Registering TranslateKit component": RoomCore's pages are standalone `WebContents` without Chrome's tab helpers (3.1a deviation 6), so the translate client is not attached yet; the offer path is 3.4/3.7's (infobar delegate). Nothing crashed.
+
+### The release build (`build-log.md` "Phase 3.1b-2")
+
+**4 h 43 min 28 s** of build work at 6 jobs (3.1b's 4 h 42 min 40 s + 48 s after the 0001 fix), the framework's ThinLTO link 18 min 12 s at **6.80 GiB `max_rss`**: it fits in 24 GB. Two more official-only failures surfaced in packaging and were fixed in patch 0004 (the framework's export list hid the public ObjC classes; the export-order check then rejected them); the relink after them took 329 s (ThinLTO cache) at 7.53 GiB.
+
+### Release staging (`scripts/roomcore-package.sh --release`)
+
+First run against a real static framework. What differed from 3.1b's assumptions, each fixed in the script or the patches:
+
+1. The Swift app did not link: `_OBJC_CLASS_$_RoomApplication` and four more undefined. The official framework is linked with `-exported_symbols_list chrome/app/framework.exports` (three symbols); patch 0004 adds `//room/core/room_core.exports` (the five `ROOM_EXPORT` classes and their metaclasses) and points `verify_chrome_framework_order` at framework.order + that list. After it, `nm -jUng RoomCore`: `_ChromeAppModeStart_v8`, `_ChromeWebAppShortcutCopierMain`, `_ChromeMain`, then the ten class symbols.
+2. dSYMs: `out/release` holds 128 dSYMs, 3.6 GB, including build tools (`v8_context_snapshot_generator` 0.9 GB, `mksnapshot` 0.3 GB); the copy filled the internal disk (3.7 GB free) during the first packaging. The script now stages only the dSYMs of binaries the framework ships: 15, **2.2 GB** (RoomCore.dSYM 2.13 GiB).
+3. The release app is no longer team-signed in place: a team-signed `app.room.desktop` uses the keychain item that prompts, so measurements use the ad-hoc product and the signed product is a copy (`ROOM_TEAM_SIGN=1` restores the old behaviour, `ROOM_NOTARIZE=1` still signs and notarizes).
+4. Otherwise as 3.1b wrote it: `component=0`, no dylib copy, `-lchrome_dll` dropped; the framework's own Libraries are libaperitif, libvk_swiftshader, libvulkan and three component data folders (ANGLE is static).
+
+`ls RoomCore.framework/Versions/154.0.8037.58` (in the Release app): `Headers Helpers Libraries Modules Resources RoomCore _CodeSignature`; `plutil -p Room.app/Contents/Info.plist`: `CFBundleIdentifier` app.room.desktop, `CFBundleShortVersionString` 0.1.0, `CFBundleExecutable` Room, the HTML/URL document and http/https URL types (full output `release-layout.txt`). Packaging took 107 s (stage 3.1 s, host 14.5 s, app 89.8 s); the Debug app over release 37 s.
+
+### Sizes (Release app, `du -sk`)
+
+| Part | KB | MB |
+|---|---:|---:|
+| **Room.app** | 390,928 | **382** |
+| RoomCore.framework | 372,472 | 364 |
+| framework binary `RoomCore` (static; debug info in the dSYM) | 269,836 | 264 |
+| Resources (paks, ICU, V8 snapshot, locales) | 83,264 | 81 |
+| of which 220 locales (`*.lproj`) | 50,088 | 49 |
+| Libraries (libvk_swiftshader 14.8 MB, libvulkan 0.5 MB, libaperitif 0.1 MB, component data) | 15,804 | 15 |
+| Helpers (eight helper apps, crashpad handler, app_mode_loader, web_app_shortcut_copier) | 3,444 | 3.4 |
+| Swift app executable (`Contents/MacOS`) | 15,468 | 15 |
+| Sparkle.framework / Sentry.framework | 2,748 / 48 | 2.7 / 0.05 |
+| dSYMs, beside the app (15; RoomCore.dSYM 2,237,148 KB) | 2,317,100 | 2,263 |
+| signed copy (Developer ID) | 391,168 | 382 |
+
+Against the component build: Room.app 945 MB, framework 916 MB (518 dylibs).
+
+### Cold launch (Release app)
+
+`scripts/roomcore-cold-launch.py` (new): process spawn to the start page's `load` event, three launches on fresh state each (`-RoomStateDirectory`, `-RoomStartURL` of a 127.0.0.1 page whose load handler beacons back, `--user-data-dir` and `--log-file` in the scratch directory so the real data root is untouched: checked, nothing under `~/Library/Application Support/Room/RoomCore` newer than the run), then a quit by pid. The Release app has no DEBUG flags; a scratch `HOME` does not move `URL.applicationSupportDirectory` (tested), so it was not used.
+
+| Run | Launch → page loaded | Navigation → load | Quit | Exit | Helpers left | load1 |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 (first launch of this build) | **2.715 s** | 58.5 ms | 0.085 s | 0 | 0 | 7.2 |
+| 2 | **0.414 s** | 44.7 ms | 0.087 s | 0 | 0 | 8.0 |
+| 3 | **0.412 s** | 48.9 ms | 0.115 s | 0 | 0 | 7.1 |
+
+Median 0.414 s. The first launch of a newly built binary is 2.3 s slower (not profiled; the first execution of new code is when macOS assesses its signature, and the 264 MB binary was not in the page cache); later launches, each on a new profile, take 0.41 s. (2.3's relaunch on CEF, a different measure on an existing state: 0.48–0.60 s to the selected page loaded.)
+
+### Signing and notarization (signed copy)
+
+`ROOM_SIGN_COPY=build/roomcore-release-signed scripts/roomcore-sign.sh <Release app>`: signed in **9.3 s** (3.1b's component build: 31.4 s for 518 dylibs). `codesign --verify --deep --strict --verbose=2`: "valid on disk", "satisfies its Designated Requirement"; `codesign -dv`: `Identifier=app.room.desktop`, `flags=0x10000(runtime)`, `TeamIdentifier=N56PMJ99UT`; `spctl --assess` before notarization: "rejected, source=Unnotarized Developer ID". Notarization: zip **168,923,146 bytes (161 MB)**, submission **bfee631a-5b17-4400-80f0-25433022a0a7**, **Accepted** in 61.3 s, log "Ready for distribution", issues none; stapled; `spctl --assess`: "**accepted, source=Notarized Developer ID**". The signed copy was not launched (its keychain prompt is the user's, by hand).
+
+### Ten real sites (release framework)
+
+- **Debug app over release**, `-RoomSpike open10` (`run-spike.sh`, throwaway state): `pages: 10`, `ready: 40` s (load 7.0; an earlier run 11 s at load 3.8), every page's title in the sidebar (`research/screenshots/phase-3.1b-2/open10-release-debug-app.png`, a window-server capture); quit 0.177 s (0.230 s earlier), 0 helpers left.
+- **Release host**, `-RoomSpike open10 --log-net-log` (all ten not loading at ready, 63 s): Wikipedia, GitHub, Hacker News, Apple AppKit docs, BBC News, Stack Overflow, The Verge, r/MacApps, The New York Times, YouTube, titles as expected; exit 0. Its net-log (8,003 request attempts over 64 s) has **no `autofill_query` and no `ranker_url_fetcher`** (3.1b: 13 and 1); the non-page annotations are page-triggered (`payment_manifest_downloader` 6 from pay.google.com, `reporting` 3, `fedcm` 4).
+
+### Ten-page quits on Room.app (Debug app over release)
+
+`ROOM_APP=<Debug app over release> scripts/quit-timing.sh 20` (the spike opens ten real pages through the `Engine` protocol, waits for them, then the quit AppleEvent to the pid, as ⌘Q; one throwaway state for all 20, so from run 2 the restored entry makes 11 pages), 00:39–00:45, load1 2.5–11.9: **20 / 20 clean** (exit 0, helpers_left 0, 0 crash reports, `clone_cleanup_seconds` 0): 0.21, 0.27, 0.15, 0.20, 0.17, 0.19, 0.19, 0.15, 0.15, 0.15, 0.18, 0.17, 0.18, 0.15, 0.19, 0.17, 0.19, 0.15, 0.18, 0.16 s — **median 0.175 s, max 0.27 s** (21–23 helpers running at the quit).
+
+### Shutdown watchdog (B-38) on the release build, machine quiet (`ROOM_WATCHDOG_PRUNE=1 ROOM_APP=<release host> scripts/roomcore-watchdog.sh … 20`)
+
+Nothing else ran (no build, no other Room); 23:58–00:20.
+
+**Serial**: 29 attempts, 9 fixtures rejected (a page, mostly Stack Overflow, still loading at "ready"), **20 quits, 20 clean** (exit 0, 0 helpers left after the 5 s grace, 0 crash reports), load1 3.2–8.4: 0.236, 0.288, 0.263, 0.209, 0.199, 0.204, 0.207, 0.204, 0.242, 0.213, 0.251, 0.208, 0.219, 0.204, 0.167, 0.219, 0.194, 0.220, 0.210, 0.215 s — **median 0.211 s, max 0.288 s** (component build in 3.1b: median 0.833 s, max 3.751 s at load 33–49).
+
+**Concurrent** (`roomcore-shutdown-local.py --mode room --corpus real`, three hosts × ten real pages, 20 rounds): 60 host quits; 26 rejected fixtures (pages still loading at "ready"; load1 at the rounds' start 6–57), **34 measured quits, 34 clean**: median **0.282 s**, max **0.633 s**, 0 helpers left, 0 crash reports. **Every one of the 60 processes exited 0, including the 26 rejected-fixture quits (they quit with a page still loading): 0 teardown-watchdog exits, 0 minidumps** (3.1b on the component build beside the release build: 11 of 12).
+
+**Result: B-38 did not reproduce on the release build with the machine quiet (0 of 29 serial and 0 of 60 concurrent quits).** Patch 0010's comparison therefore did not run; 0010 stays parked (B-40 open, "not reproduced on the release build, machine quiet, 20 + 20 runs").
+
+### Network silence on the product (Debug app over release)
+
+`ROOM_APP=<Debug app over release> ROOM_NETCHECK_IDLE=600 scripts/netlog-check.sh` (fresh state, first-run card shown, 639 s launch → browse; load 3.8 at launch): Room's own code **0** (main process 0 bytes in, 0 out; updater and crash reporter not created); page traffic 127.0.0.1 1, localhost 3; **engine 0 requests** over launch, 600 s idle, browse and quit. The netcheck spike is DEBUG, so the Swift side is the Debug app; the engine is the release framework.
+
+### Sparkle packaging (signed copy)
+
+`ROOM_SPARKLE_UNSIGNED=1 scripts/sparkle-package.sh build/roomcore-release-signed/Room.app build/sparkle-3.1b2`: **DMG 184,497,802 bytes (176 MiB)** in 8.1 s from the 382 MB app (component build: 339,023,043 bytes). The unsigned appcast entry (`appcast-unsigned.xml`): version 1, short version 0.1.0, minimum system 26.0, enclosure `https://updates.room.invalid/Room-0.1.0-1.dmg` length 184497802; the EdDSA signature waits on the keychain approval (by hand, 3.1b step 3).
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.

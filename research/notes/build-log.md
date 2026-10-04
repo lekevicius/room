@@ -169,6 +169,49 @@ Other steps this session (component build, beside the release build):
 | 2026-10-04 | Sparkle DMG (`hdiutil create -fs HFS+ -format UDZO`) | 14.1 s | 339,023,043 bytes |
 | 2026-10-04 | `swiftc -O scripts/lib/room-ae.swift` (first use of the wrappers) | 1.3 s | `build/tools/room-ae` |
 
+The 3.1b run's end (from its own `siso_metrics.1.json`, finish times relative to Siso's start at 17:54:45; the session had ended, the machine was otherwise idle):
+
+| Elapsed | Steps finished | Notes |
+|---|---|---|
+| 0:30 | 19,406 | |
+| 1:00 | 26,013 | |
+| 2:00 | 31,018 | |
+| 3:00 | 40,845 | |
+| 4:00 | 53,655 | |
+| 4:24:33 (22:19) | — | **framework link starts** (`solink obj/chrome/chrome_framework_shared_library/RoomCore`, ThinLTO, `thinlto-cache` in the out directory) |
+| 4:42:38 (22:37) | 57,373 | framework link done; **build fails** at 4 h 42 min 39.6 s with 1 failed step, 354 remaining: `//chrome:verify_libraries_chrome_helper_app_aperitif_alerts` (below) |
+
+### Phase 3.1b-2 on the Mac mini (2026-10-04): the release build finished
+
+**The framework link fit in 24 GB.** Siso's metrics for the link step: wall **1,092 s (18 min 12 s)**, `max_rss` **7,305,510,912 bytes (6.80 GiB)**, user 3,816 s, sys 108 s, 1.58 M major faults; started 22:19:18 with every compile finished (no other step beside it). The largest `max_rss` of the whole build is `v8_context_snapshot_generator`'s link (6.98 GiB, 445 s); the largest compile is Blink's `document.o` at 2.92 GiB. `vm_stat` pageouts 55,877 at 19:18 and 59,923 at 23:07 (+4,046 over the rest of the build, the link included; not sampled during the link itself); swapouts 359,844 at both.
+
+**The one failed step.** The Aperitif helpers verify their load commands (`chrome/tools/build/mac/verify_dynamic_libraries.py`, official non-component builds only): "Room Helper (Aperitif Alerts)" linked `@executable_path/../Frameworks/Room Framework.framework/Versions/154.0.8037.58/Libraries/libaperitif.dylib` where `@executable_path/../../../../Libraries/libaperitif.dylib` is expected. `content/public/app/BUILD.gn` builds libaperitif's install name from `"$chrome_product_full_name Framework.framework"`, and `chrome/BUILD.gn`'s `installnametool -change` (patch 0001 renames `$chrome_framework_name` to `RoomCore`) looks for `RoomCore.framework`, so the change never matched. Fixed in patch 0001 (the `content/public/app/BUILD.gn` hunk: the install name from `room_framework_name`).
+
+| Run | Start | Wall | Steps | Result |
+|---|---|---|---|---|
+| 1 (3.1b) | 17:54:44 | 4 h 42 min 39.6 s | 57,373 | failed: the verify step above |
+| 2 | 22:52:16 | 7 min 06 s (Siso's graph load and `gn gen` after the BUILD.gn change; libaperitif relinked with the new install name) | 6 | failed: `verify_libraries_chrome_helper_app_aperitif_renderer`, same message. The helpers were not relinked: libaperitif's `.TOC` (exports only) did not change, so Siso's restat skipped every dependent link. After run 2 the (Aperitif) and (Aperitif GPU) helper binaries were gone from their `obj/` directories (removed by Siso); the other two (`obj/chrome/chrome_helper_app_aperitif_{alerts,renderer}_executable/…`) were deleted by hand to force the relink (an incremental-only problem: a clean build links the helpers after libaperitif) |
+| 3 | 23:05:23 | **48 s** | 336 | **succeeded** |
+| 4 | 23:36:39 | 7 min 03 s | 27 | after patch 0004's export list (the Swift app could not link the official framework: its exports list hid the public classes): the framework relinked in **329 s at `max_rss` 8,089,092,096 bytes (7.53 GiB)** (ThinLTO cache from run 1), then failed at `verify_chrome_framework_order` ("unexpected export: '_OBJC_CLASS_$_RoomApplication'") |
+| 5 | 23:46:57 | **78 s** | 3 | succeeded after 0004's order-check list |
+
+**Clean build total: 4 h 42 min 40 s (run 1) + 48 s (run 3) = 4 h 43 min 28 s** of build work at 6 jobs, with the framework link 18 min of it (a clean build with the final series links the framework once, with the export list; runs 2, 4 and 5 are the fixes' incremental cost: 7 min 06 s + 7 min 03 s + 78 s). All five runs together: 4 h 58 min 55 s of build wall clock. The run-1 time includes the 3.1b session's measurements beside it for its first 1 h 25 min (load to 160 for 5 min; step rate fell from ~150 to ~70 a minute then). PLAN §7 risk 1: the Mac mini can build and link the official release build; ROADMAP's "the laptop does release builds" is a preference, not a necessity.
+
+Other steps this session:
+
+| Date | Step | Time | Notes |
+|---|---|---|---|
+| 2026-10-04 | `scripts/roomcore-apply.sh` after amending 0001 (the branch rebuilt in a scratch index, `git reset --keep`) | 26.0 s | "11 applied, 0 already"; only `content/public/app/BUILD.gn` changed on disk; second run "0 applied, 11 already" in 25.3 s |
+| 2026-10-04 | `scripts/roomcore-build.sh` (`out/dev`) after the `//room` network defaults and the 0001 change (`gn gen` regenerates) | 63 s build part, 95 s total | load 4.7 |
+| 2026-10-04 | `scripts/roomcore-package.sh` (`out/dev`, both targets) | 62.5 s | stage 17.8 s, host 24.4 s, app 20.2 s |
+| 2026-10-04 | `scripts/roomcore-apply.sh` after 0004's two amendments | ~26 s each | "8 applied, 3 already" (0004–0012 recommitted; only `chrome/BUILD.gn` changed on disk), then "0 applied, 11 already" |
+| 2026-10-04 | `scripts/roomcore-build.sh` (`out/dev`) after the 0004 GN change | 48 s build part | the export list applies only to non-component builds: nothing relinked |
+| 2026-10-04 | `scripts/roomcore-package.sh --release` (Release; first success) | 107 s | stage 3.1 s (364 MB framework, copied across volumes), 15 dSYMs 2.2 GB, host 14.5 s, app 89.8 s; Room.app 382 MB, ad hoc. The first attempt filled the internal disk copying all 128 dSYMs (3.6 GB) |
+| 2026-10-04 | `CONFIGURATION=Debug scripts/roomcore-package.sh --release --app-only` | 37 s | the DEBUG spike runner over the release framework, 392 MB |
+| 2026-10-04 | `scripts/roomcore-sign.sh` (clone of the Release app, Developer ID) | 9.3 s signing | 382 MB |
+| 2026-10-04 | Notarization zip + `notarytool submit --wait` | 61.3 s in the service | 161 MB zip; Accepted (bfee631a-5b17-4400-80f0-25433022a0a7), stapled |
+| 2026-10-05 | Sparkle DMG (`hdiutil`, UDZO) of the signed copy | 8.1 s | 184,497,802 bytes |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior

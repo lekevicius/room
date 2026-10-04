@@ -11,7 +11,7 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | Path | What |
 |---|---|
 | `room/` | `//room`, symlinked into the checkout as `$CHROMIUM_SRC/room` (location per machine: `local.env`) |
-| `room/core/` | the public ObjC API (`public/RoomCore.h` umbrella, `module.modulemap`) and its ObjC++ implementation |
+| `room/core/` | the public ObjC API (`public/RoomCore.h` umbrella, `module.modulemap`) and its ObjC++ implementation; `room_core.exports` lists the classes an official (static) framework exports |
 | `room/browser/` | `RoomBrowserWindow`, Chrome's `BrowserWindow` for a host-owned `NSWindow` |
 | `room/branding/BRANDING` | product name Room, bundle id `app.room.desktop` (helpers `.helper*`) |
 | `room/build/config.gni` | `room_framework_name = "RoomCore"`; the GN arg `room_enable_spikes` (default false, true in `args/dev.gn`) gating the `-RoomSpike` hooks and the diagnostic executables |
@@ -26,10 +26,10 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 
 | Patch | Why |
 |---|---|
-| `0001-framework-name-roomcore` | the framework is `RoomCore.framework` (binary `RoomCore`): `chrome_framework_name`, `kFrameworkName`, and the helpers' `dlopen` path |
+| `0001-framework-name-roomcore` | the framework is `RoomCore.framework` (binary `RoomCore`): `chrome_framework_name`, `kFrameworkName`, the helpers' `dlopen` path, and (3.1b-2) libaperitif's install name in `content/public/app/BUILD.gn`, which the official build's Aperitif helpers verify |
 | `0002-keychain-room-safe-storage` | the OSCrypt keychain item is `Room Safe Storage` / `Room`, never Chromium's |
 | `0003-browser-window-factory-hook` | `BrowserWindow::CreateBrowserWindow` asks `//room` first, so a `Browser` created for a Room window gets a `RoomBrowserWindow` |
-| `0004-link-room-core` | `chrome_dll` depends on `//room/core`, so the API is inside the framework |
+| `0004-link-room-core` | `chrome_dll` depends on `//room/core`, so the API is inside the framework; (3.1b-2) the official build's export list gains `room/core/room_core.exports` (the public classes) and its export-order check reads it too |
 | `0005-read-anything-without-side-panel` | Read Anything treats a browser without a side panel as legitimate (upstream only exempts its WebUI browser and tests) |
 
 The original five patches are unchanged by background hardening. Additional
