@@ -1,0 +1,16 @@
+# The public Objective-C API (the ROOM_EXPORT classes in public/). The official
+# build links the framework with -exported_symbols_list
+# chrome/app/framework.exports, which hides every other symbol; patch 0004
+# adds this list beside it so the Swift app can link the classes. The
+# component build exports them through their default visibility alone.
+# Keep in step with public/*.h.
+_OBJC_CLASS_$_RoomApplication
+_OBJC_METACLASS_$_RoomApplication
+_OBJC_CLASS_$_RoomBrowser
+_OBJC_METACLASS_$_RoomBrowser
+_OBJC_CLASS_$_RoomCrApplication
+_OBJC_METACLASS_$_RoomCrApplication
+_OBJC_CLASS_$_RoomProfile
+_OBJC_METACLASS_$_RoomProfile
+_OBJC_CLASS_$_RoomWebContents
+_OBJC_METACLASS_$_RoomWebContents

@@ -1,8 +1,34 @@
+Room: chrome_dll depends on //room/core, so the public Objective-C API is
+inside the framework.
+
+chrome_dll_symbol_exports (added 2026-10-04, Phase 3.1b-2): official
+non-component builds link the framework with -exported_symbols_list
+chrome/app/framework.exports (three symbols), which hid the ROOM_EXPORT
+classes. Reproducible release-build failure (args/release.gn): the Swift app
+failed to link against out/release's RoomCore.framework with undefined
+_OBJC_CLASS_$_RoomApplication, RoomBrowser, RoomCrApplication,
+RoomWebContents and _OBJC_METACLASS_$_RoomCrApplication. The second list,
+//room/core/room_core.exports, names the five classes.
+
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 790bbb541e410..a612f946482bf 100644
+index 790bbb541e410..07babf714254e 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -1333,6 +1333,9 @@ if (is_win) {
+@@ -1270,6 +1270,13 @@ if (is_win) {
+       "-Wl,-exported_symbols_list",
+       "-Wl," + rebase_path("app/framework.exports", root_build_dir),
+     ]
++
++    # Room: keep the public Objective-C API global in the framework.
++    inputs += [ "//room/core/room_core.exports" ]
++    ldflags += [
++      "-Wl,-exported_symbols_list",
++      "-Wl," + rebase_path("//room/core/room_core.exports", root_build_dir),
++    ]
+   }
+ 
+   # Control the order of exported symbols in the framework library.
+@@ -1333,6 +1340,9 @@ if (is_win) {
        "//third_party/cld_3/src/src:cld_3",
      ]
  
