@@ -9,7 +9,10 @@
 # Then a summary of every quit: seconds, exit (2 = Chrome's 10 s teardown
 # watchdog), helpers left after the 5 s grace, new crash reports, load1.
 # Usage: scripts/roomcore-watchdog.sh <new-evidence-directory> [N=20] [serial|concurrent|both]
-# ROOM_APP: the host (default build/roomcore-host/.../Debug/Room.app).
+# ROOM_APP: the host (default build/roomcore-host/.../Debug/Room.app; the
+# release host from roomcore-package.sh --release runs the same open10).
+# ROOM_WATCHDOG_PRUNE=1: delete the profile of every clean or rejected run
+# as it finishes (~45 MB each); a failed quit's profile (its minidump) stays.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${1:?new evidence directory required}"
@@ -19,6 +22,14 @@ mkdir "$DEST" || exit 1
 DEST="$(cd "$DEST" && pwd)"
 APP="${ROOM_APP:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug/Room.app}"
 export ROOM_APP="$APP"
+prune() {  # <directory>: profiles of runs that need no diagnosis
+  [[ "${ROOM_WATCHDOG_PRUNE:-0}" == 1 ]] || return 0
+  find "$1" -name receipt.json -o -name failure.json 2>/dev/null | while IFS= read -r f; do
+    if [[ $(basename "$f") == receipt.json ]] || grep -q 'fixture incomplete' "$f"; then
+      rm -rf "$(dirname "$f")/profile"
+    fi
+  done
+}
 echo "host $APP; N=$N; $(date '+%F %T'); load $(sysctl -n vm.loadavg)" | tee "$DEST/run.txt"
 if [[ $WHICH != concurrent ]]; then
   # One ten-page quit per invocation: a page still loading at "ready" rejects
@@ -37,6 +48,7 @@ if [[ $WHICH != concurrent ]]; then
       measured=$((measured + 1))
       echo "serial attempt $attempt: quit $measured, runner exit $status $(date +%T) load $(sysctl -n vm.loadavg)" | tee -a "$DEST/run.txt"
     fi
+    prune "$DEST/serial/attempt-$attempt"
     sleep 3
   done
 fi
@@ -46,8 +58,9 @@ if [[ $WHICH != serial ]]; then
     python3 "$ROOT/scripts/roomcore-shutdown-local.py" --mode room --corpus real --app "$APP" \
       --output "$DEST/concurrent/round-$i" > "$DEST/concurrent/round-$i.log" 2>&1
     echo "concurrent round $i exit $? $(date +%T) load $(sysctl -n vm.loadavg)" | tee -a "$DEST/run.txt"
+    prune "$DEST/concurrent/round-$i"
     # Leftovers of a failed round must not leak into the next.
-    for _ in $(seq 1 20); do pgrep -f 'roomcore-host/DerivedData/Build/Products/.*/Room.app/Contents/' >/dev/null || break; sleep 1; done
+    for _ in $(seq 1 20); do pgrep -f "$APP/Contents/" >/dev/null || break; sleep 1; done
     sleep 3
   done
 fi
