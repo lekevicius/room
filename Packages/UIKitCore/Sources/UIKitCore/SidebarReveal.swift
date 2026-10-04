@@ -4,7 +4,7 @@ import Foundation
 
 /// Where the pointer is, as far as the hidden sidebar is concerned (spec §E).
 public enum RevealZone: Equatable, Sendable {
-    /// The band at the window's leading edge.
+    /// The band at the window's edge on the sidebar's side.
     case band
     /// Over the revealed overlay (or the margin between it and the edge).
     case overlay
@@ -16,12 +16,18 @@ public enum RevealZone: Equatable, Sendable {
     /// Which zone `point` is in. `point` is in the window's content
     /// coordinates, origin top-left (flipped); `overlay` is the revealed
     /// overlay's frame there, `nil` while it is not shown.
-    public static func of(_ point: CGPoint, contentSize: CGSize, overlay: CGRect?) -> RevealZone {
+    public static func of(_ point: CGPoint, contentSize: CGSize, overlay: CGRect?, edge: SidebarEdge = .left) -> RevealZone {
         let bounds = CGRect(origin: .zero, size: contentSize)
         if bounds.contains(point) {
             // The overlay and the inset between it and the window's edge.
-            if let overlay, point.x <= overlay.maxX { return .overlay }
-            return point.x < RevealMetrics.edgeBand ? .band : .elsewhere
+            switch edge {
+            case .left:
+                if let overlay, point.x <= overlay.maxX { return .overlay }
+                return point.x < RevealMetrics.edgeBand ? .band : .elsewhere
+            case .right:
+                if let overlay, point.x >= overlay.minX { return .overlay }
+                return point.x >= contentSize.width - RevealMetrics.edgeBand ? .band : .elsewhere
+            }
         }
         guard let overlay else { return .elsewhere }
         let tolerant = overlay.insetBy(dx: -RevealMetrics.outsideToleranceX, dy: -RevealMetrics.outsideToleranceY)

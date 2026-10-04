@@ -144,7 +144,7 @@ public final class SidebarRevealController {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             // A click in the window outside the overlay (the page): it goes, pinned or not (spec §E).
             guard event.window === window, state.isShown,
-                  RevealZone.of(lastPointer, contentSize: rootView.bounds.size, overlay: rootView.overlayFrame) == .elsewhere
+                  RevealZone.of(lastPointer, contentSize: rootView.bounds.size, overlay: rootView.overlayFrame, edge: rootView.sidebarEdge) == .elsewhere
             else { return evaluate() }
             state.pageClicked()
             apply(animated: true)
@@ -171,7 +171,7 @@ public final class SidebarRevealController {
         // A window that is not key keeps whatever it shows until it is key again.
         guard rootView.window?.isKeyWindow == true || state.isShown else { return }
         let overlay = state.isShown ? rootView.overlayFrame : nil
-        let zone = RevealZone.of(lastPointer, contentSize: rootView.bounds.size, overlay: overlay)
+        let zone = RevealZone.of(lastPointer, contentSize: rootView.bounds.size, overlay: overlay, edge: rootView.sidebarEdge)
         state.update(zone: zone, keepOpen: isKeptOpen, now: now())
         apply(animated: true)
     }

@@ -245,8 +245,9 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     }
 }
 
-/// The window's content view: material behind everything, the sidebar on the
-/// leading side, the card inset on the other three, the splitter on top.
+/// The window's content view: material behind everything, the sidebar on its
+/// side (left unless Settings says right), the card inset on the other three,
+/// the splitter on top.
 /// With the sidebar hidden, the same sidebar view floats in `overlayView`
 /// while the hover reveal shows it (spec §E).
 public final class BrowserWindowView: NSView {
@@ -271,10 +272,27 @@ public final class BrowserWindowView: NSView {
         }
     }
 
-    /// The cluster applies: the sidebar hidden without its overlay, no toolbar, no fullscreen page, buttons in the window.
+    /// The cluster applies: the traffic lights sit over the card (the sidebar hidden without its
+    /// overlay, or docked on the right), no toolbar, no fullscreen page, buttons in the window.
     public var showsCluster: Bool {
-        !isSidebarOpen && !isPageFullscreen && !showsToolbar && !isOverlayShown && !isOverlayAnimating
-            && trafficLights?.geometry.buttonsRect != nil
+        buttonsOverCard && !isPageFullscreen && !showsToolbar && trafficLights?.geometry.buttonsRect != nil
+    }
+
+    /// Nothing of the sidebar is under the traffic lights: they sit over the card's top-left corner.
+    var buttonsOverCard: Bool {
+        sidebarEdge == .right || (!isSidebarOpen && !isOverlayShown && !isOverlayAnimating)
+    }
+
+    /// The side the sidebar docks on (Settings ▸ Appearance); the traffic lights stay where AppKit puts them.
+    public var sidebarEdge = SidebarEdge.left {
+        didSet {
+            guard sidebarEdge != oldValue else { return }
+            if isOverlayShown || isOverlayAnimating { finishOverlay(shown: false) }
+            splitterView.edge = sidebarEdge
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+            onAvailabilityChange?()
+        }
     }
 
     /// The cluster faded (2 s without the pointer near it); the buttons hide with it.
@@ -352,11 +370,18 @@ public final class BrowserWindowView: NSView {
     public override var isFlipped: Bool { true }
 
     public var currentLayout: WindowLayout {
-        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen)
+        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen,
+                             edge: sidebarEdge)
     }
 
     /// Where the overlay sits while shown.
-    public var overlayFrame: CGRect { WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: sidebarWidth) }
+    public var overlayFrame: CGRect { WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: sidebarWidth, edge: sidebarEdge) }
+
+    /// The traffic lights as the sidebar view at `origin` sees them; none when the sidebar is on
+    /// the right (its header then starts at the edge inset, as in fullscreen).
+    private func sidebarTrafficLights(_ geometry: TrafficLightGeometry, origin: CGPoint) -> TrafficLightGeometry {
+        sidebarEdge == .left ? geometry.relative(to: origin) : .none
+    }
 
     /// The sidebar view lives in the overlay (shown or sliding).
     private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen && (isOverlayShown || isOverlayAnimating) }
@@ -373,26 +398,26 @@ public final class BrowserWindowView: NSView {
             sidebarView.isHidden = false
             sidebarView.frame = CGRect(origin: .zero, size: frame.size)
             // The header lays out around the buttons where the overlay will rest.
-            sidebarView.trafficLights = geometry.relative(to: frame.origin)
+            sidebarView.trafficLights = sidebarTrafficLights(geometry, origin: frame.origin)
         } else {
             sidebarView.isHidden = !isSidebarOpen || isPageFullscreen
             if isSidebarOpen {
                 sidebarView.frame = layout.sidebar
-                sidebarView.trafficLights = geometry
+                sidebarView.trafficLights = sidebarTrafficLights(geometry, origin: .zero)
             } else {
                 // Hidden, it keeps the overlay's size: a reveal only moves it (no relayout of
                 // the list, and no zero-height list whose overflow lines would show).
                 let frame = overlayFrame
                 sidebarView.frame = CGRect(origin: .zero, size: frame.size)
-                sidebarView.trafficLights = geometry.relative(to: frame.origin)
+                sidebarView.trafficLights = sidebarTrafficLights(geometry, origin: frame.origin)
             }
         }
         cardView.frame = layout.card
         clusterView.isHidden = !showsCluster
         if let buttons = geometry.buttonsRect { clusterView.frame = ClusterGeometry.pill(around: buttons) }
         if showsToolbar {
-            // Hidden sidebar: the traffic lights sit in the bar's leading end.
-            if !isSidebarOpen, let buttons = geometry.buttonsRect {
+            // The traffic lights over the card: they sit in the bar's leading end.
+            if buttonsOverCard, let buttons = geometry.buttonsRect {
                 toolbarView.leadingInset = buttons.maxX + SidebarMetrics.headerLeadingGap - layout.card.minX
                 toolbarView.contentCenterY = buttons.midY - layout.card.minY
             } else {
@@ -440,8 +465,10 @@ public final class BrowserWindowView: NSView {
         overlayGeneration += 1
         let generation = overlayGeneration
         let frame = overlayFrame
-        // Fully off the leading edge, its shadow included.
-        let away = frame.offsetBy(dx: -(frame.maxX + Spacing.l), dy: 0)
+        // Fully off its edge of the window, its shadow included.
+        let away = sidebarEdge == .left
+            ? frame.offsetBy(dx: -(frame.maxX + Spacing.l), dy: 0)
+            : frame.offsetBy(dx: bounds.maxX - frame.minX + Spacing.l, dy: 0)
         guard animated else { return finishOverlay(shown: shown) }
         let reduceMotion = Motion.reduceMotion
         if shown, !isOverlayAnimating {

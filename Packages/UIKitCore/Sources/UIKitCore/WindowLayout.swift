@@ -1,6 +1,13 @@
 import AppKit
 import Design
 
+/// The side of the window the sidebar docks on (Settings ▸ Appearance, ROADMAP 2.8).
+/// The traffic lights stay where AppKit puts them: with the sidebar on the
+/// right they sit over the card's top-left corner, as with the sidebar hidden.
+public enum SidebarEdge: Sendable, Equatable {
+    case left, right
+}
+
 /// Frames of the window's regions in the (flipped) root view. Pure, so the
 /// geometry is unit-tested without a window.
 public struct WindowLayout: Equatable, Sendable {
@@ -14,34 +21,40 @@ public struct WindowLayout: Equatable, Sendable {
 
     /// `pageFullscreen`: a page's element fullscreen (a video, `requestFullscreen()`)
     /// takes the whole window, sidebar hidden and no inset.
-    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool, pageFullscreen: Bool = false) -> WindowLayout {
+    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool, pageFullscreen: Bool = false,
+                               edge: SidebarEdge = .left) -> WindowLayout {
+        let edgeX = edge == .left ? bounds.minX : bounds.maxX
         if pageFullscreen {
-            return WindowLayout(sidebar: CGRect(x: bounds.minX, y: bounds.minY, width: 0, height: bounds.height), splitter: nil, card: bounds)
+            return WindowLayout(sidebar: CGRect(x: edgeX, y: bounds.minY, width: 0, height: bounds.height), splitter: nil, card: bounds)
         }
         let inset = CardMetrics.inset
         let width = isSidebarOpen ? effectiveSidebarWidth(sidebarWidth, availableWidth: bounds.width) : 0
-        let leading = isSidebarOpen ? CardMetrics.sidebarSideInset : inset
-        let card = CGRect(
-            x: bounds.minX + width + leading,
-            y: bounds.minY + inset,
-            width: max(0, bounds.width - width - leading - inset),
-            height: max(0, bounds.height - 2 * inset)
-        )
-        let sidebar = CGRect(x: bounds.minX, y: bounds.minY, width: width, height: bounds.height)
-        // Mostly inside the sidebar so the page keeps its left edge.
+        // Between the card and the sidebar, and on the card's outer side.
+        let inner = isSidebarOpen ? CardMetrics.sidebarSideInset : inset
+        let cardWidth = max(0, bounds.width - width - inner - inset)
+        let cardX = edge == .left ? bounds.minX + width + inner : bounds.minX + inset
+        let card = CGRect(x: cardX, y: bounds.minY + inset, width: cardWidth, height: max(0, bounds.height - 2 * inset))
+        let sidebar = CGRect(x: edge == .left ? bounds.minX : bounds.maxX - width, y: bounds.minY, width: width, height: bounds.height)
+        // Mostly inside the sidebar so the page keeps its edge.
         let hit = SidebarMetrics.splitterHitWidth
-        let splitter = isSidebarOpen
-            ? CGRect(x: sidebar.maxX - hit + 2, y: bounds.minY, width: hit, height: bounds.height)
-            : nil
+        let splitterX = edge == .left ? sidebar.maxX - hit + 2 : sidebar.minX - 2
+        let splitter = isSidebarOpen ? CGRect(x: splitterX, y: bounds.minY, width: hit, height: bounds.height) : nil
         return WindowLayout(sidebar: sidebar, splitter: splitter, card: card)
     }
 
     /// The hover-revealed overlay's frame (spec §E): the sidebar's width,
-    /// floating `RevealMetrics.overlayInset` from the top, leading and bottom edges.
-    public static func overlayFrame(bounds: CGRect, sidebarWidth: CGFloat) -> CGRect {
+    /// floating `RevealMetrics.overlayInset` from the top, bottom and its own edge.
+    public static func overlayFrame(bounds: CGRect, sidebarWidth: CGFloat, edge: SidebarEdge = .left) -> CGRect {
         let inset = RevealMetrics.overlayInset
         let width = effectiveSidebarWidth(sidebarWidth, availableWidth: bounds.width - inset)
-        return CGRect(x: bounds.minX + inset, y: bounds.minY + inset, width: width, height: max(0, bounds.height - 2 * inset))
+        let x = edge == .left ? bounds.minX + inset : bounds.maxX - inset - width
+        return CGRect(x: x, y: bounds.minY + inset, width: width, height: max(0, bounds.height - 2 * inset))
+    }
+
+    /// The width a splitter drag proposes: the pointer's distance from the sidebar's
+    /// edge of the window, plus where in the splitter it grabbed (`grabOffset`).
+    public static func proposedWidth(pointerX: CGFloat, bounds: CGRect, grabOffset: CGFloat, edge: SidebarEdge) -> CGFloat {
+        (edge == .left ? pointerX - bounds.minX : bounds.maxX - pointerX) + grabOffset
     }
 
     /// The stored width, limited so the card keeps `minimumCardWidth`.
