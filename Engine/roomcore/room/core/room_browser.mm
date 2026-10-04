@@ -1,6 +1,6 @@
 // Copyright 2026 Jonas Lekevicius. All rights reserved.
 
-#import "room/core/public/RoomBrowser.h"
+#import "room/core/room_browser_internal.h"
 
 #include <memory>
 #include <utility>
@@ -39,6 +39,11 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "base/task/single_thread_task_runner.h"
+#include "components/tabs/public/tab_interface.h"
+#include "net/base/apple/url_conversions.h"
+#include "ui/base/window_open_disposition.h"
 #include "chrome/browser/ui/autofill/address_bubbles_controller.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
@@ -68,6 +73,12 @@
 - (void)room_activeContentsChanged:(content::WebContents*)contents;
 - (void)room_windowWillClose;
 - (void)room_windowDestroyed;
+- (void)room_tabFullscreenEntered:(content::WebContents*)contents
+                           origin:(const url::Origin&)origin;
+- (void)room_tabFullscreenExited:(content::WebContents*)contents;
+- (void)room_tabStripChanged:(const TabStripModelChange&)change
+                   selection:(const TabStripSelectionChange&)selection;
+- (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
 @end
 
 namespace {
@@ -81,10 +92,61 @@ class Client : public room::RoomBrowserWindowClient {
   }
   void OnBrowserWindowWillClose() override { [browser_ room_windowWillClose]; }
   void OnBrowserWindowDestroyed() override { [browser_ room_windowDestroyed]; }
+  void OnTabFullscreenEntered(content::WebContents* contents,
+                              const url::Origin& origin) override {
+    [browser_ room_tabFullscreenEntered:contents origin:origin];
+  }
+  void OnTabFullscreenExited(content::WebContents* contents) override {
+    [browser_ room_tabFullscreenExited:contents];
+  }
 
  private:
   RoomBrowser* __weak browser_;
 };
+
+// Sees Chrome insert the pages a Room page opened (Navigate() keeps every
+// disposition in this Browser, patches/0014), so the host can place them.
+class StripObserver : public TabStripModelObserver {
+ public:
+  explicit StripObserver(RoomBrowser* browser) : browser_(browser) {}
+
+  void OnTabStripModelChanged(TabStripModel* tab_strip_model,
+                              const TabStripModelChange& change,
+                              const TabStripSelectionChange& selection) override {
+    [browser_ room_tabStripChanged:change selection:selection];
+  }
+
+ private:
+  RoomBrowser* __weak browser_;
+};
+
+RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
+                                            bool active) {
+  switch (disposition) {
+    case WindowOpenDisposition::NEW_FOREGROUND_TAB:
+      return RoomWindowOpenDispositionNewForegroundTab;
+    case WindowOpenDisposition::NEW_BACKGROUND_TAB:
+      return RoomWindowOpenDispositionNewBackgroundTab;
+    case WindowOpenDisposition::NEW_POPUP:
+      return RoomWindowOpenDispositionNewPopup;
+    case WindowOpenDisposition::NEW_WINDOW:
+      return RoomWindowOpenDispositionNewWindow;
+    case WindowOpenDisposition::NEW_PICTURE_IN_PICTURE:
+      return RoomWindowOpenDispositionNewPictureInPicture;
+    case WindowOpenDisposition::SINGLETON_TAB:
+      return RoomWindowOpenDispositionSingletonTab;
+    case WindowOpenDisposition::SWITCH_TO_TAB:
+      return RoomWindowOpenDispositionSwitchToTab;
+    case WindowOpenDisposition::OFF_THE_RECORD:
+      return RoomWindowOpenDispositionOffTheRecord;
+    case WindowOpenDisposition::NEW_SPLIT_VIEW:
+      return RoomWindowOpenDispositionNewSplitView;
+    default:
+      // Inserted outside Navigate() (an extension, a restore): by selection.
+      return active ? RoomWindowOpenDispositionNewForegroundTab
+                    : RoomWindowOpenDispositionNewBackgroundTab;
+  }
+}
 
 }  // namespace
 
@@ -93,6 +155,9 @@ class Client : public room::RoomBrowserWindowClient {
   NSWindow* __weak _window;
   raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
+  std::unique_ptr<StripObserver> _stripObserver;
+  // Set while the host's own page goes into the strip (not a new page).
+  BOOL _addingFromHost;
 #if BUILDFLAG(ROOM_ENABLE_SPIKES)
   std::unique_ptr<IdentityDialogController> _spike_identity_controller;
   std::shared_ptr<int> _spike_address_decisions;
@@ -120,6 +185,8 @@ class Client : public room::RoomBrowserWindowClient {
                                      *chromeProfile,
                                      /*from_user_gesture=*/true);
     _browser = CreateBrowserWindow(std::move(params));
+    _stripObserver = std::make_unique<StripObserver>(self);
+    _browser->GetTabStripModel()->AddObserver(_stripObserver.get());
   }
   return self;
 }
@@ -127,6 +194,7 @@ class Client : public room::RoomBrowserWindowClient {
 - (void)dealloc {
   // The Browser outlives its wrapper only if the host drops it without
   // closing; the window must not call back into a dead object.
+  _stripObserver.reset();
   _client.reset();
 }
 
@@ -167,7 +235,119 @@ class Client : public room::RoomBrowserWindowClient {
       [webContents room_releaseWebContents];
   CHECK(owned) << "the page already belongs to a browser";
   [_pages addObject:webContents];
+  webContents.room_browser = self;
+  _addingFromHost = YES;
   _browser->GetTabStripModel()->AppendWebContents(std::move(owned), activate);
+  _addingFromHost = NO;
+}
+
+// The wrapper of a page in the strip, created for pages Chrome inserted.
+- (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents {
+  if (!contents) {
+    return nil;
+  }
+  RoomWebContents* wrapper = [RoomWebContents room_existingWrapperFor:contents];
+  if (!wrapper) {
+    wrapper = [[RoomWebContents alloc] initWithUnownedChromeWebContents:contents
+                                                                profile:_profile];
+    [_pages addObject:wrapper];
+  }
+  if (!wrapper.room_browser) {
+    wrapper.room_browser = self;
+  }
+  return wrapper;
+}
+
+- (void)room_activateWebContents:(RoomWebContents*)webContents {
+  RoomBrowser* __weak weakSelf = self;
+  RoomWebContents* __weak weakPage = webContents;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(^{
+        RoomBrowser* strongSelf = weakSelf;
+        RoomWebContents* page = weakPage;
+        if (!strongSelf || !page || !strongSelf->_browser ||
+            !page.room_webContents) {
+          return;
+        }
+        TabStripModel* strip = strongSelf->_browser->GetTabStripModel();
+        const int index = strip->GetIndexOfWebContents(page.room_webContents);
+        if (index == TabStripModel::kNoTab || index == strip->active_index() ||
+            strip->closing_all()) {
+          return;
+        }
+        strip->ActivateTabAt(index);
+      }));
+}
+
+- (void)room_tabStripChanged:(const TabStripModelChange&)change
+                   selection:(const TabStripSelectionChange&)selection {
+  if (change.type() != TabStripModelChange::kInserted || _addingFromHost ||
+      !_browser) {
+    return;
+  }
+  RoomBrowserWindow* window = room::RoomBrowserWindowFor(_browser);
+  for (const auto& inserted : change.GetInsert()->contents) {
+    content::WebContents* contents = inserted.contents;
+    RoomWebContents* page = [self room_wrapperFor:contents];
+    std::optional<room::PendingOpen> pending =
+        window ? window->TakePendingOpen() : std::nullopt;
+    const bool active = selection.new_contents == contents;
+    RoomWindowOpenDisposition disposition = ToRoomDisposition(
+        pending ? pending->disposition : WindowOpenDisposition::UNKNOWN, active);
+    // The page that opened it: Navigate()'s source, else the tab's opener,
+    // else the page that was active before.
+    content::WebContents* opener =
+        pending && pending->source ? pending->source.get() : nullptr;
+    if (!opener) {
+      TabStripModel* strip = _browser->GetTabStripModel();
+      const int index = strip->GetIndexOfWebContents(contents);
+      tabs::TabInterface* tab =
+          index == TabStripModel::kNoTab ? nullptr : strip->GetOpenerOfTabAt(index);
+      opener = tab ? tab->GetContents() : selection.old_contents.get();
+    }
+    RoomWebContents* openerPage =
+        opener && opener != contents
+            ? [RoomWebContents room_existingWrapperFor:opener]
+            : nil;
+    GURL url = pending && pending->url.is_valid() ? pending->url
+                                                  : contents->GetVisibleURL();
+    NSURL* targetURL = url.is_valid() ? net::NSURLWithGURL(url) : nil;
+    const gfx::Rect bounds = pending ? pending->requested_bounds : gfx::Rect();
+    const NSRect requested =
+        NSMakeRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+    const BOOL gesture = pending ? pending->user_gesture : NO;
+    LOG(WARNING) << "RoomCore: new contents in a Room window, disposition "
+                 << static_cast<int>(disposition) << ", opener "
+                 << (openerPage ? "found" : "none");
+    if (!openerPage) {
+      continue;  // Stays in the strip; the host sees it in -webContents.
+    }
+    // After Navigate() returns: the host may close or show it at once.
+    RoomWebContents* __weak weakOpener = openerPage;
+    RoomWebContents* __weak weakPage = page;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(^{
+          RoomWebContents* strongOpener = weakOpener;
+          RoomWebContents* strongPage = weakPage;
+          if (!strongOpener || !strongPage || strongPage.closed) {
+            return;
+          }
+          [strongOpener room_didCreateWebContents:strongPage
+                                        targetURL:targetURL
+                                      disposition:disposition
+                                  requestedBounds:requested
+                                      userGesture:gesture];
+        }));
+  }
+}
+
+- (void)room_tabFullscreenEntered:(content::WebContents*)contents
+                           origin:(const url::Origin&)origin {
+  [[self room_wrapperFor:contents] room_didEnterFullscreen:origin];
+}
+
+- (void)room_tabFullscreenExited:(content::WebContents*)contents {
+  [[RoomWebContents room_existingWrapperFor:contents] room_didExitFullscreen];
 }
 
 - (void)close {
@@ -177,7 +357,7 @@ class Client : public room::RoomBrowserWindowClient {
 }
 
 - (void)room_activeContentsChanged:(content::WebContents*)contents {
-  RoomWebContents* wrapper = [RoomWebContents room_existingWrapperFor:contents];
+  RoomWebContents* wrapper = [self room_wrapperFor:contents];
   [self willChangeValueForKey:@"activeWebContents"];
   _activeWebContents = wrapper;
   [self didChangeValueForKey:@"activeWebContents"];
@@ -188,6 +368,7 @@ class Client : public room::RoomBrowserWindowClient {
 }
 
 - (void)room_windowWillClose {
+  _stripObserver.reset();
 #if BUILDFLAG(ROOM_ENABLE_SPIKES)
   _spike_identity_controller.reset();
 #endif

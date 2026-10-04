@@ -27,6 +27,7 @@
 #import "room/core/public/RoomCore.h"
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_profile_internal.h"
+#import "room/core/room_web_contents_internal.h"
 #include "room/core/room_network_policy.h"
 
 // chrome/app/chrome_main.cc, linked into the same library.
@@ -231,6 +232,7 @@ void SetCrashKeys() {
   // already created and of the right kind.
   [_applicationClass sharedApplication];
   room::InstallBrowserWindowFactory();
+  room::InstallWebContentsHooks();
 
   __weak RoomApplication* weakSelf = self;
   _willTerminateObserver = [NSNotificationCenter.defaultCenter

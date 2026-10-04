@@ -25,7 +25,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 
 // Chrome's Browser (tab strip, commands, session) bound to a window the host
 // owns. The host keeps drawing everything: RoomCore never adds views to
-// `window`.
+// `window`. The tab strip mirrors the host's loaded pages: pages the host
+// adds, plus the pages they open (delivered to the opener's
+// RoomWebContentsDelegate). A page becomes the active tab when it becomes
+// visible or takes focus; RoomCore never reorders the strip for the host.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @interface RoomBrowser : NSObject
 

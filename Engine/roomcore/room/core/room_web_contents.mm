@@ -16,10 +16,19 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "content/public/browser/visibility.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
+#include "url/origin.h"
+#import "room/core/room_browser_internal.h"
 #import "room/core/room_profile_internal.h"
+
+namespace room {
+// Defined in chrome/browser/ui/browser_web_contents_delegate/
+// browser_web_contents_delegate.cc (patches/0015-target-url-hook.patch).
+extern bool (*g_update_target_url_hook)(content::WebContents*, const GURL&);
+}  // namespace room
 
 @interface RoomWebContents ()
 @property(nonatomic, readwrite, copy, nullable) NSURL* URL;
@@ -30,6 +39,7 @@
 @property(nonatomic, readwrite, getter=isClosed) BOOL closed;
 - (void)room_refresh;
 - (void)room_webContentsDestroyed;
+- (void)room_shownOrFocused;
 @end
 
 namespace {
@@ -74,6 +84,16 @@ class Observer : public content::WebContentsObserver {
   void NavigationListPruned(const content::PrunedDetails&) override {
     [wrapper_ room_refresh];
   }
+  // The host showed the page (its view is in a visible window) or the user
+  // focused it (a click into a split pane): it is the active tab now.
+  void OnVisibilityChanged(content::Visibility visibility) override {
+    if (visibility == content::Visibility::VISIBLE) {
+      [wrapper_ room_shownOrFocused];
+    }
+  }
+  void OnWebContentsFocused(content::RenderWidgetHost*) override {
+    [wrapper_ room_shownOrFocused];
+  }
   void WebContentsDestroyed() override {
     [wrapper_ room_webContentsDestroyed];
   }
@@ -84,13 +104,35 @@ class Observer : public content::WebContentsObserver {
 
 }  // namespace
 
+namespace room {
+
+void InstallWebContentsHooks() {
+  g_update_target_url_hook = +[](content::WebContents* source,
+                                 const GURL& url) -> bool {
+    // Only Room pages have a wrapper; Chrome's own (headless) Browsers keep
+    // Chrome's behaviour (no status bubble: nothing happens).
+    RoomWebContents* wrapper = [RoomWebContents room_existingWrapperFor:source];
+    if (!wrapper) {
+      return false;
+    }
+    [wrapper room_targetURLChanged:url];
+    return true;
+  };
+}
+
+}  // namespace room
+
 @implementation RoomWebContents {
   RoomProfile* _profile;
   // Set while the wrapper owns the page (before it joins a tab strip).
   std::unique_ptr<content::WebContents> _owned;
   raw_ptr<content::WebContents> _contents;
   std::unique_ptr<Observer> _observer;
+  RoomBrowser* __weak _browser;
+  NSString* _statusText;
 }
+
+@synthesize delegate = _delegate;
 
 @synthesize URL = _URL;
 @synthesize title = _title;
@@ -106,6 +148,20 @@ class Observer : public content::WebContentsObserver {
     _profile = profile;
     _owned = std::move(webContents);
     _contents = _owned.get();
+    _title = @"";
+    WrapperLink::CreateForWebContents(_contents, self);
+    _observer = std::make_unique<Observer>(_contents, self);
+    [self room_refresh];
+  }
+  return self;
+}
+
+- (instancetype)initWithUnownedChromeWebContents:
+                    (content::WebContents*)webContents
+                                         profile:(RoomProfile*)profile {
+  if ((self = [super init])) {
+    _profile = profile;
+    _contents = webContents;
     _title = @"";
     WrapperLink::CreateForWebContents(_contents, self);
     _observer = std::make_unique<Observer>(_contents, self);
@@ -136,6 +192,66 @@ class Observer : public content::WebContentsObserver {
 
 - (RoomProfile*)profile {
   return _profile;
+}
+
+- (RoomBrowser*)room_browser {
+  return _browser;
+}
+
+- (void)setRoom_browser:(RoomBrowser*)browser {
+  _browser = browser;
+}
+
+- (void)room_shownOrFocused {
+  [_browser room_activateWebContents:self];
+}
+
+- (void)room_targetURLChanged:(const GURL&)url {
+  NSString* text = url.is_empty() ? nil : base::SysUTF8ToNSString(url.spec());
+  if (text == _statusText || [text isEqualToString:_statusText]) {
+    return;
+  }
+  _statusText = [text copy];
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector(webContents:didChangeStatusText:)]) {
+    [delegate webContents:self didChangeStatusText:text];
+  }
+}
+
+- (void)room_didEnterFullscreen:(const url::Origin&)origin {
+  NSURL* originURL =
+      origin.opaque() ? nil : net::NSURLWithGURL(origin.GetURL());
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector
+                (webContentsDidRequestEnterFullscreen:origin:)]) {
+    [delegate webContentsDidRequestEnterFullscreen:self origin:originURL];
+  }
+}
+
+- (void)room_didExitFullscreen {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate
+          respondsToSelector:@selector(webContentsDidRequestExitFullscreen:)]) {
+    [delegate webContentsDidRequestExitFullscreen:self];
+  }
+}
+
+- (void)room_didCreateWebContents:(RoomWebContents*)newContents
+                        targetURL:(NSURL*)targetURL
+                      disposition:(RoomWindowOpenDisposition)disposition
+                  requestedBounds:(NSRect)requestedBounds
+                      userGesture:(BOOL)userGesture {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector
+                (webContents:didCreateWebContents:targetURL:disposition:
+                     requestedBounds:userGesture:)]) {
+    [delegate webContents:self
+        didCreateWebContents:newContents
+                   targetURL:targetURL
+                 disposition:disposition
+             requestedBounds:requestedBounds
+                 userGesture:userGesture];
+  }
 }
 
 - (NSView*)nativeView {
@@ -218,6 +334,14 @@ class Observer : public content::WebContentsObserver {
 - (void)focus {
   if (_contents) {
     _contents->Focus();
+  }
+}
+
+- (void)exitFullscreen {
+  if (_contents) {
+    // The host may not resize the page when it leaves (it never went edge
+    // to edge): ask for the renderer update now.
+    _contents->ExitFullscreen(/*will_cause_resize=*/false);
   }
 }
 
