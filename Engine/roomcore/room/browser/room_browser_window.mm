@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <utility>
 
 #include "base/no_destructor.h"
 
@@ -21,9 +22,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/views/find_bar_host.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
-#include "chrome/browser/ui/views/find_bar_owner.h"
 #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/unload_controller.h"
@@ -31,7 +31,10 @@
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/web_contents.h"
 #include "room/browser/room_exclusive_access_context.h"
+#include "room/browser/room_find_bar.h"
 #include "room/browser/room_location_bar.h"
+#include "third_party/blink/public/mojom/picture_in_picture_window_options/picture_in_picture_window_options.mojom.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 #include "ui/views/widget/widget.h"
 
@@ -42,6 +45,10 @@ extern BrowserWindow* (*g_create_browser_window_hook)(BrowserWindowInterface*);
 extern views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*);
 extern BrowserWindow* (*g_find_browser_window_hook)(content::WebContents*);
 extern std::unique_ptr<SadTab> (*g_create_sad_tab_hook)(content::WebContents*, SadTabKind);
+// Defined in chrome/browser/ui/navigator/browser_navigator.cc
+// (patches/0014-navigator-browser-for-disposition-hook.patch).
+extern bool (*g_browser_for_disposition_hook)(const NavigateParams&,
+                                              BrowserWindowInterface**);
 }  // namespace room
 
 namespace {
@@ -219,37 +226,6 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   base::ObserverList<web_modal::ModalDialogHostObserver> observers_;
 };
 
-// Chrome's find implementation is decoupled from BrowserView by this owner.
-class RoomFindBarOwner : public FindBarOwner {
- public:
-  explicit RoomFindBarOwner(RoomBrowserWindow* window)
-      : FindBarOwner(window->browser()->GetUnownedUserDataHost()),
-        window_(window) {}
-  views::Widget* GetOwnerWidget() override {
-    return window_->GetBubbleAnchor()->GetWidget();
-  }
-  gfx::Rect GetFindBarBoundingBox() override {
-    return GetOwnerWidget()->GetContentsView()->GetLocalBounds();
-  }
-  gfx::Rect GetFindBarClippingBox() override {
-    return GetFindBarBoundingBox();
-  }
-  bool IsOffTheRecord() const override {
-    return window_->browser()->GetProfile()->IsOffTheRecord();
-  }
-  views::Widget* GetWidgetForAnchoring() override { return GetOwnerWidget(); }
-  std::u16string GetFindBarAccessibleWindowTitle() override {
-    return u"Find in page";
-  }
-  void OnFindBarVisibilityChanged(gfx::Rect) override {
-    window_->browser()->GetFeatures().GetFindBarController()
-        ->OnFindBarVisibilityChanged();
-  }
-  void CloseOverlappingBubbles() override {}
- private:
-  raw_ptr<RoomBrowserWindow> window_;
-};
-
 struct PendingHostWindow {
   NSWindow* __weak window = nil;
   raw_ptr<room::RoomBrowserWindowClient> client = nullptr;
@@ -259,15 +235,92 @@ struct PendingHostWindow {
 // factory hook synchronously.
 PendingHostWindow* g_pending_host_window = nullptr;
 
+const char* BrowserTypeName(BrowserWindowInterface::Type type) {
+  switch (type) {
+    case BrowserWindowInterface::TYPE_NORMAL:
+      return "normal";
+    case BrowserWindowInterface::TYPE_POPUP:
+      return "popup";
+    case BrowserWindowInterface::TYPE_APP:
+      return "app";
+    case BrowserWindowInterface::TYPE_DEVTOOLS:
+      return "devtools";
+    case BrowserWindowInterface::TYPE_APP_POPUP:
+      return "app-popup";
+    case BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE:
+      return "picture-in-picture";
+    default:
+      return "other";
+  }
+}
+
 BrowserWindow* CreateRoomBrowserWindow(BrowserWindowInterface* browser) {
   if (!g_pending_host_window || !g_pending_host_window->window) {
-    return nullptr;
+    // Chrome made this Browser (an extension's windows.create, undocked
+    // DevTools, a Chrome command): Chrome's BrowserView would be a Chrome
+    // window beside the host's. Refuse it; the Browser lives headless.
+    LOG(WARNING) << "RoomCore: refused a Chrome BrowserView for a "
+                 << BrowserTypeName(browser->GetType())
+                 << " Browser //room did not create; it stays headless";
+    return new RoomBrowserWindow(browser, nil, nullptr);
   }
   PendingHostWindow* pending = g_pending_host_window;
   // One Browser per pending window: anything Browser's constructor creates in
-  // turn (it does not today) gets a normal BrowserView.
+  // turn (it does not today) is headless.
   g_pending_host_window = nullptr;
   return new RoomBrowserWindow(browser, pending->window, pending->client);
+}
+
+// patches/0014: Navigate() asks which Browser receives a disposition. From a
+// Room Browser every new contents stays in that Browser's tab strip, where
+// the host places it (a Today tab under the opener, Phase 2.6): the popup and
+// window dispositions would otherwise create a Browser of their own.
+bool BrowserForDisposition(const NavigateParams& params,
+                           BrowserWindowInterface** browser) {
+  const auto found = RoomWindows().find(params.browser.get());
+  if (found == RoomWindows().end() || found->second->is_headless()) {
+    return false;  // Chrome's choice.
+  }
+  room::PendingOpen pending;
+  pending.disposition = params.disposition;
+  pending.url = params.url;
+  pending.user_gesture = params.user_gesture;
+  if (params.source_contents) {
+    pending.source = params.source_contents->GetWeakPtr();
+  }
+  switch (params.disposition) {
+    case WindowOpenDisposition::NEW_POPUP:
+    case WindowOpenDisposition::NEW_WINDOW:
+      pending.requested_bounds = params.window_features.bounds;
+      found->second->SetPendingOpen(pending);
+      *browser = params.browser;
+      return true;
+    case WindowOpenDisposition::NEW_PICTURE_IN_PICTURE: {
+      if (params.contents_to_insert) {
+        if (auto options =
+                params.contents_to_insert->GetPictureInPictureOptions()) {
+          pending.requested_bounds =
+              gfx::Rect(0, 0, static_cast<int>(options->width),
+                        static_cast<int>(options->height));
+        }
+      }
+      found->second->SetPendingOpen(pending);
+      *browser = params.browser;
+      return true;
+    }
+    case WindowOpenDisposition::OFF_THE_RECORD:
+      // Room has no private window yet (Chapter 4.8); an incognito Browser
+      // would be headless and its page invisible. Cancel the navigation.
+      LOG(WARNING) << "RoomCore: refused an off-the-record open from a Room "
+                      "window (no private windows before Chapter 4.8)";
+      *browser = nullptr;
+      return true;
+    default:
+      // Tabs (foreground, background, singleton, switch-to-tab, split):
+      // Chrome already keeps them in this Browser.
+      found->second->SetPendingOpen(pending);
+      return false;
+  }
 }
 
 }  // namespace
@@ -276,6 +329,7 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  g_browser_for_disposition_hook = &BrowserForDisposition;
   g_find_browser_window_hook = +[](content::WebContents* contents) -> BrowserWindow* {
     for (const auto& [browser, window] : RoomWindows()) {
       if (browser->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0) {
@@ -303,6 +357,18 @@ void InstallBrowserWindowFactory() {
   };
 }
 
+RoomBrowserWindow* RoomBrowserWindowFor(BrowserWindowInterface* browser) {
+  const auto found = RoomWindows().find(browser);
+  return found == RoomWindows().end() || found->second->is_headless()
+             ? nullptr
+             : found->second;
+}
+
+PendingOpen::PendingOpen() = default;
+PendingOpen::PendingOpen(const PendingOpen&) = default;
+PendingOpen& PendingOpen::operator=(const PendingOpen&) = default;
+PendingOpen::~PendingOpen() = default;
+
 ScopedPendingHostWindow::ScopedPendingHostWindow(
     NSWindow* window,
     RoomBrowserWindowClient* client) {
@@ -321,7 +387,6 @@ ScopedPendingHostWindow::~ScopedPendingHostWindow() {
 struct RoomBrowserWindow::ObjCMembers {
   NSWindow* __weak window;
   std::unique_ptr<RoomModalDialogHost> modal_host;
-  std::unique_ptr<RoomFindBarOwner> find_owner;
   std::unique_ptr<RoomAutofillAnchors> autofill_anchors;
   std::unique_ptr<autofill::AutofillBubbleHandlerImpl> autofill_handler;
 };
@@ -331,10 +396,10 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
                                      room::RoomBrowserWindowClient* client)
     : browser_(browser),
       client_(client),
-      objc_(std::make_unique<ObjCMembers>(ObjCMembers{window, nullptr, nullptr,
-                                                   nullptr, nullptr})),
+      objc_(std::make_unique<ObjCMembers>(
+          ObjCMembers{window, nullptr, nullptr, nullptr})),
       exclusive_access_context_(
-          std::make_unique<room::RoomExclusiveAccessContext>(browser)) {
+          std::make_unique<room::RoomExclusiveAccessContext>(browser, client)) {
   RoomWindows().emplace(browser, this);
   // Payment bubbles resolve AutofillBubbleHandler through window user data,
   // without calling the legacy BrowserWindow getter first.
@@ -342,13 +407,35 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
 }
 
 autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
-  RoomStubHit("GetAutofillBubbleHandler");
   if (!objc_->autofill_handler) {
     objc_->autofill_anchors = std::make_unique<RoomAutofillAnchors>(this);
     objc_->autofill_handler = std::make_unique<autofill::AutofillBubbleHandlerImpl>(
         browser_, objc_->autofill_anchors.get());
   }
   return objc_->autofill_handler.get();
+}
+
+bool RoomBrowserWindow::is_headless() const {
+  return !client_;
+}
+
+void RoomBrowserWindow::SetPendingOpen(const room::PendingOpen& pending) {
+  pending_open_ = pending;
+  // Navigate() inserts the contents before it returns; a record left after
+  // that (a singleton tab that already existed) must not describe the next,
+  // unrelated insertion.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<RoomBrowserWindow> window) {
+                       if (window) {
+                         window->pending_open_.reset();
+                       }
+                     },
+                     weak_factory_.GetWeakPtr()));
+}
+
+std::optional<room::PendingOpen> RoomBrowserWindow::TakePendingOpen() {
+  return std::exchange(pending_open_, std::nullopt);
 }
 
 RoomBrowserWindow::~RoomBrowserWindow() {
@@ -388,16 +475,103 @@ gfx::Rect RoomBrowserWindow::GetRestoredBounds() const {
   return GetBounds();
 }
 
+ui::mojom::WindowShowState RoomBrowserWindow::GetRestoredState() const {
+  // What BrowserView reports: the state a restored window comes back in.
+  if (IsMaximized()) {
+    return ui::mojom::WindowShowState::kMaximized;
+  }
+  if (IsFullscreen()) {
+    return ui::mojom::WindowShowState::kFullscreen;
+  }
+  return ui::mojom::WindowShowState::kNormal;
+}
+
+ui::mojom::WindowShowState RoomBrowserWindow::GetWindowShowState() const {
+  if (IsMinimized()) {
+    return ui::mojom::WindowShowState::kMinimized;
+  }
+  if (IsFullscreen()) {
+    return ui::mojom::WindowShowState::kFullscreen;
+  }
+  if (IsMaximized()) {
+    return ui::mojom::WindowShowState::kMaximized;
+  }
+  return ui::mojom::WindowShowState::kNormal;
+}
+
+bool RoomBrowserWindow::GetCanResize() {
+  return (objc_->window.styleMask & NSWindowStyleMaskResizable) != 0;
+}
+
+std::string RoomBrowserWindow::GetWorkspace() const {
+  // macOS Spaces have no public identifier (BrowserView on Mac: empty too).
+  return std::string();
+}
+
+bool RoomBrowserWindow::IsVisibleOnAllWorkspaces() const {
+  return (objc_->window.collectionBehavior &
+          NSWindowCollectionBehaviorCanJoinAllSpaces) != 0;
+}
+
+bool RoomBrowserWindow::IsOnCurrentWorkspace() const {
+  NSWindow* window = objc_->window;
+  return window && window.onActiveSpace;
+}
+
+bool RoomBrowserWindow::IsVisibleOnScreen() const {
+  NSWindow* window = objc_->window;
+  return window && window.visible &&
+         (window.occlusionState & NSWindowOcclusionStateVisible) != 0;
+}
+
+ui::ZOrderLevel RoomBrowserWindow::GetZOrderLevel() const {
+  NSWindow* window = objc_->window;
+  return window && window.level > NSNormalWindowLevel
+             ? ui::ZOrderLevel::kFloatingWindow
+             : ui::ZOrderLevel::kNormal;
+}
+
+void RoomBrowserWindow::Maximize() {
+  // Chrome asks (extension windows.update, session restore); AppKit's zoom.
+  NSWindow* window = objc_->window;
+  if (window && !window.zoomed) {
+    [window zoom:nil];
+  }
+}
+
+void RoomBrowserWindow::Minimize() {
+  [objc_->window miniaturize:nil];
+}
+
+void RoomBrowserWindow::Restore() {
+  NSWindow* window = objc_->window;
+  if (window.miniaturized) {
+    [window deminiaturize:nil];
+  } else if (window.zoomed) {
+    [window zoom:nil];
+  }
+}
+
 gfx::Rect RoomBrowserWindow::GetBounds() const {
   NSWindow* window = objc_->window;
   return window ? gfx::ScreenRectFromNSRect(window.frame) : gfx::Rect();
 }
 
 void RoomBrowserWindow::Show() {
+  NSWindow* window = objc_->window;
+  if (!window) {
+    return;  // Headless: never the last active Browser.
+  }
   // Same as BrowserView::Show() on macOS: the Browser must be the last active
   // one as soon as it is shown, before AppKit reports the activation.
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
-  [objc_->window makeKeyAndOrderFront:nil];
+  // Chrome shows a window for every link opened with a gesture; the host's
+  // window is already on screen. Never pull it over another application.
+  if (NSApp.active) {
+    [window makeKeyAndOrderFront:nil];
+  } else if (!window.visible) {
+    [window orderFront:nil];
+  }
 }
 
 void RoomBrowserWindow::Hide() {
@@ -448,11 +622,22 @@ void RoomBrowserWindow::DestroyBrowser() {
 }
 
 void RoomBrowserWindow::Activate() {
-  // Match NativeWidgetNSWindowBridge: AppKit must activate the application
-  // before making its window key, or an inactive app can retain no key window.
-  [NSApp activateIgnoringOtherApps:YES];
+  NSWindow* window = objc_->window;
+  if (!window) {
+    return;
+  }
+  // NativeWidgetNSWindowBridge activates the application first
+  // (activateIgnoringOtherApps), so a page's window.focus() or an extension
+  // could take the keyboard from another application. Room does not: while
+  // the app is active the window becomes key; while another application is,
+  // nothing moves (the window becomes key when the user comes back).
+  if (!NSApp.active) {
+    LOG(WARNING) << "RoomCore: Activate() while the application is inactive; "
+                    "not stealing focus";
+    return;
+  }
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
-  [objc_->window makeKeyAndOrderFront:nil];
+  [window makeKeyAndOrderFront:nil];
 }
 
 void RoomBrowserWindow::Deactivate() {
@@ -472,6 +657,58 @@ void RoomBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   if (client_) {
     client_->OnActiveContentsChanged(new_contents);
   }
+}
+
+void RoomBrowserWindow::OnTabDetached(content::WebContents* contents,
+                                      bool was_active) {
+  // The host owns the strip it draws; Chrome's detach needs nothing here.
+}
+
+std::vector<StatusBubble*> RoomBrowserWindow::GetStatusBubbles() {
+  // None, deliberately: BrowserWebContentsDelegate::UpdateTargetURL and
+  // ContentsMouseEvent static_cast every status bubble to StatusBubbleViews
+  // (and its anchor to ContentsWebView), so any other StatusBubble would be
+  // undefined behaviour on the first hover. The hovered link reaches the host
+  // from UpdateTargetURL through patches/0015 (didChangeStatusText); Chrome's
+  // loading text ("Waiting for…") is not shown by Room.
+  return {};
+}
+
+void RoomBrowserWindow::UpdateLoadingAnimations(bool is_visible) {
+  // The host observes RoomWebContents.loading itself.
+}
+
+void RoomBrowserWindow::UpdateReloadStopState(bool is_loading, bool force) {
+  // Ditto: the host's reload/stop follows RoomWebContents.loading.
+}
+
+void RoomBrowserWindow::UpdateToolbar(content::WebContents* contents) {
+  // The host's address field follows RoomWebContents.URL and title.
+}
+
+bool RoomBrowserWindow::UpdateToolbarSecurityState() {
+  // The host's site button reads the security state from the page (3.3a).
+  return false;
+}
+
+void RoomBrowserWindow::ResetToolbarTabState(content::WebContents* contents) {}
+
+void RoomBrowserWindow::LinkOpeningFromGesture(
+    WindowOpenDisposition disposition) {
+  // BrowserView animates its tab strip; the host places the new contents.
+}
+
+void RoomBrowserWindow::ShowEmojiPanel() {
+  [NSApp orderFrontCharacterPalette:nil];
+}
+
+void RoomBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
+    int download_count,
+    UnloadController::DownloadCloseType dialog_type,
+    base::OnceCallback<void(bool)> callback) {
+  // No UI to ask with yet (3.4a routes it to the host): closing proceeds, as
+  // if the user confirmed.
+  std::move(callback).Run(true);
 }
 
 gfx::Size RoomBrowserWindow::GetContentsSize() const {
@@ -523,7 +760,6 @@ void RoomBrowserWindow::DeleteBrowserWindow() {
 
 web_modal::WebContentsModalDialogHost*
 RoomBrowserWindow::GetWebContentsModalDialogHost() {
-  RoomStubHit("GetWebContentsModalDialogHost");
   if (!objc_->modal_host) {
     objc_->modal_host = std::make_unique<RoomModalDialogHost>(objc_->window);
     // TabDialogManager needs a primary Views widget as well as the native
@@ -536,7 +772,6 @@ RoomBrowserWindow::GetWebContentsModalDialogHost() {
 
 web_modal::WebContentsModalDialogHost*
 RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents*) {
-  RoomStubHit("GetWebContentsModalDialogHostFor");
   return GetWebContentsModalDialogHost();
 }
 
@@ -546,21 +781,17 @@ views::View* RoomBrowserWindow::GetBubbleAnchor() {
 }
 
 std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {
-  RoomStubHit("CreateFindBar");
-  if (!objc_->find_owner) {
-    objc_->find_owner = std::make_unique<RoomFindBarOwner>(this);
-  }
-  return std::make_unique<FindBarHost>(objc_->find_owner.get());
+  // Find in page is the host's (FindTabHelper, 3.3b): Chrome's find bar is
+  // inert, never the Views FindBarHost.
+  return std::make_unique<room::RoomFindBar>();
 }
 
 // The Cocoa host does not run Chrome's TabDragController. Its live TabStripModel
 // can accept extension edits unless closing or explicitly disabled by a test.
 bool RoomBrowserWindow::IsTabStripEditable() const {
-  RoomStubHit("IsTabStripEditable");
   return !tab_strip_editing_disabled_ && !browser_->GetTabStripModel()->closing_all();
 }
 
 void RoomBrowserWindow::DisableTabStripEditingForTesting() {
-  RoomStubHit("DisableTabStripEditingForTesting");
   tab_strip_editing_disabled_ = true;
 }

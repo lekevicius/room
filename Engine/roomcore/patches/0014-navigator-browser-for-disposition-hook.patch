@@ -1,0 +1,57 @@
+Room: new contents opened from a Room window stay in that window's Browser.
+
+Navigate() picks the Browser that receives a disposition in
+GetBrowserAndTabForDisposition(): tabs stay in the source Browser, but
+NEW_POPUP, NEW_WINDOW and NEW_PICTURE_IN_PICTURE always create a Browser of
+their own (CreateBrowserWindow), and OFF_THE_RECORD finds or creates an
+incognito one. For Room that Browser would get a Chrome BrowserView: a Chrome
+window beside the host's (PR #1 finding 1, research/notes/
+roomcore-hardening-review.md). Room's host places every new contents itself
+(a Today tab under its opener, Phase 2.6), so //room answers the question
+for Browsers it created: the source Browser for the popup, window and
+picture-in-picture dispositions (the host reads the disposition and the
+requested size from //room), a cancelled navigation for off-the-record (no
+private windows before Chapter 4.8), and Chrome's own choice otherwise.
+
+No existing hook: the only override in this path is
+web_app::NavigationCapturingProcess (web apps only), the
+BrowserWindow factory (patch 0003) runs after the Browser exists, and a
+WebContentsDelegate wrapping Browser's would have to forward ~150 members.
+The alternative without a patch, a throwaway headless Browser per popup
+whose contents //room moves out afterwards, creates and tears down a full
+Browser (features, session entries) for every window.open.
+
+Phase 3.2a, 2026-10-05. //room: room/browser/room_browser_window.mm
+(BrowserForDisposition).
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index 258f996c80e24..cbbb2f0706949 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -104,6 +104,14 @@ using content::NavigationController;
+ using content::WebContents;
+ using WebExposedIsolationLevel = content::WebExposedIsolationLevel;
+ 
++namespace room {
++// Room: set by //room/browser at startup. Returns true when //room chose the
++// Browser for this navigation's disposition (*browser, nullptr cancels it);
++// false keeps Chrome's choice.
++bool (*g_browser_for_disposition_hook)(const NavigateParams&,
++                                       BrowserWindowInterface**) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ struct AdditionalParams {
+@@ -247,6 +255,12 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
+     const AdditionalParams& additional_params) {
+   Profile* profile = params.initiating_profile;
+ 
++  BrowserWindowInterface* room_browser = nullptr;
++  if (room::g_browser_for_disposition_hook &&
++      room::g_browser_for_disposition_hook(params, &room_browser)) {
++    return {room_browser, -1};
++  }
++
+   switch (params.disposition) {
+     case WindowOpenDisposition::SWITCH_TO_TAB: {
+       std::pair<BrowserWindowInterface*, int> browser_and_index =

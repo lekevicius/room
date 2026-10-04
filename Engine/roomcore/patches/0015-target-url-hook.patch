@@ -1,0 +1,45 @@
+Room: the hovered link of a page in a Room window goes to the host.
+
+Chrome shows the link under the pointer in its status bubble:
+BrowserWebContentsDelegate::UpdateTargetURL walks the window's status
+bubbles and static_casts each one to StatusBubbleViews (and its anchor to
+ContentsWebView). A Room window draws no Views, so RoomBrowserWindow
+returns no status bubble (any other StatusBubble would be undefined
+behaviour here and in ContentsMouseEvent), and without this hook the link
+never reaches the host's status pill (didChangeStatusText, Phase 2.6b).
+
+No existing hook: UpdateTargetURL is a WebContentsDelegate member only (no
+WebContentsObserver event carries the hovered link), the tab's delegate is
+Chrome's BrowserWebContentsDelegate, and a delegate wrapping it would have to
+forward ~150 members.
+
+Phase 3.2a, 2026-10-05. //room: room/core/room_web_contents.mm
+(InstallWebContentsHooks).
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index 9e27bdcb53a50..c29af590a7f1b 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -122,6 +122,12 @@ BASE_FEATURE(kBackgroundActorTaskPopupsOpenInBackground,
+ 
+ DEFINE_USER_DATA(BrowserWebContentsDelegate);
+ 
++namespace room {
++// Room: set by //room/core at startup. Takes the hovered link of pages in a
++// Room window (the host's status pill) and returns true; false otherwise.
++bool (*g_update_target_url_hook)(content::WebContents*, const GURL&) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ const extensions::Extension* GetExtensionForOrigin(
+@@ -793,6 +799,10 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
+ 
+ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+                                                  const GURL& url) {
++  if (room::g_update_target_url_hook &&
++      room::g_update_target_url_hook(source, url)) {
++    return;
++  }
+   std::vector<StatusBubble*> status_bubbles =
+       browser_ui_controller_->GetStatusBubbles();
+   for (StatusBubble* status_bubble : status_bubbles) {

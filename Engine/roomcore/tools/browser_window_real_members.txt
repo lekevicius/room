@@ -26,3 +26,27 @@ GetWebContentsModalDialogHost
 GetWebContentsModalDialogHostFor
 CreateFindBar
 GetAutofillBubbleHandler
+# Made real in Phase 3.2a (research/notes/spike-results.md "Phase 3.2a").
+IsTabStripEditable
+DisableTabStripEditingForTesting
+ConfirmBrowserCloseWithPendingDownloads
+GetRestoredState
+GetWindowShowState
+GetCanResize
+GetWorkspace
+IsVisibleOnAllWorkspaces
+IsOnCurrentWorkspace
+IsVisibleOnScreen
+GetZOrderLevel
+Maximize
+Minimize
+Restore
+GetStatusBubbles
+UpdateLoadingAnimations
+UpdateReloadStopState
+UpdateToolbar
+UpdateToolbarSecurityState
+ResetToolbarTabState
+OnTabDetached
+LinkOpeningFromGesture
+ShowEmojiPanel

@@ -8,6 +8,8 @@ source_set("browser") {
     "room_browser_window_stubs.cc",
     "room_exclusive_access_context.cc",
     "room_exclusive_access_context.h",
+    "room_find_bar.cc",
+    "room_find_bar.h",
     "room_location_bar.cc",
     "room_location_bar.h",
   ]
@@ -20,17 +22,19 @@ source_set("browser") {
     "//chrome/browser/ui/exclusive_access",
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/find_bar",
+    "//chrome/browser/ui/navigator",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/views:bubble_anchor_util_views",
-    "//chrome/browser/ui/views:find_bar_owner",
     "//chrome/browser/ui/views/frame:toolbar_button_provider",
     "//chrome/browser/ui/views/interaction:impl",
     "//components/input",
     "//components/web_modal",
     "//content/public/browser",
+    "//third_party/blink/public/mojom:mojom_platform",
     "//ui/base",
     "//ui/gfx",
     "//ui/views",
+    "//url",
   ]
   frameworks = [ "AppKit.framework" ]
 }
