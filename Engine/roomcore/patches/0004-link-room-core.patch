@@ -10,8 +10,14 @@ _OBJC_CLASS_$_RoomApplication, RoomBrowser, RoomCrApplication,
 RoomWebContents and _OBJC_METACLASS_$_RoomCrApplication. The second list,
 //room/core/room_core.exports, names the five classes.
 
+chrome/tools/build/mac/verify_order.py then checks the framework's exports
+against chrome/app/framework.order and failed on the five classes
+("unexpected export: '_OBJC_CLASS_$_RoomApplication' is not in list");
+verify_chrome_framework_order reads a generated list, framework.order
+followed by room_core.exports (the order nm reports them in).
+
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 790bbb541e410..07babf714254e 100644
+index 790bbb541e410..c028220dbd89c 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -1270,6 +1270,13 @@ if (is_win) {
@@ -38,3 +44,24 @@ index 790bbb541e410..07babf714254e 100644
      if (is_chromeos) {
        deps += [ "//chrome/browser/ash/schedqos" ]
      }
+@@ -1441,6 +1451,11 @@ if (is_win) {
+   # TOOD(crbug.com/40740432#comment9) - thakis@ look into why profile and
+   # coverage instrumentation adds these symbols in different orders
+   if (!is_component_build && chrome_pgo_phase != 1 && !using_sanitizer) {
++    # Room: the public Objective-C API is exported too (chrome_dll_symbol_exports).
++    _room_framework_order = "$target_gen_dir/room_framework.order"
++    write_file(_room_framework_order,
++               read_file("app/framework.order", "list lines") +
++                   read_file("//room/core/room_core.exports", "list lines"))
+     action("verify_chrome_framework_order") {
+       script = "//chrome/tools/build/mac/verify_order.py"
+       stamp_file = "$target_out_dir/run_$target_name.stamp"
+@@ -1448,7 +1463,7 @@ if (is_win) {
+       args = [
+         "--stamp=" + rebase_path(stamp_file, root_out_dir),
+         "--binary=" + rebase_path(_framework_binary_path, root_out_dir),
+-        "--symbol-file=" + rebase_path("app/framework.order", root_build_dir),
++        "--symbol-file=" + rebase_path(_room_framework_order, root_build_dir),
+       ]
+       if (host_os == "mac") {
+         args += [ "--nm-path=$mac_bin_path/nm" ]
