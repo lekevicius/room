@@ -1,0 +1,31 @@
+# Release (official, static) build of the fork: what ships.
+# Copied to out/release/args.gn in the Chromium checkout by
+#   ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn scripts/roomcore-build.sh
+# (scripts/roomcore-apply.sh writes it and runs `gn gen`).
+# Branding and codec lines match args/dev.gn; PLAN §4 "Build config".
+is_component_build = false
+is_official_build = true
+is_debug = false
+symbol_level = 1
+enable_dsyms = true
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+enable_widevine = true
+# safe_browsing_mode stays at the default (1): see args/dev.gn.
+enable_updater = false
+use_siso = true
+# No PGO profile: official builds want chrome/build/pgo_profiles/*.profdata,
+# which gclient downloads only with custom_vars checkout_pgo_profiles=True.
+# Deviation from Chrome's official config (3.1b); turn the gclient var on and
+# drop this line to get PGO back.
+chrome_pgo_phase = 0
+
+# Room branding (Engine/roomcore/room/branding), as in args/dev.gn.
+branding_file_path = "//room/branding/BRANDING"
+branding_path_component = "room"
+
+# Google-specific pieces Room does not want.
+enable_hangout_services_extension = false
+
+# room_enable_spikes is not set: it defaults to false, so no -RoomSpike hook,
+# probe or diagnostics executable is compiled into a release build.

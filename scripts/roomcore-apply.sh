@@ -4,11 +4,14 @@
 #   2. creates the `room` branch at the pinned tag and applies
 #      Engine/roomcore/patches/series, one commit per patch;
 #   3. creates the branding placeholders (theme dirs named "room" that point at
-#      Chromium's own icons) and writes out/dev/args.gn from args/dev.gn.
+#      Chromium's own icons) and writes <out>/args.gn from args/<args file>
+#      (out/dev from args/dev.gn by default; the release build is
+#      ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn).
 # Idempotent: a patch already committed on `room` is skipped, so re-running
 # never touches file mtimes (which would cost a rebuild).
 #
-# Env: CHROMIUM_TAG, OUT (default out/dev); checkout location from
+# Env: CHROMIUM_TAG, ROOM_OUT_DIR (or OUT; default out/dev), ROOM_GN_ARGS (a
+# file name in Engine/roomcore/args, default dev.gn); checkout location from
 # scripts/lib/chromium-env.sh (local.env).
 set -euo pipefail
 
@@ -16,8 +19,10 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 source "$(dirname "$0")/lib/chromium-env.sh"
 SRC="$CHROMIUM_SRC"
 TAG="${CHROMIUM_TAG:-154.0.8037.58}"
-OUT="${OUT:-out/dev}"
+OUT="${ROOM_OUT_DIR:-${OUT:-out/dev}}"
 ROOMCORE="$REPO/Engine/roomcore"
+ARGS_FILE="$ROOMCORE/args/${ROOM_GN_ARGS:-dev.gn}"
+[[ -f "$ARGS_FILE" ]] || { echo "no GN args file $ARGS_FILE" >&2; exit 1; }
 
 cd "$SRC"
 
@@ -70,8 +75,8 @@ for dir in chrome/app/theme chrome/app/theme/default_100_percent \
 done
 
 mkdir -p "$OUT"
-if ! cmp -s "$ROOMCORE/args/dev.gn" "$OUT/args.gn"; then
-  cp "$ROOMCORE/args/dev.gn" "$OUT/args.gn"
+if ! cmp -s "$ARGS_FILE" "$OUT/args.gn"; then
+  cp "$ARGS_FILE" "$OUT/args.gn"
   gn gen "$OUT"
 fi
 echo "ready: $SRC on branch $(git branch --show-current) ($(git rev-parse --short HEAD)), $OUT"
