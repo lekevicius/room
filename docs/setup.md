@@ -91,6 +91,27 @@ Python 3 from the Command Line Tools, no packages) from
 `scripts/roomcore-shutdown-local.py`; `python3 scripts/tests/test_roomcore_netlog.py`
 tests the summariser.
 
+Release (3.1b): `Engine/roomcore/args/release.gn` (official, static, ThinLTO,
+dSYMs, no PGO profile unless gclient's `checkout_pgo_profiles` is on) builds
+into `out/release`; on the Mac mini expect well over four hours at 6 jobs:
+
+```bash
+bash -c 'ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn nohup scripts/roomcore-build.sh > build/roomcore-release-build.log 2>&1 &'
+#   progress: wc -l out/release/siso_metrics.json (one line per finished step)
+#   against `third_party/ninja/ninja -C out/release -t commands chrome | wc -l`
+scripts/roomcore-package.sh --release   # build/roomcore-release: static framework, Release
+#   Room.app signed with the team identity, dSYMs beside it; ROOM_NOTARIZE=1 also notarizes;
+#   CONFIGURATION=Debug builds the DEBUG app (spike runner) over the release engine
+scripts/roomcore-sign.sh [Room.app] [--no-notarize]   # Developer ID + notarization
+#   (ROOM_SIGN_COPY=<dir> signs a clone, leaving the ad-hoc product alone)
+scripts/sparkle-package.sh <signed Room.app> build/sparkle   # DMG, EdDSA signature, appcast entry
+scripts/roomcore-watchdog.sh <new-dir> [20]   # B-38: both shutdown harnesses N times
+```
+
+The spike wrappers talk to Room by pid (`scripts/lib/room-process.sh`,
+`scripts/lib/room-ae.swift`, compiled on first use into `build/tools`), never
+by bundle id: three builds share `app.room.desktop` (B-47).
+
 The full Chromium history is needed (the `room` branch is rebased onto new
 tags); do not use `--no-history`.
 

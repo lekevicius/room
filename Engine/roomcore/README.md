@@ -19,6 +19,7 @@ host's window through a stub `BrowserWindow`, and a clean quit.
 | `patches/` | quilt-style patches, applied in `series` order, one commit each on the `room` branch |
 | `chromium_src/` | Brave-style shadow sources (empty) |
 | `args/dev.gn` | GN args of `out/dev` (component build, branding) |
+| `args/release.gn` | GN args of `out/release` (official static build, ThinLTO, dSYMs, `chrome_pgo_phase = 0`; 3.1b) |
 | `tools/gen_browser_window_stubs.py` | regenerates `room_browser_window_stubs.cc` from the checked-out headers |
 
 ## Patches
@@ -59,6 +60,10 @@ scripts/roomcore-build.sh          # apply (no-op if unchanged) + autoninja -C o
 scripts/roomcore-package.sh        # stage build/roomcore/RoomCore.framework, build Room.app on RoomCore and the embryo host, ad-hoc sign
 scripts/roomcore-baseline.sh <dir> # nav assertions + ten-page quit x3 on the embryo host
 scripts/sign-and-notarize.sh build/roomcore/DerivedData/Build/Products/Debug/Room.app --no-notarize
+# release (3.1b): official static build, packaged and team-signed
+bash -c 'ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn nohup scripts/roomcore-build.sh > build/roomcore-release-build.log 2>&1 &'
+scripts/roomcore-package.sh --release   # build/roomcore-release (ROOM_NOTARIZE=1 notarizes)
+scripts/roomcore-sign.sh                # Developer ID + notarization of the release app
 ```
 
 Start long builds from `bash` (`bash -c 'nohup … &'`), never zsh `&`: zsh's
