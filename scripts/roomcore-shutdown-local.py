@@ -67,7 +67,7 @@ def main():
     parser.add_argument('--mode', choices=['room', 'stock'], required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--count', type=int, choices=[1, 2, 3], default=3)
-    parser.add_argument('--app', type=Path, default=ROOT / 'build/roomcore/DerivedData/Build/Products/Debug/Room.app')
+    parser.add_argument('--app', type=Path, default=ROOT / 'build/roomcore-host/DerivedData/Build/Products/Debug/Room.app')
     args = parser.parse_args()
     directory = args.output.resolve()
     directory.mkdir()  # never replace previous evidence

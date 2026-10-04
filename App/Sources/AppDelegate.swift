@@ -71,8 +71,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let fakeEngine = FakeApplication()
     #endif
 
+    /// The app delegate. Not `NSApp.delegate` on RoomCore, where that is
+    /// Chrome's AppController until 3.2 (PLAN §4 Main menu).
+    private(set) static weak var current: AppDelegate?
+
     init(engine: any EngineApplication) {
         self.engine = engine
+        super.init()
+        Self.current = self
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -291,7 +297,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         #endif
         do {
+            let opening = ContinuousClock.now
             let store = try RoomStore.open(directory: directory)
+            let elapsed = ContinuousClock.now - opening
+            NSLog("Room: state opened in %.1f ms (%@)", Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000,
+                  store.integrityCheck == .full ? "integrity_check" : store.integrityCheck == .quick ? "quick_check" : "recovered")
             if store.uncleanExit { NSLog("Room: the previous session did not quit cleanly") }
             if let recovery = store.recovery { NSLog("Room: database rebuilt at launch: \(recovery)") }
             return store

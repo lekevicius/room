@@ -1,4 +1,4 @@
-#if !canImport(EngineCEF)
+#if !canImport(EngineCEF) && !ROOM_ENGINE_ROOMCORE
 import AppKit
 import Engine
 

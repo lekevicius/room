@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${1:?new evidence directory required}"
 mkdir "$DEST"
 DEST="$(cd "$DEST" && pwd)"
-APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug/Room.app}"
 python3 - "$APP" "$DEST" <<'PY'
 import json,subprocess,sys,time
 from pathlib import Path

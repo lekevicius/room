@@ -4,7 +4,7 @@
 # package modules from a matching checkout via ROOM_HOST_MODULES.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MODULES="${ROOM_HOST_MODULES:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug}"
+MODULES="${ROOM_HOST_MODULES:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug}"
 [[ -d "$MODULES/UIKitCore.swiftmodule" ]] || {
   echo 'Set ROOM_HOST_MODULES to matching compiled Design/UIKitCore/Card/Infra modules.' >&2; exit 1;
 }

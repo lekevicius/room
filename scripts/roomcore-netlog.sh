@@ -7,7 +7,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/lib/chromium-env.sh"
-APP="${ROOM_APP:-$ROOT/build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-$ROOT/build/roomcore-host/DerivedData/Build/Products/Debug/Room.app}"
 DEST="${1:-$ROOT/research/notes/netlog-$(date +%Y%m%d-%H%M%S)}"
 [[ $# -eq 0 ]] || shift
 SECONDS_IDLE="${ROOM_NETLOG_SECONDS:-600}"

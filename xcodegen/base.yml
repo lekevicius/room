@@ -2,7 +2,7 @@
 # CEF engine (xcodegen/cef.yml); CI generates from xcodegen/ci.yml (base only).
 name: Room
 options:
-  bundleIdPrefix: com.lekevicius.room
+  bundleIdPrefix: app.room.desktop
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
@@ -51,6 +51,29 @@ packages:
     path: Packages/Palette
   Integration:
     path: Packages/Integration
+# Settings Room.app has on either engine (the Room target here, the RoomCore
+# app target in xcodegen/roomcore.yml).
+settingGroups:
+  RoomApp:
+    PRODUCT_NAME: Room
+    PRODUCT_MODULE_NAME: Room
+    # PLAN §4 Identity (2026-10-04): app.room.desktop, helpers app.room.desktop.helper*.
+    PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop
+    CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
+    # The one place for the update feed and the crash-report DSN (2.8b report).
+    # Placeholder feed until the domain serves one; `.invalid` never resolves.
+    ROOM_UPDATE_FEED_URL: https://updates.room.invalid/appcast.xml
+    # Empty until a Sentry project exists; with it empty, crash reports stay off whatever the setting.
+    ROOM_SENTRY_DSN: ""
+    # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
+    # key is in that Mac's login keychain, account "ed25519").
+    SPARKLE_PUBLIC_ED_KEY: z1WE/kOA/sLq7Ou7T/lQ19moA5XdXnXOPkf1Gqxqh5Q=
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_STRICT_CONCURRENCY: complete
+    LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+    # ROOM_ENGINE (cef | roomcore, PLAN §4 Engine selection) becomes the Swift
+    # condition ROOM_ENGINE_CEF / ROOM_ENGINE_ROOMCORE for App's composition root.
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) ROOM_ENGINE_$(ROOM_ENGINE:upper)"
 targets:
   Room:
     type: application
@@ -104,21 +127,11 @@ targets:
         # Sentry (ROADMAP 2.8 task 5): read by BuildConfiguration.sentryDSN; empty = crash reports unavailable.
         RoomSentryDSN: $(ROOM_SENTRY_DSN)
     settings:
+      groups: [RoomApp]
       base:
-        PRODUCT_NAME: Room
-        PRODUCT_BUNDLE_IDENTIFIER: com.lekevicius.room
-        CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
-        # The one place for the update feed and the crash-report DSN (2.8b report).
-        # Placeholder feed: the product name and domain are provisional (B-6); `.invalid` never resolves.
-        ROOM_UPDATE_FEED_URL: https://updates.room.invalid/appcast.xml
-        # Empty until a Sentry project exists; with it empty, crash reports stay off whatever the setting.
-        ROOM_SENTRY_DSN: ""
-        # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
-        # key is in that Mac's login keychain, account "ed25519").
-        SPARKLE_PUBLIC_ED_KEY: z1WE/kOA/sLq7Ou7T/lQ19moA5XdXnXOPkf1Gqxqh5Q=
-        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
-        SWIFT_STRICT_CONCURRENCY: complete
-        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        # The CEF scheme's engine (xcodegen/cef.yml); without EngineCEF (CI) the
+        # app compiles with NoEngineApplication. Room on RoomCore: xcodegen/roomcore.yml.
+        ROOM_ENGINE: cef
     dependencies:
       - package: Engine
       - package: Design
