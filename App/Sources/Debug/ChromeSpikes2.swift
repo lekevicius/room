@@ -224,6 +224,16 @@ extension SpikeRunner.Context {
 
     private func statusPillCheck() async {
         guard let app, let pill = app.statusPill, let page = await openTest("status.html") else { return }
+        if await PageDriver.evaluate(page, "1", "status: probe whether the engine runs script") == nil {
+            // RoomCore until 3.3b: the first link's fixed place in the fixture; the hovered link only.
+            PageDriver.hover(page, at: CGPoint(x: 680, y: 56), "hover #short by point")
+            let arrived = await waitUntil(3) { pill.state.status != nil }
+            SpikeRunner.record("status_pill_by_point", "arrived=\(arrived) status=\(pill.state.status ?? "nil") visible=\(await waitUntil(3) { pill.state.isVisible })")
+            PageDriver.hover(page, at: CGPoint(x: 300, y: 300), "hover off the link")
+            let cleared = await waitUntil(3) { pill.state.status == nil }
+            SpikeRunner.record("status_pill_cleared", "\(cleared)")
+            return
+        }
         var arrivals: [Double] = []
         var shown: [Double] = []
         for selector in ["#short", "#long", "#corner"] {

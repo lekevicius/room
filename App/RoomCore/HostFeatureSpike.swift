@@ -135,6 +135,12 @@ enum HostFeatureSpike {
                 try await Task.sleep(for: .seconds(1))
                 HostSpike.record("popup-pages", host.pages.count)
                 HostSpike.record("new-contents", recorder.created.joined(separator: " | "))
+                // The hovered link (status text, patch 0015): the pointer over the #blank link, then off it.
+                for (x, y) in [(510, 96), (40, 400)] {
+                    try await cdp.call("Input.dispatchMouseEvent", ["type": "mouseMoved", "x": x, "y": y])
+                    try await Task.sleep(for: .milliseconds(400))
+                }
+                HostSpike.record("status-text", recorder.statusTexts.map { $0 ?? "nil" }.joined(separator: " | "))
             case "dialogs":
                 for expression in ["alert('Room spike')", "confirm('Room spike')", "prompt('Room spike', 'value')"] {
                     HostSpike.record("dialog-result", try await cdp.evaluate(expression, userGesture: true))
@@ -435,6 +441,11 @@ enum HostFeatureSpike {
 final class HostPageRecorder: NSObject, RoomWebContentsDelegate {
     private(set) var created: [String] = []
     private(set) var fullscreenEvents: [String] = []
+    private(set) var statusTexts: [String?] = []
+
+    func webContents(_ webContents: RoomWebContents, didChangeStatusText text: String?) {
+        statusTexts.append(text)
+    }
 
     func webContents(_ webContents: RoomWebContents, didCreate newContents: RoomWebContents, targetURL: URL?,
                      disposition: RoomWindowOpenDisposition, requestedBounds: NSRect, userGesture: Bool) {
