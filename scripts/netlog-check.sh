@@ -12,6 +12,10 @@
 # Page traffic (the local test site on 127.0.0.1:8770 and localhost:8770) is
 # excluded by host. Runs `-RoomSpike netcheck` (AppIntegration2Spikes.swift)
 # on a fresh state and engine directory with the first-run card shown.
+# ROOM_NETCHECK_IDLE=<seconds> lengthens the idle after launch (default 8 s;
+# 3.1b runs 600 on Room.app on RoomCore: launch, 10 min idle, browse, quit).
+# ROOM_APP picks the build; on RoomCore the engine's net-log comes from the
+# same --log-net-log switch.
 # Usage: scripts/netlog-check.sh [output directory]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -55,6 +59,7 @@ ROOM_SPIKE_OUT="$OUTDIR/spike.txt" scripts/run-spike.sh netcheck -RoomFirstRun Y
   -RoomStateDirectory "$work/state" -RoomEngineDirectory "$work/engine" \
   -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml -RoomSentryDSN http://public@127.0.0.1:8771/1 \
   -RoomSuggestProxy 127.0.0.1:8771 \
+  ${ROOM_NETCHECK_IDLE:+-RoomNetcheckIdleSeconds "$ROOM_NETCHECK_IDLE"} \
   "--log-net-log=$OUTDIR/netlog.json" --net-log-capture-mode=Everything >/dev/null
 sleep 2
 kill "$nettop_pid" 2>/dev/null || true

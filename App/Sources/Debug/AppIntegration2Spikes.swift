@@ -286,7 +286,8 @@ extension SpikeRunner.Context {
 
 /// `netcheck` (`scripts/netlog-check.sh`, which records CEF's net-log, a
 /// logging endpoint and `nettop` around it): a first launch with every
-/// opt-in declined (the first-run card left as it is and finished), idle;
+/// opt-in declined (the first-run card left as it is and finished), idle
+/// (8 s, or `-RoomNetcheckIdleSeconds`);
 /// a short browse on the local test site (two hosts, a same-site
 /// navigation, a reload); idle; quit. Each phase is stamped in seconds
 /// since 1970 so the script can sort the requests into launch, browse,
@@ -303,7 +304,9 @@ extension SpikeRunner.Context {
             + "searchSuggestions=\(settings.searchSuggestions) first-run card shown=\(app.firstRunCard != nil) "
             + "updater created=\(app.optIns?.updater != nil) crash reporter created=\(app.optIns?.crashReporter != nil)")
         stamp("launch_idle")
-        try? await Task.sleep(for: .seconds(8))
+        // 8 s by default (2.8b); `-RoomNetcheckIdleSeconds 600` for 3.1b's ten-minute idle on RoomCore.
+        let idle = UserDefaults.standard.double(forKey: "RoomNetcheckIdleSeconds")
+        try? await Task.sleep(for: .seconds(idle > 0 ? idle : 8))
         // Declined: nothing switched on, Done.
         app.firstRun?.finish()
         stamp("browse")
