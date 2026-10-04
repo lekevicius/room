@@ -12,6 +12,10 @@ import UIKitCore
 /// requests). Checks, each selectable with `-RoomSpikeOnly`:
 /// - `menus`: every item of the menu bar with its key, validation state and
 ///   target; `NSMenu.update()` of the whole bar timed; each menu captured open.
+/// - `settings`: the Settings window on each section; a change reaching the window.
+/// - `sidebarright`: the sidebar docked on the right and its overlay revealed from the right edge.
+/// - `fullscreen`: ⌃⌘F into a real Space and out, timed to the header laid out; the
+///   header's 16 pt fallback, the toolbar hidden, the hover reveal in fullscreen.
 /// Captures are named `phase-2.8a-<name>-<appearance>`; a request for another
 /// window than Room's main window carries its number (`capture: name@123`).
 extension SpikeRunner.Context {
@@ -32,6 +36,11 @@ extension SpikeRunner.Context {
         await open(URL(string: Self.site28 + "site.html?b")!)
         try? await Task.sleep(for: .milliseconds(500))
         if runs("menus") { await menusCheck() }
+        if runs("settings") { await settingsCheck() }
+        if runs("sidebarright") { await sidebarRightCheck() }
+        if runs("fullscreen") { await windowFullscreenCheck() }
+        app28?.store?.settings.update { $0.sidebarSide = .left }
+        controller.isSidebarOpen = true
     }
 
     static let site28 = "http://127.0.0.1:8770/"
@@ -166,6 +175,164 @@ extension SpikeRunner.Context {
         menu.popUp(positioning: nil, at: NSPoint(x: 80, y: 4), in: controller.rootView)
         timer.invalidate()
         try? await Task.sleep(for: .milliseconds(200))
+    }
+}
+
+// MARK: Settings, the sidebar on the right, fullscreen (ROADMAP 2.8 tasks 2 and 6)
+
+extension SpikeRunner.Context {
+    private var app28b: AppDelegate? { NSApp.delegate as? AppDelegate }
+
+    /// Where the header (the address field) starts, in the sidebar view.
+    private var headerX: CGFloat { controller.sidebarView.headerView?.frame.minX ?? -1 }
+
+    func settingsCheck() async {
+        guard let app = app28b, let store = app.store else { return }
+        app.showSettings(nil)
+        try? await Task.sleep(for: .milliseconds(500))
+        guard let settings = app.debugSettingsWindow, let settingsWindow = settings.window else {
+            return SpikeRunner.record("error", "no Settings window")
+        }
+        for section in SettingsWindowController.Section.allCases {
+            settings.select(section)
+            try? await Task.sleep(for: .milliseconds(400))
+            SpikeRunner.record("settings_\(section.rawValue)", "title=\(settingsWindow.title) size=\(NSStringFromSize(settingsWindow.frame.size))")
+            await capture28("settings-\(section.rawValue)", windowNumber: settingsWindow.windowNumber)
+        }
+        // A change in Settings reaches the open window on the next turn, and is in the store.
+        let start = ContinuousClock.now
+        store.settings.update { $0.sidebarSide = .right }
+        let moved = await waitUntil(2) { controller.rootView.sidebarEdge == .right }
+        SpikeRunner.record("settings_sidebar_side", "right applied=\(moved) in \(String(format: "%.1f", ms(since: start))) ms; stored=\(store.settings.settings.sidebarSide)")
+        store.settings.update { $0.sidebarSide = .left }
+        _ = await waitUntil(2) { controller.rootView.sidebarEdge == .left }
+        settingsWindow.close()
+        await activate()
+    }
+
+    func sidebarRightCheck() async {
+        guard let store = app28b?.store else { return }
+        let root = controller.rootView
+        store.settings.update { $0.sidebarSide = .right }
+        _ = await waitUntil(2) { root.sidebarEdge == .right }
+        controller.isSidebarOpen = true
+        try? await Task.sleep(for: .milliseconds(400))
+        let layout = root.currentLayout
+        let buttons = controller.trafficLights.geometry.buttonsRect ?? .zero
+        SpikeRunner.record("right_docked", "sidebar=\(NSStringFromRect(layout.sidebar)) card=\(NSStringFromRect(layout.card)) splitter=\(layout.splitter.map(NSStringFromRect) ?? "nil")")
+        SpikeRunner.record("right_docked_chrome", "buttons=\(NSStringFromRect(buttons)) over the card=\(layout.card.contains(CGPoint(x: buttons.midX, y: buttons.midY))) cluster shown=\(!root.clusterView.isHidden) header x in sidebar=\(headerX)")
+        await capture28("sidebar-right")
+        // Hidden: the overlay comes from the right edge.
+        controller.isSidebarOpen = false
+        try? await Task.sleep(for: .milliseconds(400))
+        post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 300))
+        try? await Task.sleep(for: .milliseconds(300))
+        post(.mouseMoved, at: CGPoint(x: root.bounds.width - 1, y: 300))
+        let shown = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
+        SpikeRunner.record("right_overlay", "shown=\(shown) frame=\(NSStringFromRect(root.overlayView.frame)) cluster shown=\(!root.clusterView.isHidden)")
+        await capture28("sidebar-right-overlay")
+        post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 300))
+        _ = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }
+        controller.isSidebarOpen = true
+        store.settings.update { $0.sidebarSide = .left }
+        _ = await waitUntil(2) { root.sidebarEdge == .left }
+        try? await Task.sleep(for: .milliseconds(300))
+    }
+
+    /// ⌃⌘F as the menu receives it (AppKit hides the item and shows its own 🌐F one; the key still answers).
+    private func pressControlCommandF() -> Bool {
+        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.control, .command],
+                                           timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                                           characters: "\u{06}", charactersIgnoringModifiers: "f", isARepeat: false, keyCode: 3) else { return false }
+        return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+    }
+
+    func windowFullscreenCheck() async {
+        let root = controller.rootView
+        controller.isSidebarOpen = true
+        try? await Task.sleep(for: .milliseconds(300))
+        let windowedHeader = headerX
+        let watcher = FullscreenWatcher(window: window)
+        for round in 0..<3 {
+            // In.
+            let start = ContinuousClock.now
+            let handled = pressControlCommandF()
+            let entered = await waitUntil(10) { watcher.didEnter != nil }
+            let enterMs = watcher.didEnter.map { Self.ms(start, $0) } ?? -1
+            let laidOut = await waitUntil(5) {
+                root.sidebarView.trafficLights.buttonsRect == nil && abs(headerX - SidebarMetrics.edgeInset) < 0.5
+            }
+            let headerMs = ms(since: start)
+            SpikeRunner.record("fullscreen_enter_\(round)", String(format: "⌃⌘F handled=%@ entered=%@ → didEnterFullScreen %.0f ms, → header laid out %.0f ms (laid out=%@)",
+                                                                   "\(handled)", "\(entered)", enterMs, headerMs, "\(laidOut)"))
+            if round == 0 {
+                try? await Task.sleep(for: .milliseconds(500))
+                let screen = window.screen?.frame ?? .zero
+                SpikeRunner.record("fullscreen_state", "window=\(NSStringFromRect(window.frame)) screen=\(NSStringFromRect(screen)) header x=\(headerX) (windowed \(windowedHeader)) toolbar visible=\(window.toolbar?.isVisible ?? false) buttons in window=\(controller.trafficLights.geometry.buttonsRect != nil) card=\(NSStringFromRect(root.currentLayout.card))")
+                await capture28("fullscreen")
+                // The hover reveal on the real Space.
+                controller.isSidebarOpen = false
+                try? await Task.sleep(for: .milliseconds(500))
+                post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 400))
+                try? await Task.sleep(for: .milliseconds(300))
+                let revealStart = ContinuousClock.now
+                post(.mouseMoved, at: CGPoint(x: 1, y: 400))
+                let shown = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
+                SpikeRunner.record("fullscreen_reveal", String(format: "shown=%@ after %.0f ms, overlay=%@, overlay header x=%.1f", "\(shown)", ms(since: revealStart),
+                                                                NSStringFromRect(root.overlayView.frame), root.sidebarView.navigationView?.frame.minX ?? -1))
+                await capture28("fullscreen-overlay")
+                post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 400))
+                let hid = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }
+                SpikeRunner.record("fullscreen_reveal_leave", "hidden again=\(hid)")
+                controller.isSidebarOpen = true
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            // Out.
+            watcher.reset()
+            let outStart = ContinuousClock.now
+            _ = pressControlCommandF()
+            let exited = await waitUntil(10) { watcher.didExit != nil }
+            let exitMs = watcher.didExit.map { Self.ms(outStart, $0) } ?? -1
+            let back = await waitUntil(5) {
+                guard let buttons = controller.trafficLights.geometry.buttonsRect else { return false }
+                return abs(headerX - (buttons.maxX + SidebarMetrics.headerLeadingGap)) < 0.5
+            }
+            SpikeRunner.record("fullscreen_exit_\(round)", String(format: "exited=%@ → didExitFullScreen %.0f ms, → header laid out around the buttons %.0f ms (laid out=%@); toolbar visible=%@",
+                                                                  "\(exited)", exitMs, ms(since: outStart), "\(back)", "\(window.toolbar?.isVisible ?? false)"))
+            watcher.reset()
+            try? await Task.sleep(for: .milliseconds(800))
+        }
+        SpikeRunner.record("fullscreen_header_windowed", "x=\(headerX) (before: \(windowedHeader))")
+    }
+
+    private static func ms(_ start: ContinuousClock.Instant, _ end: ContinuousClock.Instant) -> Double {
+        let duration = end - start
+        return Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
+    }
+}
+
+/// When the window finished entering and leaving fullscreen.
+@MainActor
+private final class FullscreenWatcher {
+    private(set) var didEnter: ContinuousClock.Instant?
+    private(set) var didExit: ContinuousClock.Instant?
+    private var tokens: [NSObjectProtocol] = []
+
+    init(window: NSWindow) {
+        let center = NotificationCenter.default
+        tokens.append(center.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.didEnter = .now }
+        })
+        tokens.append(center.addObserver(forName: NSWindow.didExitFullScreenNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.didExit = .now }
+        })
+    }
+
+    isolated deinit { tokens.forEach(NotificationCenter.default.removeObserver) }
+
+    func reset() {
+        didEnter = nil
+        didExit = nil
     }
 }
 
