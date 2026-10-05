@@ -28,6 +28,12 @@ final class PageUIDelegate {
     @ObservationIgnored var onFocusLocationBar: ((any WebContents) -> Void)?
     /// How often the engine asked (the spike reads it).
     @ObservationIgnored private(set) var focusLocationBarRequests = 0
+    /// Where the engine's own bubbles point (RoomCore's Views bubbles, 3.7a),
+    /// in the window's coordinates: the site button, or the card's corner
+    /// while the sidebar is hidden.
+    @ObservationIgnored var bubbleAnchor: (() -> CGRect?)?
+    /// How often the engine asked where its bubbles point (the spikes read it).
+    @ObservationIgnored private(set) var bubbleAnchorQueries = 0
     /// The last keys the engine reported as reserved, unhandled or consumed, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
     /// Keys the page consumed so far (the keyboard spike counts them).
@@ -54,6 +60,11 @@ extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {
         statusText = text
         onStatusText?(text)
+    }
+
+    func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? {
+        bubbleAnchorQueries += 1
+        return bubbleAnchor?()
     }
 
     func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {

@@ -451,6 +451,12 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate?.webContentsDidRequestFocusOnLocationBar(self)
     }
 
+    /// Where Chrome's Views bubbles point (`RoomToolbarButtonProvider` and the
+    /// window's bubble anchor, 3.7a): the host's site button.
+    public func webContentsBubbleAnchorRect(_ webContents: RoomWebContents) -> NSRect {
+        uiDelegate?.bubbleAnchorRect(for: self) ?? .zero
+    }
+
     public func webContentsDidRequestEnterFullscreen(_ webContents: RoomWebContents, origin: URL?) {
         uiDelegate?.webContentsDidRequestEnterFullscreen(self, origin: origin)
     }

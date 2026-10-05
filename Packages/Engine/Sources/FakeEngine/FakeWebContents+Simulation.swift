@@ -137,6 +137,12 @@ public extension FakeWebContents {
         effectiveUIDelegate.webContentsDidRequestFocusOnLocationBar(self)
     }
 
+    /// The engine is about to show one of its own bubbles (RoomCore's Views
+    /// bubbles, 3.7a) and asks where it points.
+    func simulateBubbleAnchorQuery() -> CGRect? {
+        effectiveUIDelegate.bubbleAnchorRect(for: self)
+    }
+
     func simulateFullscreenRequest(enter: Bool) {
         isFullscreen = enter
         if enter {

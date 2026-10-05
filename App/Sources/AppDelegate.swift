@@ -550,6 +550,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 return url.host()
             },
             focusPage: { [weak pageHost] in pageHost?.focusPage() })
+        // Chrome's own bubbles (RoomCore, 3.7a) point where the permission popover does.
+        pageDelegate.bubbleAnchor = { [weak rootView, weak sidebar] in
+            guard let rootView, rootView.window != nil else { return nil }
+            if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {
+                return button.convert(button.bounds, to: nil)
+            }
+            let card = rootView.currentLayout.card
+            return rootView.convert(NSRect(x: card.minX + 12, y: card.minY, width: 24, height: 1), to: nil)
+        }
         let fullscreen = windowController.map(PageFullscreen.init)
         fullscreen?.host = pageHost
         pageDelegate.fullscreen = fullscreen

@@ -152,6 +152,11 @@ extension TabController: WebContentsUIDelegate {
         pageUIDelegate?.webContentsDidRequestFocusOnLocationBar(webContents)
     }
 
+    /// Where the engine's bubbles point (RoomCore's Views bubbles, 3.7a): the window's answer.
+    public func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? {
+        pageUIDelegate?.bubbleAnchorRect(for: webContents)
+    }
+
     public func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         pageUIDelegate?.webContents(webContents, willShowContextMenu: menu, for: element) ?? false
     }

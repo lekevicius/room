@@ -86,3 +86,25 @@ struct FocusLocationBarTests {
         #expect(recorder.pages == [ObjectIdentifier(shownPage)])
     }
 }
+
+/// Answers where the engine's bubbles point.
+final class BubbleAnchorAnswer: WebContentsUIDelegate {
+    let rect = CGRect(x: 12, y: 700, width: 16, height: 28)
+    func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? { rect }
+}
+
+@Suite("Chrome's bubbles point at the window's site button (ROADMAP 3.7a, PLAN §4 hybrid UI)")
+struct BubbleAnchorTests {
+    @Test("The engine's question reaches the window's UI delegate through the tab controller")
+    func answeredByTheWindow() async throws {
+        let f = try TabsFixture()
+        let entry = try f.today("https://site.example/")
+        f.sidebar.select(entry.id)
+        await f.settle()
+        let page = try #require(f.page(entry.id))
+        #expect(page.simulateBubbleAnchorQuery() == nil)
+        let answer = BubbleAnchorAnswer()
+        f.tabs.pageUIDelegate = answer
+        #expect(page.simulateBubbleAnchorQuery() == answer.rect)
+    }
+}
