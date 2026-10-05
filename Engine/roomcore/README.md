@@ -1,6 +1,7 @@
 # RoomCore — the Chromium fork
 
-`RoomCore.framework` is Chromium (pinned tag `154.0.8037.58`) with Room's
+`RoomCore.framework` is Chromium (the tag pinned in `CHROMIUM_TAG`:
+`154.0.8037.98` since 3.8, `154.0.8037.58` before) with Room's
 code in `//room` and a handful of small patches, exporting an Objective-C API
 the Swift app links against. Phase 1.5 is the embryo: application bootstrap,
 profiles, one `WebContents` with a native view, a `Browser` bound to the
@@ -43,7 +44,7 @@ guards cover call sites that offer no Room hook:
 | `0008-fedcm-anchor-hook` | supply native bubble/modal parents without pretending Cocoa content is a Views WebView |
 | `0009-sad-tab-factory-hook` | contain renderer loss in a Cocoa fallback; SadTab::Create otherwise directly constructs a BrowserView-dependent controller |
 | `0011-browser-window-lookup-hook` | Room window lookup for legacy autofill callers; guard the optional Chrome-only address-save promo |
-| `0012-extension-chooser-toolbar-guard` | extension-origin chooser uses the nullable registered toolbar provider; reject safely when no extension container exists instead of dereferencing a missing BrowserView |
+| `0012-extension-chooser-toolbar-guard` | extension-origin chooser uses the nullable registered toolbar provider; reject safely when no extension container exists instead of dereferencing a missing BrowserView; (3.8) rebased over upstream's fullscreen-drop hardening, which added its own BrowserView null check: the provider lookup replaces both (header) |
 | `0013-app-controller-hook` | (3.2b) `AppController.sharedController` returns `//room`'s `RoomAppController` (a separate `NSObject`, not a subclass: termination, the keep-alive, the last profile, command dispatch to the active Room Browser, the main window's Browser; every other AppController message logged on its first hit and answered with zero), and `ChromeBrowserMainPartsMac::PreCreateThreads` creates it and skips the NSApp-delegate CHECKs and Chrome's main menu: NSApp's delegate is the host's |
 | `0014-navigator-browser-for-disposition-hook` | (3.2a) `GetBrowserAndTabForDisposition()` asks `//room` first: from a Room Browser the popup, window and picture-in-picture dispositions stay in that Browser (the host places the contents), off-the-record is cancelled until Chapter 4.8; Chrome would otherwise create a Browser, hence a BrowserView, per popup |
 | `0015-target-url-hook` | (3.2a) `BrowserWebContentsDelegate::UpdateTargetURL` hands the hovered link of a Room page to `//room` (the host's status pill); Chrome's own path static_casts every status bubble to `StatusBubbleViews` |
@@ -146,6 +147,47 @@ passes `--enable-logging`/`--log-file`) and `Crashpad/` (handler annotation
 
 ## Rebasing
 
-Patches apply with `git apply`; after moving to a new tag, re-run
-`tools/gen_browser_window_stubs.py` to pick up `BrowserWindow` changes (a
-changed signature is a compile error in the stubs file).
+The pinned tag is the one line in `Engine/roomcore/CHROMIUM_TAG`, read by
+`scripts/roomcore-apply.sh` and `scripts/chromium-checkout.sh` (`CHROMIUM_TAG`
+in the environment overrides it for an experiment). `scripts/roomcore-rebase.sh
+<tag>` moves it (3.8):
+
+```bash
+scripts/roomcore-rebase.sh --dry-run <tag>   # plan, upstream changes to patched files, replay in a scratch index
+scripts/roomcore-rebase.sh [--no-build] <tag>
+#   fetch, predict, replay, refresh patch files, pin, move the room branch,
+#   gclient sync + runhooks, regenerate the stubs, apply (0 applied), gn gen,
+#   start the build with nohup (6 jobs); exit 2 on a conflict
+scripts/roomcore-rebase.sh --continue        # after fixing the files under build/roomcore-rebase/<tag>/conflict/
+scripts/roomcore-rebase.sh --verify          # after the build: package, baseline, tour sections, build-log.md
+```
+
+Why it re-applies the patch files rather than running `git rebase --onto`: the
+patch files are the source of truth and the branch is derived from them
+(`roomcore-apply.sh`'s model), so the replay starts from the files, in a
+scratch index, and the worktree is touched once, at the end, by `git reset
+--keep` (only files whose content changes get a new mtime: the build stays
+incremental). A patch that no longer applies as written is merged per file
+with `git merge-file --diff3` against its own commit on the current `room`
+branch (base: that commit's parent), which is what `git rebase` would do;
+a clean merge refreshes the patch file, a conflict stops the run with the
+patch and file named and the merged file with markers under
+`build/roomcore-rebase/<tag>/conflict/<path>` (`.ours`, `.base`, `.theirs`
+beside it). Edit it there (a file that moved upstream: put it under its new
+path), then `--continue` turns the resolved files into the patch (its header
+kept: add a paragraph when the fix is more than context) and replays again.
+Patches that applied with offsets are refreshed too, so every patch file is
+exact against the pinned tag.
+
+`gclient sync` runs with `--revision src@<tag commit>`: `src` is on the `room`
+branch, which tracks nothing, and gclient rebases such a branch onto the
+revision it is given (a no-op once the branch sits on the tag); without
+`--revision` it would rebase it onto origin's default branch. gclient prints
+nothing useful when its output is not a terminal; the script checks that the
+branch did not move.
+
+After the move, the stubs are regenerated from the new `browser_window.h`
+(`tools/gen_browser_window_stubs.py --write`): a new pure virtual becomes a
+stub, a removed one disappears, and a changed signature of a real member
+(`tools/browser_window_real_members.txt`) is a compile error to fix by hand.
+Rebase records: `research/notes/build-log.md`, "Rebase <old> → <new>".

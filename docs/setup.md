@@ -65,7 +65,7 @@ timings in `research/notes/build-log.md` under a heading for this machine.
 
 ```bash
 mkdir -p build && bash -c 'nohup scripts/chromium-checkout.sh > build/chromium-checkout.log 2>&1 &'
-#   fetch (~50 min at 60 MB/s), checkout of tag 154.0.8037.58, gclient sync, runhooks
+#   fetch (~50 min at 60 MB/s), checkout of the tag in Engine/roomcore/CHROMIUM_TAG, gclient sync, runhooks
 scripts/roomcore-apply.sh
 #   symlinks Engine/roomcore/room as $CHROMIUM_SRC/room, creates the `room`
 #   branch with Engine/roomcore/patches applied, branding placeholders,
@@ -122,6 +122,28 @@ by bundle id: three builds share `app.room.desktop` (B-47).
 
 The full Chromium history is needed (the `room` branch is rebased onto new
 tags); do not use `--no-history`.
+
+Moving to a new Chromium tag (3.8): the pin is `Engine/roomcore/CHROMIUM_TAG`,
+and `scripts/roomcore-rebase.sh` moves it. Look first, then run; the run ends
+by starting the build in the background, and `--verify` afterwards packages,
+runs the baseline and the tour's layout, sidebar, tabs and chrome sections on
+RoomCore, and appends the record to `research/notes/build-log.md`:
+
+```bash
+scripts/roomcore-rebase.sh --dry-run 155.0.8059.36   # what changed upstream in patched files; every conflict
+scripts/roomcore-rebase.sh 155.0.8059.36             # fetch, replay, pin, branch, gclient sync + runhooks,
+#   stubs, apply, gn gen, build (nohup, ROOM_BUILD_JOBS=6); log build/roomcore-rebase-<tag>-build.log
+#   exit 2 = a conflict: fix the file under build/roomcore-rebase/<tag>/conflict/, then
+scripts/roomcore-rebase.sh --continue
+scripts/roomcore-rebase.sh --verify                  # once the build has finished
+```
+
+Nothing may run on `out/dev` while the rebased build replaces its dylibs; the
+packaged apps under `build/roomcore*` keep working (they are copies). On the
+Mac mini a same-milestone refresh (154.0.8037.58 → .98) took under three
+minutes up to the build; the build rebuilds what the DEPS rolls touch (V8,
+ANGLE, Dawn, WebRTC there) and everything below a changed header
+(`build-log.md`, "Rebase 154.0.8037.58 → 154.0.8037.98").
 
 ## 5. Signing (user)
 
