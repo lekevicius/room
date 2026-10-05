@@ -8,7 +8,10 @@ import RoomCore
 @MainActor
 enum HostAutofillUISpike {
     static func key(_ key: String, code: Int, cdp: HostCDP) async throws {
-        try await cdp.call("Input.dispatchKeyEvent", ["type": "keyDown", "key": key, "code": key, "windowsVirtualKeyCode": code])
+        // rawKeyDown (3.7a): Chrome's popup key handlers are RenderWidgetHost
+        // key-press listeners, which take kRawKeyDown only; CDP's keyDown
+        // arrives as kKeyDown and never reached them (PR #1: no fill).
+        try await cdp.call("Input.dispatchKeyEvent", ["type": "rawKeyDown", "key": key, "code": key, "windowsVirtualKeyCode": code])
         try await cdp.call("Input.dispatchKeyEvent", ["type": "keyUp", "key": key, "code": key, "windowsVirtualKeyCode": code])
     }
 
@@ -16,8 +19,12 @@ enum HostAutofillUISpike {
         if name == "ui-passwords" {
             let state = try host.runSpikeAction("password-presentation")
             HostSpike.record("password-presentation", state)
-            guard state == 1 else { throw HostCDP.Failure("unexpected password presentation prerequisites") }
-            HostSpike.record("blocked", "Actual TabDialogs password presentation returns before model-state dispatch: Room has no ToolbarButtonProvider. This shared prerequisite blocks both save and update bubbles; no credential storage or save/update acceptance claimed.")
+            // 3.7a: bit 2 = the Browser has Room's ToolbarButtonProvider, 8 = the
+            // page's password model is inactive (no submitted form), 4 = a bubble.
+            HostSpike.record("password-provider", state & 2 != 0)
+            HostSpike.record("password-model-inactive", state & 8 != 0)
+            guard state & 2 != 0 else { throw HostCDP.Failure("no ToolbarButtonProvider on the Room Browser") }
+            HostSpike.record("note", "The provider exists (3.7a); Chrome shows the password bubble only for a pending or managed password, so a forced presentation on a page without a submitted form shows none. The save/update flow is Room.app's `passwords` spike.")
             return
         }
         if name == "ui-card-save" {
