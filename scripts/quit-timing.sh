@@ -16,7 +16,7 @@ if [[ "${ROOM_QUIT_MODE:-appleevent}" == spike ]]; then
 fi
 
 RUNS="${1:-3}"
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 # Quit goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }

@@ -6,13 +6,10 @@ import Model
 import Sidebar
 import Store
 import Tabs
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
 /// Phase 2.3 spikes on the live engine (`Room -RoomSpike <name>`):
-/// - `tabs`: ⌘W / ⇧⌘T / MRU / related tabs / discard / ⌃Tab / ⌘1 / mute on
-///   CEF, through real key events where the page has focus.
+/// - `tabs`: ⌘W / ⇧⌘T / MRU / related tabs / discard / ⌃Tab / ⌘1 / mute,
+///   through real key events where the page has focus.
 /// - `switch` (with `-RoomSidebarFixture 50`): loads the fixture's ten site
 ///   tabs, records summed RSS, then times 100 selection switches.
 /// - `relaunch`: on a state directory a `switch` run left behind, records
@@ -26,7 +23,7 @@ extension SpikeRunner.Context {
     var sidebar: SidebarController { session.sidebar }
     var store: SidebarStore { session.store }
 
-    // MARK: Behaviour on CEF
+    // MARK: Behaviour on the engine
 
     func tabsChecks() async {
         let space = sidebar.activeSpaceID
@@ -278,7 +275,7 @@ extension SpikeRunner.Context {
         guard let id = sidebar.selectedEntryID else { return SpikeRunner.record("error", "nothing selected") }
         _ = await waitUntil(30) { self.tabs.contents(for: id) != nil }
         if let page = tabs.contents(for: id) {
-            // Loading has to start before it can finish (CEF reports it a moment after `load`).
+            // Loading has to start before it can finish (the engine reports it a moment after `load`).
             let started = await waitUntil(10) { page.isLoading }
             SpikeRunner.record("launch_to_load_start_s", started ? String(format: "%.2f", Date().timeIntervalSince(launched)) : "not seen")
             _ = await waitUntil(45) { !page.isLoading }

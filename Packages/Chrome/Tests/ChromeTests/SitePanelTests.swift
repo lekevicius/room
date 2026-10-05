@@ -61,7 +61,7 @@ struct SitePanelTests {
         #expect(reloads == 1 && !model.needsReload)
     }
 
-    @Test("An engine that answers with the default (CEF's effective value) does not make a row the site's own")
+    @Test("An engine that answers with the default (an effective value) does not make a row the site's own")
     func defaultsAreNotStored() throws {
         let engine = FakeApplication()
         try engine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))

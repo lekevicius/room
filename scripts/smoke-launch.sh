@@ -8,7 +8,7 @@
 # ROOM_TOUR_ARGS (scripts/grand-tour.sh) is passed to the app.
 set -euo pipefail
 
-APP="${1:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${1:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 WAIT="${2:-5}"
 # Quit goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"

@@ -156,7 +156,7 @@ public final class FakeProfile: Profile {
     // MARK: History and autocomplete (Phase 3.5), opt-in
 
     /// `history` when set: a test that wants the engine's history sets one
-    /// (the Chapter 2 path runs without it, as on CEF).
+    /// (the no-history path runs without it).
     public var fakeHistory: FakeHistory?
     /// `makeAutocompleteController()` makes a `FakeAutocompleteController`
     /// over `fakeHistory` when set (and `fakeHistory` exists).
@@ -185,7 +185,7 @@ public final class FakeProfile: Profile {
 
     // MARK: Extensions (Phase 3.6a), opt-in
 
-    /// `extensions` when set (CEF has none; a test that wants them sets one).
+    /// `extensions` when set (a test that wants them sets one).
     public var fakeExtensions: FakeProfileExtensions? {
         didSet { fakeExtensions?.profile = self }
     }

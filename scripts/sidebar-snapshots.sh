@@ -12,7 +12,7 @@ FIXTURE="${1:-demo}"
 OUT_ARG="${2:-research/screenshots/phase-2.2b}"
 mkdir -p "$(dirname "$OUT_ARG")"
 OUT="$(cd "$(dirname "$OUT_ARG")" && pwd)/$(basename "$OUT_ARG")"
-APP="${3:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${3:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 # Activate goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
 

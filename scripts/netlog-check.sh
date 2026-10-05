@@ -6,7 +6,7 @@
 #     request it gets; `nettop` records every Room process's sockets and bytes
 #     (the main process is the app and its own code; the engine's network
 #     service runs in a Room Helper).
-#   - The engine: CEF's net-log (--log-net-log, capture mode Everything),
+#   - The engine: Chromium's net-log (--log-net-log, capture mode Everything),
 #     summarised by host with scripts/lib/netlog-summary.py (traffic
 #     annotations named from the Chromium checkout when it is mounted).
 # Page traffic (the local test site on 127.0.0.1:8770 and localhost:8770) is
@@ -22,7 +22,7 @@
 # Usage: scripts/netlog-check.sh [output directory]
 set -euo pipefail
 cd "$(dirname "$0")/.."
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 OUTDIR="${1:-$(mktemp -d)}"
 mkdir -p "$OUTDIR"
 work="$(mktemp -d)"

@@ -76,7 +76,7 @@ public final class ContextMenu: NSObject, NSMenuDelegate {
         return false
     }
 
-    /// No separator first, last or twice in a row (CEF leaves them where it removed items).
+    /// No separator first, last or twice in a row (an engine may leave them where it removed items).
     static func trimmedSeparators(_ items: [MenuItem]) -> [MenuItem] {
         var result: [MenuItem] = []
         for item in items {

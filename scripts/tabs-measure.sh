@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2.3 exit measurement on CEF: 50 entries with 10 loaded (the Phase 1.4
+# Phase 2.3 exit measurement (on CEF then; RoomCore since 3.9): 50 entries with 10 loaded (the Phase 1.4
 # typical sites), summed RSS, 100 selection switches (main-thread time and
 # the page's own visible/first-frame times), then a quit and a relaunch on
 # the same state directory (pages loaded at launch, time to the selected

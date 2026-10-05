@@ -181,7 +181,7 @@ public final class SitePanelModel {
     private func refresh() {
         guard let profile else { return }
         var values: [SitePermission: PermissionSetting] = [:]
-        // CEF answers with the effective value, the default included: only a
+        // An engine may answer with the effective value, the default included: only a
         // value other than the default counts as the site's own (2.6b).
         for permission in SitePermission.allCases {
             if let value = profile.permissionSetting(permission, for: origin), value != SitePanelRules.defaultSetting(for: permission) {

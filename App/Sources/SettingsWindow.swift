@@ -89,7 +89,7 @@ struct SettingsServices {
     let showWelcomeCard: () -> Void
     let checkForUpdates: () -> Void
     let canCheckForUpdates: () -> Bool
-    /// Chrome extensions per profile (3.6a); `nil` on an engine without them (CEF).
+    /// Chrome extensions per profile (3.6a); `nil` on an engine without them (no engine, the fakes).
     let extensions: () -> ExtensionsCenter?
 }
 

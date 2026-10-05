@@ -44,7 +44,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     /// `content::MediaSession` through RoomCore's `mediaSession`.
     public private(set) var mediaSession: MediaSessionInfo?
     /// `WebContents::SetAudioMuted`; follows `DidUpdateAudioMutingState`.
-    /// The delegate hears every change, the host's own included (as on CEF).
+    /// The delegate hears every change, the host's own included.
     public var isMuted: Bool {
         didSet {
             guard isMuted != oldValue else { return }
@@ -188,7 +188,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public func goBack() {
         // After a denied certificate error RoomCore already left the failed
         // navigation (the page shows what it showed before); the presenter's
-        // Go Back in the same turn, written for CEF's committed error page,
+        // Go Back in the same turn, written for an engine's committed error page,
         // would step one entry too far.
         if certificateDenialPending { return }
         page.goBack()
@@ -202,8 +202,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     // MARK: Find
 
     /// `FindTabHelper::StartFinding` with `find_match`: one request per call
-    /// (the same text steps to the next match, a new text selects its first;
-    /// CEF needs a counting request first). Results come from
+    /// (the same text steps to the next match, a new text selects its first).
+    /// Results come from
     /// `FindResultObserver` through the delegate.
     public func find(_ text: String, forward: Bool, matchCase: Bool) {
         guard state != .closed else { return }
@@ -274,7 +274,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     /// Runs `script` in RoomCore's isolated world of the main frame (the
     /// page's DOM, not its globals) and returns the completion value as JSON
-    /// text, like the CEF engine's `Runtime.evaluate` (strings quoted,
+    /// text, like the DevTools protocol's `Runtime.evaluate` (strings quoted,
     /// `undefined` as `null`). Chromium's isolated-world call does not wait
     /// for promises, so the script runs through `eval` in a wrapper that
     /// parks a promise's outcome in the isolated world, where it is polled.
@@ -480,7 +480,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     }
 
     /// A key-down before the page sees it: a reserved one goes to the main
-    /// menu here, once (as the CEF engine does), and never to the page.
+    /// menu here, once, and never to the page.
     public func webContents(_ webContents: RoomWebContents, isReservedKeyEvent event: NSEvent) -> Bool {
         guard uiDelegate?.webContents(self, isReservedKeyEvent: event) == true else { return false }
         _ = NSApp.mainMenu?.performKeyEquivalent(with: event)
@@ -736,8 +736,7 @@ extension NavigationAction {
 
 extension PermissionRequest {
     /// Chrome's request in the protocol's terms: local and loopback network
-    /// are one kind; navigator.storage.persist() (kDiskQuota) has none (CEF
-    /// drops it too).
+    /// are one kind; navigator.storage.persist() (kDiskQuota) has none.
     init?(_ request: RoomPermissionRequest) {
         let kind: Kind
         switch request.kind {

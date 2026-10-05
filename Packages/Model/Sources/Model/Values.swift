@@ -149,7 +149,7 @@ public struct Entry: Hashable, Sendable, Codable, Identifiable, FetchableRecord,
     /// (`WebContents.navigationState`, opaque; schema v5, Phase 3.7b): an
     /// entry revived from unloaded (relaunch, crash recovery, discard, ⌘W's
     /// unload, ⇧⌘T) goes Back where it was. `nil` when the page had none or
-    /// the engine cannot serialise it (CEF).
+    /// the engine cannot serialise it.
     public var navigationState: Data?
 
     public init(

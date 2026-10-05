@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetches Chromium into $CHROMIUM_ROOT (default ~/chromium; local.env), checks out the pinned
-# stable tag matching CEF, and syncs DEPS. Idempotent: skips steps already done.
+# stable tag (Engine/roomcore/CHROMIUM_TAG), and syncs DEPS. Idempotent: skips steps already done.
 # Timings are printed as "STEP <name> <seconds>" for research/notes/build-log.md.
 set -euo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 2.8b: summarises a Chromium net-log (CEF's --log-net-log) by host.
+"""Phase 2.8b: summarises a Chromium net-log (--log-net-log) by host.
 
 Every URL request is listed with its method, path, initiator, traffic
 annotation (named from the Chromium checkout's annotations.xml when given)
@@ -126,7 +126,7 @@ def main():
     print("| Host | Attributed to | URL requests (method path · initiator · traffic annotation · phase) | Other network events (phase) |")
     print("|---|---|---|---|")
     for host in hosts:
-        owner = "page traffic (excluded)" if host in page_hosts else "engine (CEF/Chromium, B-19)"
+        owner = "page traffic (excluded)" if host in page_hosts else "engine (Chromium, B-19)"
         listed = []
         seen = set()
         for r in sorted(by_host.get(host, []), key=lambda r: (r["phase"], r["path"])):

@@ -5,7 +5,7 @@ import Model
 
 /// Which background pages to discard (spec §H), as pure functions. A
 /// discarded page releases its renderer and keeps URL, title and favicon;
-/// selecting it reloads it (on CEF without back/forward, backlog B-13).
+/// selecting it reloads it with its back/forward list (B-13, 3.3a).
 public enum DiscardPolicy {
     /// What the policy needs to know about one page.
     public struct Page: Equatable, Sendable {
@@ -19,7 +19,7 @@ public enum DiscardPolicy {
         public var lastVisible: Date
         /// What the engine says keeps the page now (unsaved form input,
         /// Picture-in-Picture, sound, a capture: `WebContents.discardBlockers`,
-        /// spec §H and §A.7; B-17). Empty on CEF, which cannot see them.
+        /// spec §H and §A.7; B-17). Empty on an engine that cannot see them.
         public var blockers: DiscardBlockers
 
         public init(id: UUID, kind: EntryKind, isSelected: Bool, isAudible: Bool, isAlive: Bool, lastVisible: Date,
@@ -80,7 +80,7 @@ public enum DiscardPolicy {
 extension TabController {
     /// Starts the idle sweep (every `Timing.discardSweepInterval`). With
     /// `systemMemoryPressure` it also listens for macOS's memory-pressure
-    /// events itself (CEF, which reports none); RoomCore's reports arrive
+    /// events itself (an engine that reports none); RoomCore's reports arrive
     /// through `handleMemoryPressure(_:)` from the app.
     public func startLifecycle(systemMemoryPressure: Bool = true) {
         lifecycleStarted = true

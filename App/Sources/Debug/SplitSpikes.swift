@@ -10,7 +10,7 @@ import Tabs
 import UIKitCore
 
 /// Phase 2.7b: `layoutmodes` `-RoomSpikeOnly split` (`scripts/layout-modes.sh`):
-/// split view on CEF with the test site's pages. Measures split creation
+/// split view with the test site's pages. Measures split creation
 /// to both panes laid out (and to the next frame), a resizer drag's frame
 /// intervals with two loaded pages, a click in the other pane to the header
 /// field updated; checks the keys through the main menu, ⌘W on a pane,

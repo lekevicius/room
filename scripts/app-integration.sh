@@ -22,7 +22,7 @@ set -euo pipefail
 session=2.8a
 [[ "${1:-}" == --session ]] && { session="$2"; shift 2; }
 DIR="${ROOM_CAPTURE_DIR:-research/screenshots/phase-$session}"
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 APP_ABS="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
 captures=YES
 appearances=()

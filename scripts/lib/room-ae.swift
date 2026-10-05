@@ -1,5 +1,5 @@
 // B-47: sends one AppleEvent to one process, addressed by pid, never by
-// bundle id. Room.app on CEF, Room.app on RoomCore and the RoomCore embryo
+// bundle id. Room.app on RoomCore, the engine-free CI build and the RoomCore embryo
 // host share app.room.desktop; an event addressed by bundle id goes to
 // whichever LaunchServices picks, and launches one when none runs. An event
 // addressed by pid goes to that process or fails (procNotFound) when it has

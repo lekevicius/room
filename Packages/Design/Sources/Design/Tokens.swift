@@ -400,7 +400,7 @@ public enum PeekMetrics {
     public static let shadowOpacityLight: Float = 0.25
     public static let shadowOpacityDark: Float = 0.5
     /// The open animation starts at this scale around the click point (spec
-    /// §I.1: "scale from the link's rect"; CEF reports no link rect, chosen).
+    /// §I.1: "scale from the link's rect"; the engine reports no link rect, chosen).
     public static let openStartScale: CGFloat = 0.1
 }
 

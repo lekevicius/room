@@ -11,10 +11,9 @@ nonisolated public enum CertificateRules {
 
     /// `strictTransportSecurity`: whether the host has an HSTS policy
     /// (Chromium's `strict_enforcement`), or `nil` when the engine cannot
-    /// tell. CEF never passes `strict_enforcement` to `OnCertificateError`
-    /// (`libcef/browser/certificate_query.cc`), and its `Continue()` would
-    /// bypass even an HSTS host; so without the flag only hosts that no HSTS
-    /// policy can cover may proceed: IP addresses (HSTS ignores them) and
+    /// tell (Chapter 2's engine never passed it, and would have bypassed
+    /// even an HSTS host); without the flag only hosts that no HSTS policy
+    /// can cover may proceed: IP addresses (HSTS ignores them) and
     /// local names (`localhost`, `.localhost`, `.test`, `.local`,
     /// `.internal`, `.home.arpa`). RoomCore passes the flag (Chapter 3).
     public static func isOverridable(code: Int, host: String, strictTransportSecurity: Bool?) -> Bool {

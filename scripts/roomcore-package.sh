@@ -10,7 +10,7 @@
 #      RoomCore (scheme "Room (RoomCore)", build/roomcore/DerivedData) and the
 #      embryo host the engine-level scripts drive (scheme "RoomCore Host",
 #      build/roomcore-host/DerivedData; both products are Room.app, as is the
-#      CEF app's);
+#      engine-free CI target's);
 #   3. verify the signatures and print where the apps are.
 # The framework's Info.plist gains RoomCoreCommit (the last commit touching
 # //room, "-dirty" with local changes; a crash key), and the host is compiled

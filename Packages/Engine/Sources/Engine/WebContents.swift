@@ -2,7 +2,7 @@ import AppKit
 import Observation
 
 /// One tab's page: a renderer, its navigation history and a native view.
-/// Chromium `content::WebContents` plus tab helpers; CEF `CefBrowser`.
+/// Chromium `content::WebContents` plus tab helpers.
 ///
 /// Conforming types are `@Observable`: the page-state properties below change
 /// as the page loads and SwiftUI/AppKit observers track them directly.
@@ -66,7 +66,7 @@ public protocol WebContents: AnyObject, Observable {
     /// The page's back/forward list and current entry as opaque data the host
     /// stores and hands back in `WebContentsConfiguration.restoredNavigationState`
     /// (relaunch, crash recovery, an unloaded entry coming back); `nil` when
-    /// there is nothing to save or the engine cannot serialise it (CEF). The
+    /// there is nothing to save or the engine cannot serialise it. The
     /// navigation delegate hears `webContentsDidChangeNavigationState` when it
     /// changes. Written by one engine version; another may not read it.
     var navigationState: Data? { get }
@@ -112,8 +112,8 @@ public extension WebContents {
 @MainActor
 public protocol DevTools: AnyObject {
     var isOpen: Bool { get }
-    /// `false` when the engine can show DevTools only in a window of its own
-    /// (CEF without the debugging port, Release builds): the host view is then unused.
+    /// `false` when the engine can show DevTools only in a window of its own:
+    /// the host view is then unused.
     var isDockable: Bool { get }
     /// Shows DevTools filling `hostView`. A second call moves it to the new host.
     func open(in hostView: NSView)
@@ -143,7 +143,7 @@ nonisolated public struct WebContentsConfiguration: Sendable, Hashable {
     /// The window whose card will show the page. RoomCore binds the page to
     /// that window's Chrome `Browser` (one per window and profile; its tab
     /// strip mirrors the window's loaded pages, and the pages it opens arrive
-    /// there too); CEF has no browser objects and ignores it. Read at
+    /// there too); an engine without browser objects ignores it. Read at
     /// creation only: moving a page to another window is Chapter 4.8.
     public weak var hostWindow: NSWindow?
     /// A `WebContents.navigationState` saved earlier: the page starts with
@@ -151,7 +151,7 @@ nonisolated public struct WebContentsConfiguration: Sendable, Hashable {
     /// restored current entry, and loads it on its first `reload()` (a
     /// `load(_:)` instead navigates onward with the list behind it). Ignored
     /// when the engine cannot read it (the page then starts empty, as without
-    /// it) and on CEF.
+    /// it).
     public var restoredNavigationState: Data?
 
     public init(

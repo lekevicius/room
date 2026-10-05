@@ -2,8 +2,8 @@ import Foundation
 
 /// Errors thrown by engine API calls.
 nonisolated public enum EngineError: Error, Sendable, Equatable {
-    /// The engine does not implement this member (e.g. CEF has no tab
-    /// discarding). The string names the member.
+    /// The engine does not implement this member (e.g. no engine at all).
+    /// The string names the member.
     case notSupported(String)
     /// Called before `initialize` or outside the main loop.
     case notRunning

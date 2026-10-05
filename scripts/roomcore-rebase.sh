@@ -271,7 +271,7 @@ if [[ $mode == verify ]]; then
   record "  - quits: $(grep -Eo '[0-9.]+ s' "$dir/quit.txt" | tr '\n' ' ' || true)"
   t=$(now)
   # shellcheck disable=SC2086  # appearances: words
-  ROOM_TOUR_ENGINE=roomcore "$REPO/scripts/grand-tour.sh" --groups "${ROOM_REBASE_TOUR_GROUPS:-layout,sidebar,tabs,chrome}" \
+  "$REPO/scripts/grand-tour.sh" --groups "${ROOM_REBASE_TOUR_GROUPS:-layout,sidebar,tabs,chrome}" \
     ${ROOM_REBASE_TOUR_APPEARANCES:-light} > "$STATE/tour.log" 2>&1 || true
   # shellcheck disable=SC2012  # stamped directory names, newest first
   tour="$(ls -dt "$REPO"/build/grand-tour/*-roomcore | head -1)"

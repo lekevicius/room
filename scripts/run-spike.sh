@@ -15,7 +15,7 @@ SPIKE="$1"; shift
 # shellcheck disable=SC2206
 tour_args=(${ROOM_TOUR_ARGS:-})
 set -- "$@" ${tour_args[@]+"${tour_args[@]}"}
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 OUT="${ROOM_SPIKE_OUT:-$(mktemp -d)/spike-$SPIKE.txt}"
 # Activate and quit go to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"

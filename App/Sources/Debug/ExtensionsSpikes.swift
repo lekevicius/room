@@ -119,7 +119,7 @@ extension SpikeRunner.Context {
 
     func extensionsChecks() async {
         guard let app = extApp, let center = app.extensions, let section = extSection() else {
-            return SpikeRunner.record("extensions", "skipped: the engine has no extensions (CEF)")
+            return SpikeRunner.record("extensions", "skipped: the engine has no extensions")
         }
         SpikeRunner.record("extensions_ready", "\(section.extensions.isReady) installed=\(section.installed.count)")
         _ = await waitUntil(10) { section.extensions.isReady }
@@ -243,7 +243,7 @@ extension SpikeRunner.Context {
 
     func webstoreChecks() async {
         guard let center = extApp?.extensions, let section = extSection() else {
-            return SpikeRunner.record("webstore", "skipped: the engine has no extensions (CEF)")
+            return SpikeRunner.record("webstore", "skipped: the engine has no extensions")
         }
         _ = await waitUntil(10) { section.extensions.isReady }
         let ids = UserDefaults.standard.string(forKey: "RoomWebstoreIDs")?.split(separator: ",").map(String.init) ?? Self.webstoreDefaults
@@ -384,7 +384,7 @@ extension SpikeRunner.Context {
 
     func extensionUpdateCheck() async {
         guard let center = extApp?.extensions, let section = extSection() else {
-            return SpikeRunner.record("extupdate", "skipped: the engine has no extensions (CEF)")
+            return SpikeRunner.record("extupdate", "skipped: the engine has no extensions")
         }
         SpikeRunner.record("phase", String(format: "launch %.3f", Self.processStartDate().timeIntervalSince1970))
         _ = await waitUntil(10) { section.extensions.isReady }

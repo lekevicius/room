@@ -166,7 +166,7 @@ extension SpikeRunner.Context {
     func extensionPopupChecks() async {
         guard let app = AppDelegate.current, let center = app.extensions, let section = center.sections.first,
               app.extensionPopups != nil else {
-            return SpikeRunner.record("extpopup", "skipped: the engine has no extensions (CEF)")
+            return SpikeRunner.record("extpopup", "skipped: the engine has no extensions")
         }
         await activate()
         _ = await waitUntil(10) { section.extensions.isReady }

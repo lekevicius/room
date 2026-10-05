@@ -17,7 +17,7 @@ public protocol NavigationDelegate: AnyObject {
 
     /// The page's `navigationState` changed (a commit, a pruned list, a new
     /// title or scroll/form state of an entry); the engine coalesces it to at
-    /// most once per run-loop turn. Never called on CEF.
+    /// most once per run-loop turn.
     func webContentsDidChangeNavigationState(_ webContents: any WebContents)
 }
 
@@ -47,8 +47,7 @@ nonisolated public struct NavigationAction: Sendable, Hashable {
         /// A click on a link (an anchor, also one a script clicks while the
         /// user's gesture lasts). Never the page's script setting
         /// `window.location`, which is `.other` with a `.link` transition:
-        /// exact on RoomCore; CEF tells them apart by the link under the
-        /// pointer (its status text, B-33).
+        /// exact on RoomCore (the navigation throttle, B-33).
         case linkActivated
         case formSubmitted
         case backForward

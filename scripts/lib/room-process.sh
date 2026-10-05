@@ -1,5 +1,5 @@
 # Sourced by the spike wrappers: talk to one Room process by its pid, never
-# by bundle id (B-47). Room.app on CEF, Room.app on RoomCore and the RoomCore
+# by bundle id (B-47). Room.app on RoomCore, the engine-free CI build and the RoomCore
 # embryo host all share app.room.desktop; an AppleEvent addressed by bundle
 # id goes to whichever LaunchServices picks and, when none is running,
 # launches one, which then opens the real state directory. scripts/lib/room-ae.swift

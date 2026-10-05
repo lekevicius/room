@@ -8,20 +8,18 @@ import Observation
 import Tabs
 #if ROOM_ENGINE_ROOMCORE
 import EngineRoomCore
-#elseif canImport(EngineCEF)
-import EngineCEF
 #endif
 
 /// Phase 2.6b: `chromesurfaces2` (`scripts/chrome-surfaces.sh --session 2.6b`)
 /// exercises every member of the three delegate tables in `docs/engine-api.md`
-/// on CEF: the 2.6a checks again (without their captures), then downloads,
+/// on the engine: the 2.6a checks again (without their captures), then downloads,
 /// find (with the keystroke-to-match measurement), zoom, print, the status
 /// pill, the site panel, the engine withdrawing a dialog and a permission
 /// prompt, a crashed renderer, element fullscreen, the certificate
 /// interstitial's empty state (B-25), the DevTools pane (open time, resize,
 /// console), audio, keys and navigation. Each page the tab controller takes
 /// on gets recording proxies in front of it, so `delegate_calls` lists what
-/// CEF actually called. Captures (`-RoomSpikeCaptures2b YES`) are named
+/// the engine actually called. Captures (`-RoomSpikeCaptures2b YES`) are named
 /// `phase-2.6b-<name>-<appearance>`.
 extension SpikeRunner.Context {
     private var app: AppDelegate? { AppDelegate.current }
@@ -309,14 +307,12 @@ extension SpikeRunner.Context {
         }
     }
 
-    /// CEF's print runs the system panel app-modally (nothing else of the
-    /// spike runs meanwhile): a timer in the common modes finds it, records
-    /// it and aborts it, so nothing prints.
-    ///
-    /// RoomCore (3.3b) opens Chrome's print preview instead: a Views dialog in
+    /// RoomCore (3.3b) opens Chrome's print preview: a Views dialog in
     /// a child window over Room's window (B-29). The spike waits for that
     /// window, has the screen rect captured, then dismisses the preview with
-    /// Esc, as a person would, and waits for the window to go.
+    /// Esc, as a person would, and waits for the window to go. A system print
+    /// panel run app-modally instead (Chapter 2's engine) is found by a timer
+    /// in the common modes, recorded as `print_panel` and aborted.
     private func printCheck() async {
         // A local page that does not change under the preview (Chrome closes
         // its preview when the initiator navigates, pushState included).
@@ -655,7 +651,7 @@ extension SpikeRunner.Context {
         sendKey("l", keyCode: 37, [.command])
         _ = await waitUntil(2) { self.session.addressFocusRequest > edits }
         SpikeRunner.record("keys", "reserved calls=\(recorder.count("isReservedKeyEvent")) ⌘L reached the app=\(session.addressFocusRequest > edits) "
-            + "unhandled calls=\(recorder.count("handleUnhandledKeyEvent")) consumed calls=\(recorder.count("didConsumeKey")) (CEF: never)")
+            + "unhandled calls=\(recorder.count("handleUnhandledKeyEvent")) consumed calls=\(recorder.count("didConsumeKey")))")
         // ⇧⌘C and ⌥⇧⌘C: the page does not take them; the menu copies with a toast. The clipboard is put back after.
         let saved = NSPasteboard.general.string(forType: .string)
         focusPage(page)
@@ -942,13 +938,11 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
     }
 }
 extension SpikeRunner.Context {
-    /// The DevTools front-end page, where the engine exposes it (CEF's docked
-    /// front-end, RoomCore's adopted one).
+    /// The DevTools front-end page, where the engine exposes it (RoomCore's
+    /// adopted one).
     func devToolsFrontend(_ page: any WebContents) -> (any WebContents)? {
         #if ROOM_ENGINE_ROOMCORE
         (page.devTools as? RoomCoreDevTools)?.frontendPage
-        #elseif canImport(EngineCEF)
-        (page.devTools as? CEFDevToolsInspectable)?.frontendPage
         #else
         nil
         #endif

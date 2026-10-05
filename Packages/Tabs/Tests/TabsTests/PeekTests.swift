@@ -28,7 +28,7 @@ struct PeekTests {
         return (fixture, display, entry, page)
     }
 
-    /// A person's click on a link (`.linkActivated`; the status text names the link first, as CEF's emulation needs).
+    /// A person's click on a link (`.linkActivated`; the status text names the link first, as a hovered link does).
     func click(_ page: FakeWebContents, _ url: URL, disposition: Disposition = .currentTab) async {
         page.simulateStatusText(url.absoluteString)
         page.simulateLinkClick(to: url, disposition: disposition)

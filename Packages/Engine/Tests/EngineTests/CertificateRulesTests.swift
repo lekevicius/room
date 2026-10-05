@@ -18,7 +18,7 @@ struct CertificateRulesTests {
         }
     }
 
-    @Test("When the engine cannot tell (CEF), only local hosts and IP addresses proceed")
+    @Test("When the engine cannot tell, only local hosts and IP addresses proceed")
     func unknownPolicy() {
         for host in ["localhost", "dev.localhost", "app.test", "printer.local", "nas.home.arpa", "127.0.0.1", "192.168.1.20", "[::1]", "LOCALHOST."] {
             #expect(CertificateRules.isOverridable(code: -202, host: host, strictTransportSecurity: nil), "\(host)")

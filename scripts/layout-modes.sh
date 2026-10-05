@@ -2,7 +2,7 @@
 # Phase 2.7a: serves research/spikes/phase-2.7/ (HTTP :8770, answering as
 # 127.0.0.1 and as localhost, two sites), runs `-RoomSpike layoutmodes`
 # (hide/reveal timing, the floating traffic-light cluster, the optional
-# toolbar, Peek's off-site rule on CEF, Peek open timing, event isolation
+# toolbar, Peek's off-site rule, Peek open timing, event isolation
 # under the Peek dim and the sidebar overlay) once per appearance (light,
 # dark) and answers its `capture: <name>` requests with a window-server
 # capture of Room's window. Captures go to research/screenshots/phase-2.7a/.

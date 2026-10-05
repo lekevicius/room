@@ -8,7 +8,7 @@ import AppKit
 /// run only when the host asks, and (3.6b) the action popups the host shows
 /// in a popover. RoomCore: `ExtensionRegistry`, `ExtensionRegistrar`,
 /// `ExtensionActionManager`, `ToolbarActionsModel`, `ExtensionUpdater`,
-/// `ExtensionViewHost`; CEF: none (`Profile.extensions` is `nil`).
+/// `ExtensionViewHost`; without an engine `Profile.extensions` is `nil`.
 @MainActor public protocol ProfileExtensions: AnyObject {
     /// Hears list changes, action changes and the consent questions. Held weakly.
     var delegate: (any ProfileExtensionsDelegate)? { get set }

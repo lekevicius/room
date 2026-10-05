@@ -36,7 +36,7 @@ nonisolated public struct PermissionRequest: Sendable, Hashable {
     /// macOS's own authorization for what the request needs (camera,
     /// microphone, location, notifications), so the host can explain a
     /// system denial; `.notApplicable` for the rest and where the engine
-    /// cannot tell (CEF).
+    /// cannot tell.
     public enum SystemAuthorization: Sendable, Hashable {
         case notApplicable
         /// macOS has not asked yet; it will when the page gets access.

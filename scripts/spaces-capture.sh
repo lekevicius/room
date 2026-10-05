@@ -5,7 +5,7 @@
 # research/screenshots/<name>.png. Needs the screen unlocked and Screen
 # Recording for the shell that runs it.
 set -euo pipefail
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 DIR="${ROOM_CAPTURE_DIR:-research/screenshots}"
 OUT="$(mktemp -d)/spike-spacecaptures.txt"
 mkdir -p "$DIR"

@@ -1,11 +1,9 @@
 # XcodeGen entry point: `xcodegen` → Room.xcodeproj (gitignored, never hand-edited).
-# Base app + packages live in xcodegen/base.yml; the CEF engine (helpers,
-# framework embedding) in xcodegen/cef.yml; Room.app on RoomCore and the
-# embryo host in xcodegen/roomcore.yml. CI uses xcodegen/ci.yml (no engine).
+# Base app + packages live in xcodegen/base.yml (the Room target there links no
+# engine); Room.app on RoomCore and the embryo host in xcodegen/roomcore.yml.
+# CI uses xcodegen/ci.yml (base only, no engine).
 include:
   - path: xcodegen/base.yml
-    relativePaths: false
-  - path: xcodegen/cef.yml
     relativePaths: false
   - path: xcodegen/roomcore.yml
     relativePaths: false

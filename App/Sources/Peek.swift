@@ -89,7 +89,7 @@ final class PeekPresenter: PeekDisplay {
         }
     }
 
-    /// Scales up from the click (CEF reports no link rect) over `Motion.slow`;
+    /// Scales up from the click (the engine reports no link rect) over `Motion.slow`;
     /// the dim fades in. Reduce Motion: a fade.
     private func animateOpen() {
         guard let layer = overlay.card.layer else { return }

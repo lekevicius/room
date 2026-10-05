@@ -1,6 +1,7 @@
 # Compile check of the app and its packages plus the package unit tests
-# (FakeEngine), without an engine distribution (CEF and RoomCore builds stay
-# local in Chapter 1).
+# (FakeEngine), without the engine: the Room target of xcodegen/base.yml links
+# no engine (ROOM_ENGINE=none); RoomCore builds stay local (no fork build on
+# the runner).
 name: CI
 
 on:

@@ -91,7 +91,7 @@ public protocol EngineApplication: AnyObject {
     /// punycode; an IP address, `localhost` or any host without a
     /// registrable domain is its own site; `nil` without a host (`about:`,
     /// `data:`, `file:`). RoomCore: Chromium's
-    /// `net::registry_controlled_domains`; CEF and the fake: the bundled
+    /// `net::registry_controlled_domains`; the fake and no engine: the bundled
     /// `PublicSuffixList`.
     func site(of url: URL) -> String?
 }
@@ -109,8 +109,8 @@ nonisolated public enum MemoryPressureLevel: Int, Sendable, Hashable, Comparable
 public protocol EngineApplicationDelegate: AnyObject {
     /// The memory-pressure level changed, or a moderate or critical level
     /// lasts (the engine repeats it). The engine discards none of the host's
-    /// pages for it: the host's policy decides (RoomCore). CEF never calls it
-    /// (the host listens to the system itself).
+    /// pages for it: the host's policy decides (RoomCore). An engine that
+    /// never calls it leaves the host to listen to the system itself.
     func engineApplication(_ application: any EngineApplication, didChangeMemoryPressure level: MemoryPressureLevel)
 }
 

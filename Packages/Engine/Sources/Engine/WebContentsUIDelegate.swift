@@ -30,14 +30,14 @@ public protocol WebContentsUIDelegate: AnyObject {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?)
     /// The engine wants the address field focused for this page (Chromium's
     /// focus-the-location-bar command, `IDC_FOCUS_LOCATION`, Phase 3.5): the
-    /// host opens its field as ⌘L does. CEF never asks.
+    /// host opens its field as ⌘L does.
     func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents)
     /// Where the engine's own bubbles point while this page is its window's
     /// active page (RoomCore keeps Chrome's Views bubbles: password save and
     /// update, address and card saves, device choosers, FedCM; Phase 3.7a):
     /// a rect in the window's coordinates, the site button. `nil`: the
     /// engine's default, the window's top-left corner. Asked when a bubble is
-    /// about to show and when the window moves or resizes. CEF never asks.
+    /// about to show and when the window moves or resizes.
     func bubbleAnchorRect(for webContents: any WebContents) -> CGRect?
     /// Return `true` if the delegate presents `menu` itself (and later calls
     /// `menu.select` or `menu.cancel`); `false` lets the engine show its own.
@@ -114,7 +114,7 @@ public protocol WebContentsUIDelegate: AnyObject {
     // MARK: The renderer, other applications, notices (3.4b)
 
     /// The page's renderer stopped responding to input (Chromium's hang
-    /// monitor; CEF's `OnRenderProcessUnresponsive`). `completion(.wait)`
+    /// monitor). `completion(.wait)`
     /// keeps waiting (asked again if it stays hung); `.terminate` ends the
     /// renderer and `processGone` follows.
     func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
@@ -304,7 +304,7 @@ public final class MenuModel {
 
 /// One context-menu row.
 nonisolated public struct MenuItem: Sendable, Hashable, Identifiable {
-    /// The engine's command id (Chromium `IDC_*`, CEF `MENU_ID_*`).
+    /// The engine's command id (Chromium `IDC_*`).
     public typealias ID = Int
 
     public enum Kind: Sendable, Hashable {

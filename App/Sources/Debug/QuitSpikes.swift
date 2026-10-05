@@ -22,7 +22,7 @@ import Engine
 ///   close is reported once.
 ///
 /// 3.4b: both run without the DevTools protocol too (no `-RoomSpikeCDPPort`):
-/// the host's own Leave/Stay sheet answers (`PagePrompts`), as on CEF;
+/// the host's own Leave/Stay sheet answers (`PagePrompts`);
 /// `closeunload` then also runs ⌘W on the page's Today entry: "stay" keeps
 /// the page alive in the same entry, selected; "leave" closes both.
 extension SpikeRunner.Context {

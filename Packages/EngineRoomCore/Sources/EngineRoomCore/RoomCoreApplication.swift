@@ -39,9 +39,8 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
     /// closes the pages, false again after a beforeunload "stay".
     public var isTerminating: Bool { core.isTerminating }
 
-    /// Prefix of a profile's directory under the user data root; the same
-    /// layout as the CEF engine (`CEFApplication.profileDirectoryPrefix`), so
-    /// one engine directory serves either engine's profile names.
+    /// Prefix of a profile's directory under the user data root (the
+    /// Chapter 2 layout, `Room Profile <name>`).
     public static let profileDirectoryPrefix = "Room Profile "
 
     private let core: RoomApplication

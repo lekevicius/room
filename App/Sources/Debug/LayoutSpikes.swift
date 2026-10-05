@@ -8,9 +8,6 @@ import Model
 import QuartzCore
 import Tabs
 import UIKitCore
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
 /// Phase 2.7a: `layoutmodes` (`scripts/layout-modes.sh`, which serves
 /// `research/spikes/phase-2.7/` on 127.0.0.1:8770 and, as a second site, on
@@ -97,7 +94,7 @@ extension SpikeRunner.Context {
 
     // MARK: The View menu with a page focused (2.7b carry-over)
 
-    /// Clicks into the page (CEF's view takes the keyboard), then records the
+    /// Clicks into the page (Chromium's view takes the keyboard), then records the
     /// responder chain an action message walks and what `NSMenu.update()`
     /// validates for View ▸ Hide Sidebar and Keep Sidebar Open, with the
     /// sidebar docked and hidden.

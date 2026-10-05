@@ -9,8 +9,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 
-# Engine binaries (downloaded CEF distributions, built frameworks)
-Engine/cef/dist/
 Engine/roomcore/out/
 
 # macOS

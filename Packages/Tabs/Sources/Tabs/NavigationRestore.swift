@@ -8,7 +8,7 @@ import Foundation
 enum NavigationRestore: Equatable {
     case loadRestored
     /// `unreadable`: there was a saved list but the engine restored nothing
-    /// (another engine version's format, CEF); the entry's URL loads alone.
+    /// (another engine version's format, an engine without serialisation); the entry's URL loads alone.
     case navigate(unreadable: Bool)
 
     static func firstLoad(entryURL: URL, restoredURL: URL?, hadState: Bool) -> NavigationRestore {

@@ -3,11 +3,8 @@ import AppKit
 import Chrome
 import Engine
 import Tabs
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
-/// Phase 2.6a: the page's prompts, menus and file choosers on CEF
+/// Phase 2.6a: the page's prompts, menus and file choosers
 /// (`scripts/chrome-surfaces.sh`, which serves `research/spikes/phase-2.6/`
 /// on 127.0.0.1:8766 and its self-signed twin on :8767):
 /// - `chromesurfaces`: JavaScript dialogs (Return, Esc, typing into a

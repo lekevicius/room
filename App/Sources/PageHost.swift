@@ -90,7 +90,7 @@ final class PageHost: PageDisplay {
     }
 
     /// Puts the keyboard in the page: the first view in its tree that takes
-    /// it (CEF's render view inside our container).
+    /// it (Chromium's render widget view inside our container).
     func focusPage() {
         guard let window = container.window else { return }
         guard let root = contents?.nativeView else {
@@ -159,7 +159,7 @@ final class PageHost: PageDisplay {
 
 /// The card's content: the page on top, an optional DevTools pane below it.
 final class PageContainerView: NSView {
-    /// CEF renders DevTools as a child view of this pane (`ShowDevTools` + `SetAsChild`).
+    /// The DevTools front-end page is placed in this pane (RoomCore 3.3b: `DevToolsWindow`'s front-end adopted).
     let devToolsPane = FlippedPaneView()
     /// Shown in place of a page when nothing is selected.
     let emptyState = CardEmptyStateView()
@@ -224,7 +224,7 @@ final class PageContainerView: NSView {
         addSubview(devToolsPane)
         addSubview(toolLayer)
         addSubview(promptLayer)
-        // Above the pane's and the page's own views (CEF's), so it gets the drags.
+        // Above the pane's and the page's own views (Chromium's), so it gets the drags.
         addSubview(divider)
     }
 

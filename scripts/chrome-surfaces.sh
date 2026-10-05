@@ -16,7 +16,7 @@
 # Needs the screen unlocked and Screen Recording for the shell that runs it.
 # Usage: scripts/chrome-surfaces.sh [--session 2.6a|2.6b|3.4b] [--no-captures] [light|dark ...] [-- extra app args]
 set -euo pipefail
-APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 session=2.6a
 captures=YES
 appearances=()

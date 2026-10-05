@@ -1,7 +1,7 @@
 import AppKit
 
 /// A browsing profile: one cookie jar, cache, history and set of site
-/// permissions. Chromium `Profile`; CEF `CefRequestContext`.
+/// permissions. Chromium `Profile`.
 @MainActor
 public protocol Profile: AnyObject {
     /// The name the profile was created with; also its directory name.
@@ -31,7 +31,7 @@ public protocol Profile: AnyObject {
     func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL)
 
     // Optional capabilities: `nil` when the engine does not provide them
-    // (CEF provides none). Their members are specified in Chapter 3.
+    // (the fakes by default, no engine). Specified in Chapter 3.
 
     /// Chromium's history service.
     var history: (any ProfileHistory)? { get }
@@ -49,7 +49,7 @@ public protocol Profile: AnyObject {
 
     /// Whether the engine saw this profile's previous session end cleanly
     /// (Chromium's exit type: `false` after a crash or a kill), read when the
-    /// profile loaded; `nil` when the engine does not track it (CEF). The
+    /// profile loaded; `nil` when the engine does not track it. The
     /// host combines it with its own store's `uncleanExit`.
     var lastExitWasClean: Bool? { get }
 }
@@ -57,7 +57,7 @@ public protocol Profile: AnyObject {
 /// Chromium's history service for one profile (Phase 3.5). The palette's
 /// history and ⌘Y read it, and the Chapter 2 history is imported into it
 /// once per profile. Queries answer asynchronously (Chromium's history
-/// thread). RoomCore: `HistoryService`; CEF and the no-engine app: none.
+/// thread). RoomCore: `HistoryService`; the no-engine app: none.
 @MainActor public protocol ProfileHistory: AnyObject {
     /// URLs whose title or URL contain every word of `text`, most recent first.
     func search(_ text: String, limit: Int) async -> [HistoryEntry]

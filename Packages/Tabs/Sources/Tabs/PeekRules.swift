@@ -17,8 +17,8 @@ public enum PeekDecision: Equatable, Sendable {
 /// in place, so logins never break. ⇧-click opens Peek from any page.
 ///
 /// A click on a link is the engine's `NavigationAction.Kind.linkActivated`
-/// (exact on RoomCore; CEF emulates it with the link under the pointer,
-/// B-33); a script navigation is `.other` with a link transition.
+/// (exact on RoomCore from the navigation throttle, B-33); a script
+/// navigation is `.other` with a link transition.
 public enum PeekRules {
     nonisolated public struct Context: Equatable, Sendable {
         /// The page belongs to an essential or a pinned entry.

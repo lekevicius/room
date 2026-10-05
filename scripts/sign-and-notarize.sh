@@ -3,9 +3,8 @@
 # per-target entitlements, verifies it, and (unless --no-notarize) submits it
 # to Apple's notary service and staples the ticket.
 #
-# Handles both engines: CEF (helpers in Contents/Frameworks) and RoomCore
-# (helpers and, in the component build, ~500 dylibs inside
-# RoomCore.framework/Versions/<v>; scripts/roomcore-package.sh).
+# RoomCore's layout: the helpers and, in the component build, ~500 dylibs
+# inside RoomCore.framework/Versions/<v> (scripts/roomcore-package.sh).
 #
 # Notarization needs a stored credential profile, created once by the user:
 #   xcrun notarytool store-credentials room --apple-id <id> --team-id N56PMJ99UT
@@ -20,23 +19,18 @@ IDENTITY="${ROOM_SIGN_IDENTITY:-Developer ID Application: Jonas Lekevicius (N56P
 PROFILE="${ROOM_NOTARY_PROFILE:-room}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENT_APP="$ROOT/App/Resources/Room.entitlements"
-ENT_JIT="$ROOT/Helpers/Resources/Helper-JIT.entitlements"
-ENT_NONE="$ROOT/Helpers/Resources/Helper.entitlements"
+ENT_JIT="$ROOT/App/Resources/Helper-JIT.entitlements"
+ENT_NONE="$ROOT/App/Resources/Helper.entitlements"
 now() { perl -MTime::HiRes=time -e 'printf "%.1f\n", time'; }
 sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
 
 [[ -d "$APP" ]] || { echo "no app at $APP" >&2; exit 1; }
 t0=$(now)
 
-if [[ -d "$APP/Contents/Frameworks/RoomCore.framework" ]]; then
-  FW="$APP/Contents/Frameworks/RoomCore.framework"
-  FWV="$FW/Versions/$(readlink "$FW/Versions/Current")"
-  HELPERS="$FWV/Helpers"
-else
-  FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
-  FWV="$FW/Versions/A"
-  HELPERS="$APP/Contents/Frameworks"
-fi
+FW="$APP/Contents/Frameworks/RoomCore.framework"
+[[ -d "$FW" ]] || { echo "no RoomCore.framework in $APP (the engine-free CI app is not signed)" >&2; exit 1; }
+FWV="$FW/Versions/$(readlink "$FW/Versions/Current")"
+HELPERS="$FWV/Helpers"
 
 # 1. Framework internals (dylibs: in parallel, the component build has ~500),
 # then helper executables that are not app bundles.
@@ -54,8 +48,8 @@ done
 # (chrome/installer/mac/signing/parts.py: helper-renderer and helper-gpu with
 # allow-jit, the base, Alerts and plain Aperitif helpers with none). On M154
 # the GPU process runs from the base helper unless SwiftShader is allowed;
-# Chrome ships that helper without allow-jit, Phase 1.4 measured CEF's GPU
-# process running without it, and 3.1b keeps it so on RoomCore
+# Chrome ships that helper without allow-jit (Phase 1.4 measured Chapter 2's
+# engine's GPU process running without it), and 3.1b keeps it so on RoomCore
 # (ROOM_BASE_HELPER_ENTITLEMENTS to experiment).
 for helper in "$HELPERS"/Room\ Helper*.app; do
   case "$helper" in

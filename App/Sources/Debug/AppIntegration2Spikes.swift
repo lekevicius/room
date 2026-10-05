@@ -286,7 +286,7 @@ extension SpikeRunner.Context {
 
 // MARK: The no-request check (ROADMAP 2.8 exit criterion)
 
-/// `netcheck` (`scripts/netlog-check.sh`, which records CEF's net-log, a
+/// `netcheck` (`scripts/netlog-check.sh`, which records the engine's net-log, a
 /// logging endpoint and `nettop` around it): a first launch with every
 /// opt-in declined (the first-run card left as it is and finished), idle
 /// (8 s, or `-RoomNetcheckIdleSeconds`);

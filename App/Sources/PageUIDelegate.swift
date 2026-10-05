@@ -84,8 +84,8 @@ extension PageUIDelegate: WebContentsUIDelegate {
         return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }
 
-    /// Nothing to do with a key the page used (RoomCore reports them; CEF
-    /// cannot); logged for the keyboard spike only.
+    /// Nothing to do with a key the page used (RoomCore reports them from the
+    /// input-event ack); logged for the keyboard spike only.
     func webContents(_ webContents: any WebContents, didConsumeKey key: KeyEventInfo) {
         let flags = key.modifiers.intersection([.command, .shift, .option, .control])
         consumedKeyCount += 1

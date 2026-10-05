@@ -7,7 +7,7 @@
 set -euo pipefail
 
 OUT="$(cd "$(dirname "${1:-research/screenshots/phase-1.3}")" && pwd)/$(basename "${1:-research/screenshots/phase-1.3}")"
-APP="${2:-build/DerivedData/Build/Products/Debug/Room.app}"
+APP="${2:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 # Activate goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
 
