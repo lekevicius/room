@@ -117,7 +117,12 @@ extension SpikeRunner.Context {
         downloads.popover.close()
         // Names: the same file twice is numbered.
         await click(page, "#small")
-        _ = await waitUntil(5) { list.rows.filter { $0.item.suggestedFilename.contains("small") }.allSatisfy { $0.item.state == .complete } }
+        // Not `allSatisfy` alone: true before the first row exists (then the second click came 14 ms
+        // after the first and Blink dropped it as a duplicate navigation, 3.4b).
+        _ = await waitUntil(5) {
+            let small = list.rows.filter { $0.item.suggestedFilename.contains("small") }
+            return !small.isEmpty && small.allSatisfy { $0.item.state == .complete }
+        }
         await click(page, "#again")
         _ = await waitUntil(5) { list.rows.filter { $0.item.suggestedFilename.contains("small") }.count == 2 }
         _ = await waitUntil(5) { list.rows.filter { $0.item.suggestedFilename.contains("small") }.allSatisfy { $0.item.state == .complete } }
