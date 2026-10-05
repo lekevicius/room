@@ -1304,6 +1304,80 @@ nav passed 15.9 s; ten-page quits **0.281 / 0.220 / 0.228 s** (load 5.7 / 6.0 / 
 
 What 3.3 owns in the chrome sections passes: find (1 of 400 on the first request, ⌘G/⇧⌘G, Esc with the focus back), zoom with the indicator, print preview over the window and Esc, the status pill (shown 610.6 ms after its text for a configured 600, dodges the pointer), element fullscreen and the traffic lights after it, ⌥⌘J console, ⌥⌘C picker, audible on and off, copy URL. Both chrome steps hung after their `end:` line: Chrome's own app-modal "Leave site?" dialog (a beforeunload page the 2.6a checks leave behind; the host cannot answer Chrome's dialogs until 3.4b) held the quit; the window was found with `CGWindowListCopyWindowInfo` (layer 8, 260 × 218, `build/evidence-3.3b/chrome26b-quit-blocking-dialog.png`) and the instance was killed so the tour could continue (chrome26a's 1,286 s is that wait). Delegate members called on RoomCore in chrome26b: `decidePolicy`, `didChangeAudible`, `didChangeSecurityState`, `didChangeStatusText`, `didCommitNavigation`, `didCreate`, `handleUnhandledKeyEvent`, `isReservedKeyEvent`, `webContentsDidClose`, `webContentsDidRequestEnterFullscreen`/`…ExitFullscreen`; `didChangeMuted` was missing (the host's own ⇧⌘M changed `isMuted` without the delegate hearing it; CEF calls it for every change) and is called now (`-RoomSpikeOnly keys`: `didChangeMuted=2`). Never called (3.4; `processGone` is called since the fix above): `didFailCertificateCheck`, `didReceiveAuthChallenge`, `didUpdateDownload`, `willBeginDownload`, `runBeforeUnloadDialog`, `runFileChooser`, `runJavaScriptAlert`/`Confirm`/`Prompt`, `webContentsDidDismissJavaScriptDialogs`, `webContentsDidDismissPermissionPrompt`, `willAskForPermission`, `willShowContextMenu`. Chrome's own UI stood in for two of them: the file choosers opened as sheets (Chrome's `FileSelectHelper` panel; the checks for the sheet pass, the delegate is not called) and HTTP auth signed in through Chrome's login dialog.
 
+## Phase 3.4a — permission prompts, context menus, downloads with history, auth, certificates, file choosers (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Room.app on RoomCore (component build `out/dev` with patches 0017–0022, Debug Swift app) through `scripts/chrome-surfaces.sh --session 2.6b light -- -RoomSpikeOnly <steps>` with throwaway state and engine directories (`build/evidence-3.4a/cs-*`), the display at 60 Hz, Room's window main (`window_main: true` in every run), load 3–7; the embryo host through `scripts/roomcore-features.sh <drive>` (`build/evidence-3.4a/feature-*`). A delegate member reaches the host only on pages (profiles) whose delegate implements it; the embryo host implements the permission prompt and the auth challenge (recording, not answering: its drives answer through Chrome's `PermissionRequestManager` and `LoginHandler` list) and nothing else, so its other drives exercise Chrome's own UI as before.
+
+### Permissions (patch 0017, `RoomPermissionPrompt`)
+
+| Check | RoomCore | CEF (2.6b) |
+|---|---|---|
+| Location → Room's popover, Allow | prompt `geolocation` (system authorization *not determined*), answered | same |
+| Notifications → Don't Allow | prompt `notifications` (system *authorized*), answered | same |
+| `navigator.permissions.query` after the answers, then after a reload | geolocation **prompt**, notifications denied; the same after the reload | prompt / denied |
+| Notifications again | no prompt, the page reads `denied` | — |
+| The site panel's stored settings after Allow / Don't Allow | geolocation Allow, notifications Block (`HostContentSettingsMap`) | same |
+| Camera and microphone | no prompt: `NotFoundError` (no device) | same |
+| A location prompt open, then a navigation | popover gone, `webContentsDidDismissPermissionPrompt` 0 → 1 (answered prompts: none reported) | same |
+| Site panel: Location → Block, Pop-ups → Allow, reload | page reads geolocation `denied`; Clear: cookie `""`, storage `null`; Reset Permissions: nothing stored | same |
+| Embryo `permissions` | notifications (kind 4, system authorized) and geolocation (kind 3, not determined) reach the host; denied through the manager: `notification: denied`, `geo: 1`; both prompts reported withdrawn (no host answer) | Views bubble (PR #1) |
+| Embryo `ui-local-network` | local network (kind 17) and loopback network (kind 18) reach the host, 4 prompts; deny → `TypeError` and `denied`, accept → the fixture's text and `granted`, reuse without a prompt, reset → `prompt`; a page without a delegate (the replacement tab) keeps Chrome's bubble (`network-owned-dialogs: 1`), its pending request gone with the tab | Views bubble |
+
+Geolocation reads `prompt` although the grant is stored: Chrome's `GeolocationPermissionContextSystem` answers ASK while macOS has not determined the app's location authorization (`LocationSystemPermissionStatus::kNotDetermined`), which is what CEF's B-26 saw. No macOS prompt appeared during the runs (`CGWindowListCopyWindowInfo`: only the stale "Room quit unexpectedly" dialog); by hand: authorize Room's location and rerun (`chapter-3-by-hand.md` "Phase 3.4a" 1). Every request type the fixtures raise without a device reached the host with its kind: geolocation, notifications, local network, loopback network; camera and microphone need a device.
+
+### Context menus (patch 0018, `RoomContextMenu`)
+
+`menu.html` (with a misspelled field added) through `-RoomSpikeOnly menus`; every menu was Room's `NSMenu` (`willShowContextMenu` 4 for 4 right-clicks), the windows after the menus `RoomWindow, NativeWidgetMacNSWindow` (the modal anchor, 3.3b).
+
+| Target | Menu (Room's items, then Chrome's) | Element |
+|---|---|---|
+| Link | Open Link in New Tab, Open Link in Peek, Copy Link — Open Link in New Tab, Open Link in New Window, Open Link in Split View — Save Link As…, Copy Link Address, Add Link to Reading List — Copy "…", Copy Link to Highlight, Search Google for "…", Print "…", Translate "…" — Inspect — Speech | link, **link text "A link to the dialogs page"** (CEF: not available) |
+| Image | Open Image in New Tab, Copy Image Address — Open Image in New Tab, Save Image As…, Copy Image, Copy Image Address — Search This Image with Image Search — Inspect | media image; cancelled, closed |
+| Misspelled "mispelled" in a field | misspelled, dispelled — Add to Dictionary, Use Enhanced Spell Check — Look Up "mispelled" — Import Passwords — Undo, Redo — Cut, Copy, Paste — Search Google for "mispelled", Translate "mispelled" — Inspect — Speech | editable, misspelled `mispelled`, suggestions `misspelled`, `dispelled` |
+
+Room's Open Link in New Tab opened the link below the page (today 5 → 6, selection stays); Chrome's Copy Link Address (`IDC_CONTENT_CONTEXT_COPYLINKLOCATION`, chosen in the host's menu) ran in the engine: pasteboard `http://127.0.0.1:8766/dialogs.html`. Its first run crashed: Chrome's link-copied toast (`ToastController::CreateToast`, `CHECK_IS_TEST()` without a BrowserView anchor); `//room` disables Chrome's copy toasts now (B-58).
+
+### Downloads (patch 0019, `room_downloads.mm`)
+
+| Check (`downloads.html`) | RoomCore | CEF (2.6b) |
+|---|---|---|
+| The slow file (6 MB at 1 MB/s) at 1.5 s | in the host's folder, ring 0.24, "1,4 MB of 6 MB — 721 KB/s, 7 s left" | the same |
+| The same file twice | `room-2.6b-small.txt`, `room-2.6b-small (1).txt`, both on disk | the same |
+| No length | `totalBytes` nil, ring spins (-1) | the same |
+| Pause, resume, cancel through `Profile` | paused, resumed, cancelled, partial file removed; `canResume` **true while paused** (Chrome's) | tracked by `EngineCEF` |
+| End | 4 complete + 1 cancelled, badge 2, slow file 6,000,000 bytes; opening the popover clears the badge; Clear empties the list | the same |
+| Delegate calls | `willBeginDownload` 5, `didUpdateDownload` 47 | 5, 52 |
+| **Relaunch on the same state (B-28)** | the popover lists **5 of 5** (`room-2.6b-cancel.bin` cancelled, the other four complete), newest first, from Chrome's `DownloadHistory` | empty |
+| Quit with the slow download running | no Chrome prompt (macOS: `BrowserCloseManager` leaves the question to `AppController`, which Room does not install); the quit continues; after a relaunch the download is listed as cancelled | — |
+| Embryo `ui-download-close` | `ConfirmBrowserCloseWithPendingDownloads` reaches `//room` ("closing with 1 downloads in progress asks the host"); the embryo's browser delegate has no answer: closing continues | auto-confirmed (PR #1) |
+| Embryo `downloads`, `ui-download-destination` | Chrome's determiner (the embryo profile has no downloads delegate): bytes 26, the Save panel as a sheet, cancel | the same |
+
+### Auth, certificates, files (patches 0020–0022)
+
+| Check | RoomCore |
+|---|---|
+| `/auth` | Room's sign-in sheet (realm "Room test", basic, the username field focused), room / secret → "Signed in as room"; `didReceiveAuthChallenge` 1; Chrome's dialog never shown |
+| Embryo `auth` | the challenge reaches the host (realm "RoomCore fixture", basic); cancel and supply through Chrome's `LoginHandler` list (the handler is `//room`'s subclass) → the fixture loads |
+| `https://127.0.0.1:8767/secure.html` | Room's interstitial: -202 `ERR_CERT_AUTHORITY_INVALID`, overridable, chain 1, the row titled by the host; Go Back with nothing behind → the entry kept, the page closed, the empty card (B-25); again → Visit … Anyway offered → "Self-signed page" (`dangerous`) |
+| **`https://subdomain.preloaded-hsts.badssl.com/` (B-24; one request)** | Room's interstitial: -200 `ERR_CERT_COMMON_NAME_INVALID`, **not overridable, no Visit … Anyway** (`research/screenshots/phase-3.4a/phase-2.6b-certificate-hsts-light.png`); net-log `build/evidence-3.4a/cs-prompts/netlog.json`: `GET https://subdomain.preloaded-hsts.badssl.com/` (annotation 63171670, the navigation), no other badssl host |
+| Embryo `certificate` | Chrome's interstitial (no delegate member on the embryo), leave restores the page |
+| `files.html` | Room's open panel as a sheet three times: `public.image`; CSV + PDF, multiple; folders only; cancelled; `runFileChooser` 3 |
+| Embryo `ui-file-input` | Chrome's `NSOpenPanel` sheet (no delegate member), cancel once, gone with its tab |
+
+### The baseline after the last engine change (`build/baseline/3.4a-final3`, embryo host)
+
+nav passed 10.8 s; ten-page quits **0.241 / 0.284 / 0.216 s** (load 5.4 / 6.2 / 11.0), 0 helpers left, 0 crash reports; stub hits none. Two earlier attempts after the same change stopped at run 3 with "ten-page fixture incomplete": stackoverflow.com never finished loading (it answers this machine's plain requests with 403, a bot check); `3.4a-2`, before the toast change, passed 3/3 (0.413 / 0.284 / 0.230 s).
+
+### The grand tour's chrome section (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups chrome light`, `build/grand-tour/20261005-093813-roomcore`, 8.8 min)
+
+| Step | 3.3b | 3.4a | Failures, attributed |
+|---|---|---|---|
+| chrome26a | 15 / 10 | **22 / 3** | JS dialogs, beforeunload Stay (3.4b); `window.open` opener messages read `null` (B-55) |
+| chrome26b | 36 / 17 | **48 / 5** | JS dialogs, beforeunload Stay, delegate members never called (`runBeforeUnloadDialog`, `runJavaScriptAlert/Confirm/Prompt`, `webContentsDidDismissJavaScriptDialogs`: 3.4b); opener messages (B-55); the helper crash report count (RoomCore's Crashpad writes under the data root, the check is CEF-shaped, as 3.3b) |
+| total | 51 / 27 | **70 / 8** | nothing 3.4a owns fails |
+
+Both steps again hung after their `end:` line behind Chrome's app-modal "Leave site?" alert (a layer-8 260 × 218 Room window; the beforeunload page the dialogs check leaves): the instances were killed 30–45 s after the end so the tour could go on (3.4b's).
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.

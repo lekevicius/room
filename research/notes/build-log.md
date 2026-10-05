@@ -454,3 +454,8 @@ Probe38s/2steps; production registration fix29s/2steps,load113.41/98.40/75.07; f
 ## 2026-10-03 — extension chooser guard and final UI checkpoint
 
 Connection diagnostic29s/2steps,load42.39/56.80/68.49. Local/loopback permission19s/exit0; USB chooser owner cleanup11s/exit0. Extension-origin USB crashes6s/exit139 at BrowserView::toolbar_button_provider. Patch0012 nullable-provider guard: first compile11.15s failed due removed transitive BaseWindow include; one corrected retry19s/2steps,load21.81/35.26/53.95. Both GN checks and strict ad-hoc package pass,host8.8s. Regression18s/exit0 safely rejects NotFoundError. Required baseline nav12.168s,10loaded external pages quit0.694s,25helpers0left0newcrashes,exit0,load45.859; no sampling,original5s grace. Apply0/12. See roomcore-ui-handoff.md and exact connection manifest.
+
+
+## 2026-10-05 — Phase 3.4a (Mac mini M4, `out/dev`, 6 jobs)
+
+Series 15 → 21 (patches 0017–0022): `scripts/roomcore-apply.sh` "6 applied, 15 already", then "0 applied, 21 already". Builds (`scripts/roomcore-build.sh`, the six patched Chrome files and the new `//room` sources): 48.6 s failed (nullability region in `RoomProfile.h`), 45.5 s failed (13 steps; an undeclared command id), 31.3 s failed (`GURL::host()` is a `string_view` in M154), 55 s, 57 s (a public property renamed), 48 s (`BrowsingDataRemover` observer registration), 43 s (toast features). `gn check '//room/*'` OK. Package (`scripts/roomcore-package.sh`) 27 s; Swift builds host 7–11 s, app 9–11 s. Load 3.5–5.
