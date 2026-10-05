@@ -27,6 +27,7 @@
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
+#include "chrome/browser/extensions/updater/chrome_update_client_config.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/extensions/extension_install_ui.h"
@@ -831,6 +832,33 @@ RoomExtensionInstallKind KindFor(extensions::InstallPromptData::PromptType type)
   }
 }
 
+// The extension update client's configuration without a ping URL:
+// update_client then sends no event pings (the uninstall ping Chrome sends
+// for every Web Store extension removed, the "update applied" pings after a
+// check). Telemetry, not a request the user asked for: 3.6a's install
+// net-log showed one update_client POST per uninstall.
+class RoomUpdateClientConfig : public extensions::ChromeUpdateClientConfig {
+ public:
+  explicit RoomUpdateClientConfig(content::BrowserContext* context)
+      : ChromeUpdateClientConfig(context, std::nullopt) {}
+
+  std::vector<GURL> PingUrl() const override { return {}; }
+
+  // ChromeUpdateClientConfig::Create asks this factory (a protected setter
+  // named for tests upstream, no test behaviour). Room never overrides the
+  // Web Store's update URL, so the URL override Create would pass is empty.
+  static void Install() {
+    SetChromeUpdateClientConfigFactoryForTesting(base::BindRepeating(
+        [](content::BrowserContext* context)
+            -> scoped_refptr<extensions::ChromeUpdateClientConfig> {
+          return base::MakeRefCounted<RoomUpdateClientConfig>(context);
+        }));
+  }
+
+ protected:
+  ~RoomUpdateClientConfig() override = default;
+};
+
 bool ShowInstallDialog(
     std::unique_ptr<ExtensionInstallPromptShowParams>& show_params,
     ExtensionInstallPrompt::DoneCallback& done_callback,
@@ -933,6 +961,7 @@ void InstallExtensionHooks() {
   // for tests upstream but only turns that UI off (no test behaviour).
   static base::NoDestructor<base::AutoReset<bool>> no_post_install_ui(
       ExtensionInstallUI::disable_ui_for_tests(true));
+  RoomUpdateClientConfig::Install();
 }
 
 }  // namespace room
