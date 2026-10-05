@@ -58,12 +58,49 @@ public final class FakeWebContents: WebContents {
     @ObservationIgnored private var pageView: FakePageView?
     @ObservationIgnored private lazy var fakeDevTools = FakeDevTools(contents: self)
 
+    /// What `discardBlockers` reports (a test sets it: a dirty form, Picture-in-Picture…).
+    @ObservationIgnored public var simulatedDiscardBlockers: DiscardBlockers = []
+    /// `true` when the page started from `restoredNavigationState`.
+    public private(set) var wasRestored = false
+    /// The restored current entry waits for the first `reload()` (as Chromium's
+    /// `NavigationController::Restore` then `LoadIfNecessary`).
+    private var needsRestoreLoad = false
+
     init(profile: FakeProfile, configuration: WebContentsConfiguration) {
         self.profile = profile
         self.configuration = configuration
         self.muted = configuration.initiallyMuted
         if configuration.transparentBackground { rootBackgroundColor = nil }
+        if let data = configuration.restoredNavigationState, let saved = try? JSONDecoder().decode(SavedHistory.self, from: data),
+           saved.index >= 0, saved.index < saved.urls.count {
+            backForwardList = saved.urls
+            currentIndex = saved.index
+            url = saved.urls[saved.index]
+            title = saved.titles.indices.contains(saved.index) ? saved.titles[saved.index] : nil
+            wasRestored = true
+            needsRestoreLoad = true
+        }
     }
+
+    /// FakeEngine's navigation state: the committed URLs, their titles and the
+    /// current index, as JSON (opaque to the host, like the engines' own).
+    struct SavedHistory: Codable {
+        var urls: [URL]
+        var titles: [String?]
+        var index: Int
+    }
+
+    /// The titles each committed entry showed last, by index.
+    private var entryTitles: [Int: String] = [:]
+
+    public var navigationState: Data? {
+        guard currentIndex >= 0, !backForwardList.isEmpty else { return nil }
+        var titles = backForwardList.indices.map { entryTitles[$0] }
+        if let title { titles[currentIndex] = title }
+        return try? JSONEncoder().encode(SavedHistory(urls: backForwardList, titles: titles, index: currentIndex))
+    }
+
+    public var discardBlockers: DiscardBlockers { state == .alive ? simulatedDiscardBlockers : [] }
 
     public var nativeView: NSView {
         if let pageView { return pageView }
@@ -139,21 +176,34 @@ public final class FakeWebContents: WebContents {
     }
 
     private func commit(_ url: URL, transition: PageTransition) {
+        if currentIndex >= 0, let title { entryTitles[currentIndex] = title }
+        needsRestoreLoad = false
         backForwardList.removeSubrange((currentIndex + 1)...)
+        entryTitles = entryTitles.filter { $0.key <= currentIndex }
         backForwardList.append(url)
         currentIndex = backForwardList.count - 1
         startLoading(url, transition: transition)
+        navigationDelegate?.webContentsDidChangeNavigationState(self)
     }
 
     private func traverse(to index: Int) {
         let action = NavigationAction(url: backForwardList[index], kind: .backForward, transition: .other)
         guard navigationDelegate?.webContents(self, decidePolicyFor: action) != .ignore else { return }
+        if currentIndex >= 0, let title { entryTitles[currentIndex] = title }
+        needsRestoreLoad = false
         currentIndex = index
         startLoading(backForwardList[index], transition: .other)
+        navigationDelegate?.webContentsDidChangeNavigationState(self)
     }
 
     private func reload(ignoringCache: Bool) {
         guard state != .closed, let url else { return }
+        if needsRestoreLoad {
+            // The restored entry loads now (Chromium: `LoadIfNecessary`).
+            needsRestoreLoad = false
+            startLoading(url, transition: .reload)
+            return
+        }
         confirmUnload(isReload: true) { [weak self] proceed in
             guard proceed, let self else { return }
             let action = NavigationAction(url: url, kind: .reload, transition: .reload)
@@ -362,6 +412,7 @@ public final class FakeWebContents: WebContents {
     public func simulateTitle(_ title: String?) {
         self.title = title
         updatePageView()
+        navigationDelegate?.webContentsDidChangeNavigationState(self)
     }
 
     /// The page reports a favicon (FakeEngine's own is a template globe).

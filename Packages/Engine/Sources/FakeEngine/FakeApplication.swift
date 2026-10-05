@@ -8,6 +8,15 @@ import Engine
 public final class FakeApplication: EngineApplication {
     public private(set) var configuration: EngineConfiguration?
     public private(set) var fakeProfiles: [FakeProfile] = []
+    public weak var delegate: (any EngineApplicationDelegate)?
+    /// The last level `simulateMemoryPressure` reported.
+    public private(set) var memoryPressure = MemoryPressureLevel.none
+
+    /// The engine reports memory pressure (RoomCore's `base::MemoryPressureListener`).
+    public func simulateMemoryPressure(_ level: MemoryPressureLevel) {
+        memoryPressure = level
+        delegate?.engineApplication(self, didChangeMemoryPressure: level)
+    }
     private var isRunning = false
 
     public init() {}

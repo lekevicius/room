@@ -228,7 +228,8 @@ class PageServices : public content::WebContentsUserData<PageServices>,
                                   @selector(webContents:didAddInfoBar:));
   }
 
-  ShowTranslateBubbleResult OnTranslateStep(translate::TranslateStep step,
+  ShowTranslateBubbleResult OnTranslateStep(BrowserWindow* window,
+                                            translate::TranslateStep step,
                                             const std::string& source,
                                             const std::string& target,
                                             translate::TranslateErrors error) {
@@ -236,9 +237,18 @@ class PageServices : public content::WebContentsUserData<PageServices>,
               << source << " -> " << target << " error "
               << static_cast<int>(error);
     if (step != translate::TRANSLATE_STEP_BEFORE_TRANSLATE) {
-      // Translating, translated, an error: the offer is answered.
+      // Translating, translated, an error: the offer is answered; Chrome's
+      // bubble (Views, on the host's site button: RoomBrowserWindow) takes
+      // the later steps, as after its own offer. The host's Translate is the
+      // user's gesture that opens it; Chrome's automatic steps only update it.
       WithdrawTranslateOffer();
-      return ShowTranslateBubbleResult::kSuccess;
+      const bool gesture = host_requested_translation_;
+      host_requested_translation_ = false;
+      if (!window) {
+        return ShowTranslateBubbleResult::kBrowserWindowNotValid;
+      }
+      return window->ShowTranslateBubble(web_contents(), step, source, target,
+                                         error, gesture);
     }
     RoomWebContents* wrapper = NoticeTarget();
     if (!wrapper) {
@@ -268,6 +278,9 @@ class PageServices : public content::WebContentsUserData<PageServices>,
                        client ? client->GetTranslateManager() : nullptr;
                    LOG(INFO) << "RoomCore: translate " << from << " -> " << to
                              << (manager ? "" : " (no manager)");
+                   if (auto* services = PageServices::FromWebContents(weak.get())) {
+                     services->host_requested_translation_ = true;
+                   }
                    if (manager) {
                      manager->TranslatePage(
                          from, to, /*triggered_from_menu=*/false,
@@ -475,6 +488,8 @@ class PageServices : public content::WebContentsUserData<PageServices>,
 
   std::map<infobars::InfoBar*, RoomInfoBar*> infobars_;
   RoomInfoBar* translate_offer_ = nil;
+  // The host's Translate started the translation now being reported.
+  bool host_requested_translation_ = false;
   base::ScopedObservation<infobars::InfoBarManager,
                           infobars::InfoBarManager::Observer>
       infobar_observation_{this};
@@ -505,8 +520,8 @@ class RoomTranslateBubbleFactory : public TranslateBubbleFactory {
     PageServices* services =
         contents ? PageServices::FromWebContents(contents) : nullptr;
     if (services && services->NoticeTarget()) {
-      return services->OnTranslateStep(step, source_language, target_language,
-                                       error_type);
+      return services->OnTranslateStep(window, step, source_language,
+                                       target_language, error_type);
     }
     // What TranslateBubbleFactory's default does.
     if (!window) {

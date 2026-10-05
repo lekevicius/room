@@ -25,6 +25,8 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
 
     public private(set) var features = EngineFeatures()
     public var profiles: [any Profile] { loadedProfiles }
+    /// Hears Chromium's memory pressure (`base::MemoryPressureListener`, 3.7b).
+    public weak var delegate: (any EngineApplicationDelegate)?
 
     /// Chromium's registrable domain (`net::registry_controlled_domains`,
     /// private registries included), so the list updates with Chromium.
@@ -114,6 +116,18 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
     /// Pages the host created without a window (in no Browser) close now.
     public func roomApplicationWillTerminate(_ application: RoomApplication) {
         for profile in loadedProfiles { profile.closeAll() }
+    }
+
+    /// Chromium's memory-pressure notification (each change, and repeated
+    /// while a moderate or critical level lasts). RoomCore discards no Room
+    /// page for it; the host's policy does.
+    public func roomApplication(_ application: RoomApplication, didChangeMemoryPressure level: RoomMemoryPressureLevel) {
+        let mapped: MemoryPressureLevel = switch level {
+        case .critical: .critical
+        case .moderate: .moderate
+        default: .none
+        }
+        delegate?.engineApplication(self, didChangeMemoryPressure: mapped)
     }
 
     // MARK: Termination

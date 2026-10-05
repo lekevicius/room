@@ -28,6 +28,11 @@
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+#include "chrome/browser/translate/chrome_translate_client.h"
+#include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
+#include "chrome/browser/ui/views/translate/translate_bubble_view.h"
+#include "components/translate/core/browser/language_state.h"
+#include "components/translate/core/browser/translate_manager.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
@@ -971,6 +976,39 @@ void RoomBrowserWindow::HideAutofillSuggestions() {
 views::View* RoomBrowserWindow::GetBubbleAnchor() {
   GetWebContentsModalDialogHost();
   return objc_->modal_host->GetBubbleAnchor();
+}
+
+ShowTranslateBubbleResult RoomBrowserWindow::ShowTranslateBubble(
+    content::WebContents* contents,
+    translate::TranslateStep step,
+    const std::string& source_language,
+    const std::string& target_language,
+    translate::TranslateErrors error_type,
+    bool is_user_gesture) {
+  // BrowserView::ShowTranslateBubble without the Views toolbar: the same
+  // controller (every Browser has one, BrowserWindowFeatures::Init), the
+  // anchor the window's bubble anchor at the host's site button.
+  TranslateBubbleController* controller =
+      is_headless() ? nullptr : TranslateBubbleController::From(browser_);
+  ChromeTranslateClient* client =
+      contents ? ChromeTranslateClient::FromWebContents(contents) : nullptr;
+  if (!controller || !client) {
+    LOG(WARNING) << "RoomCore: no translate bubble (controller "
+                 << !!controller << ", client " << !!client << ")";
+    return ShowTranslateBubbleResult::kBrowserWindowNotValid;
+  }
+  client->GetTranslateManager()->GetLanguageState()->SetTranslateEnabled(true);
+  if (IsMinimized()) {
+    return ShowTranslateBubbleResult::kBrowserWindowMinimized;
+  }
+  views::Widget* widget = controller->ShowTranslateBubble(
+      contents, views::BubbleAnchor(GetBubbleAnchor()), std::nullopt, step,
+      source_language, target_language, error_type,
+      is_user_gesture ? TranslateBubbleView::USER_GESTURE
+                      : TranslateBubbleView::AUTOMATIC);
+  LOG(INFO) << "RoomCore: translate bubble step " << static_cast<int>(step)
+            << (widget ? " shown" : " updated or not shown");
+  return ShowTranslateBubbleResult::kSuccess;
 }
 
 std::unique_ptr<FindBar> RoomBrowserWindow::CreateFindBar() {

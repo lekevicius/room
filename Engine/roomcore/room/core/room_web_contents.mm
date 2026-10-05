@@ -2,13 +2,17 @@
 
 #import "room/core/room_web_contents_internal.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "base/apple/foundation_util.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/pickle.h"
 #include "base/process/kill.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -18,6 +22,8 @@
 #include "base/values.h"
 #include "base/scoped_observation.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/ssl/chrome_security_state_util.h"
@@ -40,7 +46,15 @@
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/permissions/permission_request_manager.h"
+#include "components/performance_manager/public/performance_manager.h"
+#include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/sessions/core/serialized_navigation_entry.h"
+#include "components/sessions/core/session_constants.h"
+#include "chrome/common/chrome_version.h"
+#include "content/public/browser/navigation_details.h"
+#include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/restore_type.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
@@ -158,6 +172,7 @@ extern void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&)
 - (void)room_mutingChanged;
 - (void)room_zoomChanged;
 - (void)room_didFinishNavigation:(content::NavigationHandle*)handle;
+- (void)room_navigationStateChanged;
 - (void)room_webContentsDestroyed;
 - (void)room_shownOrFocused;
 - (void)room_renderProcessGone:(base::TerminationStatus)status;
@@ -343,9 +358,20 @@ class Observer : public content::WebContentsObserver,
   }
   void NavigationEntryCommitted(const content::LoadCommittedDetails&) override {
     [wrapper_ room_refresh];
+    [wrapper_ room_navigationStateChanged];
   }
   void NavigationListPruned(const content::PrunedDetails&) override {
     [wrapper_ room_refresh];
+    [wrapper_ room_navigationStateChanged];
+  }
+  // A title, a favicon or the renderer's page state (scroll position, form
+  // contents) of an entry: what -navigationState saves changed.
+  void NavigationEntryChanged(const content::EntryChangedDetails&) override {
+    [wrapper_ room_navigationStateChanged];
+  }
+  void NavigationEntriesDeleted() override {
+    [wrapper_ room_refresh];
+    [wrapper_ room_navigationStateChanged];
   }
   void LoadProgressChanged(double progress) override {
     [wrapper_ room_setLoadProgress:progress];
@@ -664,6 +690,104 @@ id ToFoundation(const base::Value& value) {
   return NSNull.null;
 }
 
+
+// -navigationState's format: a header, then Chromium's own serialisation of
+// each entry (SerializedNavigationEntry::WriteToPickle, what Chrome's session
+// and tab-restore files hold).
+constexpr char kNavigationStateMagic[] = "RoomNavigationState";
+constexpr int kNavigationStateFormat = 1;
+// Per entry, as Chrome's session commands (base_session_service_commands.cc:
+// "navigations up to 63k"): a larger page state is left out, the entry kept.
+constexpr int kMaxSerializedEntryBytes = 63 * 1024;
+// More than a session ever writes (sessions::gMaxPersistNavigationCount each
+// side of the current entry): anything above is damage.
+constexpr int kMaxRestoredEntries = 64;
+
+// Room pages are discarded by the host alone (its idle and memory-pressure
+// policy, which asks -discardBlockers first): performance_manager's own
+// urgent and proactive discarding skip a page that is not auto-discardable
+// (CanDiscard: kExtensionProtected, protected; DiscardAPage passes
+// discard_protected_tabs = false). The unit exists once the page is in a tab
+// strip (tabs::TabModel's helpers), and a discard's replacement gets a new one.
+void MarkNotAutoDiscardable(content::WebContents* contents) {
+  auto* unit = contents ? resource_coordinator::TabLifecycleUnitExternal::
+                              FromWebContents(contents)
+                        : nullptr;
+  if (unit && unit->IsAutoDiscardable()) {
+    unit->SetAutoDiscardable(false);
+  }
+}
+
+// Chrome's reasons not to discard a page, as the host's blockers. Reasons
+// the host decides itself are left out: visibility and the active tab (the
+// host never discards what it shows), the recent-visibility window (its own
+// idle clock), Chrome's pinned tabs (Room has none), background title or
+// favicon updates (Chrome's proactive heuristic), and the extension
+// protection RoomCore sets on every Room page (not auto-discardable, so
+// performance_manager never discards one behind the host).
+RoomDiscardBlockers ToRoomBlockers(
+    const std::vector<performance_manager::policies::CannotDiscardReason>&
+        reasons) {
+  using Reason = performance_manager::policies::CannotDiscardReason;
+  RoomDiscardBlockers blockers = 0;
+  for (Reason reason : reasons) {
+    switch (reason) {
+      case Reason::kFormInteractions:
+        blockers |= RoomDiscardBlockersFormInteractions;
+        break;
+      case Reason::kUserEdits:
+        blockers |= RoomDiscardBlockersUserEdits;
+        break;
+      case Reason::kPictureInPicture:
+        blockers |= RoomDiscardBlockersPictureInPicture;
+        break;
+      case Reason::kAudible:
+        blockers |= RoomDiscardBlockersAudible;
+        break;
+      case Reason::kRecentlyAudible:
+        blockers |= RoomDiscardBlockersRecentlyAudible;
+        break;
+      case Reason::kCapturingVideo:
+      case Reason::kCapturingAudio:
+      case Reason::kCapturingWindow:
+      case Reason::kCapturingDisplay:
+      case Reason::kBeingMirrored:
+        blockers |= RoomDiscardBlockersCapturing;
+        break;
+      case Reason::kNotificationsEnabled:
+        blockers |= RoomDiscardBlockersNotifications;
+        break;
+      case Reason::kDevToolsOpen:
+        blockers |= RoomDiscardBlockersDevTools;
+        break;
+      case Reason::kConnectedToUSB:
+      case Reason::kConnectedToBluetooth:
+        blockers |= RoomDiscardBlockersConnectedDevice;
+        break;
+      case Reason::kVisible:
+      case Reason::kRecentlyVisible:
+      case Reason::kActiveTab:
+      case Reason::kPinnedTab:
+      case Reason::kBackgroundActivity:
+      case Reason::kExtensionProtected:
+      case Reason::kGlicShared:
+        break;
+      case Reason::kNotATab:
+      case Reason::kAlreadyDiscarded:
+      case Reason::kDiscardAttempted:
+      case Reason::kNoMainFrame:
+      case Reason::kPdf:
+      case Reason::kNotWebOrInternal:
+      case Reason::kInvalidURL:
+      case Reason::kOptedOut:
+      case Reason::kWebApp:
+        blockers |= RoomDiscardBlockersOther;
+        break;
+    }
+  }
+  return blockers;
+}
+
 }  // namespace
 
 namespace room {
@@ -743,6 +867,8 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   // Observers of contents the wrapper left (a discard), deleted once their
   // contents is gone.
   std::vector<std::unique_ptr<Observer>> _retiredObservers;
+  // A navigation-state change is posted for the end of this turn.
+  BOOL _navigationStatePending;
 }
 
 @synthesize delegate = _delegate;
@@ -795,6 +921,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     // Chrome inserted it into a tab strip: its tab helpers exist.
     _observer->ObserveTabHelpers();
     room::AttachPageServices(_contents);
+    MarkNotAutoDiscardable(_contents);
     [self room_refresh];
     [self room_refreshColors];
     [self room_refreshSecurity];
@@ -1013,6 +1140,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
   _observer->ObserveTabHelpers();
   room::AttachPageServices(_contents);
+  MarkNotAutoDiscardable(_contents);
   static bool logged = false;
   if (!logged) {
     logged = true;
@@ -1056,6 +1184,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   WrapperLink::CreateForWebContents(_contents, self);
   _observer = std::make_unique<Observer>(_contents, self);
   _observer->ObserveTabHelpers();
+  MarkNotAutoDiscardable(_contents);
   [self room_refresh];
   [self room_refreshColors];
   [self room_refreshSecurity];
@@ -1230,6 +1359,157 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   return discarded;
 }
 
+- (RoomDiscardBlockers)discardBlockers {
+  using performance_manager::PerformanceManager;
+  using performance_manager::policies::DiscardEligibilityPolicy;
+  if (!_contents || !PerformanceManager::IsAvailable()) {
+    return RoomDiscardBlockersOther;
+  }
+  base::WeakPtr<performance_manager::PageNode> node =
+      PerformanceManager::GetPrimaryPageNodeForWebContents(_contents);
+  DiscardEligibilityPolicy* policy =
+      DiscardEligibilityPolicy::GetFromGraph(PerformanceManager::GetGraph());
+  if (!node || !policy) {
+    return RoomDiscardBlockersOther;
+  }
+  // PROACTIVE: the full list (URGENT leaves notifications out); the
+  // recent-visibility window off, since the host's idle clock decides when.
+  std::vector<performance_manager::policies::CannotDiscardReason> reasons;
+  policy->CanDiscard(node.get(), DiscardEligibilityPolicy::DiscardReason::PROACTIVE,
+                     /*ignore_recent_visibility=*/true, &reasons);
+  const RoomDiscardBlockers blockers = ToRoomBlockers(reasons);
+  if (VLOG_IS_ON(1) || blockers) {
+    std::string names;
+    for (auto reason : reasons) {
+      names += std::string(names.empty() ? "" : ",") +
+               performance_manager::policies::CannotDiscardReasonToString(reason);
+    }
+    LOG(INFO) << "RoomCore: discard blockers of "
+              << _contents->GetVisibleURL().possibly_invalid_spec() << ": "
+              << (names.empty() ? "none" : names) << " -> " << blockers;
+  }
+  return blockers;
+}
+
+- (void)room_navigationStateChanged {
+  if (_navigationStatePending || !_contents) {
+    return;
+  }
+  _navigationStatePending = YES;
+  RoomWebContents* __weak weakSelf = self;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(^{
+        RoomWebContents* strongSelf = weakSelf;
+        if (!strongSelf) {
+          return;
+        }
+        strongSelf->_navigationStatePending = NO;
+        if (!strongSelf->_contents) {
+          return;
+        }
+        id<RoomWebContentsDelegate> delegate = strongSelf.delegate;
+        if ([delegate respondsToSelector:@selector
+                      (webContentsDidChangeNavigationState:)]) {
+          [delegate webContentsDidChangeNavigationState:strongSelf];
+        }
+      }));
+}
+
+- (NSData*)navigationState {
+  if (!_contents) {
+    return nil;
+  }
+  content::NavigationController& controller = _contents->GetController();
+  const int current = controller.GetLastCommittedEntryIndex();
+  const int count = controller.GetEntryCount();
+  if (current < 0 || current >= count) {
+    return nil;
+  }
+  // Chrome's session window: the current entry and up to
+  // gMaxPersistNavigationCount on each side.
+  const int first = std::max(0, current - sessions::gMaxPersistNavigationCount);
+  const int last =
+      std::min(count - 1, current + sessions::gMaxPersistNavigationCount);
+  std::vector<sessions::SerializedNavigationEntry> navigations;
+  int selected = -1;
+  for (int i = first; i <= last; ++i) {
+    content::NavigationEntry* entry = controller.GetEntryAtIndex(i);
+    if (!entry || entry->IsInitialEntry() || !entry->GetVirtualURL().is_valid()) {
+      continue;
+    }
+    if (i == current) {
+      selected = static_cast<int>(navigations.size());
+    }
+    navigations.push_back(
+        sessions::ContentSerializedNavigationBuilder::FromNavigationEntry(
+            i, entry));
+  }
+  if (navigations.empty() || selected < 0) {
+    return nil;
+  }
+  base::Pickle pickle;
+  pickle.WriteString(kNavigationStateMagic);
+  pickle.WriteInt(kNavigationStateFormat);
+  pickle.WriteString(CHROME_VERSION_STRING);
+  pickle.WriteInt(selected);
+  pickle.WriteInt(static_cast<int>(navigations.size()));
+  for (const auto& navigation : navigations) {
+    navigation.WriteToPickle(kMaxSerializedEntryBytes, &pickle);
+  }
+  return [NSData dataWithBytes:pickle.data() length:pickle.size()];
+}
+
+- (BOOL)restoreNavigationState:(NSData*)state {
+  if (!_contents || state.length == 0) {
+    return NO;
+  }
+  content::NavigationController& controller = _contents->GetController();
+  content::NavigationEntry* committed = controller.GetLastCommittedEntry();
+  if (controller.GetPendingEntry() || controller.GetEntryCount() > 1 ||
+      (committed && !committed->IsInitialEntry())) {
+    LOG(WARNING) << "RoomCore: navigation state not restored: the page has "
+                    "loaded already";
+    return NO;
+  }
+  const base::Pickle pickle =
+      base::Pickle::WithUnownedBuffer(base::apple::NSDataToSpan(state));
+  base::PickleIterator iterator(pickle);
+  std::string magic;
+  std::string version;
+  int format = 0;
+  int selected = -1;
+  int count = 0;
+  if (!iterator.ReadString(&magic) || magic != kNavigationStateMagic ||
+      !iterator.ReadInt(&format) || format != kNavigationStateFormat ||
+      !iterator.ReadString(&version) || !iterator.ReadInt(&selected) ||
+      !iterator.ReadInt(&count) || count <= 0 || count > kMaxRestoredEntries ||
+      selected < 0 || selected >= count) {
+    LOG(WARNING) << "RoomCore: navigation state not restored: unreadable "
+                    "header ("
+                 << state.length << " bytes)";
+    return NO;
+  }
+  std::vector<sessions::SerializedNavigationEntry> navigations(count);
+  for (auto& navigation : navigations) {
+    if (!navigation.ReadFromPickle(&iterator)) {
+      LOG(WARNING) << "RoomCore: navigation state written by Chromium "
+                   << version << " not restored by " << CHROME_VERSION_STRING
+                   << ": an entry does not read";
+      return NO;
+    }
+  }
+  if (version != CHROME_VERSION_STRING) {
+    LOG(WARNING) << "RoomCore: navigation state written by Chromium " << version
+                 << ", restored by " << CHROME_VERSION_STRING;
+  }
+  std::vector<std::unique_ptr<content::NavigationEntry>> entries =
+      sessions::ContentSerializedNavigationBuilder::ToNavigationEntries(
+          navigations, _contents->GetBrowserContext());
+  controller.Restore(selected, content::RestoreType::kRestored, &entries);
+  [self room_refresh];
+  return YES;
+}
+
 - (NSView*)nativeView {
   return _contents ? _contents->GetNativeView().GetNativeNSView() : nil;
 }
@@ -1330,10 +1610,17 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 }
 
 - (void)reload {
-  if (_contents) {
-    _contents->GetController().Reload(content::ReloadType::NORMAL,
-                                      /*check_for_repost=*/true);
+  if (!_contents) {
+    return;
   }
+  content::NavigationController& controller = _contents->GetController();
+  if (controller.NeedsReload()) {
+    // Restored (-restoreNavigationState:) or discarded: load the current
+    // entry with its page state, as Chrome does when it shows the tab.
+    controller.LoadIfNecessary();
+    return;
+  }
+  controller.Reload(content::ReloadType::NORMAL, /*check_for_repost=*/true);
 }
 
 - (void)reloadIgnoringCache {

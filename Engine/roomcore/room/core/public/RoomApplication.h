@@ -9,6 +9,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// The system's memory pressure as Chromium's monitor reports it
+// (base::MemoryPressureLevel; on macOS from the kernel's memory-pressure
+// events).
+typedef NS_ENUM(NSInteger, RoomMemoryPressureLevel) {
+  RoomMemoryPressureLevelNone = 0,
+  RoomMemoryPressureLevelModerate,
+  RoomMemoryPressureLevelCritical,
+};
+
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomApplicationDelegate <NSObject>
 // The browser process is up: profiles are loaded and RoomBrowser/RoomProfile
@@ -21,6 +30,12 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // Chromium is past the point of no return of a quit: all browsers are closed
 // and the run loop is about to stop.
 - (void)roomApplicationWillTerminate:(RoomApplication*)application;
+// Chromium's memory-pressure notification (base::MemoryPressureListener):
+// at each change of level and again while the pressure lasts (Chromium
+// repeats a moderate or critical level). RoomCore never discards a Room page
+// for it: the host's policy decides.
+- (void)roomApplication:(RoomApplication*)application
+    didChangeMemoryPressure:(RoomMemoryPressureLevel)level;
 @end
 
 // The browser process. One per process; the host creates it in main(),
@@ -84,6 +99,9 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // A quit is under way (browser_shutdown::IsTryingToQuit()): pages closing
 // now are closed by the quit. NO again after a "stay".
 @property(nonatomic, readonly, getter=isTerminating) BOOL terminating;
+
+// The last memory-pressure level Chromium reported (None before the first).
+@property(nonatomic, readonly) RoomMemoryPressureLevel memoryPressureLevel;
 
 // Loaded profiles. Chromium loads the last used profile ("Default" on first
 // launch) during startup.

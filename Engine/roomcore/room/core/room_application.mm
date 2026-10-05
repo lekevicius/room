@@ -6,6 +6,7 @@
 #include <crt_externs.h>
 #include <stdlib.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,8 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
+#include "base/memory/memory_pressure_level.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "base/path_service.h"
 #include "base/functional/bind.h"
 #include "base/callback_list.h"
@@ -138,6 +141,38 @@ void SetCrashKeys() {
 
 }  // namespace
 
+@interface RoomApplication ()
+- (void)room_memoryPressureChanged:(base::MemoryPressureLevel)level;
+@end
+
+namespace {
+
+// Chromium's memory-pressure notifications for the host (3.7b). The
+// registration needs a MemoryPressureListenerTag, a closed //base enum used
+// only to suppress listeners by field trial; Room takes the tab-loading
+// policy's tag (BackgroundTabLoadingPolicy is the other listener that acts
+// on tabs under pressure; Room runs without field trials). A tag of its own
+// would be a //base patch, which the patch policy rules out.
+class RoomMemoryPressureListener : public base::MemoryPressureListener {
+ public:
+  explicit RoomMemoryPressureListener(RoomApplication* application)
+      : application_(application),
+        registration_(FROM_HERE,
+                      base::MemoryPressureListenerTag::kBackgroundTabLoadingPolicy,
+                      this) {}
+
+ protected:
+  void OnMemoryPressure(base::MemoryPressureLevel level) override {
+    [application_ room_memoryPressureChanged:level];
+  }
+
+ private:
+  RoomApplication* __weak application_;
+  base::MemoryPressureListenerRegistration registration_;
+};
+
+}  // namespace
+
 @implementation RoomApplication {
   std::vector<std::string> _arguments;
   Class _applicationClass;
@@ -148,6 +183,8 @@ void SetCrashKeys() {
   // Waiting for the quit's outcome (-tryToTerminateWithCompletion:).
   NSMutableArray<void (^)(BOOL)>* _terminationCompletions;
   base::CallbackListSubscription _closingAllBrowsersSubscription;
+  std::unique_ptr<RoomMemoryPressureListener> _memoryPressureListener;
+  RoomMemoryPressureLevel _memoryPressureLevel;
 }
 
 @synthesize delegate = _delegate;
@@ -281,6 +318,9 @@ void SetCrashKeys() {
                    queue:nil
               usingBlock:^(NSNotification*) {
                 RoomApplication* strongSelf = weakSelf;
+                if (strongSelf) {
+                  strongSelf->_memoryPressureListener.reset();
+                }
                 room::DetachPageServiceObservers();
                 [strongSelf room_finishTermination:YES];
                 id<RoomApplicationDelegate> delegate = strongSelf.delegate;
@@ -401,8 +441,36 @@ void SetCrashKeys() {
                               }));
 }
 
+- (RoomMemoryPressureLevel)memoryPressureLevel {
+  return _memoryPressureLevel;
+}
+
+- (void)room_memoryPressureChanged:(base::MemoryPressureLevel)level {
+  RoomMemoryPressureLevel mapped = RoomMemoryPressureLevelNone;
+  switch (level) {
+    case base::MEMORY_PRESSURE_LEVEL_MODERATE:
+      mapped = RoomMemoryPressureLevelModerate;
+      break;
+    case base::MEMORY_PRESSURE_LEVEL_CRITICAL:
+      mapped = RoomMemoryPressureLevelCritical;
+      break;
+    default:
+      mapped = RoomMemoryPressureLevelNone;
+      break;
+  }
+  LOG(INFO) << "RoomCore: memory pressure " << static_cast<int>(mapped);
+  _memoryPressureLevel = mapped;
+  id<RoomApplicationDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector(roomApplication:
+                                       didChangeMemoryPressure:)]) {
+    [delegate roomApplication:self didChangeMemoryPressure:mapped];
+  }
+}
+
 - (void)room_didFinishLaunching {
   SetCrashKeys();
+  // Chromium's memory-pressure monitor and listener registry exist now.
+  _memoryPressureListener = std::make_unique<RoomMemoryPressureListener>(self);
   // Chrome installed its Cocoa alert factory in PreProfileInit.
   room::InstallAppModalDialogFactory();
   LOG(INFO) << "RoomCore: NSApp.delegate is "

@@ -18,6 +18,7 @@ final class NoEngineApplication: EngineApplication {
     var isTerminating: Bool { false }
 
     var features: EngineFeatures { EngineFeatures() }
+    weak var delegate: (any EngineApplicationDelegate)?
 
     var profiles: [any Profile] { [] }
 

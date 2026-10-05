@@ -222,6 +222,16 @@ class RoomBrowserWindow : public BrowserWindow {
       UnloadController::DownloadCloseType dialog_type,
       base::OnceCallback<void(bool)> callback) override;
   void ShowEmojiPanel() override;
+  // Chrome's translate bubble (Views) on the host's site button (3.7b): the
+  // offer itself is the host's notice (room_page_state.mm's factory), the
+  // later steps (translating, translated, an error) are Chrome's bubble.
+  ShowTranslateBubbleResult ShowTranslateBubble(
+      content::WebContents* contents,
+      translate::TranslateStep step,
+      const std::string& source_language,
+      const std::string& target_language,
+      translate::TranslateErrors error_type,
+      bool is_user_gesture) override;
 
   // Stubs (room_browser_window_stubs.cc).
   void SetBounds(const gfx::Rect& bounds) override;
@@ -244,7 +254,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void ShowUpdateChromeDialog() override;
   void ShowIntentPickerBubble( std::vector<apps::IntentPickerAppInfo> app_info, bool show_stay_in_chrome, bool show_remember_selection, apps::IntentPickerBubbleType bubble_type, const std::optional<url::Origin>& initiating_origin, IntentPickerResponse callback) override;
   void ShowBookmarkBubble(const GURL& url, bool already_bookmarked) override;
-  ShowTranslateBubbleResult ShowTranslateBubble( content::WebContents* contents, translate::TranslateStep step, const std::string& source_language, const std::string& target_language, translate::TranslateErrors error_type, bool is_user_gesture) override;
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ShowAppMenu() override;
   void PreHandleDragUpdate(const content::DropData& drop_data, const gfx::PointF& point) override;

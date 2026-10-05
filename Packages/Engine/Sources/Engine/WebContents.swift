@@ -63,6 +63,17 @@ public protocol WebContents: AnyObject, Observable {
 
     // MARK: Lifecycle
 
+    /// The page's back/forward list and current entry as opaque data the host
+    /// stores and hands back in `WebContentsConfiguration.restoredNavigationState`
+    /// (relaunch, crash recovery, an unloaded entry coming back); `nil` when
+    /// there is nothing to save or the engine cannot serialise it (CEF). The
+    /// navigation delegate hears `webContentsDidChangeNavigationState` when it
+    /// changes. Written by one engine version; another may not read it.
+    var navigationState: Data? { get }
+    /// Why the engine would keep the page now (a form with unsaved input,
+    /// Picture-in-Picture, sound, a capture…); empty when nothing blocks a
+    /// discard. Asked by the host's discard policy before `discard()`.
+    var discardBlockers: DiscardBlockers { get }
     /// Releases the renderer but keeps the URL and title; the next `reload` or
     /// `load` brings the page back. `state` becomes `.discarded`.
     func discard() throws
@@ -135,26 +146,35 @@ nonisolated public struct WebContentsConfiguration: Sendable, Hashable {
     /// there too); CEF has no browser objects and ignores it. Read at
     /// creation only: moving a page to another window is Chapter 4.8.
     public weak var hostWindow: NSWindow?
+    /// A `WebContents.navigationState` saved earlier: the page starts with
+    /// that back/forward list, its `url`, `title` and `canGoBack` reading the
+    /// restored current entry, and loads it on its first `reload()` (a
+    /// `load(_:)` instead navigates onward with the list behind it). Ignored
+    /// when the engine cannot read it (the page then starts empty, as without
+    /// it) and on CEF.
+    public var restoredNavigationState: Data?
 
     public init(
         initiallyHidden: Bool = false,
         transparentBackground: Bool = false,
         initiallyMuted: Bool = false,
         disallowAutoplay: Bool = false,
-        hostWindow: NSWindow? = nil
+        hostWindow: NSWindow? = nil,
+        restoredNavigationState: Data? = nil
     ) {
         self.initiallyHidden = initiallyHidden
         self.transparentBackground = transparentBackground
         self.initiallyMuted = initiallyMuted
         self.disallowAutoplay = disallowAutoplay
         self.hostWindow = hostWindow
+        self.restoredNavigationState = restoredNavigationState
     }
 
     // The window by identity.
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.initiallyHidden == rhs.initiallyHidden && lhs.transparentBackground == rhs.transparentBackground
             && lhs.initiallyMuted == rhs.initiallyMuted && lhs.disallowAutoplay == rhs.disallowAutoplay
-            && lhs.hostWindow === rhs.hostWindow
+            && lhs.hostWindow === rhs.hostWindow && lhs.restoredNavigationState == rhs.restoredNavigationState
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -163,6 +183,7 @@ nonisolated public struct WebContentsConfiguration: Sendable, Hashable {
         hasher.combine(initiallyMuted)
         hasher.combine(disallowAutoplay)
         hasher.combine(hostWindow.map(ObjectIdentifier.init))
+        hasher.combine(restoredNavigationState)
     }
 }
 
@@ -175,6 +196,43 @@ nonisolated public enum WebContentsState: Sendable, Hashable {
     case frozen
     /// `close()` completed; the object is inert.
     case closed
+}
+
+/// Why the engine would not discard a page now (Chromium's
+/// performance_manager `CannotDiscardReason`s; spec §H, §A.7: a page with
+/// unsaved form input, in Picture-in-Picture or playing audio is never
+/// discarded). Visibility is the host's own rule and never appears here.
+nonisolated public struct DiscardBlockers: OptionSet, Sendable, Hashable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+
+    /// The user typed into a form on the page.
+    public static let formInteractions = DiscardBlockers(rawValue: 1 << 0)
+    /// Other edits (a text area, `contenteditable`).
+    public static let userEdits = DiscardBlockers(rawValue: 1 << 1)
+    public static let pictureInPicture = DiscardBlockers(rawValue: 1 << 2)
+    public static let audible = DiscardBlockers(rawValue: 1 << 3)
+    /// Played sound in the last minute.
+    public static let recentlyAudible = DiscardBlockers(rawValue: 1 << 4)
+    /// Camera, microphone, a window or the screen, or being mirrored.
+    public static let capturing = DiscardBlockers(rawValue: 1 << 5)
+    /// The page may show notifications.
+    public static let notifications = DiscardBlockers(rawValue: 1 << 6)
+    public static let devTools = DiscardBlockers(rawValue: 1 << 7)
+    /// A USB or Bluetooth device.
+    public static let connectedDevice = DiscardBlockers(rawValue: 1 << 8)
+    /// Anything else the engine protects (a PDF, a non-web page).
+    public static let other = DiscardBlockers(rawValue: 1 << 9)
+
+    /// Names for logs and spike output.
+    public var names: [String] {
+        let all: [(DiscardBlockers, String)] = [
+            (.formInteractions, "formInteractions"), (.userEdits, "userEdits"), (.pictureInPicture, "pictureInPicture"),
+            (.audible, "audible"), (.recentlyAudible, "recentlyAudible"), (.capturing, "capturing"),
+            (.notifications, "notifications"), (.devTools, "devTools"), (.connectedDevice, "connectedDevice"), (.other, "other"),
+        ]
+        return all.filter { contains($0.0) }.map(\.1)
+    }
 }
 
 /// How a navigation was started; feeds history ranking and omnibox scoring.

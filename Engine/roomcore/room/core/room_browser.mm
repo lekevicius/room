@@ -22,6 +22,7 @@
 #include "components/permissions/permission_request.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/functional/bind.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
 #include "third_party/blink/public/mojom/webid/federated_request.mojom.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -575,6 +576,20 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     LocationBarModel* model =
         location_bar ? location_bar->GetLocationBarModel() : nullptr;
     return @(model ? static_cast<int>(model->GetSecurityLevel()) : -1);
+  }
+  if ([action hasPrefix:@"memory-pressure-"]) {
+    // 3.7b: Chromium's own notification path, as a pressure event from the
+    // system monitor would run it (every listener, performance_manager's
+    // included, and RoomCore's report to the host).
+    base::MemoryPressureLevel level = base::MEMORY_PRESSURE_LEVEL_NONE;
+    if ([action isEqualToString:@"memory-pressure-critical"]) {
+      level = base::MEMORY_PRESSURE_LEVEL_CRITICAL;
+    } else if ([action isEqualToString:@"memory-pressure-moderate"]) {
+      level = base::MEMORY_PRESSURE_LEVEL_MODERATE;
+    }
+    LOG(WARNING) << "RoomCore spike: simulated memory pressure " << level;
+    base::MemoryPressureListener::SimulatePressureNotification(level);
+    return @(level);
   }
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {

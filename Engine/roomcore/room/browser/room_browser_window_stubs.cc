@@ -115,11 +115,6 @@ void RoomBrowserWindow::ShowBookmarkBubble(const GURL& url, bool already_bookmar
   RoomStubHit("ShowBookmarkBubble");
 }
 
-ShowTranslateBubbleResult RoomBrowserWindow::ShowTranslateBubble( content::WebContents* contents, translate::TranslateStep step, const std::string& source_language, const std::string& target_language, translate::TranslateErrors error_type, bool is_user_gesture) {
-  RoomStubHit("ShowTranslateBubble");
-  return ShowTranslateBubbleResult::kBrowserWindowNotValid;
-}
-
 DownloadBubbleUIController* RoomBrowserWindow::GetDownloadBubbleUIController() {
   RoomStubHit("GetDownloadBubbleUIController");
   return nullptr;

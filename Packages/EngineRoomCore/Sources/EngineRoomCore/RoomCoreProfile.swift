@@ -51,6 +51,11 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         // window (Chromium's initially_hidden; WebContentsViewCocoa then
         // reports VISIBLE, and HIDDEN when the host takes the view out).
         let page = profile.createWebContents(initiallyHidden: configuration.initiallyHidden)
+        // The saved back/forward list goes in before the page joins a strip
+        // or loads (Chrome's tab restore: `Restore` on the new contents).
+        if let state = configuration.restoredNavigationState, !page.restoreNavigationState(state) {
+            NSLog("RoomCore: a saved navigation state (%ld bytes) was not restored; the page starts empty", state.count)
+        }
         let contents = RoomCoreWebContents(page: page, configuration: configuration, profile: self)
         liveContents.add(contents)
         // Into the window's tab strip at once (add on create); the strip's

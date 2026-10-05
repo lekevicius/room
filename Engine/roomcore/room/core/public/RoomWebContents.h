@@ -76,6 +76,35 @@ typedef NS_ENUM(NSInteger, RoomLifecycleState) {
   RoomLifecycleStateFrozen,
 };
 
+// Why the host should not discard a page now: Chrome's own reasons
+// (performance_manager's DiscardEligibilityPolicy::CanDiscard with
+// CannotDiscardReason, asked as an urgent discard without Chrome's recent-
+// visibility window: the host keeps its own idle clock). Empty when nothing
+// blocks.
+typedef NS_OPTIONS(NSUInteger, RoomDiscardBlockers) {
+  // kFormInteractions: the user typed into a form on the page.
+  RoomDiscardBlockersFormInteractions = 1 << 0,
+  // kUserEdits: other user edits (contenteditable, a text area).
+  RoomDiscardBlockersUserEdits = 1 << 1,
+  // kPictureInPicture: video or document Picture-in-Picture.
+  RoomDiscardBlockersPictureInPicture = 1 << 2,
+  // kAudible: playing sound now.
+  RoomDiscardBlockersAudible = 1 << 3,
+  // kRecentlyAudible: played sound in the last minute.
+  RoomDiscardBlockersRecentlyAudible = 1 << 4,
+  // kCapturingVideo/Audio/Window/Display, kBeingMirrored.
+  RoomDiscardBlockersCapturing = 1 << 5,
+  // kNotificationsEnabled (the page may notify).
+  RoomDiscardBlockersNotifications = 1 << 6,
+  // kDevToolsOpen.
+  RoomDiscardBlockersDevTools = 1 << 7,
+  // kConnectedToUSB / kConnectedToBluetooth.
+  RoomDiscardBlockersConnectedDevice = 1 << 8,
+  // Anything else Chrome protects (a PDF, a non-web page, an earlier failed
+  // attempt, no main frame yet).
+  RoomDiscardBlockersOther = 1 << 9,
+};
+
 // A navigation about to start in a page's main frame (Chromium's
 // NavigationHandle at WillStartRequest/WillRedirectRequest), or a link the
 // page asked to open elsewhere (a modifier click, target=_blank,
@@ -574,6 +603,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
     shouldOpenExternalProtocol:(RoomExternalProtocolRequest*)request
                     completion:(void (^)(BOOL open))completion
     NS_SWIFT_NAME(webContents(_:shouldOpenExternalProtocol:completion:));
+// The page's navigation entries changed (a commit, a pruned list, a new
+// title or page state of an entry): -navigationState reads something new.
+// Coalesced: at most once per run-loop turn.
+- (void)webContentsDidChangeNavigationState:(RoomWebContents*)webContents;
 // Chrome added a notice for the page (an infobar, the translate offer).
 - (void)webContents:(RoomWebContents*)webContents
       didAddInfoBar:(RoomInfoBar*)infoBar;
@@ -637,6 +670,9 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
     fromAddressBar:(BOOL)fromAddressBar;
 - (void)goBack;
 - (void)goForward;
+// Reloads the page; a restored page that has not loaded yet (and a
+// discarded one) loads its current entry instead
+// (NavigationController::LoadIfNecessary).
 - (void)reload;
 - (void)reloadIgnoringCache;
 - (void)stop;
@@ -645,6 +681,27 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // TabLifecycleUnit discard; the page needs a RoomBrowser). `nativeView`
 // changes (Chrome replaces the WebContents). NO when Chrome refused.
 - (BOOL)discard;
+// Why Chrome would not discard the page now (empty: nothing blocks). Read
+// on the main thread from performance_manager's graph; RoomCore never
+// discards a Room page by itself (every page is not auto-discardable): the
+// host decides.
+@property(nonatomic, readonly) RoomDiscardBlockers discardBlockers;
+
+// The page's navigation entries and the current one, in Chromium's session
+// serialisation (sessions::SerializedNavigationEntry with its PageState, as
+// Chrome's session file keeps them: up to six entries each side of the
+// current one), opaque to the host; nil when the page has nothing to save.
+// Written by this Chromium version: restoring it in another may fail.
+@property(nonatomic, readonly, copy, nullable) NSData* navigationState;
+
+// Restores entries -navigationState gave, before the page's first load
+// (NavigationController::Restore): URL, title and canGoBack/canGoForward
+// read the restored entry at once, and the next -reload loads it (with its
+// scroll position and form state). NO when the data cannot be read (another
+// version's format, damage) or the page has loaded already; the page is
+// then untouched.
+- (BOOL)restoreNavigationState:(NSData*)state;
+
 
 // Gives the page keyboard focus.
 - (void)focus;

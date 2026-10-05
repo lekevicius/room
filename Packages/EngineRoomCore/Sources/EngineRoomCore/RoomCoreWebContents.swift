@@ -231,6 +231,16 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     /// navigation entries stay, so the page that `reload()` brings back has
     /// its back/forward list (B-13). Chrome swaps in a new `WebContents`;
     /// RoomCore moves this page (and its view) onto it.
+    /// Chromium's session serialisation of the page's entries (RoomCore's
+    /// `navigationState`: `SerializedNavigationEntry` with `PageState`).
+    public var navigationState: Data? { state == .closed ? nil : page.navigationState }
+
+    /// performance_manager's `CannotDiscardReason`s (RoomCore's `discardBlockers`).
+    public var discardBlockers: DiscardBlockers {
+        guard state != .closed else { return [] }
+        return DiscardBlockers(rawValue: UInt(page.discardBlockers.rawValue))
+    }
+
     public func discard() throws {
         guard state != .closed else { throw EngineError.closed }
         guard page.discard() else { throw EngineError.failed("RoomCore refused the discard (no tab strip, or already discarded)") }
@@ -403,6 +413,10 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public func webContents(_ webContents: RoomWebContents, didCommitNavigation url: URL, transition: RoomPageTransition,
                             sameDocument: Bool) {
         navigationDelegate?.webContents(self, didCommitNavigation: url, transition: PageTransition(transition))
+    }
+
+    public func webContentsDidChangeNavigationState(_ webContents: RoomWebContents) {
+        navigationDelegate?.webContentsDidChangeNavigationState(self)
     }
 
     /// A page this one opened, already in this page's `Browser` (never a

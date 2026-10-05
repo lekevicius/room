@@ -203,6 +203,13 @@ public final class CEFWebContents: NSObject, WebContents {
     /// Emulated: closes the browser without beforeunload and keeps URL and
     /// title; the next `load`/`reload` creates a new browser (back/forward
     /// history is lost).
+    /// **CEF: not available** (no navigation-entry serialisation, B-13).
+    public var navigationState: Data? { nil }
+
+    /// **CEF: not available**: CEF cannot see form input, Picture-in-Picture
+    /// or captures (B-17); the host's 2.3 rules (selected, audible) apply alone.
+    public var discardBlockers: DiscardBlockers { [] }
+
     public func discard() throws {
         guard state == .alive, let browser else { return }
         discarding = true

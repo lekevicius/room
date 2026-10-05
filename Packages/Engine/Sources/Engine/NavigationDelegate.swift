@@ -14,10 +14,16 @@ public protocol NavigationDelegate: AnyObject {
     /// `pushState`), which the engine may report as `.link`. Not called for
     /// navigations that fail before committing or that the delegate cancelled.
     func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition)
+
+    /// The page's `navigationState` changed (a commit, a pruned list, a new
+    /// title or scroll/form state of an entry); the engine coalesces it to at
+    /// most once per run-loop turn. Never called on CEF.
+    func webContentsDidChangeNavigationState(_ webContents: any WebContents)
 }
 
 public extension NavigationDelegate {
     func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {}
+    func webContentsDidChangeNavigationState(_ webContents: any WebContents) {}
 }
 
 /// Where a navigation or new window should land. Chromium `WindowOpenDisposition`.

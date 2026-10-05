@@ -74,6 +74,9 @@ public protocol EngineApplication: AnyObject {
     /// Feature overrides in effect for this run.
     var features: EngineFeatures { get }
 
+    /// Hears process-wide engine events (memory pressure).
+    var delegate: (any EngineApplicationDelegate)? { get set }
+
     /// Profiles loaded in this run, in creation order.
     var profiles: [any Profile] { get }
 
@@ -91,6 +94,24 @@ public protocol EngineApplication: AnyObject {
     /// `net::registry_controlled_domains`; CEF and the fake: the bundled
     /// `PublicSuffixList`.
     func site(of url: URL) -> String?
+}
+
+/// The system's memory pressure as the engine reports it (Chromium
+/// `base::MemoryPressureLevel`).
+nonisolated public enum MemoryPressureLevel: Int, Sendable, Hashable, Comparable {
+    case none, moderate, critical
+
+    public static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
+}
+
+/// Process-wide engine events.
+@MainActor
+public protocol EngineApplicationDelegate: AnyObject {
+    /// The memory-pressure level changed, or a moderate or critical level
+    /// lasts (the engine repeats it). The engine discards none of the host's
+    /// pages for it: the host's policy decides (RoomCore). CEF never calls it
+    /// (the host listens to the system itself).
+    func engineApplication(_ application: any EngineApplication, didChangeMemoryPressure level: MemoryPressureLevel)
 }
 
 public extension EngineApplication {

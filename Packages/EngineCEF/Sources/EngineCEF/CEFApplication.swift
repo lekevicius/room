@@ -12,6 +12,9 @@ public final class CEFApplication: EngineApplication {
     public private(set) static weak var current: CEFApplication?
 
     public private(set) var features = EngineFeatures()
+    /// Never told anything: CEF reports no memory pressure (the host listens
+    /// to the system itself, 2.3).
+    public weak var delegate: (any EngineApplicationDelegate)?
     /// DevTools remote-debugging port on 127.0.0.1, set before `initialize`;
     /// 0 = off. Docked DevTools needs it (`CEFDevTools`); any local process
     /// can drive the browser through it, so only Debug builds turn it on.
