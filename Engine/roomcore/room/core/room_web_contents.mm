@@ -54,6 +54,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "content/public/browser/visibility.h"
+#include "content/public/common/url_constants.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
@@ -900,12 +901,20 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     return;
   }
   void (^callback)(id, NSError*) = [completion copy];
-  frame->ExecuteJavaScriptInIsolatedWorld(
-      base::SysNSStringToUTF16(script),
-      base::BindOnce(^(base::Value result) {
-        callback(ToFoundation(result), nil);
-      }),
-      kRoomIsolatedWorldId);
+  auto deliver = base::BindOnce(^(base::Value result) {
+    callback(ToFoundation(result), nil);
+  });
+  // DevTools' own front-end (devtools://, a page RoomCore hands the host in
+  // its pane) runs scripts in its main world: content allows that for
+  // devtools: pages, and the front-end's modules are reachable only there.
+  if (frame->GetLastCommittedURL().SchemeIs(content::kChromeDevToolsScheme)) {
+    frame->ExecuteJavaScript(base::SysNSStringToUTF16(script),
+                             std::move(deliver));
+    return;
+  }
+  frame->ExecuteJavaScriptInIsolatedWorld(base::SysNSStringToUTF16(script),
+                                          std::move(deliver),
+                                          kRoomIsolatedWorldId);
 }
 
 - (void)room_didCreateWebContents:(RoomWebContents*)newContents

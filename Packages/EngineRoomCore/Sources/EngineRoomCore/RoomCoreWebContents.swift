@@ -9,9 +9,10 @@ import RoomCore
 /// (3.2b) reserved, unhandled and consumed keys and isolated-world scripts,
 /// and (3.3a) real transitions, the navigation policy and commits, favicon,
 /// progress, theme and background colours, security, audible, muted, zoom,
-/// discard and the lifecycle state. A page created for a host window is in
-/// that window's Chrome tab strip (`RoomBrowser`), which attaches Chrome's
-/// tab helpers; find, capture, print and DevTools are 3.3b's
+/// discard and the lifecycle state, (3.3b) find through Chrome's
+/// `FindTabHelper`, viewport capture, print preview and DevTools in the
+/// host's pane. A page created for a host window is in that window's Chrome
+/// tab strip (`RoomBrowser`), which attaches Chrome's tab helpers
 /// (docs/engine-api.md).
 ///
 /// `nativeView` is a view this object owns, with Chromium's
@@ -53,13 +54,20 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var requestedBounds: CGRect?
 
     public var nativeView: NSView { pageView }
-    public var devTools: (any DevTools)? { nil }
+    /// Chrome's `DevToolsWindow` with its front-end in the host's pane.
+    public var devTools: (any DevTools)? {
+        if roomDevTools == nil, state != .closed { roomDevTools = RoomCoreDevTools(contents: self) }
+        return roomDevTools
+    }
 
     @ObservationIgnored let page: RoomWebContents
     @ObservationIgnored private weak var profile: RoomCoreProfile?
     @ObservationIgnored private let pageView = RoomCorePageView()
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var scriptSerial = 0
+    @ObservationIgnored private var roomDevTools: RoomCoreDevTools?
+    /// Between `find` and `stopFind`: results that arrive after a stop are dropped.
+    @ObservationIgnored private var findActive = false
 
     init(page: RoomWebContents, configuration: WebContentsConfiguration, profile: RoomCoreProfile?) {
         self.page = page
@@ -162,10 +170,31 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public func reloadIgnoringCache() { page.reloadIgnoringCache() }
     public func stop() { page.stop() }
 
-    // MARK: Find (3.3b: FindTabHelper)
+    // MARK: Find
 
-    public func find(_ text: String, forward: Bool, matchCase: Bool) {}
-    public func stopFind(clearSelection: Bool) {}
+    /// `FindTabHelper::StartFinding` with `find_match`: one request per call
+    /// (the same text steps to the next match, a new text selects its first;
+    /// CEF needs a counting request first). Results come from
+    /// `FindResultObserver` through the delegate.
+    public func find(_ text: String, forward: Bool, matchCase: Bool) {
+        guard state != .closed else { return }
+        findActive = true
+        page.find(text, forward: forward, matchCase: matchCase)
+    }
+
+    /// `FindTabHelper::StopFinding(kClear | kKeep)`.
+    public func stopFind(clearSelection: Bool) {
+        findActive = false
+        findResult = nil
+        page.stopFinding(clearSelection: clearSelection)
+    }
+
+    public func webContents(_ webContents: RoomWebContents, didUpdateFindResultWithMatchCount matchCount: Int,
+                            activeMatch: Int, selectionRect: NSRect, finalUpdate: Bool) {
+        guard findActive else { return }
+        let result = FindResult(matchCount: matchCount, activeMatch: activeMatch, isFinal: finalUpdate)
+        if findResult != result { findResult = result }
+    }
 
     // MARK: Lifecycle
 
@@ -187,10 +216,21 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         page.close()
     }
 
-    // MARK: Tools (3.3b)
+    // MARK: Tools
 
+    /// `RenderWidgetHostView::CopyFromSurface` of the main frame: the page as
+    /// the compositor drew it, at the screen's scale (size in points).
     public func captureViewport() async throws -> NSImage {
-        throw EngineError.notSupported("RoomCoreWebContents.captureViewport")
+        guard state != .closed else { throw EngineError.closed }
+        return try await withCheckedThrowingContinuation { continuation in
+            page.captureViewport { image, error in
+                if let image {
+                    continuation.resume(returning: image)
+                } else {
+                    continuation.resume(throwing: EngineError.failed(error?.localizedDescription ?? "captureViewport: no image"))
+                }
+            }
+        }
     }
 
     /// Runs `script` in RoomCore's isolated world of the main frame (the
@@ -204,14 +244,21 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         scriptSerial += 1
         let id = scriptSerial
         let source = String(decoding: try JSONSerialization.data(withJSONObject: script, options: .fragmentsAllowed), as: UTF8.self)
-        var outcome = try await evaluate(Self.wrapper(source: source, id: id))
+        // DevTools' front-end (devtools://, the pane's page) runs in its main
+        // world, where its CSP (`script-src 'self'`) forbids `eval`: the script
+        // goes in as an expression there.
+        let code = url?.scheme == "devtools" ? Self.wrapper(expression: script, id: id) : Self.wrapper(source: source, id: id)
+        var outcome = try await evaluate(code)
         if case .pending = outcome {
+            // A promise parked in this document; a navigation takes it away.
+            let document = url
             let poll = "(() => { const r = window.__roomScriptResults; if (!r || !(\(id) in r)) return null; const x = r[\(id)]; delete r[\(id)]; return x; })()"
             let deadline = ContinuousClock.now + .seconds(120)
             repeat {
                 guard ContinuousClock.now < deadline, state != .closed else {
                     throw EngineError.failed("executeJavaScript: the promise did not settle")
                 }
+                guard url == document else { throw EngineError.failed("executeJavaScript: the page navigated before the promise settled") }
                 try await Task.sleep(for: .milliseconds(4))
                 outcome = try await evaluate(poll)
             } while outcome == .notSettled
@@ -226,8 +273,17 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     /// Evaluates the script as global code (its completion value, like the
     /// DevTools protocol's `Runtime.evaluate`), catching what it throws.
     private static func wrapper(source: String, id: Int) -> String {
+        wrapper(evaluating: "(0, eval)(\(source))", id: id)
+    }
+
+    /// The same for a script that is one expression, without `eval`.
+    private static func wrapper(expression: String, id: Int) -> String {
+        wrapper(evaluating: "(\n\(expression)\n)", id: id)
+    }
+
+    private static func wrapper(evaluating evaluation: String, id: Int) -> String {
         """
-        (() => { let v; try { v = (0, eval)(\(source)); } catch (e) { return { e: String(e && e.message || e) }; }
+        (() => { let v; try { v = \(evaluation); } catch (e) { return { e: String(e && e.message || e) }; }
         if (v && typeof v.then === 'function') { const r = (window.__roomScriptResults = window.__roomScriptResults || {});
         v.then(x => { r[\(id)] = { v: x }; }, e => { r[\(id)] = { e: String(e && e.message || e) }; }); return { p: \(id) }; }
         return { v: v }; })()
@@ -285,7 +341,12 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     private static let scriptTimeout: TimeInterval = 30
 
-    public func print() {}
+    /// Chrome's print preview (Views, over the host window: B-29) through
+    /// `printing::StartPrint`.
+    public func print() {
+        guard state != .closed else { return }
+        if !page.printWithPreview() { NSLog("RoomCore: print refused (no page to print)") }
+    }
 
     /// Leaves element fullscreen; `webContentsDidRequestExitFullscreen`
     /// follows from Chrome's FullscreenController.

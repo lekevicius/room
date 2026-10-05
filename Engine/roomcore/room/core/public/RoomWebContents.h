@@ -161,6 +161,16 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                   transition:(RoomPageTransition)transition
                 sameDocument:(BOOL)sameDocument
     NS_SWIFT_NAME(webContents(_:didCommitNavigation:transition:sameDocument:));
+// A find-in-page result (Chrome's FindNotificationDetails, merged by its
+// FindTabHelper): the matches counted so far, the 1-based active match (0
+// when there is none), the active match's rect in the page view's
+// coordinates (top-left origin, points), and whether counting is done.
+- (void)webContents:(RoomWebContents*)webContents
+    didUpdateFindResultWithMatchCount:(NSInteger)matchCount
+                          activeMatch:(NSInteger)activeMatch
+                        selectionRect:(NSRect)selectionRect
+                          finalUpdate:(BOOL)finalUpdate
+    NS_SWIFT_NAME(webContents(_:didUpdateFindResultWithMatchCount:activeMatch:selectionRect:finalUpdate:));
 @end
 
 // One page (content::WebContents). Properties are KVO-observable and change on
@@ -232,7 +242,8 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // page's DOM is shared; its own JavaScript globals are not visible) and
 // delivers the completion value as Foundation objects: NSString, NSNumber,
 // NSArray, NSDictionary, NSNull for null and undefined (and for an uncaught
-// exception). Promises are not awaited. `error` is set when the page is
+// exception). Promises are not awaited. DevTools' own front-end
+// (devtools://, -devToolsWebContents) runs it in its main world instead. `error` is set when the page is
 // closed or has no live document. Called back on the main thread.
 - (void)evaluateJavaScript:(NSString*)script
                 completion:(void (^)(id _Nullable result,
@@ -244,6 +255,59 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // answers dialogs); the closed change follows once it is gone. A page in no
 // RoomBrowser closes at once.
 - (void)close;
+
+@end
+
+// What -showDevTools: opens DevTools on.
+typedef NS_ENUM(NSInteger, RoomDevToolsTool) {
+  // The panel DevTools last showed.
+  RoomDevToolsToolDefault = 0,
+  RoomDevToolsToolConsole,
+  RoomDevToolsToolElements,
+  // The element picker (Chrome's Inspect: the next click on the page picks).
+  RoomDevToolsToolElementPicker,
+};
+
+// The page's tools: find, capture, print, DevTools.
+@interface RoomWebContents (Tools)
+
+// Finds `text` in the page (Chrome's FindTabHelper, one request per call):
+// the same text again steps to the next match (`forward`) or the previous
+// one; a new text starts a new find with its first match selected. Results
+// arrive through the delegate.
+- (void)findText:(NSString*)text
+         forward:(BOOL)forward
+       matchCase:(BOOL)matchCase
+    NS_SWIFT_NAME(find(_:forward:matchCase:));
+// Ends the find; the selection stays on the active match unless cleared.
+- (void)stopFindingClearSelection:(BOOL)clearSelection
+    NS_SWIFT_NAME(stopFinding(clearSelection:));
+
+// The page's viewport as the compositor drew it, at the screen's scale (the
+// image's size is in points; RenderWidgetHostView::CopyFromSurface). An
+// error when the page has no surface to copy (closed, never shown).
+- (void)captureViewportWithCompletion:
+    (void (^)(NSImage* _Nullable image, NSError* _Nullable error))completion
+    NS_SWIFT_NAME(captureViewport(completion:));
+
+// Chrome's print preview over the host window (a Views dialog on the page's
+// RoomBrowser), or the system print panel where policy disables the
+// preview. NO when the page cannot print now.
+- (BOOL)printWithPreview;
+
+// DevTools for this page: Chrome's DevToolsWindow with its front-end in a
+// RoomWebContents the host shows in its own view (never a Chromium window).
+@property(nonatomic, readonly, getter=isDevToolsOpen) BOOL devToolsOpen;
+// The front-end page while DevTools is open; the host adds its nativeView to
+// its pane and sizes it. Its closed change follows when DevTools goes.
+@property(nonatomic, readonly, nullable) RoomWebContents* devToolsWebContents
+    NS_SWIFT_NAME(devToolsWebContents);
+// Opens DevTools (or keeps it open) on `tool`.
+- (void)showDevTools:(RoomDevToolsTool)tool;
+// Opens DevTools on the Elements panel with the element at `point` (the
+// page view's coordinates: top-left origin, points) selected.
+- (void)inspectElementAtPoint:(NSPoint)point;
+- (void)closeDevTools;
 
 @end
 

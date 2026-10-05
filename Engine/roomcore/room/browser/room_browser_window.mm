@@ -169,8 +169,12 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
     widget_->SetVisibilityChangedAnimationsEnabled(false);
     widget_->SetOpacity(0);
     UpdateBounds();
+    // Above the host's window: the dialogs and bubbles parented here are
+    // its child windows, which AppKit orders just above it; below the host's
+    // window they were hidden behind it (3.3b: print preview). The anchor
+    // itself is transparent and ignores the mouse.
     [window addChildWindow:widget_->GetNativeWindow().GetNativeNSWindow()
-                  ordered:NSWindowBelow];
+                  ordered:NSWindowAbove];
     widget_->ShowInactive();
     resize_observer_ = [NSNotificationCenter.defaultCenter
         addObserverForName:NSWindowDidResizeNotification object:window queue:nil
@@ -759,8 +763,15 @@ bool RoomBrowserWindow::HandleKeyboardEvent(
   // main menu (what views::UnhandledKeyboardEventHandler's redispatch does
   // for BrowserView). Content already drops skip_if_unhandled events and
   // keys of hidden pages; repeats arrive as key-downs with isARepeat.
-  if (!client_ || event.skip_if_unhandled || !IsHostKeyDown(event)) {
+  if (event.skip_if_unhandled || !IsHostKeyDown(event)) {
     return false;
+  }
+  if (!client_) {
+    // DevTools' front-end lives in a headless DevTools Browser while the host
+    // shows it in its pane (3.3b): a key it did not use (⌥⌘I, ⌘W) goes to
+    // the host's main menu, as a page's does through the client.
+    return browser_->GetType() == BrowserWindowInterface::TYPE_DEVTOOLS &&
+           [NSApp.mainMenu performKeyEquivalent:event.os_event.Get()];
   }
   return client_->HandleUnhandledKeyEvent(event);
 }
