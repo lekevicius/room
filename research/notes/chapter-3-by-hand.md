@@ -121,3 +121,14 @@ Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/P
 3. **What the runs could not check (account or popup).** 1Password unlocked and filling a login form needs your account; uBlock Origin Lite's per-site toggle and every extension's popup open from the header in 3.6b (`chrome://extensions` ▸ Details works now). Use a site with ads with uBlock Origin Lite installed and see that they are gone.
 4. **Remove with consent.** Settings ▸ Extensions ▸ Remove…: "Remove “Dark Reader”?" Cancel keeps it; Remove removes it. Chrome's own Remove on `chrome://extensions` shows Chrome's dialog (hybrid UI, not the host's).
 5. **Updates.** Nothing to do by hand: with an extension installed Room checks once a day (Settings ▸ Extensions' footer shows the last check once one ran in this session).
+
+## Phase 3.6b
+
+Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/Products/Debug/Room.app/Contents/MacOS/Room -RoomStateDirectory /tmp/room-3.6b/hand -RoomEngineDirectory /tmp/room-3.6b/hand/engine`. Load the fixture (`research/spikes/phase-3.6/extension`) from Settings ▸ Extensions, or install the three store extensions as in 3.6a.
+
+0. **System dialogs on screen.** A UserNotificationCenter dialog was frontmost during most runs (the runs never answer them): yours to answer.
+1. **The header's buttons.** Each pinned extension shows a small button after the site button, with its badge (the fixture "T1", uBlock Origin Lite a count). With three buttons the domain truncates ("ex…m"): layout polish is Chapter 5. Unpin one in Settings ▸ Extensions: its button goes.
+2. **Popups.** Click uBlock Origin Lite's and Dark Reader's buttons: the popup opens under the button (toggles work: uBO's filtering mode, Dark Reader's On/Off on the site); click the page or press Esc: it closes; click the button twice: open, close. The fixture's popup grows after 0.4 s and the popover follows.
+3. **1Password.** Its button opens no popup until it is set up (it clears the popup per tab and focuses its welcome page): sign in with your account and try the button again; filling a login form is 3.7. Its desktop app is not found (B-69).
+4. **Commands.** With the fixture installed and the page focused: ⇧⌘Y opens and closes its popup; ⇧⌘U changes the action's title to "command:room-named | sidePanel:error: No active side panel…" (hover the button). In `chrome://extensions/shortcuts` you can change them. With the focus in the sidebar they do nothing (B-70).
+5. **action.openPopup and side panels.** Nothing to do: both are covered by the run; side panels are not supported (Settings ▸ Extensions says so).

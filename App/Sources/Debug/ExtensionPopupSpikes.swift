@@ -92,6 +92,19 @@ extension SpikeRunner.Context {
         SpikeRunner.record("capture", written ? "\(file.lastPathComponent) \(image.width)x\(image.height)" : "failed: \(name)")
     }
 
+    /// The popup page's own pixels (window captures show no engine content
+    /// on this machine: the popover's glass is captured empty).
+    func capturePopupPage(_ popup: (any WebContents)?, _ name: String) async {
+        guard let popup else { return SpikeRunner.record("capture", "failed: \(name) (no popup)") }
+        guard let image = await PageDriver.capture(popup, name), let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
+            return SpikeRunner.record("capture", "failed: \(name)")
+        }
+        let file = popupShots.appending(path: "\(name).png")
+        try? png.write(to: file)
+        SpikeRunner.record("capture", "\(file.lastPathComponent) \(NSStringFromSize(image.size))")
+    }
+
     /// Opens `id`'s popup from its header button and waits for the popover;
     /// the milliseconds from the click to the popover (the popup page's load).
     func openPopupFromHeader(_ id: String, events: PopupEvents, timeout: Double = 10) async -> Double? {
@@ -195,6 +208,7 @@ extension SpikeRunner.Context {
             + "anchored_on_button=\(field.extensionButton(for: id)?.window === window)")
         try? await Task.sleep(for: .milliseconds(300))
         capturePopupOverWindow("fixture-popup-over-header", popover: events.popover)
+        await capturePopupPage(popupPage, "fixture-popup-page")
 
         // 2. Focus loss: a click on the page; the popover closes itself and the engine destroys the popup.
         let closedBefore = events.closed.count
@@ -287,7 +301,17 @@ extension SpikeRunner.Context {
             await activate()
             reselectPage(page)
             try? await Task.sleep(for: .milliseconds(500))
-            guard let ms = await openPopupFromHeader(id, events: events, timeout: 15) else { break }
+            let pagesBefore = session.pages.map { ObjectIdentifier($0) }
+            let clickStart = ContinuousClock.now
+            guard let ms = await openPopupFromHeader(id, events: events, timeout: 15) else {
+                // No popup on this page (the extension cleared it for the tab): the click
+                // ran the action (onClicked); what it opened, if anything.
+                let opened = session.pages.filter { !pagesBefore.contains(ObjectIdentifier($0)) }
+                SpikeRunner.record("action_click_\(id)", "no popup; pages opened: \(opened.map { $0.url?.absoluteString ?? "nil" }) "
+                    + "title=\(opened.first?.title ?? "nil") (\(String(format: "%.0f", ms(since: clickStart))) ms incl. the 15 s wait)")
+                if let page = opened.first { await capturePopupPage(page, "action-click-\(id)-page") }
+                break
+            }
             times.append(ms)
             let popup = events.popover?.popup
             try? await Task.sleep(for: .milliseconds(round == 0 ? 1500 : 500))
@@ -296,6 +320,7 @@ extension SpikeRunner.Context {
                 if let popup { text = await js(popup, "document.title + ' | ' + (document.body ? document.body.innerText.replace(/\\s+/g, ' ').slice(0, 160) : '')") }
                 SpikeRunner.record("popup_\(id)", "size=\(NSStringFromSize(events.popover?.contentSize ?? .zero)) url=\(popup?.url?.absoluteString ?? "nil") text=\(text)")
                 capturePopupOverWindow("popup-\(id)", popover: events.popover)
+                await capturePopupPage(popup, "popup-\(id)-page")
             }
             var closed = await closePopupWithEsc(events)
             if !closed {

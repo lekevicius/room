@@ -1951,3 +1951,58 @@ How Chrome's own schedule is held: `ExtensionUpdater` keeps its five-hour schedu
 nav passed 11.6 s; ten-page quits **0.374 / 0.338 / 0.464 s**, 0 helpers left, 0 crash reports, exit 0 (load 20: DaisyDisk was scanning the disk, the user's); stub hits none (39 stubs); the first attempt (`3.6a-final`) stopped on stackoverflow.com's Cloudflare challenge in run 2 (external corpus; run 1 0.273 s). Earlier baseline after the first engine change (`3.6a-1`): nav 16.5 s, quits 0.310 / 0.246 / 0.262 s. Series 24, "0 applied, 24 already".
 
 Found on the way: an extension uninstall made Chrome's `AppShortcutManager` create `~/Applications/Chromium Apps.localized` with an icon (14:05, the first uninstall; macOS logged a simulated `EXC_GUARD` fault from IconServices for its icon each time, four `ExcUserFault_Room` reports, non-fatal); turned off (`SuppressShortcutsForTesting`); the final run's uninstall left the folder untouched and logged no fault. The folder stays for the user to delete.
+
+## Phase 3.6b — action popups from the header, action.openPopup, extension commands, side panels unsupported, the Phase 3.6 exit (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug, 60 Hz)
+
+Room.app on RoomCore (component build `out/dev`, 24 patches, `room_enable_spikes=true`), Debug, 60 Hz; throwaway `-RoomStateDirectory`/`-RoomEngineDirectory` under `/tmp/room-3.6b`; load 3.9–10. Outputs in `build/evidence-3.6b` (`pop1`, `pop6`, `pop7`, `ws1`, `ws2`, the two embryo drives); captures in `research/screenshots/phase-3.6b`. Conditions: a system dialog (UserNotificationCenter) was frontmost from ~16:12 to ~16:40, so runs `pop2`–`pop6` and `ws1`/`ws2` had the application inactive (`window_main` false); `pop1` (16:11) and `pop7` (16:45) were active. Window captures (`CGWindowListCreateImage`) show no engine pixels on this machine (the card and the popover's page are empty glass in every window capture, 3.6a's included); the popup pages are captured from the page itself (`captureViewport`, `*-page.png`).
+
+### How it is built
+
+| Piece | Chrome's | Room's |
+|---|---|---|
+| The window's extension UI | `ExtensionsContainer` user data on the `BrowserWindowInterface` (Views `ExtensionsToolbarDesktop`, `WebUIBrowserWindow`) | `room/core/room_extension_popups.mm`: a container registered with `ui::ScopedUnownedUserData` on every Room Browser; `HideActivePopup`, `ShowToolbarActionPopupForAPICall`, `HasAnyExtensions` real; `GetActionForId`, `CloseExtensionsMenuIfOpen`, `ToggleExtensionsMenu` log their first hit (none hit in any run) |
+| `action.openPopup` gate | `WindowFeatureController kFeatureToolbar` + `BrowserWindow::IsToolbarVisible()` | `RoomBrowserWindow::IsToolbarVisible` real (true unless headless); stubs 39 → 38 |
+| A click | `ExtensionActionViewModel::ExecuteUserAction` → `ExtensionActionRunner::RunAction(grant_tab_permissions)` → `CreatePopupHost` → `ExtensionPopup` (Views bubble) | the same runner call, then `ExtensionViewHostFactory::CreatePopupHost` with Room's `ExtensionView`; the host contents' page reaches the host at `DocumentOnLoadCompletedInPrimaryMainFrame` (`ExtensionPopup::ShowBubble`'s moment), shown in an `NSPopover` (`.transient`, no animation) on the header's button, then `WebContents::Focus` |
+| Size | `WebView::EnableSizingFromWebContents(25×25, 800×600)` | `RenderWidgetHostView::EnableAutoResize` on the primary main frame (`RenderFrameCreated`, `RenderFrameHostChanged`); the first build compared `IsInPrimaryMainFrame()`, false at frame creation: no resize until fixed |
+| Close | widget deactivation, `window.close()`/Esc (close handler), tab change, unload | the popover's transient close → `ExtensionsCenter.popoverDidClose` → `closePopup` → the host destroyed (posted); the engine's closes → `popupDidClose` → the popover |
+| Commands | `ExtensionKeybindingRegistryViews` (only with a `BrowserView` focus manager) | an `ExtensionKeybindingRegistry` per Room Browser shaped like `ExtensionKeybindingRegistryAndroid` (accelerator sets, `_execute_action` handled itself); `RoomBrowserWindow::PreHandleKeyboardEvent` asks it before the host's reserved keys (Chrome's extension accelerators are high priority). No extension path sends `IDC_*` to the app controller in M154 (`commandDispatch:` callers are menu items only), so `RoomAppController` is unchanged |
+| Side panel | `SidePanelUI::Show` from `OpenGlobalExtensionSidePanel` | none: `SidePanelService` options held disabled (an observer); see task 5 |
+
+### Task 4: the fixture through the header (`-RoomSpike extpopup`, `pop7` active, final engine)
+
+| Check | Result |
+|---|---|
+| Header | one button for the fixture (pinned at install), badge "T1" from the page's action (the content script's tab count), tooltip "Room fixture" |
+| Click → popup | popover on the button, its page "popup open"; **77.3 ms** click → loaded (then 26.6, 35.6 ms; earlier runs 64–86 ms first, 26–56 ms after); popover window key, anchored on the button |
+| Resize by the page | 264×65 at load (auto-resize of the 240 px body), **384×285** after the page's own script grew it 400 ms later (one `didResizeTo`), popover followed |
+| Focus loss | a click on the page (posted mouse events): the popover closed itself, `popoverDidClose` told the engine, the `ExtensionViewHost` and its page were destroyed (page state `closed`), nothing left in the center |
+| Esc | three times: Esc in the popup page → `ExtensionViewHost` closed (`IsEscapeInPopup`) → `popupDidClose` → popover closed by the engine, page destroyed |
+| `action.openPopup()` | from the service worker (a page event → content script → worker): popover on the fixture's button in **43 ms**, the worker's promise resolved ("opened"); with the application inactive Chrome refuses it ("Could not find an active browser window": `pop2`–`pop6`), Chrome's own rule |
+| `_execute_action` (⇧⌘Y) | real key events to the page: popover in **37 ms**; ⇧⌘Y again inside the popup closed it (as Chrome's button toggles) |
+| Named command (⇧⌘U) | `commands.onCommand` in the worker ("room-named"), which wrote its result into the action's title |
+| Capture | `fixture-popup-over-header.png` (popover glass over the header with the badge), `fixture-popup-page.png` (384×285, "popup grown") |
+| Embryo `ui-extension-popup` | unchanged: Chrome's Views `ExtensionPopup` on the bubble anchor 66×80 → 374×266, closes with its owner tab |
+| Embryo `ui-extension-device` | still `NotFoundError` ("No device selected"): the extension-origin chooser asks `ToolbarButtonProvider::From(browser)->GetExtensionsContainerViews()` (a Views container), not `ExtensionsContainer`, so Room's container does not open it; patch 0012's safe rejection stays (series 24 unchanged). From a Room popup page `FindBrowserWithTab` finds no Browser (a popup is not a tab) and Chrome returns without a chooser. What it needs: an `ExtensionsContainerViews` (Views) or a hook routing extension-origin choosers through the web-origin path anchored on the bubble anchor |
+
+### Task 5: side panels (`pop1`, then `pop6`/`pop7`)
+
+| Run | `chrome.sidePanel.open({tabId})` from the named command's handler (a user gesture) |
+|---|---|
+| `pop1` (first engine) | the browser process died (Crashpad dump, no CHECK in the log): `SidePanelService::OpenSidePanelForTab` → `side_panel_util::OpenGlobalExtensionSidePanel` → `SidePanelUI::Show` on a null `SidePanelUI` (`BrowserWindowFeatures` makes one only with a `BrowserView` or a WebUI window) |
+| `pop6`, `pop7` (guard) | rejected: **"No active side panel for tabId: 1846071027"**; no crash, no CHECK; the run went on |
+
+The guard is a seam, not a patch: every extension's options in `SidePanelService` are set disabled at load and an extension's `setOptions({enabled: true})` is undone in the observer before the call returns (the same entry is updated), so `open()` and the action's open-panel-on-click find no active panel. The rejection text is Chrome's, not "unsupported" (deviation 3).
+
+### The exit: three Web Store extensions with their popups (`-RoomSpike webstore -RoomWebstorePopups YES`, `ws2`, app inactive)
+
+| Extension | Installed (click → `installed`) | Popup from the header (click → loaded, three runs) | Popup | Scripts / worker / badge | Uninstall |
+|---|---|---|---|---|---|
+| uBlock Origin Lite 2026.930.1227 | 7.0 s (7.1 s in `ws1`) | 74.2, 41.7, 42.0 ms, **median 42.0 ms** (`ws1`: 154.9, 46.4, 50.3) | 273×374, "uBlock Origin Lite \| example.com filtering mode optimal …" (`popup-ddkj…-page.png`) | ad script blocked, worker RUNNING, badge "2" | with consent |
+| 1Password 8.12.40.31 | 7.0 s | **no popup**: the extension clears its popup for the tab (`action` on example.com: popup false) until it finds its desktop app or an account; the click delivered `action.onClicked` (its handler tried native messaging, "Specified native messaging host not found", then its welcome-page flow) | — (by hand with an account; B-69) | worker RUNNING, welcome tab at install | with consent |
+| Dark Reader 4.9.133 | 6.4 s (6.5 s) | 55.5, 35.8, 37.5 ms, **median 37.5 ms** (`ws1`: 64.9, 44.8, 36.4) | 276×580, "Dark Reader settings … example.com …" (`popup-eima…-page.png`) | example.com dark (rgb 24, 26, 27), worker RUNNING | with consent |
+
+The header showed the three buttons in the pinned order with uBO Lite's badge; every popup closed with Esc (engine-side) and its page was destroyed. Requests: the store installs repeated (the user's), nothing new.
+
+### Baseline after the last engine change (`build/baseline/3.6b-final`, embryo host)
+
+nav passed 11.4 s; ten-page quits **0.335 / 0.296 / 0.305 s** (load 10–17), 0 helpers left, 0 crash reports. Stub hits: none of the 38 `RoomBrowserWindow` stubs, none of the container's three logged members; `RoomAppController`: `tryToTerminateApplication`, `didEndMainMessageLoop` (implemented). After the first engine change (`3.6b-1`): nav 17.4 s, quits 0.284 / 0.249 / 0.244 s. Series 24, "0 applied, 24 already".
