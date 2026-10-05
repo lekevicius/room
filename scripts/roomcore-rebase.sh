@@ -205,6 +205,7 @@ replay() {
   done
   replay_head="$parent"
   rm -f "$idx"
+  rmdir "$STATE/merge" 2>/dev/null || true
 }
 
 # The tree after the first <n> patches of the series, replayed onto TAG

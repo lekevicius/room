@@ -484,3 +484,32 @@ Series unchanged at 24 (no patch): `scripts/roomcore-apply.sh` "0 applied, 24 al
 ## 2026-10-05 — Phase 3.7b (Mac mini M4, `out/dev`, 6 jobs)
 
 Series unchanged at 24 (no patch): `scripts/roomcore-apply.sh` "0 applied, 24 already" at every build and at the end. `//room` builds (`scripts/roomcore-build.sh`; navigation state, discard blockers, auto-discardable, the memory-pressure listener, `ShowTranslateBubble` real with the stubs regenerated 38 → 37, then the spike-only PM probes): one failed compile (a `base::span` from `NSData`: `base::apple::NSDataToSpan`), then **48 s** and **53 s**. `scripts/roomcore-package.sh`: two full runs (framework staged ~6 s, host 10–13 s, app 18–21 s), two `--app-only` (12 s). Swift package tests: Model 89, Store 35, Tabs 63, Engine 58 (`CI=1 swift test`, seconds each); `scripts/persistence-kill-test.sh 100 300` 71.5 s; `xcodebuild test -scheme Room` (window tier) ~6 min, 491 tests. Disk: 41 GB free on the internal drive (evidence `build/evidence-3.7b` 336 MB, mostly two copies of the 50k state); nothing deleted.
+
+## Rebase 154.0.8037.58 → 154.0.8037.98 (Mac mini M4, 2026-10-05)
+
+The first rebase, by hand with `scripts/roomcore-rebase.sh`'s pieces as they were written (Phase 3.8, session 3.8-1): Chrome's Stable refresh on the same milestone. Checkout `/Volumes/Chromium/chromium/src` (APFS sparse bundle on the USB SSD), `out/dev` (component, `room_enable_spikes`), 6 jobs, load 4–6 before the build.
+
+| Step | Wall | Notes |
+|---|---|---|
+| Fetch `154.0.8037.98` | 1 s | the tag was already in the checkout (b859317bf11f); 380 upstream commits after .58 (an ancestor: the same release branch), 393 files, +6,933 −1,759 |
+| `--dry-run` | 33 s | of which ~25 s are `git status` and the scratch-index replay on the disk image |
+| Predict (patched files changed upstream) | 4–5 s | 2 of 32 patched files: `fedcm_account_selection_view_desktop.cc` +45 −24 (0008), `chooser_bubble_ui.cc` +71 −34 (0012); `browser_window.h` and `base_window.h` unchanged |
+| Replay of the series in a scratch index | 8 s, then 11 s | first run: 10 patches through, stopped at 0012 (1 conflicting hunk); after the fix: 23 as written, 1 with offsets (0008, +21 lines), 0 merged |
+| Hand fix of 0012 | ~1 min | read upstream's change (92300d69b6811), edited the merged file, header paragraph |
+| Switch (`git reset --keep`, patch files refreshed, pin) | 4 s | `room` = `de850ddb28f14`; 0008 refreshed (hunk offsets, index lines), 0012 rewritten |
+| `gclient sync -D --nohooks --revision src@b859317bf11f` | 35 s | DEPS rolls: V8, ANGLE, Dawn, WebRTC (git) and two CIPD packages; gclient printed nothing but one harmless git error from the gclient root; the four deps checked at their new revisions, `src` still on `room` |
+| `gclient runhooks` | 33 s | toolchain unchanged |
+| Stubs (`gen_browser_window_stubs.py --write`) | 0 s | 37 stubs, **no diff** |
+| `roomcore-apply.sh` + `gn gen out/dev` | 51 s | "0 applied, 24 already"; gn gen 19.5 s (34,289 targets from 4,993 files); a second `roomcore-apply.sh` with the pin file: "0 applied, 24 already" (33 s) |
+| **Up to the build** | **~5.5 min** wall from the first run (19:22:09) to the build's start (19:28:20), the conflict included; ~2 min 15 s of script steps after the fix | |
+
+Conflicts:
+
+| Patch | File | Hunk | Upstream change | Resolution |
+|---|---|---|---|---|
+| 0012 extension-chooser-toolbar-guard | `chrome/browser/ui/views/permissions/chooser_bubble_ui.cc` | `ShowDeviceChooserDialogForExtension`: the extensions-toolbar lookup (`BrowserView::GetBrowserViewForBrowser(browser)->toolbar_button_provider()->GetExtensionsContainerViews()`) | 92300d69b6811 "[M154] permissions: Harden the device chooser dialog against fullscreen drops (3/4)": a new `DropFullscreenForChooserDialog()` re-validates the browser and tab after the fullscreen drop and returns a `ChooserDialogHost`; the toolbar lookup moved after it and gained its own `if (!browser_view) return base::DoNothing();` | the hook moved with the call site: `ToolbarButtonProvider::From(host->browser)` (null-checked) replaces upstream's BrowserView lookup and its null check; the include hunks unchanged (context only). Patch header records it. With upstream's new null check a Room Browser is already rejected without 0012 (Room's provider returns no extensions container), so 0012 is a candidate to drop: the planner's call (B-61) |
+| 0008 fedcm-anchor-hook | `fedcm_account_selection_view_desktop.cc` | both hunks | 228a7223a5246 "[M154] [FedCM] Guard against reentrancy UAF …" added 21 lines above the hooks | none needed (applied with offsets); the patch file refreshed so it is exact against .98 |
+
+Stub diff: none (37 stubs, 58 real members). `browser_window.h` did not change between the two tags.
+
+Build: started 2026-10-05 19:28:20 from bash with nohup (`ROOM_BUILD_JOBS=6 scripts/roomcore-build.sh`, pid 70841, log `build/roomcore-rebase-1-build.log`; siso began at 19:28:53, load 6.0). What it rebuilds (siso's `siso_explain`, ~6,300 dirty steps listed by 19:39): 3,681 steps below `v8/include/v8-version.h` (every V8 embedder: Blink's bindings, gin, extensions), 802 below `v8/src/objects/source-text-module.h`, 274 below V8's `flag-definitions.h`, 271 below `ui/views/view.h`, 226 below ANGLE's `Caps.h`, 125 below Dawn's `Toggles.h`, the rest small; `chrome/VERSION` regenerates the version headers and the framework moves to `Versions/154.0.8037.98`. A security refresh is not a small incremental here: its DEPS roll V8, so most of Blink's bindings recompile. Steps finished: 1,081 at 7.5 min, 1,217 at 11 min (V8's Torque objects first).
