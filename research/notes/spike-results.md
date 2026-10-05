@@ -1111,6 +1111,98 @@ Passed in full: smoke, window, scroll, resize, open10, diaframe, keys (rerun), k
 
 `RoomBrowserWindow stub hit:` lines in every surviving engine log (the two tour states' `RoomCore.log`, which keep each state's last launch; the embryo baselines; the quit, kill and keys runs): **none** of the 41 generated stubs (they are named in "Phase 3.2a" ▸ the real-vs-stub table); the one `CreateSadTab` line above is the SadTab fallback. `RoomAppController stub hit:` lines: **none**. `RoomAppController` members hit: `tryToTerminateApplication`, `stopTryingToTerminateApplication` (after a "stay"), `didEndMainMessageLoop`. No `refused a Chrome BrowserView` line.
 
+## Phase 3.3a — page visibility, tab helpers, navigation, page state, discard (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Room.app on RoomCore (component build, `out/dev`), throwaway state and engine directories per run (`build/evidence-3.3a/`); CEF runs on the same day for the rules that changed on both engines. The machine was otherwise idle (load 3–9); the Claude desktop app was frontmost most of the time, and Room was often refused activation (`window_main: false` in several spikes and the tour; see the tour).
+
+### Page visibility (`hidden`, `memory`)
+
+`initiallyHidden` → `CreateParams::initially_hidden`, plus one finding: `WebContentsViewMac::CreateView` hides the `WebContentsViewCocoa` of a hidden contents (Chrome's Views `WebView` unhides it, `ViewsHostableSetVisible`), so the first build showed the page in the card and it still read `hidden` (the view had `isHiddenOrHasHiddenAncestor` true inside a visible window). RoomCore unhides it at wrap time (also for Chrome-created background tabs and a discard's replacement); the view's own window tracking does the rest.
+
+| Probe (`visibilityAndFrames`) | 3.2b | 3.3a |
+|---|---|---|
+| visible page | visible, 62 rAF/s | visible, 63 |
+| never shown (created hidden) | **visible, 63** | hidden, 1 |
+| after being shown in the card | visible | visible, 62 |
+| taken out of the card | visible | hidden, 1 |
+| `memory`: page 0 of 1 / 10 / 30 hidden pages | visible, 63 | hidden, 1 (all three) |
+
+(1 rAF/s is the probe's own frame, as on CEF in 1.4.) Memory with hidden pages: baseline 993 MB / 3 renderers; 1 hidden 1355 MB; 10 hidden 4628 MB (+363 MB each, 14 renderers, 10/10 loaded in 49 s); 30 hidden 10101 MB (+304 MB each, 34 renderers, 30/30 in 25 s). 3.3b's table measures properly.
+
+### B-53: switching (`scripts/tabs-measure.sh`, 50 entries, 10 loaded, load 6–7)
+
+| | 3.2b standalone | 3.3a standalone | 3.3a tour |
+|---|---|---|---|
+| select call p95 | 11.78 ms | 10.19 ms (median 6.78) | 9.82 |
+| turn before display p95 | 22.40 ms (median 15.66) | **21.39 ms** (median 15.33) | — |
+| main-thread turn p95 | — | 21.50 ms | **22.31** (median 15.14) |
+| page visible p95 / first frame p95 | — | 16.20 / 26.02 ms | 15.84 / — |
+| relaunch: launch → selected loaded | — | 5.01 s | 4.35 s |
+
+Hidden pages no longer render, and the p95 barely moved: visibility was not B-53's cause. B-53 stays open (3.3b profiles the turn).
+
+### Tab helpers
+
+Room pages already get Chrome's tab helpers: inserting a WebContents into a `TabStripModel` creates a `tabs::TabModel`, a befriended class whose constructor calls `TabHelpers::AttachTabHelpers` (and `TabFeatures::Init`). Every page RoomCore creates for a host window joins its `RoomBrowser` at creation (3.2a), so no patch and no Chrome creation path was needed; 3.2b's "no tab helpers attached" held only for pages in no strip (the embryo host's). Logged on the first page: `favicon=1 zoom=1 lifecycle=1 resource_coordinator=1 find=1 session=1 permissions=1 translate=1 print=1`. Misbehaviour without a `BrowserView`: one, `HttpsOnlyModeTabHelper` → `AskBeforeHttpDialogController::ShowDialog` → `TabDialogManager::CreateTabScopedDialog` CHECKed `host` (`BrowserElementsViews::GetPrimaryWindowWidget()` null until a first web-modal dialog had made the modal host) on `http://neverssl.com/` (an HTTP-only site after the HTTPS upgrade fails): exit 134. Fixed in `//room` (each Room Browser makes its Views modal host at creation); since then the dialog opens (Views, hybrid UI). No helper disabled. No window or `RoomAppController` stub hit in any run of the session (one `CreateSadTab`: a renderer of the 30-page memory run died, the 3.2b fallback).
+
+### Navigation: the Peek rules on RoomCore's `kind` (`scripts/layout-modes.sh --no-captures light -RoomSpikeOnly peek`)
+
+| Navigation from the pinned entry (2.7a's table) | `kind` / transition / disposition / gesture / redirect, as RoomCore reported it | RoomCore | CEF (same day, status-text emulation) |
+|---|---|---|---|
+| link to the same site | linkActivated / link / currentTab / true / false | in place | in place |
+| link to the other site | linkActivated / link / currentTab / true / false | Peek | Peek |
+| link into a redirect chain the site starts | linkActivated, then the 302 step with redirect=true | in place | in place |
+| direct OAuth authorize link | linkActivated (login flow), then redirect=true | in place | in place |
+| form post to the other site (303) | formSubmitted / formSubmit, then redirect=true | in place | in place |
+| `location.href` in a click handler, gesture 0.2 s before | **other** / link / currentTab / true | in place | in place |
+| the same, last input 3 s before | other / link / true | Peek | Peek |
+| ⇧-click an off-site link | linkActivated / link / **newWindow** / true (Navigate()'s disposition hook) | Peek | Peek |
+| `target=_blank` | other / link / newForegroundTab (window.open path, contents attached) | a selected Today tab | a selected Today tab |
+| the host's own load of the pinned URL | other / bookmark / false | in place | in place |
+
+Peek decision → overlay frame median 21.19 ms (CEF 21.86); decision → Peek page FCP median **500 ms**, p95 545 (CEF 92 / 96; the tour's run 84 / 156, max 493): B-57. Event isolation, Open as Tab, Esc and ⇧⌘T as in 2.7a. The status-text workaround stays for CEF only, inside `EngineCEF` (a TT_LINK navigation not to the link under the pointer becomes `.other`); `PeekRules` reads `kind` alone and passes the table on both engines.
+
+Same-site key (B-34), `EngineApplication.site(of:)`: RoomCore `shop.example.xn--1lqs71d.jp` → `example.xn--1lqs71d.jp` (東京.jp is a public suffix), `a.b.example.co.uk` → `example.co.uk`, `room.github.io` → itself, `127.0.0.1` → itself; the bundled list (CEF, the fake) gives `xn--1lqs71d.jp` for the first (IDN rules skipped).
+
+Commits: the tour's `palette2` history checks pass on RoomCore now (typed recorded as typed, a script navigation as link, same-document pushState recorded, the DNS error page not recorded): the 3.2b failure needed only `didCommitNavigation`.
+
+### Page state
+
+- **Audio** (`audio` spike, `audio.html`): media element round 1 audible after 1605 ms (the file's first load), stopped 328 ms after `pause()`; round 2 109 / 278 ms; **Web Audio oscillator audible after 154 ms, still audible at 2 s, off 282 ms after `stop()`** (the Chapter 1 CEF cap: no off edge). The media poll is CEF-only.
+- **Favicons** (`tabs` spike): Wikipedia's live favicon 16 × 16 pt with 2 representations; the app's cache has it (relaunch: 9 of 49 unloaded rows with a cached favicon, 3.2b 0); `Profile.favicon(for:)` from Chrome's `FaviconService` returns 16 × 16 pt, 2 reps for the visited URL. The rows show the app's cache (2.1), which `WebContents.favicon` now fills on RoomCore; nothing asks the engine's store yet.
+- **Colours** (`colors` spike): Wikipedia themeColor nil, root background #f8f9fa, card #f8f9fa; `research/spikes/phase-3.3/dark.html` themeColor #1e3a5f, root background #121212, card #121212 (`research/screenshots/phase-3.3a/phase-3.3a-card-dark-page.png`, dark appearance, window-server capture).
+- **Zoom** (`chromesurfaces2 -RoomSpikeOnly zoom`): ⌘= 1.1 with the indicator "110%", devicePixelRatio 2.2; ⌘- ⌘- 0.9, ⌘0 1.0; indicator hides. B-27: a loaded background page of the same host reads **1.1 at once** and 1.0 after ⌘0 (CEF, same spike: 1.0, stale until its next load).
+- **Security** (`-RoomSpikeOnly security`): `https://example.com/` secure; `http://127.0.0.1:8766/` none (Chrome treats loopback as potentially trustworthy); `http://neverssl.com/` insecure (WARNING; Chrome's ask-before-HTTP dialog over it); `https://127.0.0.1:8767/secure.html` (self-signed) dangerous on Chrome's interstitial (the delegate is 3.4a).
+
+### Lifecycle (`tabs`, `closeunload`)
+
+| Step | Result |
+|---|---|
+| Wikipedia A loaded one link further (through `load`, `.link`) | `canGoBack=true` |
+| Debug ▸ Discard Background Pages | 7 pages `discarded`, rows dimmed; log `page lifecycle 0 -> 1` ×7 and `a discarded page's old WebContents is destroyed` ×7 (Chrome replaced each WebContents; the wrapper moved on `kReplaced`) |
+| A reselected (the tab controller's `reload()`) | `state=alive`, `canGoBack=true` (CEF: false, B-13); Back → `Web_browser`, `canGoForward=true` |
+| ⌘W on the changed pinned entry, ⇧⌘T | page closed, entry reset to its stored URL, reopened at `?changed=1` (unchanged path) |
+| renderers after the discard | 11 → 12 at 4 s, 12 at 10 s and until the quit (memory 2955 → 3095 MB); the tour's run of the same step: 10 pages, 16 → 13, 3809 → 3270 MB. B-56 |
+| `close()` on `dialogs.html` with beforeunload armed, "stay" | Chrome's beforeunload dialog 14 ms after `close()` (answered over CDP), page alive |
+| the same, "leave" | dialog after 11 ms, page `closed`; states alive → closed, reported once |
+
+The first discard runs used Chromium's field-trial testing config, which enables `WebContentsDiscard` for Chromium builds (the experiment "EnabledIgnoreWorkers"): an in-place discard that kept every renderer process (renderers 11 → 12, memory up 140 MB, no `kReplaced`). `//room` disables it (Chrome's desktop default), so the replace path runs. `frozen`: M154 has no per-tab freeze in the lifecycle unit (`FreezingVote` and `WebContents::SetPageFrozen` exist, the protocol has no freeze member); `state` reports `.frozen` when `TabLifecycleUnitExternal::GetTabState()` says FROZEN (Chrome's own freezing policy), read at each refresh; not observed in a run.
+
+### The baseline after the last engine change (`build/baseline/3.3a-final`, embryo host)
+
+nav passed 16.3 s; ten-page quits **0.209 / 0.272 / 0.294 s** (load 3.9 / 6.4 / 8.1), 0 helpers left, 0 crash reports. (An earlier baseline in the session lost its third run to Stack Overflow still loading at the fixture's limit, the hardening branch's known flake.) Stub hits: none.
+
+### The grand tour's palette, tabs and layout-modes sections (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups palette,tabs,layoutmodes light`, `build/grand-tour/20261005-054628-roomcore`, 6.6 min)
+
+| Section | 3.2b | 3.3a | Failures |
+|---|---|---|---|
+| palette (not run in 3.2b) | — | 62 / 7 | `window_main` ×5; `captureViewport` ×2 (3.3b) |
+| tabs | 37 / 3 | 36 / 4 | `window_main` ×3; switching p95 22.31 ms (B-53); `captureViewport` (3.3b). Discard passes now (renderers 16 → 13) |
+| layoutmodes | 27 / 3 | 27 / 3 | `window_main`; hover reveal ×2 (`reveal_band_to_shown` 2003 ms = the 2 s timeout, no frames). Peek passes now (3.2b's three) |
+| total | — | 125 / 14 | |
+
+Every `window_main` failure and the two reveal checks are the activation of the run: the Claude desktop app stayed frontmost and macOS did not let Room become active (`lsappinfo front` → Claude during the run; the standalone spikes of the session read `window_main: false` too), so no window was main and the hover band saw no mouse-moved events. A standalone rerun of layoutmodes' reveal checks right after the tour had the window main and passed: band → shown median 172.69 ms, leave → hidden 155.10 ms (CEF, same minute: 173.27 ms). Nothing 3.3a owns fails.
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.

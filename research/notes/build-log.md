@@ -241,6 +241,25 @@ Other steps this session:
 | `scripts/roomcore-package.sh` | 37 s first (Swift: host 15.7 s, app 15.1 s), 17–19 s later | framework 924 MB staged, 518 dylibs |
 | `xcodebuild -scheme Room` (CEF, for the keys comparison) | 13 s | incremental |
 
+### Phase 3.3a on the Mac mini (2026-10-05)
+
+`out/dev`, `ROOM_BUILD_JOBS=6`, nothing else building; `out/release` untouched (stale).
+
+| Step | Time | Notes |
+|---|---|---|
+| `scripts/roomcore-apply.sh` with patch 0016 appended | ~10 s | "1 applied, 14 already"; the runs after: "0 applied, 15 already" |
+| build 1: patch 0016 (`chrome_content_browser_client_navigation_throttles.cc`), `//room/core` (throttle, observers, public API) | failed | 15 errors: auto-synthesised `RoomNavigationAction` properties (`-Wobjc-missing-property-synthesis`), `blink::mojom::Referrer` incomplete, `SadTabHelper::FromWebContents` absent, `SECURE_WITH_POLICY_INSTALLED_CERT` gone in M154, `::mojom` namespace |
+| build 2 (fixed) | **55 s** build part | load 3.6 |
+| rebuild: unhide the hidden contents' view | 54 s | |
+| rebuild: Views modal host at Browser creation (after a `-Wshadow` failure) | 57 s | |
+| rebuild: discard log line | 49 s | |
+| rebuild: `WebContentsDiscard` disabled | 43 s | |
+| `gn check out/dev '//room/*'` | 7 s | three deps added (`//chrome/browser/favicon`, `//chrome/browser/translate`, `//components/favicon/content`); then OK |
+| rebuild after the GN deps (the last engine change) | 29 s | |
+| `scripts/roomcore-package.sh` | 27–40 s (`--app-only` 15–25 s) | the first Swift failure was `createWebContentsInitiallyHidden:`'s import name (NS_SWIFT_NAME added) |
+| `xcodebuild -scheme Room` (CEF app) | ~60 s first, then incremental | Engine/Tabs/EngineCEF changes |
+| `xcodebuild test -scheme Room` (window tier) | ~4 min | 453 tests |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior
