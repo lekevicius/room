@@ -247,11 +247,27 @@ extension SpikeRunner.Context {
         SpikeRunner.record("permission_location", await ask("#geo", answer: "permission-allow", capturing: "permission-popover"))
         SpikeRunner.record("permission_notifications", await ask("#notify", answer: "permission-deny"))
         try? await Task.sleep(for: .milliseconds(800))
-        SpikeRunner.record("permission_states", await js(page, "states()"))
+        SpikeRunner.record("permission_states", await js(page, Self.permissionStatesScript))
+        // B-26: the answers are the profile's, not the page's: after a reload
+        // the page reads them back, and a denied permission asks no more.
+        page.reload()
+        await waitLoaded(page)
+        SpikeRunner.record("permission_states_after_reload", await js(page, Self.permissionStatesScript))
+        Task { await self.click(page, "#notify") }
+        let asked = await waitUntil(3) { self.prompts.visiblePermission != nil }
+        SpikeRunner.record("permission_notifications_remembered", "prompt=\(asked) page=\(await js(page, "document.getElementById('log').textContent"))")
         SpikeRunner.record("permission_camera", await ask("#camera", answer: "permission-allow-once"))
         try? await Task.sleep(for: .milliseconds(1500))
-        SpikeRunner.record("permission_page_results", await js(page, "JSON.stringify(window.__results)"))
+        // The page mirrors its results into #log (RoomCore's scripts see the DOM, not the page's globals: B-55).
+        SpikeRunner.record("permission_page_results", await js(page, "document.getElementById('log').textContent"))
     }
+
+    /// `navigator.permissions.query` for the fixture's two permissions, as the
+    /// page sees them (works in the main world and in RoomCore's isolated one).
+    static let permissionStatesScript = """
+        (async () => { const out = {}; for (const name of ['geolocation', 'notifications']) \
+        { out[name] = (await navigator.permissions.query({ name })).state; } return JSON.stringify(out); })()
+        """
 
     // MARK: File choosers
 
@@ -306,6 +322,46 @@ extension SpikeRunner.Context {
         await rightClick(page, "#image")
         _ = await waitUntil(8) { image.closed }
         SpikeRunner.record("context_menu_image_closed", image.closed)
+        if let recorder = DelegateRecorder.active {
+            SpikeRunner.record("context_menu_image_element", recorder.lastDetail("willShowContextMenu") ?? "nil")
+        }
+
+        // 3.4a: one of the engine's own commands (Chrome's Copy Link
+        // Address, IDC_CONTENT_CONTEXT_COPYLINKLOCATION) runs in the engine.
+        let copy = MenuDriver()
+        chrome.presentMenu = { menu, point, view in copy.show(menu, at: point, in: view) }
+        copy.chooseTag = 50104
+        copy.onOpen = { menu in
+            copy.offered = menu.menu.item(withTag: 50104) != nil
+            copy.finish()
+        }
+        NSPasteboard.general.clearContents()
+        await rightClick(page, "#link")
+        _ = await waitUntil(8) { copy.closed }
+        _ = await waitUntil(3) { NSPasteboard.general.string(forType: .string) != nil }
+        SpikeRunner.record("context_menu_engine_command", "offered=\(copy.offered) pasteboard=\(NSPasteboard.general.string(forType: .string) ?? "nil")")
+        if let recorder = DelegateRecorder.active {
+            SpikeRunner.record("context_menu_link_element", recorder.lastDetail("willShowContextMenu") ?? "nil")
+        }
+
+        // A misspelled word in a field: Chrome's spelling suggestions and
+        // dictionary actions are the engine's items (focus first: the
+        // checker marks a field's words once it is focused).
+        await click(page, "#misspelled")
+        try? await Task.sleep(for: .milliseconds(1500))
+        let spelling = MenuDriver()
+        chrome.presentMenu = { menu, point, view in spelling.show(menu, at: point, in: view) }
+        spelling.onOpen = { menu in
+            SpikeRunner.record("context_menu_misspelled", menu.menu.items.map { $0.isSeparatorItem ? "—" : $0.title }.joined(separator: " | "))
+            menu.menu.cancelTracking()
+        }
+        await rightClick(page, "#misspelled")
+        _ = await waitUntil(8) { spelling.closed }
+        if let recorder = DelegateRecorder.active {
+            SpikeRunner.record("context_menu_misspelled_element", recorder.lastDetail("willShowContextMenu") ?? "nil")
+        }
+        // Only the host's menus were on screen: no window of Chrome's menu runner is left.
+        SpikeRunner.record("context_menu_windows", NSApp.windows.filter(\.isVisible).map { String(describing: Swift.type(of: $0)) }.joined(separator: ","))
     }
 
     /// The capture handshake from inside the menu's tracking loop (a timer
@@ -382,6 +438,10 @@ final class MenuDriver {
     var onOpen: ((ContextMenu) -> Void)?
     /// The item to choose (by index) once captured; `nil` closes without a choice.
     var choose: Int?
+    /// The item to choose by tag (the engine's command id), when set.
+    var chooseTag: Int?
+    /// Whether the item to choose by tag was in the menu.
+    var offered = false
     private(set) var closed = false
     private var menu: ContextMenu?
     private var timer: Timer?
@@ -418,7 +478,12 @@ final class MenuDriver {
     /// Chooses `choose` (if any) and closes the menu.
     func finish() {
         guard let menu else { return }
-        if let choose, menu.menu.items.indices.contains(choose) { menu.menu.performActionForItem(at: choose) }
+        if let chooseTag {
+            let index = menu.menu.indexOfItem(withTag: chooseTag)
+            if index >= 0 { menu.menu.performActionForItem(at: index) }
+        } else if let choose, menu.menu.items.indices.contains(choose) {
+            menu.menu.performActionForItem(at: choose)
+        }
         menu.menu.cancelTracking()
     }
 }

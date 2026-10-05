@@ -459,5 +459,29 @@ final class HostPageRecorder: NSObject, RoomWebContentsDelegate {
     func webContentsDidRequestExitFullscreen(_ webContents: RoomWebContents) {
         fullscreenEvents.append("exit")
     }
+
+    /// Prompts the page's requests reached the host with (3.4a, patch 0017).
+    static private(set) var permissionPrompts = 0
+
+    /// Records each prompt's mapped kinds and leaves the answer to the drive,
+    /// which answers through Chrome's PermissionRequestManager
+    /// (`deny-permission`, `network-accept`) as it did Chrome's bubble.
+    func webContents(_ webContents: RoomWebContents, willAskForPermissions requests: [RoomPermissionRequest],
+                     quietReason: RoomPermissionQuietReason, completion: @escaping (RoomPermissionResponse) -> Void) {
+        Self.permissionPrompts += 1
+        let kinds = requests.map { "kind=\($0.kind.rawValue) origin=\($0.origin.absoluteString) system=\($0.systemAuthorization.rawValue)" }
+        HostSpike.record("permission-prompt", "\(kinds.joined(separator: "; ")) quiet=\(quietReason.rawValue)")
+    }
+
+    func webContentsDidDismissPermissionPrompt(_ webContents: RoomWebContents) {
+        HostSpike.record("permission-prompt-ended-unanswered", Self.permissionPrompts)
+    }
+
+    /// The challenge reaches the host (patch 0020); the drive answers through
+    /// Chrome's LoginHandler list (`auth-cancel`, `auth-supply`).
+    func webContents(_ webContents: RoomWebContents, didReceiveAuthChallenge challenge: RoomAuthChallenge,
+                     completion: @escaping (String?, String?) -> Void) {
+        HostSpike.record("auth-challenge", "origin=\(challenge.origin.absoluteString) realm=\(challenge.realm ?? "nil") scheme=\(challenge.scheme) proxy=\(challenge.isProxyChallenge)")
+    }
 }
 #endif

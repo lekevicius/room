@@ -28,8 +28,14 @@ enum HostNetworkUISpike {
     }
 
     static func prompt(host: HostController, cdp: HostCDP) async throws {
+        let hostPrompts = HostPageRecorder.permissionPrompts
         for _ in 0..<100 {
             if try host.runSpikeAction("network-pending") == 1 {
+                // A page whose delegate answers prompts gets the host's prompt (3.4a).
+                if HostPageRecorder.permissionPrompts > hostPrompts {
+                    HostSpike.record("network-host-prompts", HostPageRecorder.permissionPrompts)
+                    return
+                }
                 let count = try host.runSpikeAction("ui-dialog-count")
                 if count > 0 {
                     HostSpike.record("network-owned-dialogs", count)

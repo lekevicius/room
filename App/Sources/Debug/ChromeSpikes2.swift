@@ -55,10 +55,17 @@ extension SpikeRunner.Context {
         if runs("popups") { await popupsCheck() }
         // 2.6b.
         if runs("downloads") { await downloadsCheck(folder: downloadFolder) }
+        // 3.4a, on a state an earlier run downloaded into (only when asked):
+        // the list a relaunch restores (B-28), and a quit with a download in
+        // flight (the host's decision; Chrome's prompt never shows).
+        if only.contains("downloadsrestore") { await downloadsRestoreCheck() }
+        if only.contains("downloadquit") { await downloadQuitCheck() }
         if runs("find") { await findCheck() }
         if runs("zoom") { await zoomCheck() }
         // Real sites over the network: only when asked (`-RoomSpikeOnly security`, 3.3a).
         if only.contains("security") { await securityCheck() }
+        // One public HSTS host with a bad certificate: only when asked (`-RoomSpikeOnly hsts`, 3.4a, B-24).
+        if only.contains("hsts") { await hstsCheck() }
         if runs("print") { await printCheck() }
         if runs("status") { await statusPillCheck() }
         if runs("sitepanel") { await sitePanelCheck() }
@@ -143,6 +150,39 @@ extension SpikeRunner.Context {
         list.clear()
         SpikeRunner.record("download_clear", "rows=\(list.rows.count)")
         downloads.popover.close()
+    }
+
+    /// B-28: the engine's history replays earlier sessions' downloads into
+    /// the list at launch (RoomCore: Chrome's DownloadHistory).
+    private func downloadsRestoreCheck() async {
+        guard let downloads = app?.downloads else { return }
+        let list = downloads.list
+        _ = await waitUntil(10) { !list.rows.isEmpty }
+        try? await Task.sleep(for: .milliseconds(500))
+        SpikeRunner.record("download_restored", "rows=\(list.rows.count) "
+            + list.rows.map { "\($0.destination?.lastPathComponent ?? $0.item.suggestedFilename):\($0.item.state):canResume=\($0.item.canResume)" }.joined(separator: ","))
+        downloads.togglePopover()
+        _ = await waitUntil(3) { downloads.popover.isShown }
+        try? await Task.sleep(for: .milliseconds(400))
+        await captureB("downloads-restored")
+        downloads.popover.close()
+    }
+
+    /// Starts the slow download and leaves it running: the spike's quit then
+    /// runs Chrome's close path with a download in flight.
+    private func downloadQuitCheck() async {
+        guard let downloads = app?.downloads, let page = await openTest("downloads.html") else { return }
+        let list = downloads.list
+        await click(page, "#slow")
+        let started = await waitUntil(5) { list.rows.contains { $0.item.suggestedFilename.contains("slow") && $0.item.receivedBytes > 0 } }
+        if let id = list.rows.first(where: { $0.item.suggestedFilename.contains("slow") })?.id {
+            list.pause(id)
+            _ = await waitUntil(5) { list.row(id)?.item.isPaused == true }
+            SpikeRunner.record("download_paused_can_resume", "\(list.row(id)?.item.canResume ?? false)")
+            list.resume(id)
+            _ = await waitUntil(5) { list.row(id)?.item.isPaused == false }
+        }
+        SpikeRunner.record("download_in_flight_at_quit", "started=\(started) in progress=\(list.rows.filter { $0.item.state == .inProgress }.count)")
     }
 
     // MARK: Find
@@ -241,6 +281,26 @@ extension SpikeRunner.Context {
             await waitLoaded(page)
             try? await Task.sleep(for: .milliseconds(500))
             SpikeRunner.record("security_\(name)", "\(page.url?.absoluteString ?? "nil") level=\(page.securityState.level) mixed=\(page.securityState.hasMixedContent)")
+        }
+    }
+
+    /// B-24: a preloaded HSTS host with a certificate for another name
+    /// (badssl.com's test host; one request) shows the interstitial without
+    /// Visit … Anyway; the loopback self-signed page offers it.
+    private func hstsCheck() async {
+        for (name, url) in [("hsts", "https://subdomain.preloaded-hsts.badssl.com/"), ("plain", Self.secureServer + "secure.html")] {
+            guard let page = session.newPage(URL(string: url)!) else { continue }
+            var state = await waitForDialog()
+            if case .certificate(let error)? = prompts.visibleDialog?.dialog {
+                state += " code=\(error.code) \(error.description) overridable=\(error.isOverridable)"
+            }
+            let proceed = button(identifier: "certificate-proceed", in: presenter?.dialogView)
+            SpikeRunner.record("certificate_\(name)", state + " visit_anyway=\(proceed != nil)")
+            await captureB("certificate-\(name)")
+            pressReturn()  // Go Back
+            _ = await waitUntil(5) { self.prompts.visibleDialog == nil }
+            try? await Task.sleep(for: .milliseconds(500))
+            _ = page
         }
     }
 
@@ -405,10 +465,10 @@ extension SpikeRunner.Context {
         await captureB("site-panel")
         model.reload()
         await waitLoaded(page)
-        SpikeRunner.record("site_panel_page_sees", await js(page, "states()"))
+        SpikeRunner.record("site_panel_page_sees", await js(page, Self.permissionStatesScript))
         await model.clearSiteData()
         SpikeRunner.record("site_panel_clear", "cleared=\(model.siteDataCleared) cookie=\(await js(page, "document.cookie")) storage=\(await js(page, "localStorage.getItem('room')"))")
-        model.resetPermissions()
+        await model.resetPermissions()
         SpikeRunner.record("site_panel_reset", "stored=\(model.hasStoredSettings) geolocation=\(model.setting(.geolocation))")
         app.sitePanel.close()
     }
@@ -705,6 +765,9 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
     func count(_ name: String) -> Int { counts[name, default: 0] }
     func lastDetail(_ name: String) -> String? { details[name] }
 
+    /// The recorder when a spike installed it (chromesurfaces2, the tour's chrome26b).
+    static var active: DelegateRecorder? { shared.tabs == nil ? nil : shared }
+
     var summary: String {
         counts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
     }
@@ -735,7 +798,9 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
         target?.webContents(webContents, didChangeStatusText: text)
     }
     func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
-        note("willShowContextMenu")
+        note("willShowContextMenu", "link=\(element.linkURL?.absoluteString ?? "nil") text=\(element.linkText ?? "nil") "
+            + "media=\(element.mediaType) editable=\(element.isEditable) misspelled=\(element.misspelledWord ?? "nil") "
+            + "suggestions=\(element.dictionarySuggestions) items=\(menu.items.count)")
         return target?.webContents(webContents, willShowContextMenu: menu, for: element) ?? false
     }
     func webContents(_ webContents: any WebContents, runJavaScriptAlert message: String, origin: URL?, completion: @escaping () -> Void) {
