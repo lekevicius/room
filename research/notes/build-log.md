@@ -260,6 +260,19 @@ Other steps this session:
 | `xcodebuild -scheme Room` (CEF app) | ~60 s first, then incremental | Engine/Tabs/EngineCEF changes |
 | `xcodebuild test -scheme Room` (window tier) | ~4 min | 453 tests |
 
+### Phase 3.3b on the Mac mini (2026-10-05)
+
+`out/dev`, `ROOM_BUILD_JOBS=6`, nothing else building; `out/release` untouched (still 3.1b-2's //room).
+
+| Step | Time | Notes |
+|---|---|---|
+| `scripts/roomcore-build.sh` (apply: "0 applied, 15 already") build 1: `room_web_contents_tools.mm` (find, capture, print, DevTools), main-world scripts for devtools: pages, the DevTools key forward | failed | `viz::CopyOutputBitmapWithMetadata` incomplete (header and `//components/viz/common` dep added) |
+| build 2 | **73 s** | load 4.6 → 4.9 |
+| build 3: the modal anchor ordered above the host window (the last engine change) | **55 s** | load 4.5 |
+| `scripts/roomcore-package.sh` | 25–40 s each (Swift: host 5 s, app 10–15 s) | first Swift failure: `devToolsWebContents` imported as `devTools` (NS_SWIFT_NAME added) |
+| `CONFIGURATION=Release scripts/roomcore-package.sh --app-only` (Release app over the dev framework) | ~90 s | the release framework (`build/roomcore-release`, 3.1b-2) cannot run today's app: `RoomCoreApplication.applicationDelegate` → unrecognized selector (3.2b API) |
+| `scripts/roomcore-package.sh --release --app-only` | 65 s Swift | built, crashes at launch for the reason above (two crash reports, 06:59) |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior

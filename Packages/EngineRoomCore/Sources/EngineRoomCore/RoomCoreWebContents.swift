@@ -38,8 +38,13 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
     /// `WebContents::SetAudioMuted`; follows `DidUpdateAudioMutingState`.
+    /// The delegate hears every change, the host's own included (as on CEF).
     public var isMuted: Bool {
-        didSet { if page.isMuted != isMuted { page.isMuted = isMuted } }
+        didSet {
+            guard isMuted != oldValue else { return }
+            if page.isMuted != isMuted { page.isMuted = isMuted }
+            uiDelegate?.webContents(self, didChangeMuted: isMuted)
+        }
     }
     /// Chrome's `ZoomController` (per host: the host's other pages follow);
     /// follows `ZoomObserver::OnZoomChanged`.
@@ -142,10 +147,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             isAudible = page.isAudible
             uiDelegate?.webContents(self, didChangeAudible: isAudible)
         }
-        if isMuted != page.isMuted {
-            isMuted = page.isMuted
-            uiDelegate?.webContents(self, didChangeMuted: isMuted)
-        }
+        if isMuted != page.isMuted { isMuted = page.isMuted }
         if abs(zoomFactor - page.zoomFactor) > 0.0001 { zoomFactor = page.zoomFactor }
         let lifecycle: WebContentsState = switch page.lifecycleState {
         case .discarded: .discarded

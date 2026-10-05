@@ -1203,6 +1203,103 @@ nav passed 16.3 s; ten-page quits **0.209 / 0.272 / 0.294 s** (load 3.9 / 6.4 / 
 
 Every `window_main` failure and the two reveal checks are the activation of the run: the Claude desktop app stayed frontmost and macOS did not let Room become active (`lsappinfo front` → Claude during the run; the standalone spikes of the session read `window_main: false` too), so no window was main and the hover band saw no mouse-moved events. A standalone rerun of layoutmodes' reveal checks right after the tour had the window main and passed: band → shown median 172.69 ms, leave → hidden 155.10 ms (CEF, same minute: 173.27 ms). Nothing 3.3a owns fails.
 
+## Phase 3.3b — find, capture, print preview, DevTools in the pane, memory and timing beside CEF (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug, 60 Hz)
+
+Room.app on RoomCore (component build `out/dev`, `DCHECK_ALWAYS_ON`, Debug Swift app), throwaway state and engine directories per run (`build/evidence-3.3b/`). The display is the 1280 × 800 pt mode at **60.00 Hz** (`system_profiler`; the 2.9 tour's run 3 had the same mode, runs 1–2 a larger one), load average 3–12 (recorded per run). Room's window was main and key in every run below (`window_main: true`); the Claude desktop app was frontmost between runs. Three "Room quit unexpectedly" system dialogs were on screen throughout (05:24 ×2 from 3.3a's runs, 06:59 ×2 from this session's launch of today's app over the stale release framework, below); they were not answered and cover the middle of two captures.
+
+### Find (`chromesurfaces2 -RoomSpikeOnly find`, `find.html`: 2,000 paragraphs, "lighthouse" 400×)
+
+One `FindTabHelper::StartFinding(find_match=true)` per keystroke: the spike-gated log line counted 29 "new text" requests for 26 keystrokes (the bar re-sends its text when ⌘F reopens it) and 2 "same text, step" for ⌘G / ⇧⌘G; no counting request (CEF sent two per new text). "1 of 400" on the first request, ⌘G → "2 of 400", ⇧⌘G → "1 of 400", Esc closes with the focus back in the page.
+
+| Keystroke → highlighted match | RoomCore | CEF (2.6b; 2.9 tour) |
+|---|---|---|
+| all 26 keystrokes, median / p95 | 36.7 / 424.6 ms | 20.7–21.3 / 23.8–26.5 ms (n = 9–11); tour 14.4–15.4 / 25.5–26.2 |
+| keystrokes 1–3 of a word (12) | 406–713 ms | — |
+| keystrokes 4+ of a word (14), median / p95 | **6 / 38 ms** | — |
+
+The first three characters wait for Chromium: `FindRequestManager` delays queries shorter than `kMinKeystrokesWithoutDelay` (4) by `kDelayMs` (400 ms) so a page's script is not starved while the user types (`content/browser/find_request_manager.cc:187–195`); Chrome's own find bar behaves the same. CEF's `Find` does not go through that delay. Not a Room cost; recorded, not chased.
+
+### Capture (`cdp`, `capture`)
+
+`captureViewport` through `CopyFromSurface`: 20 captures of Wikipedia, **16.6 ms median, 18.7 p95**, 990 × 758 pt (CEF's CDP `Page.captureScreenshot`: the same spike reported its round trip in 1.4/2.9). The tabs spike's in-process composites now carry the page (`research/screenshots/phase-3.3b/tabs/phase-2.3-card-page-light.png`, `-dark.png`, the switcher, the empty card): B-9's in-process evidence gap is closed for the page. The transparent-background capture (`cdp/phase-1.4-transparent-cdp-capture.png`) shows the page; RoomCore ignores `transparentBackground` (3.1a table), so the page is opaque. `executeJavaScript` 0.16 / 0.71 ms (3.2b: 0.14 / 0.51).
+
+### Print preview (`chromesurfaces2 -RoomSpikeOnly print`)
+
+`print()` → `printing::StartPrint`: Chrome's print preview, a `NativeWidgetMacNSWindow` 1000 × 660 pt centred over the card, a child of the Room Browser's modal anchor, itself a child of Room's window; shown **24–50 ms** after `print()` (CEF's system panel: 285 ms); "Print — 1 page — Save as PDF"; Esc closes it in 225 ms (`phase-2.6b-print-preview-light.png`, a screen-rect capture: the stale crash dialog covers its middle). Two findings before it showed: (1) the anchor was ordered **below** Room's window, so the preview (its child, ordered above the anchor) sat behind the window, `occlusionState` not visible; ordered above now (the anchor is transparent and ignores the mouse). (2) Printing the demo's developer.apple.com page, the preview appeared and vanished within 250 ms: Chrome closes print preview when the initiator navigates, and that page changes its URL by script; the spike prints `status.html` now.
+
+### Element fullscreen (`-RoomSpikeOnly fullscreen`)
+
+3.2a's `-exitFullscreen` is what `exitFullscreen()` maps to: enter → window fullscreen with the card 1280 × 800, exit → window back, sidebar, card 958 × 758, traffic lights at 19,19 with the toolbar (`phase-2.6b-element-fullscreen-light.png`).
+
+### DevTools in the host's pane (`devtools`, `chromesurfaces2 -RoomSpikeOnly devtools`)
+
+Shape (a): `DevToolsWindow` with its bindings and lifetime; without a `DevtoolsUIController` it cannot dock and makes a DevTools Browser, which RoomCore keeps headless (3.2a); the front-end `WebContents` stays in that strip and its view is adopted into the pane. No `//room` front-end host, no patch.
+
+| Step | RoomCore | CEF (2.6b, 2.9 tour) |
+|---|---|---|
+| ⌥⌘I → front-end loaded, median / p95 (n = 4) | **330.6 / 335.6 ms** | 328–335 ms; tour 329 / 340 |
+| ⌥⌘I → attached to the page (front-end's primary page target) | 530.7 / 557.7 ms | 328–337 ms |
+| inspect element at (60, 160) | DevTools open after 24 ms; `INPUT#color` selected in Elements (the spike polls 200 ms apart for up to 10 s: 11.2 s, CEF 10.6 s in the 2.9 tour) | `SELECT#sel` |
+| resize handle dragged 150 pt | fraction 0.420 → 0.617 | 42% → 60.7% |
+| ⌥⌘J | console panel | console |
+| ⌥⌘C with DevTools open | element picker on (`elements.toggle-element-search` toggled) | — |
+| close | `closed=true pane=false`, front-end `closed`, page alive | same |
+
+Capture with the pane open on Elements: `research/screenshots/phase-3.3b/phase-2.6b-devtools-pane-light.png`. The front-end's own scripts: content allows main-world scripts on devtools: pages (`RenderFrameHost::ExecuteJavaScript`), its CSP (`script-src 'self'`) forbids `eval`, and a script injected from the browser has no base URL for `import('./…')`, so the spikes import the front-end's modules by their devtools://devtools/bundled/ URLs (the CEF front-end has the same URLs).
+
+**No remote-debugging port in the product** (`build/evidence-3.3b/debugging-port*.txt`, scratch `--user-data-dir`, nothing under the real data root newer than the runs): the Release-configuration app (built over the dev framework, see the deviation) has no process with `--remote-debugging-port` and no TCP listener; launched *with* `--remote-debugging-port=9557` it still opens no listener (Release drops `--remote-debugging-*`). The Debug app: no listener by default; with a spike's `--remote-debugging-port=9558`, `127.0.0.1:9558`. The release framework itself (3.1b-2's `out/release`, not rebuilt) cannot run today's app: `-[RoomApplication setApplicationDelegate:]` (3.2b) is missing there, the app aborts in `main`.
+
+### Memory and timing, RoomCore beside CEF
+
+Standalone spikes, each on a fresh state (`build/evidence-3.3b/numbers-1/`), visible window, main and key, 60 Hz, Debug app on the component framework. CEF's column is `chapter-2-review.md` "Numbers", tour column (visible window, frontmost, load 4–10, run 2 light / dark, the tour's accumulated state).
+
+| Measure | CEF (tour) | RoomCore (3.3b) | Condition (RoomCore run) |
+|---|---|---|---|
+| Memory baseline (one blank page, summed RSS of every Room process) | 849 / 857 MB | **996 MB**, 9 processes, 3 renderers | `memory`, load 3.1 |
+| 10 loaded pages of 50 entries, summed RSS | 3,572 / 3,560 MB (2.3: 4,095–4,215) | **6,398 MB**, 27 processes, 19 renderers (5,811 after the 100 switches) | `tabsmeasure` switch, load 12 at start |
+| per hidden page at 1 / 10 / 30 | +169 / +237–270 / +210–215 MB | +366 / +442 / +363 MB | `memory` |
+| 30 hidden pages, loaded | 7,292 / 7,145 MB, 30/30 | **11,880 MB**, 30/30, 39 renderers | `memory` |
+| 50 loaded pages over 5 spaces | 6,495 / 6,509 MB | **10,317 MB**, 58 processes, 52 renderers | `spaces -RoomSidebarFixture spaces500`, load 6.9 |
+| Tab switch: click → page committed in the card, median / p95 | 13.7 / 17.5 and 14.5 / 18.2 ms | **15.41 / 22.33 ms** (`select` call 6.43 / 10.38) | `tabsmeasure`, 100 switches among 10 loaded |
+| … the page visible after the click (median); first frame (median / p95) | 4.2 / 3.9 ms; isolated 15.1 / 23.0 | 5.17 ms (p95 13.50); 12.51 / 26.00 ms | same run |
+| Relaunch: process start → selected page loading; → loaded | 0.82 / 0.83 s; 1.44 / 1.49 s (50k history rows) | **2.10 s; 4.08 s** (fresh state, 50 entries) | `relaunch`; the component app reaches its first line of Swift 2.0–2.5 s after spawn in every spike (`launch_to_spike_s`); the release app opened a first page 0.41 s after spawn in 3.1b-2 |
+| Peek decision → overlay frame; → first contentful paint (median) | 21.4 / 30.0 ms; 91.7 / 102.2 ms | 22.5 ms; **493 ms** (p95 545) | `layoutmodes -RoomSpikeOnly peek`, 5 opens |
+| Quit with ten pages | 0.31–0.50 s, 0 helpers left | **0.250 / 0.218 / 0.238 s**, 0 helpers left (embryo baseline) | `roomcore-baseline.sh` after the last engine change, load 3–7 |
+| Find, keystroke → highlighted match | 14.4–15.4 / 25.5–26.2 ms | 4+ characters 6 / 38 ms; 1–3 characters ~410 ms (Chromium's short-query delay) | above |
+| DevTools ⌥⌘I → front-end loaded | 329 / 340 ms | 330.6 ms | above |
+
+The tour's own `tabsmeasure` (below, on the tour's shared state) read 10 loaded pages 4,919 MB in 27 processes, switching 16.93 / 22.62 ms, relaunch 2.76 s to loading and 4.95 s to loaded: the ten live sites' weight varies by run by more than a gigabyte; the table keeps the standalone run.
+
+**The component build inflates both memory and launch.** One look, the embryo host's `open10` (the same ten sites, the same embryo, peak summed RSS, `build/evidence-3.3b/embryo-rss10-component-vs-release.txt`): component framework **6,585 MB**, release framework (3.1b-2) **4,975 MB**, both 24 processes and 18 renderers: −24 %, ~67 MB per process (the component build's 518 dylibs each dirty their own pages in every process). Release RoomCore is still ~1.4 GB above CEF's ten pages: more processes (18 renderers for ten pages against CEF's 15 in 2.3; Chrome's site isolation and a spare renderer) and more per renderer. B-2 has its comparable number now; the discard policy (3.7b) and the release-build measurement (3.8) are the levers.
+
+**B-53 (switching p95 22.3 vs 16 ms; CEF 17.5–18.2): one profile.** `sample` at 1 ms over 38 s of the 100 switches (`build/evidence-3.3b/b53/sample.txt`; the sampling slows the run, median 40 ms under it); main thread 21,243 samples, 1,650 busy. Where the busy time goes, as samples of the main thread (top-most frame of each kind):
+
+| Part | Samples | What |
+|---|---|---|
+| Core Animation commit (layout, display, commit handlers) | 479 (29 %) | AppKit's display cycle after the swap; the window's constraint layout 110 |
+| `SidebarController.select` → `TabController.activate` | 467 / 372 | the card's view swap: `removeFromSuperview` 179 (the old page's `WasHidden`: `RenderWidgetHostViewMac::Hide` → `BrowserCompositorMac` → `~RecyclableCompositorMac` → `DestroyCompositorFrameSink`, **a synchronous mojo call to the GPU process**, 66), `addSubview` 171 (the new page's `WasShown` → `SynchronizeVisualProperties` 43, of which `RoomBrowserWindow::IsMaximized` → `-[NSWindow isZoomed]` **37**) |
+| Chromium tasks | 457 (28 %) | cookie-access notifications of the ten live pages 174 (not the switch); `room_activateWebContents` → `TabStripModel::ActivateTab` **73** |
+| sequence checkers (`DCHECK_ALWAYS_ON`) | 233 (14 %, across the above) | the dev build checks every sequence; CEF ships a release build |
+
+No single Room-side cause: the strip's activation (73, ~4 %) and the uncached `isZoomed` (37, ~2 %; Views caches it in `NativeWidgetMacNSWindowHost::is_zoomed_`) are Room's and together well under the 5 ms gap; the rest is Chromium's hide/show path and the dev build's checks. Per the scope rule no fix was made; the number stands as the row (B-53), next step: measure on a current release build (no DCHECKs, no component dylibs) and cache the zoom state.
+
+**B-57 (Peek paint 493 vs 92 ms): one look.** A Peek is an off-site page in a new `WebContents`, so it needs a new renderer process (a new site instance); the overlay itself is as fast as CEF's (22.5 vs 21.4 ms) and the throttle's cancel → `openPeek` round trip is the same on both engines (2.7a/3.3a). A renderer helper of the component framework, started with an unknown `--type` (it loads, initialises and exits), takes **1.35–1.37 s** warm; the release framework's helper **0.02–0.03 s** (`/usr/bin/time`, three runs each, the first of each ~2.7–3.0 s: the new binary's assessment). The gap is the dev build's process launch, not Peek's path; B-57 stays a row until the release build measures it (3.8).
+
+### The baseline after the last engine change (`build/baseline/3.3b-final`, embryo host)
+
+nav passed 16.4 s; ten-page quits **0.250 / 0.218 / 0.238 s** (load 3.1 / 4.9 / 6.7), 0 helpers left, 0 crash reports; stub hits: none. (The baseline after the first engine change, before the anchor reorder: nav 16.5 s, 0.276 / 0.252 / 0.236 s.) Over the session's runs: one `CreateSadTab` (chrome26b's `chrome://kill`, the 3.2b fallback); `RoomAppController` logged only its implemented members; "refused a Chrome BrowserView for a devtools Browser" 27× (each DevTools open: the headless DevTools Browser, by design).
+
+### The grand tour's tabs and chrome sections (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups tabs,chrome light`, `build/grand-tour/20261005-071621-roomcore`, 29.4 min)
+
+| Section | 3.3a | 3.3b | Failures, attributed |
+|---|---|---|---|
+| tabs (`tabs`, `tabsmeasure`, `tabcapture`) | 36 / 4 | **37 / 3** | discard's "renderers released" (11 → 12: B-56); switching median 16.93 and p95 22.62 ms (B-53). `tabcapture` 9/9 now (3.3a: `captureViewport`) |
+| chrome surfaces 2.6a (`chrome26a`) | not run on RoomCore | 15 / 10 | 3.4: JS dialogs, beforeunload "stay" (3.4b); certificate interstitial ×3 (3.4a `strict_enforcement`/SSL delegate); location and notification prompts (3.4a permissions); link context menu ×2 (3.4a); `window.open` opener messages read `null` (the check reads a page global from the isolated world: B-55) |
+| chrome surfaces 2.6b (`chrome26b`) | not run on RoomCore | 36 / 17 | the 2.6a ten again; delegate members never called (15, below); downloads pause/resume/cancel and badge (3.4a `DownloadManagerDelegate`); site panel Block and Clear (3.4a permission settings, `clearSiteData`); `chrome://crash` view and its helper crash report (3.4b `processGone`) |
+| total | | **88 / 30** | nothing 3.3 owns fails |
+
+What 3.3 owns in the chrome sections passes: find (1 of 400 on the first request, ⌘G/⇧⌘G, Esc with the focus back), zoom with the indicator, print preview over the window and Esc, the status pill (shown 610.6 ms after its text for a configured 600, dodges the pointer), element fullscreen and the traffic lights after it, ⌥⌘J console, ⌥⌘C picker, audible on and off, copy URL. Both chrome steps hung after their `end:` line: Chrome's own app-modal "Leave site?" dialog (a beforeunload page the 2.6a checks leave behind; the host cannot answer Chrome's dialogs until 3.4b) held the quit; the window was found with `CGWindowListCopyWindowInfo` (layer 8, 260 × 218, `build/evidence-3.3b/chrome26b-quit-blocking-dialog.png`) and the instance was killed so the tour could continue (chrome26a's 1,286 s is that wait). Delegate members called on RoomCore in chrome26b: `decidePolicy`, `didChangeAudible`, `didChangeSecurityState`, `didChangeStatusText`, `didCommitNavigation`, `didCreate`, `handleUnhandledKeyEvent`, `isReservedKeyEvent`, `webContentsDidClose`, `webContentsDidRequestEnterFullscreen`/`…ExitFullscreen`; `didChangeMuted` was missing (the host's own ⇧⌘M changed `isMuted` without the delegate hearing it; CEF calls it for every change) and is called now (`-RoomSpikeOnly keys`: `didChangeMuted=2`). Never called (3.4): `didFailCertificateCheck`, `didReceiveAuthChallenge`, `didUpdateDownload`, `willBeginDownload`, `processGone`, `runBeforeUnloadDialog`, `runFileChooser`, `runJavaScriptAlert`/`Confirm`/`Prompt`, `webContentsDidDismissJavaScriptDialogs`, `webContentsDidDismissPermissionPrompt`, `willAskForPermission`, `willShowContextMenu`. Chrome's own UI stood in for two of them: the file choosers opened as sheets (Chrome's `FileSelectHelper` panel; the checks for the sheet pass, the delegate is not called) and HTTP auth signed in through Chrome's login dialog.
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.
