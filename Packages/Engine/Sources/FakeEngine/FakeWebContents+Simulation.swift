@@ -168,4 +168,58 @@ extension FakeWebContents {
         components.port = url.port
         return components.url
     }
+
+    // MARK: 3.4b: the renderer, other applications, notices, capture
+
+    /// The renderer stops responding; returns the delegate's answer
+    /// (`.terminate` ends it like a crash with `.killed`).
+    public func simulateUnresponsive() async -> UnresponsiveRendererAction {
+        let action = await withCheckedContinuation { continuation in
+            effectiveUIDelegate.webContentsDidBecomeUnresponsive(self) { continuation.resume(returning: $0) }
+        }
+        if action == .terminate {
+            terminatedUnresponsiveCount += 1
+            simulateCrash(.killed)
+        }
+        return action
+    }
+
+    /// The renderer answers again.
+    public func simulateResponsive() {
+        effectiveUIDelegate.webContentsDidBecomeResponsive(self)
+    }
+
+    /// A link to another application; returns whether the delegate let it open.
+    @discardableResult
+    public func simulateExternalURL(_ url: URL, applicationName: String = "Mail", isUserGesture: Bool = true) async -> Bool {
+        let request = ExternalURLRequest(url: url, scheme: url.scheme?.lowercased() ?? "", initiatingOrigin: origin,
+                                         isUserGesture: isUserGesture, applicationName: applicationName)
+        let open = await withCheckedContinuation { continuation in
+            effectiveUIDelegate.webContents(self, shouldOpenExternalURL: request) { continuation.resume(returning: $0) }
+        }
+        if open { openedExternalURLs.append(url) }
+        return open
+    }
+
+    /// The engine adds a notice; `removeInfoBar` takes it away.
+    public func simulateInfoBar(_ infoBar: InfoBar) {
+        effectiveUIDelegate.webContents(self, didAddInfoBar: infoBar)
+    }
+
+    public func simulateInfoBarRemoved(_ infoBar: InfoBar) {
+        infoBar.withdraw()
+        effectiveUIDelegate.webContents(self, didRemoveInfoBar: infoBar)
+    }
+
+    /// The page starts or stops capturing.
+    public func simulateCapture(_ state: CaptureState) {
+        guard state != captureState else { return }
+        captureState = state
+        effectiveUIDelegate.webContents(self, didChangeCaptureState: state)
+    }
+
+    /// The page sets `navigator.mediaSession.metadata` (nil: none).
+    public func simulateMediaSession(_ info: MediaSessionInfo?) {
+        mediaSession = info
+    }
 }

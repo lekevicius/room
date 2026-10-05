@@ -11,7 +11,9 @@ import RoomCore
 /// progress, theme and background colours, security, audible, muted, zoom,
 /// discard and the lifecycle state, (3.3b) find through Chrome's
 /// `FindTabHelper`, viewport capture, print preview and DevTools in the
-/// host's pane. A page created for a host window is in that window's Chrome
+/// host's pane, (3.4b) JavaScript dialogs and beforeunload through the host's
+/// sheets, the hung-renderer question, external protocols, notices, the
+/// capture state and the media session. A page created for a host window is in that window's Chrome
 /// tab strip (`RoomBrowser`), which attaches Chrome's tab helpers
 /// (docs/engine-api.md).
 ///
@@ -37,6 +39,10 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var isAudible = false
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
+    /// `MediaStreamCaptureIndicator` through RoomCore's `captureState`.
+    public private(set) var captureState = CaptureState()
+    /// `content::MediaSession` through RoomCore's `mediaSession`.
+    public private(set) var mediaSession: MediaSessionInfo?
     /// `WebContents::SetAudioMuted`; follows `DidUpdateAudioMutingState`.
     /// The delegate hears every change, the host's own included (as on CEF).
     public var isMuted: Bool {
@@ -75,6 +81,9 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     @ObservationIgnored private var findActive = false
     /// From a denied certificate error to the end of the run-loop turn.
     @ObservationIgnored private var certificateDenialPending = false
+    /// RoomCore's notices by object, so their removal reaches the same `InfoBar`.
+    @ObservationIgnored private var notices: [ObjectIdentifier: InfoBar] = [:]
+    @ObservationIgnored private var noticeSerial = 0
 
     init(page: RoomWebContents, configuration: WebContentsConfiguration, profile: RoomCoreProfile?) {
         self.page = page
@@ -103,6 +112,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             page.observe(\.isMuted) { _, _ in weakSelf.refresh() },
             page.observe(\.zoomFactor) { _, _ in weakSelf.refresh() },
             page.observe(\.lifecycleState) { _, _ in weakSelf.refresh() },
+            page.observe(\.captureState) { _, _ in weakSelf.refresh() },
+            page.observe(\.mediaSession) { _, _ in weakSelf.refresh() },
             // A discard replaces Chromium's WebContents, and with it the view.
             page.observe(\.nativeView) { _, _ in weakSelf.rehostView() },
         ]
@@ -157,6 +168,13 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         default: .alive
         }
         if state != lifecycle { state = lifecycle }
+        let capture = CaptureState(rawValue: Int(page.captureState.rawValue))
+        if captureState != capture {
+            captureState = capture
+            uiDelegate?.webContents(self, didChangeCaptureState: capture)
+        }
+        let session = page.mediaSession.map(MediaSessionInfo.init)
+        if mediaSession != session { mediaSession = session }
     }
 
     // MARK: Navigation
@@ -220,8 +238,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     }
 
     /// Closes the page through its tab strip, which runs its beforeunload
-    /// handler first (Chrome's own dialog until 3.4b); `webContentsDidClose`
-    /// follows from the `closed` change once it is gone.
+    /// handler first (the host's sheet); `webContentsDidClose` follows from
+    /// the `closed` change once it is gone.
     public func close() {
         guard state != .closed else { return }
         page.close()
@@ -362,6 +380,15 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     /// Leaves element fullscreen; `webContentsDidRequestExitFullscreen`
     /// follows from Chrome's FullscreenController.
     public func exitFullscreen() { page.exitFullscreen() }
+
+    /// `MediaStreamCaptureIndicator::StopMediaCapturing`; `captureState` follows.
+    public func stopCapturing(_ kinds: CaptureKinds) {
+        guard state != .closed else { return }
+        var mask: RoomCaptureKinds = []
+        if kinds.contains(.userMedia) { mask.insert(.userMedia) }
+        if kinds.contains(.displayMedia) { mask.insert(.displayMedia) }
+        page.stopCapturing(mask)
+    }
 
     // MARK: RoomWebContentsDelegate
 
@@ -511,6 +538,79 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
                             completion: @escaping ([URL]?) -> Void) {
         guard let uiDelegate else { return completion(nil) }
         uiDelegate.webContents(self, runFileChooser: FileChooserRequest(request), completion: completion)
+    }
+
+    // MARK: Dialogs, the renderer, other applications, notices (3.4b)
+
+    /// Chrome's `TabModalDialogManager` with the host's sheets (a //room
+    /// delegate): alert, confirm, prompt. Chrome withdraws them on navigation.
+    public func webContents(_ webContents: RoomWebContents, runJavaScriptDialog type: RoomJavaScriptDialogType, message: String,
+                            defaultText: String, origin: URL?, completion: @escaping (Bool, String?) -> Void) {
+        guard let uiDelegate else { return completion(type == .alert, nil) }
+        switch type {
+        case .confirm:
+            uiDelegate.webContents(self, runJavaScriptConfirm: message, origin: origin) { completion($0, nil) }
+        case .prompt:
+            uiDelegate.webContents(self, runJavaScriptPrompt: message, defaultText: defaultText, origin: origin) { text in
+                completion(text != nil, text)
+            }
+        default:
+            uiDelegate.webContents(self, runJavaScriptAlert: message, origin: origin) { completion(true, nil) }
+        }
+    }
+
+    /// Chrome's app-modal beforeunload (a close, a reload, the quit) with the
+    /// host's Leave/Stay sheet; "stay" during a quit cancels it.
+    public func webContents(_ webContents: RoomWebContents, runBeforeUnloadDialogForReload isReload: Bool,
+                            completion: @escaping (Bool) -> Void) {
+        guard let uiDelegate else { return completion(true) }
+        uiDelegate.webContents(self, runBeforeUnloadDialogForReload: isReload, completion: completion)
+    }
+
+    public func webContentsDidDismissJavaScriptDialogs(_ webContents: RoomWebContents) {
+        uiDelegate?.webContentsDidDismissJavaScriptDialogs(self)
+    }
+
+    /// Chrome's hang monitor through a //room `TabDialogs`.
+    public func webContentsRendererDidBecomeUnresponsive(_ webContents: RoomWebContents,
+                                                         completion: @escaping (RoomUnresponsiveAction) -> Void) {
+        guard let uiDelegate else { return completion(.wait) }
+        uiDelegate.webContentsDidBecomeUnresponsive(self) { completion($0 == .terminate ? .terminate : .wait) }
+    }
+
+    public func webContentsRendererDidBecomeResponsive(_ webContents: RoomWebContents) {
+        uiDelegate?.webContentsDidBecomeResponsive(self)
+    }
+
+    /// Chrome's external protocol dialog (patch 0023): "open" launches the
+    /// handler through `ExternalProtocolHandler`.
+    public func webContents(_ webContents: RoomWebContents, shouldOpenExternalProtocol request: RoomExternalProtocolRequest,
+                            completion: @escaping (Bool) -> Void) {
+        guard let uiDelegate else { return completion(false) }
+        let mapped = ExternalURLRequest(url: request.url, scheme: request.scheme.lowercased(), initiatingOrigin: request.initiatingOrigin,
+                                        isUserGesture: request.isUserGesture, applicationName: request.applicationName)
+        uiDelegate.webContents(self, shouldOpenExternalURL: mapped, completion: completion)
+    }
+
+    /// Chrome's infobars (a `ContentInfoBarManager` observer) and the desktop
+    /// translate offer, as notices.
+    public func webContents(_ webContents: RoomWebContents, didAdd infoBar: RoomInfoBar) {
+        noticeSerial += 1
+        let kind: InfoBar.Kind = infoBar.kind == .translateOffer
+            ? .translateOffer(source: infoBar.sourceLanguage ?? "", target: infoBar.targetLanguage ?? "")
+            : .engine(identifier: infoBar.identifier)
+        let notice = InfoBar(id: noticeSerial, kind: kind, message: infoBar.message, buttons: infoBar.buttons) { index in
+            if let index { infoBar.pressButton(at: index) } else { infoBar.dismiss() }
+        }
+        notices[ObjectIdentifier(infoBar)] = notice
+        guard let uiDelegate else { return infoBar.dismiss() }
+        uiDelegate.webContents(self, didAddInfoBar: notice)
+    }
+
+    public func webContents(_ webContents: RoomWebContents, didRemove infoBar: RoomInfoBar) {
+        guard let notice = notices.removeValue(forKey: ObjectIdentifier(infoBar)) else { return }
+        notice.withdraw()
+        uiDelegate?.webContents(self, didRemoveInfoBar: notice)
     }
 
     public func webContents(_ webContents: RoomWebContents, didConsumeKeyCode keyCode: UInt16,
@@ -708,6 +808,17 @@ extension FileChooserRequest {
         default: .open
         }
         self.init(mode: mode, title: request.title, defaultPath: request.defaultPath, acceptTypes: request.acceptTypes)
+    }
+}
+
+extension MediaSessionInfo {
+    init(_ info: RoomMediaSessionInfo) {
+        let state: PlaybackState = switch info.playbackState {
+        case .playing: .playing
+        case .paused: .paused
+        default: .none
+        }
+        self.init(title: info.title, artist: info.artist, album: info.album, artworkURL: info.artworkURL, playbackState: state)
     }
 }
 

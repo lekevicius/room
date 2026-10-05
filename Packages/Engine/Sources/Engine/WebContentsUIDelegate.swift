@@ -100,6 +100,27 @@ public protocol WebContentsUIDelegate: AnyObject {
         completion: @escaping ([URL]?) -> Void
     )
 
+    // MARK: The renderer, other applications, notices (3.4b)
+
+    /// The page's renderer stopped responding to input (Chromium's hang
+    /// monitor; CEF's `OnRenderProcessUnresponsive`). `completion(.wait)`
+    /// keeps waiting (asked again if it stays hung); `.terminate` ends the
+    /// renderer and `processGone` follows.
+    func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
+                                          completion: @escaping (UnresponsiveRendererAction) -> Void)
+    /// The renderer responds again: the question is withdrawn (its completion is ignored).
+    func webContentsDidBecomeResponsive(_ webContents: any WebContents)
+    /// The page asks to open a URL in another application. `completion(true)`
+    /// opens it; the default blocks it.
+    func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest,
+                     completion: @escaping (Bool) -> Void)
+    /// The engine has a notice for the page (an infobar, the translate offer).
+    func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar)
+    /// The notice went (answered, the page navigated, the engine removed it).
+    func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar)
+    /// `WebContents.captureState` changed.
+    func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState)
+
     // MARK: Keyboard
 
     /// Called before the page sees a key-down. Return `true` to keep it from
@@ -159,6 +180,18 @@ public extension WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, runFileChooser request: FileChooserRequest, completion: @escaping ([URL]?) -> Void) {
         completion(nil)
     }
+    func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
+                                          completion: @escaping (UnresponsiveRendererAction) -> Void) {
+        completion(.wait)
+    }
+    func webContentsDidBecomeResponsive(_ webContents: any WebContents) {}
+    func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest,
+                     completion: @escaping (Bool) -> Void) {
+        completion(false)
+    }
+    func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar) {}
+    func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar) {}
+    func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState) {}
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
         false
     }

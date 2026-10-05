@@ -47,6 +47,11 @@ public protocol WebContents: AnyObject, Observable {
     var state: WebContentsState { get }
     /// Page zoom; 1 is 100%.
     var zoomFactor: Double { get set }
+    /// What the page captures now (camera, microphone, a screen) and whether
+    /// it is captured itself; the delegate hears each change.
+    var captureState: CaptureState { get }
+    /// The page's media session (title, artist, artwork, playback), if any.
+    var mediaSession: MediaSessionInfo? { get }
 
     // MARK: Find in page
 
@@ -78,6 +83,8 @@ public protocol WebContents: AnyObject, Observable {
     /// Leaves element fullscreen (`requestFullscreen()`); the UI delegate
     /// then hears `webContentsDidRequestExitFullscreen`. No-op otherwise.
     func exitFullscreen()
+    /// Ends the page's captures of `kinds`; `captureState` follows.
+    func stopCapturing(_ kinds: CaptureKinds)
 }
 
 public extension WebContents {

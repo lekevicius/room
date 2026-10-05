@@ -37,6 +37,14 @@ public final class FakeWebContents: WebContents {
     public private(set) var printCount = 0
     /// Element fullscreen, entered by `simulateFullscreenRequest(enter:)`.
     public internal(set) var isFullscreen = false
+    /// Set by `simulateCapture`; `stopCapturing` clears the kinds it names.
+    public internal(set) var captureState = CaptureState()
+    /// Set by `simulateMediaSession`.
+    public internal(set) var mediaSession: MediaSessionInfo?
+    /// Ended by `simulateUnresponsive` answered `.terminate`.
+    public internal(set) var terminatedUnresponsiveCount = 0
+    /// URLs the UI delegate allowed to open in another application.
+    public internal(set) var openedExternalURLs: [URL] = []
 
     /// Committed history and the index of the current entry.
     public private(set) var backForwardList: [URL] = []
@@ -321,6 +329,13 @@ public final class FakeWebContents: WebContents {
 
     public func print() {
         printCount += 1
+    }
+
+    public func stopCapturing(_ kinds: CaptureKinds) {
+        var state = captureState
+        if kinds.contains(.userMedia) { state.subtract([.camera, .microphone]) }
+        if kinds.contains(.displayMedia) { state.subtract([.display, .tab, .window]) }
+        simulateCapture(state)
     }
 
     // MARK: Simulated page state (more in FakeWebContents+Simulation.swift)

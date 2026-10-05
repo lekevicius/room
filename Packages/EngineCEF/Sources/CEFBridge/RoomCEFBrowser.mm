@@ -536,6 +536,12 @@ class RoomCEFClient : public CefClient,
     }
   }
 
+  void OnMediaAccessChange(CefRefPtr<CefBrowser> browser, bool has_video_access, bool has_audio_access) override {
+    if ([delegate() respondsToSelector:@selector(browser:didChangeMediaAccessVideo:audio:)]) {
+      [delegate() browser:owner_ didChangeMediaAccessVideo:has_video_access audio:has_audio_access];
+    }
+  }
+
   void OnStatusMessage(CefRefPtr<CefBrowser> browser, const CefString& value) override {
     if ([delegate() respondsToSelector:@selector(browser:didChangeStatusMessage:)]) {
       [delegate() browser:owner_ didChangeStatusMessage:ToNSOrNil(value)];
@@ -711,6 +717,26 @@ class RoomCEFClient : public CefClient,
                 }
               }];
     return true;
+  }
+
+  bool OnRenderProcessUnresponsive(CefRefPtr<CefBrowser> browser,
+                                   CefRefPtr<CefUnresponsiveProcessCallback> callback) override {
+    if (![delegate() respondsToSelector:@selector(browser:renderProcessUnresponsiveWithCompletion:)]) return false;
+    [delegate() browser:owner_
+        renderProcessUnresponsiveWithCompletion:^(BOOL terminate) {
+          if (terminate) {
+            callback->Terminate();
+          } else {
+            callback->Wait();
+          }
+        }];
+    return true;
+  }
+
+  void OnRenderProcessResponsive(CefRefPtr<CefBrowser> browser) override {
+    if ([delegate() respondsToSelector:@selector(browserRenderProcessResponsive:)]) {
+      [delegate() browserRenderProcessResponsive:owner_];
+    }
   }
 
   void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,

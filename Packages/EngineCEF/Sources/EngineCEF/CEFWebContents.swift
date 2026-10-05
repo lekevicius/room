@@ -29,6 +29,11 @@ public final class CEFWebContents: NSObject, WebContents {
     public private(set) var isAudible = false
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
+    /// Camera and microphone from `CefDisplayHandler::OnMediaAccessChange`;
+    /// CEF reports no screen capture and cannot stop a capture.
+    public private(set) var captureState = CaptureState()
+    /// **CEF: not available** (no media session API): always `nil`.
+    public var mediaSession: MediaSessionInfo? { nil }
 
     public var isMuted: Bool {
         didSet {
@@ -256,6 +261,9 @@ public final class CEFWebContents: NSObject, WebContents {
     public func print() { browser?.printPage() }
 
     public func exitFullscreen() { browser?.exitFullscreen() }
+
+    /// **CEF: not available** (no API to stop a page's capture): no-op.
+    public func stopCapturing(_ kinds: CaptureKinds) {}
 
     /// Sends a DevTools protocol command over CEF's in-process channel and
     /// returns the decoded result object.
@@ -589,6 +597,25 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
 
     public func browser(_ browser: RoomCEFBrowser, renderProcessTerminated status: RoomCEFTerminationStatus) {
         uiDelegate?.webContents(self, processGone: TerminationStatus(status))
+    }
+
+    /// `CefRequestHandler::OnRenderProcessUnresponsive` (CEF's hang monitor).
+    public func browser(_ browser: RoomCEFBrowser, renderProcessUnresponsiveWithCompletion completion: @escaping (Bool) -> Void) {
+        guard let uiDelegate else { return completion(false) }
+        uiDelegate.webContentsDidBecomeUnresponsive(self) { completion($0 == .terminate) }
+    }
+
+    public func browserRenderProcessResponsive(_ browser: RoomCEFBrowser) {
+        uiDelegate?.webContentsDidBecomeResponsive(self)
+    }
+
+    public func browser(_ browser: RoomCEFBrowser, didChangeMediaAccessVideo video: Bool, audio: Bool) {
+        var state = CaptureState()
+        if video { state.insert(.camera) }
+        if audio { state.insert(.microphone) }
+        guard state != captureState else { return }
+        captureState = state
+        uiDelegate?.webContents(self, didChangeCaptureState: state)
     }
 
     public func browser(_ browser: RoomCEFBrowser, permissionPrompt promptID: UInt64, origin: String, permissions: RoomCEFPermissionTypes, completion: @escaping (RoomCEFPermissionResult) -> Void) {

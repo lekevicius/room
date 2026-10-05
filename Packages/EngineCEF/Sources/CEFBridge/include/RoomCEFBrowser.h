@@ -276,6 +276,15 @@ NS_SWIFT_UI_ACTOR
          certificates:(NSArray<NSData*>*)derChain
           completion:(void (^)(BOOL proceed))completion;
 - (void)browser:(RoomCEFBrowser*)browser renderProcessTerminated:(RoomCEFTerminationStatus)status;
+/// `CefRequestHandler::OnRenderProcessUnresponsive`: `completion(YES)`
+/// terminates the renderer, `NO` waits (CEF asks again if it stays hung).
+- (void)browser:(RoomCEFBrowser*)browser
+    renderProcessUnresponsiveWithCompletion:(void (^)(BOOL terminate))completion;
+- (void)browserRenderProcessResponsive:(RoomCEFBrowser*)browser;
+/// `CefDisplayHandler::OnMediaAccessChange`.
+- (void)browser:(RoomCEFBrowser*)browser
+    didChangeMediaAccessVideo:(BOOL)video
+                        audio:(BOOL)audio;
 
 // Permissions.
 - (void)browser:(RoomCEFBrowser*)browser
