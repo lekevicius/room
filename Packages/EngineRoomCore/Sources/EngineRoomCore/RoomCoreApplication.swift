@@ -57,10 +57,22 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
 
     public func initialize(_ configuration: EngineConfiguration) throws {
         try core.initialize(
-            arguments: CommandLine.arguments + Self.switches(for: configuration),
+            arguments: Self.productArguments(CommandLine.arguments) + Self.switches(for: configuration),
             applicationClass: RoomCoreNSApplication.self,
             userDataDirectory: configuration.userDataDirectory)
         features = configuration.features
+    }
+
+    /// The process's arguments as the engine may see them. DevTools is the
+    /// host's pane, so the product never opens a remote-debugging port: a
+    /// Release build drops `--remote-debugging-*` (Debug keeps them for the
+    /// spikes' DevTools-protocol client, ROADMAP 3.3b).
+    static func productArguments(_ arguments: [String]) -> [String] {
+        #if DEBUG
+        arguments
+        #else
+        arguments.filter { !$0.hasPrefix("--remote-debugging-") }
+        #endif
     }
 
     /// Chromium switches for `configuration`. RoomCore adds its own defaults
