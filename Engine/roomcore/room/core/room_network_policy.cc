@@ -70,6 +70,13 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   // it after quit (1-2 s past the browser; B-45). Sparkle replaces the whole
   // bundle and relaunches, so the clone buys Room nothing.
   disabled += ",MacAppCodeSignClone";
+  // Not network: Chromium builds take WebContentsDiscard from the field-trial
+  // testing config, an in-place discard that blanks the document but keeps
+  // its renderer process (3.3a, seven discards: renderers 11 -> 12 after
+  // 10 s, memory up 140 MB). Chrome's default on desktop (feature off)
+  // replaces the WebContents and its process goes; RoomCore moves the page's
+  // wrapper to the replacement (TabStripModelChange::kReplaced).
+  disabled += ",WebContentsDiscard";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with

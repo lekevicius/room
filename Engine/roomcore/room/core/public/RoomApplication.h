@@ -33,6 +33,12 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 
 @property(class, nonatomic, readonly) RoomApplication* sharedApplication NS_SWIFT_NAME(shared);
 
+// The site of `host` as Chromium counts it for same-site: the registrable
+// domain (eTLD+1, net::registry_controlled_domains with private
+// registries); the host itself for an IP address, localhost or any host
+// without one. Lower-case, punycode.
++ (NSString*)siteForHost:(NSString*)host NS_SWIFT_NAME(site(forHost:));
+
 @property(nonatomic, weak, nullable) id<RoomApplicationDelegate> delegate;
 
 // Installed as NSApp.delegate as soon as -run creates NSApp, before Chromium

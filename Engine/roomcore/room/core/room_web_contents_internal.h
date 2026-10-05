@@ -20,9 +20,15 @@ class Origin;
 
 @class RoomBrowser;
 
+struct NavigateParams;
+
 namespace room {
-// Installs the WebContents-level hooks (patches/0015: the hovered link).
+// Installs the WebContents-level hooks (patches/0015: the hovered link;
+// patches/0016: the navigation throttle of Room pages).
 void InstallWebContentsHooks();
+// The policy answer for a page Navigate() is about to open from a Room page
+// (a modifier click, target=_blank, window.open): false cancels it.
+bool AllowOpenFromRoomPage(const NavigateParams& params);
 }  // namespace room
 
 @interface RoomWebContents (Internal)
@@ -49,6 +55,14 @@ void InstallWebContentsHooks();
 // Key routing from the page's RoomBrowserWindow (the delegate's answer).
 - (BOOL)room_isReservedKeyEvent:(NSEvent*)event;
 - (BOOL)room_handleUnhandledKeyEvent:(NSEvent*)event;
+// Chrome attached its tab helpers (the page joined a tab strip): favicons
+// and zoom are observed from now on.
+- (void)room_tabHelpersAttached;
+// Chrome replaced the page's WebContents in its strip (a discard,
+// TabStripModelChange::kReplaced): the wrapper moves to `newContents`.
+- (void)room_replaceWebContents:(content::WebContents*)newContents;
+// The delegate's navigation policy (CurrentTab when it has none).
+- (RoomWindowOpenDisposition)room_decidePolicy:(RoomNavigationAction*)action;
 - (void)room_didCreateWebContents:(RoomWebContents*)newContents
                         targetURL:(NSURL*)targetURL
                       disposition:(RoomWindowOpenDisposition)disposition

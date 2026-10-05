@@ -111,6 +111,9 @@ class Client : public room::RoomBrowserWindowClient {
     return [[browser_ room_keyTargetFor:ns_event]
         room_handleUnhandledKeyEvent:ns_event];
   }
+  bool AllowOpenFromTab(const NavigateParams& params) override {
+    return room::AllowOpenFromRoomPage(params);
+  }
 
  private:
   RoomBrowser* __weak browser_;
@@ -202,6 +205,14 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     // duplicate Today tabs); 3.7b decides what SessionService records.
     params.omit_from_session_restore = true;
     _browser = CreateBrowserWindow(std::move(params));
+    // Chrome's tab-modal dialogs (TabDialogManager) need the window's
+    // primary Views widget at once, not only after a first web-modal dialog
+    // made the modal host: an HTTP site whose HTTPS upgrade failed opens
+    // Chrome's "ask before HTTP" dialog from a tab helper and CHECKed
+    // without it (found in 3.3a).
+    if (RoomBrowserWindow* chromeWindow = room::RoomBrowserWindowFor(_browser)) {
+      chromeWindow->GetBubbleAnchor();
+    }
     _stripObserver = std::make_unique<StripObserver>(self);
     _browser->GetTabStripModel()->AddObserver(_stripObserver.get());
   }
@@ -256,6 +267,8 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   _addingFromHost = YES;
   _browser->GetTabStripModel()->AppendWebContents(std::move(owned), activate);
   _addingFromHost = NO;
+  // tabs::TabModel attached Chrome's tab helpers on the way in.
+  [webContents room_tabHelpersAttached];
 }
 
 // The wrapper of a page in the strip, created for pages Chrome inserted.
@@ -321,6 +334,20 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 
 - (void)room_tabStripChanged:(const TabStripModelChange&)change
                    selection:(const TabStripSelectionChange&)selection {
+  if (change.type() == TabStripModelChange::kReplaced) {
+    // A discard swaps the page's WebContents for an empty one with the same
+    // navigation entries: the wrapper (its observers, the key-ack observer,
+    // the native view) moves along, so the old contents' destruction is not
+    // the page closing.
+    const TabStripModelChange::Replace* replace = change.GetReplace();
+    RoomWebContents* page =
+        [RoomWebContents room_existingWrapperFor:replace->old_contents];
+    if (page) {
+      [page room_replaceWebContents:replace->new_contents];
+      [page room_tabHelpersAttached];
+    }
+    return;
+  }
   if (change.type() != TabStripModelChange::kInserted || _addingFromHost ||
       !_browser) {
     return;

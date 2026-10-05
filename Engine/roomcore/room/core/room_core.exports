@@ -10,6 +10,8 @@ _OBJC_CLASS_$_RoomBrowser
 _OBJC_METACLASS_$_RoomBrowser
 _OBJC_CLASS_$_RoomCrApplication
 _OBJC_METACLASS_$_RoomCrApplication
+_OBJC_CLASS_$_RoomNavigationAction
+_OBJC_METACLASS_$_RoomNavigationAction
 _OBJC_CLASS_$_RoomProfile
 _OBJC_METACLASS_$_RoomProfile
 _OBJC_CLASS_$_RoomWebContents

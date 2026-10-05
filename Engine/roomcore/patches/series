@@ -15,3 +15,4 @@
 0013-app-controller-hook.patch
 0014-navigator-browser-for-disposition-hook.patch
 0015-target-url-hook.patch
+0016-navigation-throttle-hook.patch

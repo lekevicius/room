@@ -22,6 +22,8 @@
 class NSWindow;
 #endif
 
+struct NavigateParams;
+
 namespace content {
 class WebContents;
 }
@@ -80,6 +82,10 @@ class RoomBrowserWindowClient {
   // A key-down the page did not consume: the host's turn (its main menu).
   virtual bool HandleUnhandledKeyEvent(
       const input::NativeWebKeyboardEvent& event) = 0;
+  // Navigate() is about to open a page from a page of this window with a
+  // tab, popup or window disposition (a modifier click, target=_blank,
+  // window.open): false cancels it (the host's navigation policy).
+  virtual bool AllowOpenFromTab(const NavigateParams& params) = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created
@@ -128,6 +134,7 @@ class RoomBrowserWindow : public BrowserWindow {
 
   // A Browser //room did not create: no host window, nothing drawn.
   bool is_headless() const;
+  room::RoomBrowserWindowClient* client() const { return client_; }
 
   // Records how the next inserted contents is being opened (navigator hook).
   void SetPendingOpen(const room::PendingOpen& pending);

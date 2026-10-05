@@ -27,6 +27,8 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
 #include "components/crash/core/common/crash_key.h"
+#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "url/gurl.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/public/RoomCore.h"
 #import "room/core/public/RoomCrApplication.h"
@@ -158,6 +160,20 @@ void SetCrashKeys() {
   // (`RoomHostApplication.self`), before -initializeWithArguments: or -run.
   // -run replaces this with the full argument list.
   base::CommandLine::Init(*_NSGetArgc(), *_NSGetArgv());
+}
+
++ (NSString*)siteForHost:(NSString*)host {
+  // GURL canonicalises the host (lower case, IDN to punycode, a trailing
+  // dot kept as Chromium keeps it).
+  const GURL url("http://" + base::SysNSStringToUTF8(host) + "/");
+  if (!url.is_valid() || url.host().empty()) {
+    return host.lowercaseString;
+  }
+  const std::string domain =
+      net::registry_controlled_domains::GetDomainAndRegistry(
+          url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+  return base::SysUTF8ToNSString(domain.empty() ? std::string(url.host())
+                                                : domain);
 }
 
 + (RoomApplication*)sharedApplication {

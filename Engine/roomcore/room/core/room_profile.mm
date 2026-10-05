@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/strings/sys_string_conversions.h"
@@ -14,7 +15,14 @@
 #include "chrome/browser/sessions/exit_type_service.h"
 #include "components/prefs/pref_service.h"
 #include "base/logging.h"
+#include "base/task/cancelable_task_tracker.h"
+#include "chrome/browser/favicon/favicon_service_factory.h"
+#include "components/favicon/core/favicon_service.h"
+#include "components/favicon_base/favicon_types.h"
+#include "components/keyed_service/core/service_access_type.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/apple/url_conversions.h"
+#include "ui/gfx/image/image.h"
 #import "room/core/room_web_contents_internal.h"
 
 namespace {
@@ -62,6 +70,8 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   NSURL* _directory;
   BOOL _offTheRecord;
   BOOL _lastExitWasClean;
+  // Pending FaviconService requests; destroying it cancels them.
+  std::unique_ptr<base::CancelableTaskTracker> _faviconTasks;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -135,15 +145,46 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 }
 
 - (void)room_profileWillBeDestroyed {
+  _faviconTasks.reset();
   _profile = nullptr;
 }
 
 - (RoomWebContents*)createWebContents {
+  return [self createWebContentsInitiallyHidden:NO];
+}
+
+- (RoomWebContents*)createWebContentsInitiallyHidden:(BOOL)initiallyHidden {
   CHECK(_profile) << "createWebContents on a destroyed profile";
   content::WebContents::CreateParams params(_profile);
+  // Hidden until its view is in a visible window: WebContentsViewCocoa
+  // reports VISIBLE then (and HIDDEN when the host takes the view out).
+  params.initially_hidden = initiallyHidden;
   return [[RoomWebContents alloc]
       initWithChromeWebContents:content::WebContents::Create(params)
                        profile:self];
+}
+
+- (void)faviconForPageURL:(NSURL*)pageURL
+               completion:(void (^)(NSImage*))completion {
+  favicon::FaviconService* service =
+      _profile ? FaviconServiceFactory::GetForProfile(
+                     _profile, ServiceAccessType::EXPLICIT_ACCESS)
+               : nullptr;
+  const GURL url = net::GURLWithNSURL(pageURL);
+  if (!service || !url.is_valid()) {
+    completion(nil);
+    return;
+  }
+  if (!_faviconTasks) {
+    _faviconTasks = std::make_unique<base::CancelableTaskTracker>();
+  }
+  void (^callback)(NSImage*) = [completion copy];
+  service->GetFaviconImageForPageURL(
+      url,
+      base::BindOnce(^(const favicon_base::FaviconImageResult& result) {
+        callback(result.image.IsEmpty() ? nil : result.image.ToNSImage());
+      }),
+      _faviconTasks.get());
 }
 
 @end

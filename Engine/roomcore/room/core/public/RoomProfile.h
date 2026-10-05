@@ -30,6 +30,17 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // A new page with nothing loaded. Owned by the returned object until it is
 // added to a RoomBrowser.
 - (RoomWebContents*)createWebContents;
+// The same, hidden until its view is in a visible window
+// (WebContents::CreateParams::initially_hidden): no frames, timers
+// throttled.
+- (RoomWebContents*)createWebContentsInitiallyHidden:(BOOL)initiallyHidden
+    NS_SWIFT_NAME(createWebContents(initiallyHidden:));
+
+// The favicon Chrome stored for a page this profile visited
+// (FaviconService); nil when none. Called back on the main thread.
+- (void)faviconForPageURL:(NSURL*)pageURL
+               completion:(void (^)(NSImage* _Nullable favicon))completion
+    NS_SWIFT_NAME(favicon(forPageURL:completion:));
 
 @end
 

@@ -1,0 +1,60 @@
+Room: Room pages get //room's navigation throttle.
+
+The host decides where each navigation of its pages goes before it starts
+(the Engine protocol's decidePolicy: Peek opens an off-site link from a
+pinned entry over the page, later space routing), and it needs to tell a
+click on a link from a page's script setting window.location exactly
+(backlog B-33; CEF could only guess from the status text). Both need a
+content::NavigationThrottle on Room pages: the NavigationHandle has the
+transition, the gesture, WasInitiatedByLinkClick() and the redirects, and a
+throttle can cancel synchronously at WillStartRequest.
+
+No existing hook: throttles are added only by the ContentBrowserClient
+(ChromeContentBrowserClient::CreateThrottlesForNavigation, which calls
+CreateAndAddChromeThrottlesForNavigation and nothing an embedder can
+extend); NavigationHandle::RegisterThrottleForTesting is test-only;
+WebContentsObserver::DidStartNavigation cannot cancel. A
+ContentBrowserClient subclass would mean replacing Chrome's for one call.
+//room adds its throttle last (it never defers) and only for the primary
+main frame of a page RoomCore wraps.
+
+Phase 3.3a, 2026-10-05. //room: room/core/room_web_contents.mm
+(InstallWebContentsHooks, RoomNavigationThrottle).
+diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+index 76ed0833e7b1f..0536a06a7d443 100644
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -190,6 +190,13 @@
+ #include "extensions/browser/extensions_browser_client.h"
+ #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+ 
++namespace room {
++// Room: set by //room/core at startup. Adds //room's navigation throttle to
++// navigations of Room pages (the host's navigation policy, Peek).
++void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&) =
++    nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ // Wrapper for SSLErrorHandler::HandleSSLError() that supplies //chrome-level
+@@ -626,6 +633,10 @@ void CreateAndAddChromeThrottlesForNavigation(
+   glic::GlicGuestNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
+   pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);
++
++  if (room::g_navigation_throttles_hook) {
++    room::g_navigation_throttles_hook(registry);
++  }
+ }
+ 
+ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
+@@ -634,4 +645,8 @@ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
+   // navigations that commit without a URL loader (e.g. a subframe navigating
+   // the main frame to about:blank), which never reach WillStartRequest().
+   pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);
++
++  if (room::g_navigation_throttles_hook) {
++    room::g_navigation_throttles_hook(registry);
++  }
+ }

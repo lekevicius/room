@@ -282,6 +282,17 @@ bool BrowserForDisposition(const NavigateParams& params,
   if (found == RoomWindows().end() || found->second->is_headless()) {
     return false;  // Chrome's choice.
   }
+  // The host's navigation policy for a page opened from one of its pages
+  // (CEF asks in OnBeforePopup/OnOpenURLFromTab): Peek takes a ⇧-click.
+  if (params.disposition != WindowOpenDisposition::CURRENT_TAB &&
+      found->second->client() &&
+      !found->second->client()->AllowOpenFromTab(params)) {
+    LOG(WARNING) << "RoomCore: the host's navigation policy cancelled a "
+                    "disposition "
+                 << static_cast<int>(params.disposition) << " open";
+    *browser = nullptr;
+    return true;
+  }
   room::PendingOpen pending;
   pending.disposition = params.disposition;
   pending.url = params.url;

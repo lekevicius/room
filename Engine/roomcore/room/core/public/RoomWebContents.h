@@ -21,7 +21,83 @@ typedef NS_ENUM(NSInteger, RoomWindowOpenDisposition) {
   RoomWindowOpenDispositionSwitchToTab,
   RoomWindowOpenDispositionOffTheRecord,
   RoomWindowOpenDispositionNewSplitView,
+  // Navigation policy answers (-webContents:decidePolicyForNavigationAction:)
+  // and the disposition of a navigation in the page itself.
+  RoomWindowOpenDispositionCurrentTab,
+  RoomWindowOpenDispositionIgnoreAction,
+  RoomWindowOpenDispositionSaveToDisk,
 };
+
+// How a navigation began: Chromium's ui::PageTransition core types (history
+// and the omnibox rank by it).
+typedef NS_ENUM(NSInteger, RoomPageTransition) {
+  RoomPageTransitionLink = 0,
+  RoomPageTransitionTyped,
+  RoomPageTransitionAutoBookmark,
+  RoomPageTransitionGenerated,
+  RoomPageTransitionKeyword,
+  RoomPageTransitionFormSubmit,
+  RoomPageTransitionReload,
+  // Back/forward, a subframe's, or nothing the host asked for.
+  RoomPageTransitionOther,
+};
+
+// What started a navigation, exactly: a click on a link (an anchor, also
+// one clicked by script while the user's gesture lasts) is never confused
+// with the page's script setting window.location (Other).
+typedef NS_ENUM(NSInteger, RoomNavigationKind) {
+  RoomNavigationKindLinkClicked = 0,
+  RoomNavigationKindFormSubmitted,
+  RoomNavigationKindBackForward,
+  RoomNavigationKindReload,
+  // The host, the page's script, anything else.
+  RoomNavigationKindOther,
+};
+
+// The page's connection security (Chrome's security_state::SecurityLevel,
+// what its padlock shows).
+typedef NS_ENUM(NSInteger, RoomSecurityLevel) {
+  // No indicator: about:, file:, chrome:, a new page, a local host.
+  RoomSecurityLevelNone = 0,
+  RoomSecurityLevelSecure,
+  // Not secure: plain HTTP, or HTTPS with mixed forms.
+  RoomSecurityLevelWarning,
+  // A certificate error the user clicked through, a Safe Browsing hit.
+  RoomSecurityLevelDangerous,
+};
+
+// The renderer's lifecycle (Chrome's TabLifecycleUnit state).
+typedef NS_ENUM(NSInteger, RoomLifecycleState) {
+  RoomLifecycleStateActive = 0,
+  // The renderer is gone; the navigation entries stay, the next load or
+  // reload brings the page back with its history.
+  RoomLifecycleStateDiscarded,
+  // Chrome froze the page (it runs no tasks until it is shown).
+  RoomLifecycleStateFrozen,
+};
+
+// A navigation about to start in a page's main frame (Chromium's
+// NavigationHandle at WillStartRequest/WillRedirectRequest), or a link the
+// page asked to open elsewhere (a modifier click, target=_blank,
+// window.open).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomNavigationAction : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly, copy) NSURL* URL;
+@property(nonatomic, readonly, copy, nullable) NSURL* referrer;
+@property(nonatomic, readonly) RoomNavigationKind kind;
+@property(nonatomic, readonly) RoomPageTransition transition;
+// RoomWindowOpenDispositionCurrentTab for a navigation of the page itself.
+@property(nonatomic, readonly) RoomWindowOpenDisposition disposition;
+@property(nonatomic, readonly, getter=isUserGesture) BOOL userGesture;
+// A server redirect (3xx) in the navigation's chain.
+@property(nonatomic, readonly, getter=isRedirect) BOOL redirect;
+// location.replace(), a meta refresh, a script navigation while the page
+// loads (PAGE_TRANSITION_CLIENT_REDIRECT).
+@property(nonatomic, readonly, getter=isClientRedirect) BOOL clientRedirect;
+// The page started it (not the host).
+@property(nonatomic, readonly, getter=isRendererInitiated) BOOL rendererInitiated;
+@end
 
 // Which part of a keystroke the page consumed.
 typedef NS_ENUM(NSInteger, RoomKeyEventPhase) {
@@ -70,6 +146,21 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
         modifierFlags:(NSEventModifierFlags)modifierFlags
                 phase:(RoomKeyEventPhase)phase
     NS_SWIFT_NAME(webContents(_:didConsumeKeyCode:modifierFlags:phase:));
+// Where a navigation goes, asked before it starts (and at each server
+// redirect): RoomWindowOpenDispositionCurrentTab (or the action's own
+// disposition) lets it proceed, IgnoreAction cancels it, another tab
+// disposition cancels it here and opens the URL that way. Not implemented:
+// every navigation proceeds.
+- (RoomWindowOpenDisposition)webContents:(RoomWebContents*)webContents
+         decidePolicyForNavigationAction:(RoomNavigationAction*)action
+    NS_SWIFT_NAME(webContents(_:decidePolicyFor:));
+// A main-frame navigation committed (not an error page): the page shows
+// `URL` now. Same-document navigations (fragments, pushState) included.
+- (void)webContents:(RoomWebContents*)webContents
+    didCommitNavigationToURL:(NSURL*)URL
+                  transition:(RoomPageTransition)transition
+                sameDocument:(BOOL)sameDocument
+    NS_SWIFT_NAME(webContents(_:didCommitNavigation:transition:sameDocument:));
 @end
 
 // One page (content::WebContents). Properties are KVO-observable and change on
@@ -93,12 +184,43 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly) BOOL canGoForward;
 @property(nonatomic, readonly, getter=isClosed) BOOL closed;
 
+// The page's favicon (Chrome's ContentFaviconDriver, 16 pt with the
+// screen's representations); nil until the page has one.
+@property(nonatomic, readonly, nullable) NSImage* favicon;
+// 0...1 while loading, 1 when idle (WebContents::GetLoadProgress).
+@property(nonatomic, readonly) double loadProgress;
+// <meta name="theme-color">, nil when none (WebContents::GetThemeColor).
+@property(nonatomic, readonly, nullable) NSColor* themeColor;
+// The page's root background, nil before the first paint
+// (WebContents::GetBackgroundColor).
+@property(nonatomic, readonly, nullable) NSColor* backgroundColor;
+@property(nonatomic, readonly) RoomSecurityLevel securityLevel;
+// Passive mixed content shown on an HTTPS page.
+@property(nonatomic, readonly) BOOL hasMixedContent;
+// Playing sound now (WebContents::IsCurrentlyAudible, both edges).
+@property(nonatomic, readonly, getter=isAudible) BOOL audible;
+@property(nonatomic, getter=isMuted) BOOL muted;
+// Page zoom, 1 is 100% (Chrome's ZoomController: per host, so the host's
+// other pages change with it).
+@property(nonatomic) double zoomFactor;
+@property(nonatomic, readonly) RoomLifecycleState lifecycleState;
+
 // Navigates as if typed into the address bar.
 - (void)loadURL:(NSURL*)URL;
+// Navigates with `transition` (FROM_ADDRESS_BAR added when `fromAddressBar`).
+- (void)loadURL:(NSURL*)URL
+        transition:(RoomPageTransition)transition
+    fromAddressBar:(BOOL)fromAddressBar;
 - (void)goBack;
 - (void)goForward;
 - (void)reload;
+- (void)reloadIgnoringCache;
 - (void)stop;
+
+// Releases the renderer and keeps the navigation entries (Chrome's
+// TabLifecycleUnit discard; the page needs a RoomBrowser). `nativeView`
+// changes (Chrome replaces the WebContents). NO when Chrome refused.
+- (BOOL)discard;
 
 // Gives the page keyboard focus.
 - (void)focus;
@@ -117,7 +239,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                                      NSError* _Nullable error))completion
     NS_SWIFT_NAME(evaluateJavaScript(_:completion:));
 
-// Closes the page (runs no beforeunload handlers).
+// Closes the page. A page in a RoomBrowser closes through its tab strip,
+// which runs its beforeunload handler first (Chrome's dialog until the host
+// answers dialogs); the closed change follows once it is gone. A page in no
+// RoomBrowser closes at once.
 - (void)close;
 
 @end

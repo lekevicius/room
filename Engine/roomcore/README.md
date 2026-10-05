@@ -47,8 +47,9 @@ guards cover call sites that offer no Room hook:
 | `0013-app-controller-hook` | (3.2b) `AppController.sharedController` returns `//room`'s `RoomAppController` (a separate `NSObject`, not a subclass: termination, the keep-alive, the last profile, command dispatch to the active Room Browser, the main window's Browser; every other AppController message logged on its first hit and answered with zero), and `ChromeBrowserMainPartsMac::PreCreateThreads` creates it and skips the NSApp-delegate CHECKs and Chrome's main menu: NSApp's delegate is the host's |
 | `0014-navigator-browser-for-disposition-hook` | (3.2a) `GetBrowserAndTabForDisposition()` asks `//room` first: from a Room Browser the popup, window and picture-in-picture dispositions stay in that Browser (the host places the contents), off-the-record is cancelled until Chapter 4.8; Chrome would otherwise create a Browser, hence a BrowserView, per popup |
 | `0015-target-url-hook` | (3.2a) `BrowserWebContentsDelegate::UpdateTargetURL` hands the hovered link of a Room page to `//room` (the host's status pill); Chrome's own path static_casts every status bubble to `StatusBubbleViews` |
+| `0016-navigation-throttle-hook` | (3.3a) `CreateAndAddChromeThrottlesForNavigation` calls `//room` last, which adds `RoomNavigationThrottle` to the primary main frame of Room pages: the host's navigation policy (`decidePolicy`, Peek) asked at `WillStartRequest`/`WillRedirectRequest` with the exact navigation kind (`WasInitiatedByLinkClick`: a link, never `window.location`; B-33). Throttles are added only by the ContentBrowserClient |
 
-Patch `0010-shutdown-worker-start-priority` (PR #1) is parked in `patches/parked/` (B-40; the README there says why and when it comes back). The series has fourteen patches (0001–0009, 0011–0015).
+Patch `0010-shutdown-worker-start-priority` (PR #1) is parked in `patches/parked/` (B-40; the README there says why and when it comes back). The series has fifteen patches (0001–0009, 0011–0016).
 
 No patch is needed for `NSApp`: the host's `NSApplication` subclass inherits
 from `RoomCrApplication`, which RoomCore defines as a subclass of Chromium's
