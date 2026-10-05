@@ -195,6 +195,7 @@ class RoomBrowserWindow : public BrowserWindow {
   BrowserView* AsBrowserView() override;
   LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool is_user_initiated) override;
+  bool IsLocationBarVisible() const override;
   ExclusiveAccessContext* GetExclusiveAccessContext() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(
@@ -228,7 +229,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void FocusAppMenu() override;
   bool IsToolbarVisible() const override;
   bool IsToolbarShowing() const override;
-  bool IsLocationBarVisible() const override;
   void ShowUpdateChromeDialog() override;
   void ShowIntentPickerBubble( std::vector<apps::IntentPickerAppInfo> app_info, bool show_stay_in_chrome, bool show_remember_selection, apps::IntentPickerBubbleType bubble_type, const std::optional<url::Origin>& initiating_origin, IntentPickerResponse callback) override;
   void ShowBookmarkBubble(const GURL& url, bool already_bookmarked) override;

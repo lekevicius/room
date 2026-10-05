@@ -797,6 +797,12 @@ void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
                                   /*clear_focus_if_failed=*/false);
 }
 
+bool RoomBrowserWindow::IsLocationBarVisible() const {
+  // The host's address field is always reachable (⌘L opens the palette even
+  // with the sidebar hidden, spec §C); IDC_FOCUS_LOCATION checks this first.
+  return true;
+}
+
 LocationBar* RoomBrowserWindow::GetLocationBar() const {
   if (!location_bar_) {
     location_bar_ = std::make_unique<room::RoomLocationBar>(browser_);

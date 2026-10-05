@@ -108,11 +108,6 @@ bool RoomBrowserWindow::IsToolbarShowing() const {
   return false;
 }
 
-bool RoomBrowserWindow::IsLocationBarVisible() const {
-  RoomStubHit("IsLocationBarVisible");
-  return false;
-}
-
 void RoomBrowserWindow::ShowUpdateChromeDialog() {
   RoomStubHit("ShowUpdateChromeDialog");
 }
