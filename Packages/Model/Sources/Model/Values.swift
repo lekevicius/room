@@ -343,13 +343,17 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Profiles whose Chapter 2 history was imported into the engine's
     /// history (Phase 3.5, once per profile; the local tables go in 3.9).
     public var historyImportedProfiles: [UUID] = []
+    /// The last extension update check (Phase 3.6a: once a day while an
+    /// extension is installed, on the host's timer); kept so a relaunch does
+    /// not check again at once. `nil` until the first extension is installed.
+    public var extensionsLastUpdateCheck: Date?
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
-        case historyImportedProfiles
+        case historyImportedProfiles, extensionsLastUpdateCheck
     }
 
     public init(from decoder: any Decoder) throws {
@@ -375,6 +379,7 @@ public struct Settings: Hashable, Sendable, Codable {
             ?? defaults.automaticUpdateChecks
         historyImportedProfiles = (try? container.decodeIfPresent([UUID].self, forKey: .historyImportedProfiles)).flatMap { $0 }
             ?? defaults.historyImportedProfiles
+        extensionsLastUpdateCheck = (try? container.decodeIfPresent(Date.self, forKey: .extensionsLastUpdateCheck)).flatMap { $0 }
     }
 }
 

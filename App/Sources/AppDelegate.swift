@@ -43,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var sidebar: SidebarController?
     /// The window's pages: entries on the engine (Phase 2.3).
     private(set) var tabs: TabController?
+    /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil on CEF.
+    private(set) var extensions: ExtensionsCenter?
+    private var extensionConsent: ExtensionConsentSheets?
     private(set) var switcher: TabSwitcher?
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
@@ -136,8 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where tabs.engineProfiles[model.id] == nil {
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
-                profile.downloadsDelegate = downloads?.list
-                applySearchSettings(to: profile)
+                prepare(profile, for: model)
                 if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
             }
             // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
@@ -402,8 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 guard let self, let tabs else { return }
                 do {
                     let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
-                    profile.downloadsDelegate = self.downloads?.list
-                    self.applySearchSettings(to: profile)
+                    self.prepare(profile, for: model)
                     tabs.setEngineProfile(profile, for: model.id)
                 } catch {
                     NSLog("Room: no engine profile for \(model.name): \(error)")
@@ -799,6 +800,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         statusPill?.reset()
     }
 
+    /// A new engine profile's host services: downloads, Room's search engine,
+    /// and (RoomCore, 3.6a) its extensions in Settings with their consent
+    /// sheets and the daily update check.
+    private func prepare(_ profile: any Engine.Profile, for model: Model.Profile) {
+        profile.downloadsDelegate = downloads?.list
+        applySearchSettings(to: profile)
+        if let engineExtensions = profile.extensions {
+            extensionsCenter().add(profile: model.id, name: model.name, extensions: engineExtensions)
+        }
+    }
+
+    /// Chrome extensions across profiles (3.6a), made with the first profile that has them.
+    private func extensionsCenter() -> ExtensionsCenter {
+        if let extensions { return extensions }
+        let sheets = ExtensionConsentSheets { [weak self] in self?.windowController?.window }
+        let center = ExtensionsCenter(
+            consent: sheets,
+            openTab: { [weak self] url in self?.tabs?.openNewTab(url: url.absoluteString, transition: .link) },
+            lastUpdateCheck: { [weak self] in self?.store?.settings.settings.extensionsLastUpdateCheck },
+            setLastUpdateCheck: { [weak self] date in self?.store?.settings.update { $0.extensionsLastUpdateCheck = date } })
+        extensionConsent = sheets
+        extensions = center
+        return center
+    }
+
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open
     /// palette drops its suggestions and the client sends nothing more.
     private func observeSuggestionsSwitch(_ settings: SettingsStore, palette: PaletteController) {
@@ -958,7 +984,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 defaultBrowser: defaultBrowser, crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
                 showWelcomeCard: { [weak self] in self?.showWelcomeCard() },
                 checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
-                canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false })
+                canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
+                extensions: { [weak self] in self?.extensions })
             settingsWindow = SettingsWindowController(settings: store.settings, services: services)
         }
         settingsWindow?.showWindow(nil)

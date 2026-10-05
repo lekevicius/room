@@ -1,5 +1,6 @@
 import AppKit
 import Chrome
+import Engine
 import Integration
 import Model
 import Omnibox
@@ -14,7 +15,7 @@ import SwiftUI
 /// opt-ins.
 final class SettingsWindowController: NSWindowController {
     enum Section: String, CaseIterable {
-        case general, appearance, search, downloads, privacy
+        case general, appearance, search, downloads, extensions, privacy
 
         var title: String {
             switch self {
@@ -22,6 +23,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "Appearance"
             case .search: "Search"
             case .downloads: "Downloads"
+            case .extensions: "Extensions"
             case .privacy: "Privacy"
             }
         }
@@ -32,6 +34,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "paintpalette"
             case .search: "magnifyingglass"
             case .downloads: "arrow.down.circle"
+            case .extensions: "puzzlepiece.extension"
             case .privacy: "hand.raised"
             }
         }
@@ -86,6 +89,8 @@ struct SettingsServices {
     let showWelcomeCard: () -> Void
     let checkForUpdates: () -> Void
     let canCheckForUpdates: () -> Bool
+    /// Chrome extensions per profile (3.6a); `nil` on an engine without them (CEF).
+    let extensions: () -> ExtensionsCenter?
 }
 
 private struct SettingsSectionView: View {
@@ -100,6 +105,7 @@ private struct SettingsSectionView: View {
             case .appearance: appearance
             case .search: search
             case .downloads: downloads
+            case .extensions: ExtensionsSettingsView(center: services.extensions())
             case .privacy: privacy
             }
         }
@@ -243,5 +249,103 @@ private struct SettingsSectionView: View {
         panel.prompt = "Choose"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         settings.update { $0.downloadDirectory = url.standardizedFileURL == Self.downloadsFolder.standardizedFileURL ? nil : url.path }
+    }
+}
+
+/// Settings ▸ Extensions (ROADMAP 3.6a task 1): each profile's installed
+/// extensions with enable, options, reload (unpacked), pin and remove (the
+/// consent sheet), Load Unpacked… and Chrome's management page as a tab.
+/// Usable, not polished (Chapter 5); the header's action buttons are 3.6b.
+struct ExtensionsSettingsView: View {
+    let center: ExtensionsCenter?
+    @State private var loadError: String?
+
+    var body: some View {
+        if let center, !center.sections.isEmpty {
+            ForEach(center.sections) { section in
+                Section {
+                    if section.installed.isEmpty {
+                        Text("No extensions. Install from the Chrome Web Store in a tab, or load an unpacked one.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(section.installed) { item in row(item, section: section, center: center) }
+                    HStack {
+                        Button("Load Unpacked…") { loadUnpacked(section: section, center: center) }
+                        Button("Open chrome://extensions") { center.openManagementPage(in: section) }
+                        Spacer()
+                    }
+                    if let loadError { Text(loadError).font(.callout).foregroundStyle(.red) }
+                } header: {
+                    Text(center.sections.count > 1 ? section.name : "Installed")
+                } footer: {
+                    if let check = center.lastCheck {
+                        Text("Last update check: \(check.extensions) extensions, \(check.updatesFound) updates.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        Text("Room checks installed extensions for updates once a day, and never while none is installed.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } else {
+            Section {
+                Text("This engine has no extensions.").foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ item: InstalledExtension, section: ExtensionsCenter.ProfileSection, center: ExtensionsCenter) -> some View {
+        HStack(alignment: .top) {
+            Group {
+                if let icon = item.icon32 ?? item.icon16 {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    Image(systemName: "puzzlepiece.extension").resizable().foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(item.name).fontWeight(.medium)
+                    Text(item.version).foregroundStyle(.secondary)
+                    if item.isUnpacked { Text("Unpacked").font(.caption).foregroundStyle(.orange) }
+                }
+                if !item.summary.isEmpty {
+                    Text(item.summary).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                    if item.optionsPageURL != nil { Button("Options") { center.openOptions(item, in: section) } }
+                    if item.isUnpacked { Button("Reload") { center.reload(item, in: section) } }
+                    if item.action != nil {
+                        Button(item.isPinned ? "Unpin" : "Pin") { center.setPinned(!item.isPinned, item, in: section) }
+                    }
+                    Button("Remove…") { Task { await center.uninstall(item, in: section) } }
+                }
+                .buttonStyle(.link)
+                .font(.callout)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(get: { item.isEnabled }, set: { center.setEnabled($0, item, in: section) }))
+                .toggleStyle(.switch)
+                .labelsHidden()
+        }
+    }
+
+    private func loadUnpacked(section: ExtensionsCenter.ProfileSection, center: ExtensionsCenter) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Load"
+        panel.message = "Choose the extension's folder (the one with manifest.json)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            do {
+                try await center.loadUnpacked(at: url, in: section)
+                loadError = nil
+            } catch {
+                loadError = "\(error)"
+            }
+        }
     }
 }
