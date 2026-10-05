@@ -5,7 +5,7 @@ import GRDB
 public enum Schema {
     public static let v1 = "v1"
 
-    /// Phase 2.4b: history's host key and frecency (`History`, `Frecency`).
+    /// Phase 2.4b: history's host key and frecency (frozen in `Schema+LegacyHistory.swift`).
     public static let v2 = "v2-history-frecency"
 
     /// Phase 2.5: history follows the profile (decided 2026-10-03, ROADMAP 2.5).
@@ -20,6 +20,11 @@ public enum Schema {
     /// the local history tables, planned as v5 in ROADMAP 3.9, becomes v6.)
     public static let v5 = "v5-entry-navigation-state"
 
+    /// Phase 3.9: the Chapter 2 history tables go (3.5 moved history into the
+    /// engine's `HistoryService`); what the engine does not hold is written to
+    /// `history-archive.json` beside the database first (`HistoryArchive`, B-66).
+    public static let v6 = "v6-drop-local-history"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
@@ -27,6 +32,7 @@ public enum Schema {
         migrator.registerMigration(v3, migrate: createV3)
         migrator.registerMigration(v4, migrate: createV4)
         migrator.registerMigration(v5, migrate: createV5)
+        migrator.registerMigration(v6, migrate: createV6)
         return migrator
     }
 
@@ -61,7 +67,7 @@ public enum Schema {
                 frecency = Frecency.adding(transition.weight, at: time.date, to: frecency)
             }
             try db.execute(sql: "UPDATE history_url SET host = ?, frecency = ? WHERE id = ?",
-                           arguments: [History.hostKey(for: row["url"]) ?? "", frecency, id])
+                           arguments: [LegacyHistory.hostKey(for: row["url"]) ?? "", frecency, id])
         }
         for host in try String.fetchAll(db, sql: "SELECT DISTINCT host FROM history_url") {
             try rebuildHostV2(db, host)
@@ -95,7 +101,7 @@ public enum Schema {
     /// foreign keys off, so dropping the old table cascades nothing.
     static func createV3(_ db: Database) throws {
         let defaultProfile = try DatabaseValue.fetchOne(db, sql: "SELECT id FROM profile ORDER BY position LIMIT 1")
-            ?? History.orphanProfile.databaseValue
+            ?? LegacyHistory.orphanProfile.databaseValue
         try db.create(table: "history_url_v3") { t in
             t.autoIncrementedPrimaryKey("id")
             t.column("profileID", .blob).notNull()
@@ -136,7 +142,7 @@ public enum Schema {
             t.primaryKey(["profileID", "host"])
         }
         for row in try Row.fetchAll(db, sql: "SELECT DISTINCT profileID, host FROM history_url") {
-            try History.rebuildHost(db, profile: row["profileID"], host: row["host"])
+            try LegacyHistory.rebuildHost(db, profile: row["profileID"], host: row["host"])
         }
     }
 
@@ -168,6 +174,21 @@ public enum Schema {
         try db.alter(table: "entry") { t in
             t.add(column: "navigationState", .blob)
         }
+    }
+
+    /// The archive (an error here fails the migration and keeps the tables),
+    /// then the tables: the FTS index and its sync triggers, visits, hosts,
+    /// URLs. The settings flag `historyImportedProfiles` stays (an archive of
+    /// a never-imported profile is imported at the next launch by it).
+    static func createV6(_ db: Database) throws {
+        try HistoryArchive.write(db)
+        for trigger in ["__history_fts_ai", "__history_fts_ad", "__history_fts_au"] {
+            try db.execute(sql: "DROP TRIGGER IF EXISTS \(trigger)")
+        }
+        try db.execute(sql: "DROP TABLE IF EXISTS history_fts")
+        try db.execute(sql: "DROP TABLE IF EXISTS history_visit")
+        try db.execute(sql: "DROP TABLE IF EXISTS history_host")
+        try db.execute(sql: "DROP TABLE IF EXISTS history_url")
     }
 
     static func createV1(_ db: Database) throws {
@@ -245,7 +266,7 @@ public enum Schema {
             t.primaryKey(["windowID", "spaceID"])
         }
 
-        // Throwaway local history until the engine's history service (3.5).
+        // Throwaway local history until the engine's history service (3.5; dropped in v6).
         try db.create(table: "history_url") { t in
             t.autoIncrementedPrimaryKey("id")
             t.column("url", .text).notNull().unique()

@@ -246,9 +246,15 @@ extension SpikeRunner.Context {
         let root = UserDefaults.standard.string(forKey: "RoomEngineDirectory") ?? ""
         let dirs = (try? FileManager.default.contentsOfDirectory(atPath: root))?.filter { $0.hasPrefix("Room Profile") }.sorted() ?? []
         SpikeRunner.record("engine_profile_directories", dirs.joined(separator: ", "))
-        let history = tabs.store.history
-        SpikeRunner.record("history_rows", "Default=\((try? history.count(profile: home.profileID)) ?? -1) "
-            + "Work=\((try? history.count(profile: work.profileID)) ?? -1)")
+        // History follows the profile: each profile's own HistoryService (3.5) has only its own visits.
+        var rows: [String] = []
+        for (name, profile) in [("Default", home.profileID), ("Work", work.profileID)] {
+            guard let history = tabs.engineProfiles[profile]?.history else { rows.append("\(name): no engine history"); continue }
+            let home = await history.visits(for: URL(string: base + "?set=home")!) != nil
+            let work = await history.visits(for: URL(string: base + "?set=work")!) != nil
+            rows.append("\(name): home=\(home) work=\(work)")
+        }
+        SpikeRunner.record("history_by_profile", rows.joined(separator: "; "))
     }
 }
 #endif

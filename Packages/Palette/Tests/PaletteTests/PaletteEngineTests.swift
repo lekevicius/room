@@ -30,19 +30,17 @@ private func engineFixture() throws -> (PaletteFixture, FakeProfile, FakeHistory
 
 @Suite("Palette 3.5: Chrome's history and suggestions through the engine")
 struct PaletteEngineTests {
-    @Test("History rows and inline completion come from the engine; the store's table is not asked")
+    @Test("History rows and inline completion come from the engine")
     func historyFromEngine() throws {
         let (f, profile, history) = try engineFixture()
         history.addVisit(URL(string: "https://github.com/")!, title: "GitHub", transition: .typed)
         history.addVisit(URL(string: "https://github.com/apple/swift")!, title: "apple/swift")
-        try f.store.history.recordVisitNow(url: "https://git-local-only.example/", title: "Local only", transition: .typed, profile: f.space.profileID)
         f.palette.toggleNew()
         f.palette.setText("gi")
         #expect(f.palette.usesEngineAutocomplete)
         #expect(f.palette.result.inlineCompletion == "thub.com")
         let rows = f.palette.result.matches.filter { $0.provider == .history }
         #expect(Set(rows.compactMap(\.action.url)) == ["https://github.com/", "https://github.com/apple/swift"])
-        #expect(!f.palette.result.matches.contains { $0.action.url == "https://git-local-only.example/" })
         #expect(profile.autocompleteControllers.count == 1)
     }
 

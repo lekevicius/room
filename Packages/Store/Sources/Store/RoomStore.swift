@@ -8,8 +8,9 @@ public final class RoomStore {
     public let settings: SettingsStore
     /// Favicons by host (outside the state pipeline).
     public let favicons: FaviconStore
-    /// Browsing history for the palette (outside the state pipeline; Phase 2.4b).
-    public let history: History
+    /// What schema v6 kept of the Chapter 2 history tables (`HistoryArchive`,
+    /// beside the database; absent when there was nothing to keep).
+    public var historyArchiveURL: URL { storage.directory.appending(path: HistoryArchive.fileName) }
     public let persistence: Persistence
     public let storage: RoomStorage
     /// The previous session ended without `close()` (crash, kill, power loss).
@@ -41,7 +42,6 @@ public final class RoomStore {
         windows = WindowStore(state: state)
         settings = SettingsStore(settings: state.settings)
         favicons = FaviconStore(database: writer.database)
-        history = History(database: writer.database)
         var provider: () -> RoomState = { RoomState() }
         persistence = Persistence(writer: writer, generation: opened.generation, debounce: debounce) { provider() }
         provider = { [unowned self] in currentState() }
@@ -73,10 +73,8 @@ public final class RoomStore {
         do { try persistence.flushAndWait() } catch { NSLog("Room: flush failed: \(error)") }
     }
 
-    /// Final write at quit; marks the session as cleanly ended. History's
-    /// queued visits and titles land first.
+    /// Final write at quit; marks the session as cleanly ended.
     public func close() {
-        history.waitForPendingWrites()
         do { try persistence.flushAndWait(cleanExit: true) } catch { NSLog("Room: final write failed: \(error)") }
     }
 }

@@ -121,24 +121,7 @@ struct Palette2_4bTests {
         #expect(f.palette.highlightedIndex == 1)
     }
 
-    @Test("Visited pages come back as history rows; a typed host completes inline; ⇧Delete removes it and it does not complete again")
-    func historyAndDelete() async throws {
-        let f = try PaletteFixture()
-        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/", title: "Hacker News", transition: .typed, profile: f.space.profileID)
-        try f.store.history.recordVisitNow(url: "https://news.ycombinator.com/item?id=1", title: "A story", transition: .link, profile: f.space.profileID)
-        f.palette.toggleNew()
-        f.palette.setText("new")
-        #expect(f.palette.result.inlineCompletion == "s.ycombinator.com")
-        #expect(f.palette.result.matches.first?.isDeletable == true)
-        #expect(f.palette.deleteHighlightedSuggestion())
-        #expect(try f.store.history.count() == 0)
-        #expect(f.palette.result.inlineCompletion == nil)
-        #expect(f.palette.result.matches.allSatisfy { $0.provider != .history })
-        // The verbatim row is not removable: the key edits text instead.
-        #expect(!f.palette.deleteHighlightedSuggestion())
-    }
-
-    @Test("Committed palette URLs reach history as typed, searches as generated")
+    @Test("Committed palette URLs load as typed, searches as generated (the engine's history records them so)")
     func transitions() async throws {
         let f = try PaletteFixture()
         f.palette.toggleNew()
@@ -148,9 +131,9 @@ struct Palette2_4bTests {
         f.palette.setText("room browser")
         f.palette.commit(modifier: .none)
         await f.settle()
-        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link, profile: f.space.profileID)
-        #expect(try f.store.history.visits(url: "https://example.com", profile: f.space.profileID).map(\.1) == [.typed])
-        #expect(try f.store.history.visits(url: "https://www.google.com/search?q=room%20browser", profile: f.space.profileID).map(\.1) == [.generated])
+        let loads = try #require(f.tabs.profile as? FakeProfile).openWebContents.flatMap(\.loads)
+        #expect(loads.first { $0.url.absoluteString.hasPrefix("https://example.com") }?.transition == .typed)
+        #expect(loads.first { $0.url.absoluteString == "https://www.google.com/search?q=room%20browser" }?.transition == .generated)
     }
 
     @Test("Suggestions join the search group when they arrive, keeping the highlighted row; switched off, they go and nothing is sent")
@@ -212,20 +195,3 @@ struct Palette2_4bTests {
     }
 }
 
-@Suite("Palette 2.4b: ⌘Y")
-struct PaletteHistoryKeyTests {
-    @Test("⌘Y opens the palette on the most frecent history; typing searches as usual; again closes")
-    func recentHistory() throws {
-        let f = try PaletteFixture()
-        try f.store.history.recordVisitNow(url: "https://swift.org/", title: "Swift", transition: .typed, profile: f.space.profileID)
-        try f.store.history.recordVisitNow(url: "https://example.com/", title: "Example", transition: .link, profile: f.space.profileID)
-        f.palette.toggleHistory()
-        #expect(f.palette.result.matches.map(\.action.url) == ["https://swift.org/", "https://example.com/"])
-        f.palette.setText("exa")
-        #expect(f.palette.result.matches.first?.provider == .verbatim)
-        f.palette.toggleHistory()
-        #expect(!f.palette.isOpen)
-        f.palette.toggleNew()
-        #expect(f.palette.result.isEmpty)
-    }
-}

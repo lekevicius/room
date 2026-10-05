@@ -48,8 +48,6 @@ final class Page {
     var lastVisible: Date
     /// The page's last real favicon (FakeEngine's template globe excluded).
     var favicon: NSImage?
-    /// The (URL, title) last given to history, so each title is written once.
-    var historyTitle: (url: URL, title: String)?
     /// The favicon last written to the cache, so each icon is stored once.
     weak var storedFavicon: NSImage?
     /// While the certificate interstitial shows, the row reads the host, not
@@ -76,7 +74,7 @@ final class Page {
 /// handing presentation it does not own (dialogs, menus, keys) to
 /// `pageUIDelegate` until Phase 2.6.
 ///
-/// Engine-agnostic: CEF in the app, FakeEngine in tests.
+/// Engine-agnostic: RoomCore in the app, FakeEngine in tests.
 @Observable
 public final class TabController: SidebarHost {
     @ObservationIgnored public let store: RoomStore
@@ -311,7 +309,7 @@ public final class TabController: SidebarHost {
             return
         }
         page.lastVisible = now()
-        // A discarded page comes back at its URL (back/forward is lost on CEF, B-13).
+        // A discarded page comes back at its URL with its back/forward list (B-13).
         if page.contents.state == .discarded { page.contents.reload() }
         show(page.contents, split: split)
         // Its Peek, if it had one, comes back with it.
@@ -559,19 +557,23 @@ public final class TabController: SidebarHost {
     }
 
     /// Writes the page's current back/forward list into its entry (the store
-    /// persists it with the next debounced write). Engines without one (CEF)
+    /// persists it with the next debounced write). Engines without one
     /// leave the entry's as it was.
     func saveNavigationState(of contents: any WebContents, entry: UUID) {
         guard let state = contents.navigationState else { return }
         try? store.sidebar.setNavigationState(entry, state)
     }
 
+    /// The owner of a page whose entry and store have no profile at all (never
+    /// in practice: the store seeds one).
+    static let noProfile = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
     /// Makes `contents` the page of `entry`.
     @discardableResult
     func adopt(_ contents: any WebContents, entry: UUID) -> Page {
         contents.uiDelegate = self
         contents.navigationDelegate = self
-        let profileID = store.sidebar.entry(entry)?.profileID ?? store.sidebar.profiles.first?.id ?? History.orphanProfile
+        let profileID = store.sidebar.entry(entry)?.profileID ?? store.sidebar.profiles.first?.id ?? Self.noProfile
         let page = Page(contents: contents, profileID: profileID, lastVisible: now())
         pages[entry] = page
         observe(page, entry: entry)
@@ -626,13 +628,6 @@ public final class TabController: SidebarHost {
             if stored.liveURL != live || stored.liveTitle != liveTitle {
                 try? store.sidebar.setLivePage(entry, url: live, title: liveTitle)
             }
-            // The title arrives after the commit that recorded the visit; written
-            // once loading ends, so a page's previous title never lands on its new URL.
-            if !contents.isLoading, let title, !title.isEmpty, page.historyTitle?.url != url || page.historyTitle?.title != title,
-               recordsLocalHistory(profile: page.profileID) {
-                page.historyTitle = (url, title)
-                store.history.setTitle(title, for: live, profile: page.profileID)
-            }
         }
         if let favicon, !favicon.isTemplate {
             page.favicon = favicon
@@ -642,15 +637,6 @@ public final class TabController: SidebarHost {
             }
         }
         sidebar?.pageStateDidChange([entry])
-    }
-
-    /// Writes the page's title for its URL if it is not loading (after a commit's visit).
-    func refreshHistoryTitle(_ page: Page) {
-        let contents = page.contents
-        guard !contents.isLoading, let url = contents.url, let title = contents.title, !title.isEmpty,
-              recordsLocalHistory(profile: page.profileID) else { return }
-        page.historyTitle = (url, title)
-        store.history.setTitle(title, for: url.absoluteString, profile: page.profileID)
     }
 
     // MARK: Favicon cache (spec §I.2)

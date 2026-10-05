@@ -21,6 +21,12 @@ public final class RoomDatabase: Sendable {
         // of the process and of the machine.
         pool = try DatabasePool(path: url.path, configuration: configuration)
         try Schema.migrator.migrate(pool)
+        // A file left mostly free pages (v6 dropping the history tables: 99 % of a
+        // 50k-row state, 3.9) gives them back once; a no-op on every later open.
+        let pages = try pool.read { db in
+            (try Int.fetchOne(db, sql: "PRAGMA page_count") ?? 0, try Int.fetchOne(db, sql: "PRAGMA freelist_count") ?? 0)
+        }
+        if pages.1 > 256, pages.1 * 2 > pages.0 { try pool.vacuum() }
     }
 
     /// `PRAGMA integrity_check` lines; `["ok"]` when the file is sound.
@@ -39,6 +45,14 @@ public final class RoomDatabase: Sendable {
     public func previousSessionRunning() throws -> Bool {
         try pool.read { db in
             try String.fetchOne(db, sql: "SELECT value FROM kv WHERE key = ?", arguments: [KVKey.running]) == "1"
+        }
+    }
+
+    /// The schema's object names (tables, indexes, triggers) containing `text`
+    /// (the 3.9 spikes check v6 left no history table).
+    public func schemaNames(containing text: String) throws -> [String] {
+        try pool.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE name LIKE ? ORDER BY name", arguments: ["%\(text)%"])
         }
     }
 

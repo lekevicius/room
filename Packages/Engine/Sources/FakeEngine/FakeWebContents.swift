@@ -115,7 +115,12 @@ public final class FakeWebContents: WebContents {
     public var canGoBack: Bool { currentIndex > 0 }
     public var canGoForward: Bool { currentIndex < backForwardList.count - 1 }
 
+    /// Every `load(_:transition:fromAddressBar:)` asked of the page, in order
+    /// (the transition is what the engine's history records the visit as).
+    public private(set) var loads: [(url: URL, transition: PageTransition)] = []
+
     public func load(_ url: URL, transition: PageTransition, fromAddressBar: Bool) {
+        loads.append((url, transition))
         let action = NavigationAction(
             url: url,
             kind: transition == .formSubmit ? .formSubmitted : .other,

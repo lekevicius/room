@@ -1,11 +1,10 @@
 #if DEBUG
+import Engine
 import Foundation
-import Model
-import Store
 
-/// `Room -RoomHistoryRows 50000` (Debug builds, with a throwaway state
-/// directory): fills history with synthetic rows for the ROADMAP 2.4
-/// measurement (keystroke to local results with 50k history rows).
+/// `Room -RoomHistoryRows 50000` (Debug builds, with a throwaway state and
+/// engine directory): fills the engine's history with synthetic rows for the
+/// ROADMAP 2.4 measurement (keystroke to rows with 50k history rows).
 /// Deterministic: the same rows every run. Hosts follow a steep power law
 /// (a few sites hold most visits, as in real history), paths and titles are
 /// word salad, visits span 85 days (a year until Phase 3.5: Chromium keeps
@@ -13,17 +12,21 @@ import Store
 /// 10% search results pages.
 enum HistoryFixture {
     static let spanDays = 85.0
+    /// URLs per engine call (as the 3.5 migration).
+    static let batchSize = 2_000
 
     static var requestedRows: Int? {
         let rows = UserDefaults.standard.integer(forKey: "RoomHistoryRows")
         return rows > 0 ? rows : nil
     }
 
-    /// The rows it added (none when the history already had `rows`).
-    @discardableResult
-    static func populate(_ history: History, rows: Int, profile: UUID, now: Date = Date()) -> [HistoryImport] {
-        // Fills up to `rows`: a state directory other runs used (the grand tour, Phase 2.9) has some history already.
-        guard let existing = try? history.count(profile: profile), existing < rows else { return [] }
+    /// Fills the engine's history up to `rows` URLs (a state directory other
+    /// runs used, the grand tour's, has some already); since 3.9 (schema v6)
+    /// the engine's history is the only one. Returns the import's result, or
+    /// nil when the history already had `rows`.
+    static func populate(_ history: any ProfileHistory, rows: Int, now: Date = Date()) async -> HistoryImportResult? {
+        let existing = await history.entries(from: nil, to: nil, limit: 0).count
+        guard existing < rows else { return nil }
         var random = SplitMix64(seed: 2_404)
         let words = ["swift", "apple", "room", "browser", "news", "docs", "guide", "api", "design", "music", "video", "travel", "recipe",
                      "garden", "linux", "rust", "kernel", "photo", "maps", "market", "weather", "sport", "chess", "physics", "history",
@@ -37,7 +40,7 @@ enum HistoryFixture {
             let host = "\(words[random.int(words.count)])\(words[random.int(words.count)])\(hosts.count).\(tlds[random.int(tlds.count)])"
             hosts.append(random.int(3) == 0 ? "www." + host : host)
         }
-        var imports: [HistoryImport] = []
+        var imports: [HistoryImportEntry] = []
         imports.reserveCapacity(rows)
         var seen = Set<String>()
         while imports.count < rows - existing {
@@ -57,26 +60,26 @@ enum HistoryFixture {
                 let titleWords = (0..<(3 + random.int(4))).map { _ in words[random.int(words.count)].capitalized }
                 title = titleWords.joined(separator: " ") + " · " + host
             }
-            guard seen.insert(path).inserted else { continue }
+            guard seen.insert(path).inserted, let url = URL(string: path) else { continue }
             let count = 1 + Int(-log(max(1e-9, random.double())) * 2.5)
-            let visits: [(at: Date, transition: HistoryTransition)] = (0..<min(count, 30)).map { _ in
-                // Within 85 days (Phase 3.5): Chromium keeps 90 days of history, so the
-                // whole fixture survives the import into its history service.
+            let visits: [HistoryVisit] = (0..<min(count, 30)).map { _ in
+                // Within 85 days (Phase 3.5): Chromium keeps 90 days of history.
                 let age = random.double() * random.double() * Self.spanDays * 86_400
-                let transition: HistoryTransition = isSearch ? .generated : (random.int(10) == 0 ? .typed : .link)
-                return (now.addingTimeInterval(-age), transition)
+                let transition: PageTransition = isSearch ? .generated : (random.int(10) == 0 ? .typed : .link)
+                return HistoryVisit(time: now.addingTimeInterval(-age), transition: transition)
             }
-            imports.append(HistoryImport(url: path, title: title, visits: visits))
+            imports.append(HistoryImportEntry(url: url, title: title, visits: visits))
         }
         let start = ContinuousClock.now
-        do {
-            try history.importRows(imports, profile: profile)
-            NSLog("Room: history fixture: \(rows) rows, \(imports.reduce(0) { $0 + $1.visits.count }) visits in \(ContinuousClock.now - start)")
-        } catch {
-            NSLog("Room: history fixture failed: \(error)")
-            return []
+        var result = HistoryImportResult()
+        var index = 0
+        while index < imports.count {
+            result = result + (await history.importEntries(Array(imports[index..<min(index + batchSize, imports.count)])))
+            index += batchSize
         }
-        return imports
+        NSLog("Room: history fixture: %ld URLs, %ld visits into the engine's history in %@", result.urls, result.visits,
+              "\(ContinuousClock.now - start)")
+        return result
     }
 }
 

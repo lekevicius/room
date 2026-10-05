@@ -97,7 +97,7 @@ extension PaletteController: AutocompleteControllerDelegate {
     /// removes the host's history (2.4b's rule).
     func deleteEngineHistory(_ match: OmniboxMatch, in history: any ProfileHistory) {
         let url = match.action.url
-        if let host = HistoryProvider.deletedHost(for: match) {
+        if let host = EngineHistoryProvider.deletedHost(for: match) {
             Task { await history.delete(host: host) }
         }
         if let controller = activeAutocomplete, let url,

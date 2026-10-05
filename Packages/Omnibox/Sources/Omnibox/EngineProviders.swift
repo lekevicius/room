@@ -30,8 +30,15 @@ public enum EngineProviderChoice {
 /// rank into `Relevance.history`, the engine's inline completion into
 /// `Relevance.inlineHistory`, a page open in an entry as a switch to it.
 public enum EngineHistoryProvider {
-    /// History rows kept per keystroke (the local provider's limit).
+    /// History rows kept per keystroke.
     public static let limit = OmniboxResult.limit
+
+    /// The host a deletable history match stands for, when it is an inline host match
+    /// (its id is `history:host:<host>`; deleting it deletes the host's history).
+    public static func deletedHost(for match: OmniboxMatch) -> String? {
+        let prefix = "history:host:"
+        return match.id.hasPrefix(prefix) ? String(match.id.dropFirst(prefix.count)) : nil
+    }
 
     public static func matches(from engine: [AutocompleteMatch], input: OmniboxInput, in context: OmniboxContext) -> [OmniboxMatch] {
         guard !input.isEmpty else { return [] }

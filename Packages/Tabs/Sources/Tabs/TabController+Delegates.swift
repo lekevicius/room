@@ -16,57 +16,12 @@ extension TabController: NavigationDelegate {
         return .ignore
     }
 
-    /// Every committed main-frame navigation of an entry's page is a history
-    /// visit (ROADMAP 2.4 task 4); the title follows when the page reports it.
-    public func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
-        // Peek pages are history too, in the opener's profile.
-        if let page = peekOpener(of: webContents).flatMap({ peeks[$0] }) {
-            guard recordsLocalHistory(profile: page.profileID) else { return }
-            store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
-            page.historyTitle = nil
-            refreshHistoryTitle(page)
-            return
-        }
-        guard let id = entryID(for: webContents), let page = pages[id], recordsLocalHistory(profile: page.profileID) else { return }
-        // Tagged with the profile the page lives in (history follows the profile, ROADMAP 2.5).
-        store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
-        // The title is written again after this visit (same-document commits keep the page's title).
-        pages[id]?.historyTitle = nil
-        if let page = pages[id] { refreshHistoryTitle(page) }
-    }
-
     /// The page's back/forward list changed: its entry keeps the new one
     /// (written with the store's next debounced transaction, 2.1), so a
     /// relaunch or a crash finds it (3.7b). Peek pages keep none.
     public func webContentsDidChangeNavigationState(_ webContents: any WebContents) {
         guard let id = entryID(for: webContents) else { return }
         saveNavigationState(of: webContents, entry: id)
-    }
-}
-
-extension TabController {
-    /// Whether committed navigations go to the store's history table: only
-    /// while the engine keeps no history of its own (CEF). On RoomCore
-    /// Chromium's tab helpers record every visit in its `HistoryService` and
-    /// the palette reads it there (Phase 3.5); the local tables stay until
-    /// 3.9 drops them.
-    public func recordsLocalHistory(profile: UUID) -> Bool {
-        engineProfiles[profile]?.history == nil
-    }
-}
-
-extension HistoryTransition {
-    init(_ transition: PageTransition) {
-        switch transition {
-        case .link: self = .link
-        case .typed: self = .typed
-        case .bookmark: self = .bookmark
-        case .generated: self = .generated
-        case .keyword: self = .keyword
-        case .formSubmit: self = .formSubmit
-        case .reload: self = .reload
-        case .other: self = .other
-        }
     }
 }
 

@@ -5,18 +5,99 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 creates every table; v2 (history frecency), v3 (history per profile), v4 (split pane order) and v5 (navigation state) follow")
+    @Test("v1 to v6 apply in order; v6 leaves no Chapter 2 history table behind")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
-        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon",
-                      "history_url", "history_visit", "history_fts", "history_host", "kv"]
+        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon", "kv"]
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
+        let history = try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE name LIKE '%history%'")
+        }
+        #expect(history.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
+    }
+
+    @Test("v6 archives what the engine's history does not hold beside the database, then drops the tables (B-66)")
+    func v6ArchivesThenDrops() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let queue = try DatabaseQueue(path: directory.url.appending(path: "Room.sqlite").path)
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v5)
+        let imported = UUID(), neverImported = UUID()
+        let now = Date()
+        let old = now.addingTimeInterval(-200 * 86_400), recent = now.addingTimeInterval(-86_400)
+        func add(_ db: Database, _ profile: UUID, _ url: String, _ visits: [(Date, String)]) throws {
+            try db.execute(sql: """
+                INSERT INTO history_url (profileID, url, title, visitCount, typedCount, lastVisitAt, host) VALUES (?, ?, ?, ?, ?, ?, '')
+                """, arguments: [profile, url, "T " + url, visits.count, visits.filter { $0.1 == "typed" }.count,
+                                  Timestamp(visits.map(\.0).max() ?? now)])
+            let id = db.lastInsertedRowID
+            for (time, transition) in visits {
+                try db.execute(sql: "INSERT INTO history_visit (urlID, visitedAt, transition) VALUES (?, ?, ?)",
+                               arguments: [id, Timestamp(time), transition])
+            }
+        }
+        try queue.write { db in
+            var settings = Settings()
+            settings.historyImportedProfiles = [imported]
+            let json = String(data: try JSONEncoder().encode(settings), encoding: .utf8)!
+            try db.execute(sql: "INSERT INTO kv (key, value) VALUES (?, ?)", arguments: [KVKey.settings, json])
+            try add(db, imported, "https://old.example/", [(old, "typed"), (recent, "link")])
+            try add(db, imported, "https://recent.example/", [(recent, "link")])
+            try add(db, neverImported, "https://other.example/", [(recent, "link"), (old, "typed")])
+        }
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+
+        let history = try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE name LIKE '%history%'")
+        }
+        #expect(history.isEmpty)
+        let archive = try #require(HistoryArchive.read(from: directory.url.appending(path: HistoryArchive.fileName)))
+        #expect(archive.engineRetentionDays == 89)
+        let first = try #require(archive.profiles.first { $0.profileID == imported })
+        #expect(first.imported && first.tableURLs == 2)
+        // Only the visit older than 89 days: the import kept the rest in the engine.
+        #expect(first.urls.map(\.url) == ["https://old.example/"])
+        #expect(first.urls.first?.visits.count == 1 && first.urls.first?.visits.first?.transition == "typed")
+        #expect(first.urls.first?.visitCount == 2 && first.urls.first?.typedCount == 1)
+        let second = try #require(archive.profiles.first { $0.profileID == neverImported })
+        // A profile never imported keeps every visit (the next launch imports them).
+        #expect(!second.imported && second.cutoff == nil && second.tableURLs == 1)
+        #expect(second.urls.map(\.url) == ["https://other.example/"] && second.urls.first?.visits.count == 2)
+    }
+
+    @Test("Opening a database that is mostly free pages (v6 on a large history) gives them back")
+    func vacuumAfterDrop() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let url = directory.url.appending(path: "Room.sqlite")
+        do {
+            let queue = try DatabaseQueue(path: url.path)
+            try queue.write { db in
+                try db.execute(sql: "CREATE TABLE filler (blob BLOB)")
+                for _ in 0..<600 { try db.execute(sql: "INSERT INTO filler VALUES (zeroblob(4000))") }
+            }
+            try queue.write { db in try db.execute(sql: "DROP TABLE filler") }
+        }
+        let database = try RoomDatabase(url: url)
+        let free = try database.pool.read { db in try Int.fetchOne(db, sql: "PRAGMA freelist_count") }
+        #expect(free == 0)
+    }
+
+    @Test("v6 writes no archive when the history tables are empty")
+    func v6EmptyHistory() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let queue = try DatabaseQueue(path: directory.url.appending(path: "Room.sqlite").path)
+        try Schema.migrator.migrate(queue)
+        #expect(!FileManager.default.fileExists(atPath: directory.url.appending(path: HistoryArchive.fileName).path))
     }
 
     @Test("v4 gives existing splits their pane order: section, then position")
@@ -152,25 +233,6 @@ struct SchemaTests {
         #expect(throws: DatabaseError.self) { try writer.writeAndWait(state, generation: 1) }
         #expect(try database.generation() == 0)
         #expect(try database.loadState().state.isEmpty)
-    }
-
-    @Test("History FTS (trigram, external content) follows history_url")
-    func historyFTS() throws {
-        let queue = try DatabaseQueue()
-        try Schema.migrator.migrate(queue)
-        try queue.write { db in
-            let profile = UUID()
-            try db.execute(sql: "INSERT INTO history_url (profileID, url, title, lastVisitAt) VALUES (?, ?, ?, 0)",
-                           arguments: [profile, "https://en.wikipedia.org/wiki/Vilnius", "Vilnius - Wikipedia"])
-            try db.execute(sql: "INSERT INTO history_url (profileID, url, title, lastVisitAt) VALUES (?, ?, ?, 0)",
-                           arguments: [profile, "https://example.com", "Example Domain"])
-            let match = try String.fetchAll(db, sql: "SELECT url FROM history_fts WHERE history_fts MATCH ?", arguments: ["ikip"])
-            #expect(match == ["https://en.wikipedia.org/wiki/Vilnius"])
-            try db.execute(sql: "UPDATE history_url SET title = 'Renamed' WHERE url = 'https://example.com'")
-            #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM history_fts WHERE history_fts MATCH 'Renamed'") == 1)
-            try db.execute(sql: "DELETE FROM history_url WHERE url LIKE '%wikipedia%'")
-            #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM history_fts WHERE history_fts MATCH 'ikip'") == 0)
-        }
     }
 
     @Test("Favicons insert by host with an autoincremented id")

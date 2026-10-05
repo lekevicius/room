@@ -706,48 +706,6 @@ struct SwitchingTests {
     }
 }
 
-@Suite("Tab controller: history recording (ROADMAP 2.4 task 4)")
-struct HistoryRecordingTests {
-    /// Waits for the history writes queued so far (the writer is serial).
-    private func flushHistory(_ f: TabsFixture) throws {
-        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link, profile: f.space.profileID)
-    }
-
-    @Test("Commits become visits with how they started; a restored page is not a visit; the title follows")
-    func visits() async throws {
-        let f = try TabsFixture()
-        let restored = try f.today("https://restored.example/")
-        f.sidebar.select(restored.id)
-        f.tabs.openNewTab(url: "https://typed.example/")
-        f.tabs.openNewTab(url: "https://www.google.com/search?q=room", transition: .generated)
-        f.page(f.tabs.currentEntryID!)?.simulateLinkClick(to: URL(string: "https://result.example/")!)
-        await f.settle()
-        try flushHistory(f)
-        let history = f.store.history
-        #expect(try history.row(url: "https://restored.example/", profile: f.space.profileID) == nil)
-        #expect(try history.visits(url: "https://typed.example/", profile: f.space.profileID).map(\.1) == [.typed])
-        #expect(try history.visits(url: "https://www.google.com/search?q=room", profile: f.space.profileID).map(\.1) == [.generated])
-        #expect(try history.visits(url: "https://result.example/", profile: f.space.profileID).map(\.1) == [.link])
-        // FakeEngine titles a finished page with its host.
-        #expect(try history.row(url: "https://typed.example/", profile: f.space.profileID)?.title == "typed.example")
-    }
-
-    @Test("Reloads and discarded pages coming back add no visit; an unloaded pinned entry opens as a bookmark")
-    func noDuplicates() async throws {
-        let f = try TabsFixture()
-        let pinned = try f.pinned("https://pinned.example/")
-        let other = try f.today("https://other.example/")
-        f.sidebar.select(pinned.id)
-        f.tabs.current?.reload()
-        f.sidebar.select(other.id)
-        try f.tabs.contents(for: pinned.id)?.discard()
-        f.sidebar.select(pinned.id)
-        await f.settle()
-        try flushHistory(f)
-        #expect(try f.store.history.visits(url: "https://pinned.example/", profile: f.space.profileID).map(\.1) == [.bookmark])
-    }
-}
-
 /// Holds the certificate prompt's completion until the test answers it.
 final class CertificateAnswer: WebContentsUIDelegate {
     var pending: ((Bool) -> Void)?

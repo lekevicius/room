@@ -19,7 +19,7 @@ import RoomCore
 extension SpikeRunner.Context {
     func engineChecks() async {
         guard let palette, let history = tabs.engineProfiles[historyProfile]?.history else {
-            return SpikeRunner.record("engine_checks", "skipped: the engine keeps no history (CEF)")
+            return SpikeRunner.record("engine_checks", "skipped: the engine keeps no history")
         }
         func settle(_ milliseconds: Int) async { try? await Task.sleep(for: .milliseconds(milliseconds)) }
         func loaded() async {
@@ -29,18 +29,17 @@ extension SpikeRunner.Context {
         }
         SpikeRunner.record("engine_autocomplete", palette.usesEngineAutocomplete)
 
-        // A visit on RoomCore: Chrome records it; the store's table stays as it was.
-        let storeBefore = (try? tabs.store.history.count(profile: historyProfile)) ?? -1
+        // A visit on RoomCore: Chrome records it; the store has no history table since schema v6 (3.9).
         let marker = "https://example.org/?room35=\(Int(Date().timeIntervalSince1970))"
         press("⌘L")
         type(marker)
         press("↩")
         await loaded()
         await settle(1_000)
-        let storeAfter = (try? tabs.store.history.count(profile: historyProfile)) ?? -1
-        SpikeRunner.record("store_history_rows_around_a_navigation", "before=\(storeBefore) after=\(storeAfter)")
+        let tables = (try? tabs.store.persistence.writer.database.schemaNames(containing: "history")) ?? ["(unreadable)"]
+        SpikeRunner.record("store_history_tables", tables.isEmpty ? "none" : tables.joined(separator: ","))
         let found = await history.visits(for: URL(string: marker)!)
-        SpikeRunner.record("engine_visit_recorded", "visits=\(found?.visits.map { HistoryTransition($0.transition).rawValue } ?? []) "
+        SpikeRunner.record("engine_visit_recorded", "visits=\(found?.visits.map { "\($0.transition)" } ?? []) "
             + "title=\(found?.entry.title ?? "nil")")
         press("⌘T")
         type("room35")

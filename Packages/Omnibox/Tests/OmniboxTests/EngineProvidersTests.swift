@@ -33,7 +33,7 @@ struct EngineProvidersTests {
         #expect(matches[0].inlineCompletion == "thub.com")
         #expect(Relevance.inlineHistory.contains(matches[0].relevance))
         // The host root stands for its host: deleting it deletes the host (2.4b's rule).
-        #expect(HistoryProvider.deletedHost(for: matches[0]) == "github.com")
+        #expect(EngineHistoryProvider.deletedHost(for: matches[0]) == "github.com")
         let result = OmniboxResult(ranking: matches + VerbatimProvider().matches(for: OmniboxInput(text: "gi"), in: OmniboxContext()),
                                    input: OmniboxInput(text: "gi"))
         #expect(result.inlineCompletion == "thub.com")

@@ -5,19 +5,35 @@ import Model
 import Testing
 @testable import Tabs
 
-@Suite("History on an engine that keeps it (ROADMAP 3.5 task 5)")
+/// Writes `rows` as `profile`'s never-imported section of the store's history archive (what schema v6 leaves).
+private func writeArchive(_ f: TabsFixture, profile: UUID, imported: Bool = false, _ rows: [HistoryArchive.URLRow]) throws {
+    let file = HistoryArchive.File(writtenAt: Date(), note: "test", engineRetentionDays: HistoryArchive.engineRetentionDays,
+                                   profiles: [HistoryArchive.Profile(profileID: profile, imported: imported, cutoff: nil,
+                                                                     tableURLs: rows.count, urls: rows)])
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(file).write(to: f.store.historyArchiveURL)
+}
+
+private func row(_ url: String, _ title: String, _ visits: [(Date, String)]) -> HistoryArchive.URLRow {
+    HistoryArchive.URLRow(url: url, title: title, visitCount: visits.count, typedCount: visits.filter { $0.1 == "typed" }.count,
+                          lastVisit: visits.map(\.0).max() ?? Date(), visits: visits.map { HistoryArchive.Visit(time: $0.0, transition: $0.1) })
+}
+
+@Suite("History on an engine that keeps it (ROADMAP 3.5 task 5; from the v6 archive since 3.9)")
 struct HistoryMigrationTests {
-    @Test("The Chapter 2 history goes into the engine's once per profile, with titles and visits; the second run reads nothing")
+    @Test("A never-imported profile's archived history goes into the engine's once, with titles and visits; the second run reads nothing")
     func importsOnce() async throws {
         let f = try TabsFixture()
-        let now = Date()
+        // ISO 8601 in the archive keeps whole seconds.
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
         let profile = f.space.profileID
-        try f.store.history.importRows([
-            HistoryImport(url: "https://github.com/", title: "GitHub", visits: [(now.addingTimeInterval(-3_600), .typed), (now, .link)]),
-            HistoryImport(url: "https://example.org/page", title: "Example", visits: [(now.addingTimeInterval(-60), .link)]),
+        try writeArchive(f, profile: profile, [
+            row("https://github.com/", "GitHub", [(now.addingTimeInterval(-3_600), "typed"), (now, "link")]),
+            row("https://example.org/page", "Example", [(now.addingTimeInterval(-60), "link")]),
             // Older than the engine keeps (90 days): counted, not imported.
-            HistoryImport(url: "https://old.example/", title: "Old", visits: [(now.addingTimeInterval(-200 * 86_400), .link)]),
-        ], profile: profile)
+            row("https://old.example/", "Old", [(now.addingTimeInterval(-200 * 86_400), "link")]),
+        ])
         let history = FakeHistory()
         history.now = { now }
 
@@ -38,11 +54,11 @@ struct HistoryMigrationTests {
     @Test("A batch boundary keeps every row and its visits")
     func batches() async throws {
         let f = try TabsFixture()
-        let now = Date()
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
         let rows = (0..<(HistoryMigration.batchSize + 5)).map { index in
-            HistoryImport(url: "https://site\(index).example/", title: "Site \(index)", visits: [(now.addingTimeInterval(-Double(index)), .link)])
+            row("https://site\(index).example/", "Site \(index)", [(now.addingTimeInterval(-Double(index)), "link")])
         }
-        try f.store.history.importRows(rows, profile: f.space.profileID)
+        try writeArchive(f, profile: f.space.profileID, rows)
         let history = FakeHistory()
         history.now = { now }
         let report = try #require(await HistoryMigration.run(store: f.store, profile: f.space.profileID, into: history))
@@ -50,16 +66,27 @@ struct HistoryMigrationTests {
         #expect(history.importCalls == [HistoryMigration.batchSize, 5])
     }
 
-    @Test("With the engine's history, commits are not written to the store's table (Chromium records them)")
-    func noLocalRecording() async throws {
+    @Test("Without an archive, or with only an imported profile's old visits in it, nothing is sent and the profile is flagged")
+    func nothingToImport() async throws {
         let f = try TabsFixture()
-        f.profile.fakeHistory = FakeHistory()
-        #expect(!f.tabs.recordsLocalHistory(profile: f.space.profileID))
-        f.tabs.openNewTab(url: "https://typed.example/")
-        await f.settle()
-        try f.store.history.recordVisitNow(url: "https://barrier.invalid/", title: nil, transition: .link, profile: UUID())
-        #expect(try f.store.history.row(url: "https://typed.example/", profile: f.space.profileID) == nil)
-        #expect(try f.store.history.count(profile: f.space.profileID) == 0)
+        let history = FakeHistory()
+        let report = try #require(await HistoryMigration.run(store: f.store, profile: f.space.profileID, into: history))
+        #expect(report.localURLs == 0 && history.importCalls.isEmpty)
+        #expect(f.store.settings.settings.historyImportedProfiles == [f.space.profileID])
+
+        let g = try TabsFixture()
+        try writeArchive(g, profile: g.space.profileID, imported: true,
+                         [row("https://old.example/", "Old", [(Date().addingTimeInterval(-200 * 86_400), "link")])])
+        let report2 = try #require(await HistoryMigration.run(store: g.store, profile: g.space.profileID, into: history))
+        #expect(report2.localURLs == 0 && history.importCalls.isEmpty)
+    }
+
+    @Test("An archive that does not read leaves the profile unflagged (the next launch tries again)")
+    func unreadableArchive() async throws {
+        let f = try TabsFixture()
+        try Data("not json".utf8).write(to: f.store.historyArchiveURL)
+        #expect(await HistoryMigration.run(store: f.store, profile: f.space.profileID, into: FakeHistory()) == nil)
+        #expect(f.store.settings.settings.historyImportedProfiles.isEmpty)
     }
 }
 

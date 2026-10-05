@@ -35,15 +35,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     #if DEBUG
     /// Launch lines the spikes report (the state open time, the history migration).
     static var launchLog: [String] = []
-    /// Rows `-RoomHistoryRows` added to the store this launch: on a state whose history was
-    /// already imported into the engine's (the grand tour's one state), they go there directly.
-    var fixtureHistoryAdded: (profile: UUID, rows: [HistoryImport])?
     #endif
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
     /// The window's pages: entries on the engine (Phase 2.3).
     private(set) var tabs: TabController?
-    /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil on CEF.
+    /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil without an engine.
     private(set) var extensions: ExtensionsCenter?
     private var extensionConsent: ExtensionConsentSheets?
     /// The header's action buttons and popups (3.6b), once the center and the window exist.
@@ -91,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) static weak var current: AppDelegate?
     /// Whether the previous session ended cleanly by both counts: the store's
     /// clean-exit mark and the engine's exit type for every profile it
-    /// tracks (RoomCore; CEF has none). Set once the engine profiles exist.
+    /// tracks. Set once the engine profiles exist.
     private(set) var previousExitWasClean: Bool?
     /// The line `logPreviousExit` wrote (the 3.2b quit spikes read it).
     private(set) var previousExitSummary: String?
@@ -133,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { await startSession() }
     }
 
-    /// Every model profile's engine profile (a CEF request context at
+    /// Every model profile's engine profile (a Chromium profile at
     /// `<root>/Room Profile <name>`, ROADMAP 2.5 task 4): the tab controller
     /// loads the selected entry once its profile exists. Then the DEBUG runners.
     private func startSession() async {
@@ -147,6 +144,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
             // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
             await migrateHistory(tabs: tabs)
+            #if DEBUG
+            // `-RoomHistoryRows N`: the engine's history filled to N URLs (the palette's 50k measurement).
+            if let rows = HistoryFixture.requestedRows, let model = store?.sidebar.profiles.first,
+               let history = tabs.engineProfiles[model.id]?.history,
+               let result = await HistoryFixture.populate(history, rows: rows) {
+                Self.launchLog.append("history fixture: \(result.urls) URLs, \(result.visits) visits into the engine's history")
+            }
+            #endif
             // The Phase 1.4 overlay spikes (DEBUG `SpikeRunner`).
             overlays = OverlaySpike(rootView: controller.rootView)
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
@@ -392,10 +397,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
         #if DEBUG
         if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
-        if let rows = HistoryFixture.requestedRows, let profile = store.sidebar.profiles.first {
-            let added = HistoryFixture.populate(store.history, rows: rows, profile: profile.id)
-            if !added.isEmpty { fixtureHistoryAdded = (profile.id, added) }
-        }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
         let tabs = TabController(store: store)
@@ -491,7 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         proxy = UserDefaults.standard.string(forKey: "RoomSuggestProxy")
         #endif
         palette.suggest = SuggestClient(transport: URLSessionSuggestTransport(proxy: proxy), debounce: .seconds(Timing.suggestDebounce))
-        // RoomCore (3.5): Chrome's omnibox and history answer the palette; nil on CEF (the providers above run).
+        // RoomCore (3.5): Chrome's omnibox and history answer the palette; nil without an engine (the local providers and the client above run).
         palette.makeAutocomplete = { [weak tabs] profile in tabs?.engineProfiles[profile]?.makeAutocompleteController() }
         palette.engineHistory = { [weak tabs] profile in tabs?.engineProfiles[profile]?.history }
         pageDelegate.onFocusLocationBar = { [weak tabs, weak palette] _ in
@@ -524,7 +525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         toastCenter = toasts
         installFirstRun(sidebar: sidebar, settings: store.settings)
         // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
-        // on CEF the tab controller listens to macOS's events.
+        // without an engine the tab controller listens to macOS's events.
         #if ROOM_ENGINE_ROOMCORE
         tabs.startLifecycle(systemMemoryPressure: false)
         #else
@@ -890,8 +891,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// ROADMAP 3.5 task 5: each profile's Chapter 2 history into the engine's
-    /// history service, once (the flag is in Settings); a no-op on engines
-    /// without history (CEF keeps recording locally until 3.9).
+    /// history service, once (the flag is in Settings); since schema v6 from
+    /// the rows v6 archived for a profile never imported (`HistoryMigration`).
+    /// A no-op without an engine history.
     private func migrateHistory(tabs: TabController) async {
         guard let store else { return }
         #if DEBUG
@@ -905,21 +907,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             guard let history = tabs.engineProfiles[model.id]?.history else { continue }
             let line: String
             if let report = await HistoryMigration.run(store: store, profile: model.id, into: history) {
-                line = String(format: "history migration: profile %@: %ld local URLs -> %ld URLs, %ld visits imported "
+                line = String(format: "history migration: profile %@: %ld archived URLs -> %ld URLs, %ld visits imported "
                               + "(%ld visits, %ld URLs older than the engine keeps) in %.2f s", model.name, report.localURLs,
                               report.result.urls, report.result.visits, report.result.expiredVisits, report.result.expiredURLs, report.seconds)
             } else {
                 line = "history migration: profile \(model.name) already imported (flag set); nothing read"
-                #if DEBUG
-                if let fixture = fixtureHistoryAdded, fixture.profile == model.id {
-                    let entries = fixture.rows.compactMap { row in
-                        URL(string: row.url).map { HistoryImportEntry(url: $0, title: row.title,
-                                                                      visits: row.visits.map { HistoryVisit(time: $0.at, transition: PageTransition($0.transition)) }) }
-                    }
-                    let result = await history.importEntries(entries)
-                    Self.launchLog.append("history fixture: \(result.urls) URLs, \(result.visits) visits into the engine's history directly")
-                }
-                #endif
             }
             NSLog("Room: %@", line)
             #if DEBUG
@@ -951,8 +943,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// ⌘Q, the Dock's Quit, logout, Chrome's own quit requests (RoomCore's
-    /// NSApp asks here before Chrome's close path; CEF's NSApp quits through
-    /// its termination handler and `run()` returning). The engine closes its
+    /// NSApp asks here before Chrome's close path). The engine closes its
     /// pages first, beforeunload handlers included: a page answering "stay"
     /// cancels the quit with every page and entry as it was (pages the quit
     /// closes leave their entries alone: `isTerminating`); otherwise the
@@ -1162,7 +1153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
-    /// ⌘P: the system print panel (CEF's; ROADMAP 2.6 task 3).
+    /// ⌘P: Chrome's print preview over the window (ROADMAP 2.6 task 3, 3.3b).
     @objc func printPage(_ sender: Any?) { tabs?.focusedPage?.print() }
 
     /// ⇧⌘C (tag 0) and ⌥⇧⌘C (tag 1): Copy URL / as Markdown with a toast (spec §F).
@@ -1180,7 +1171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ⌥⌘C: DevTools with the element picker on.
     @objc func inspectElements(_ sender: Any?) { pageHost?.openDevTools(.elementPicker) }
 
-    // Debug menu: the lifecycle checks on CEF (spec §H), results in the log.
+    // Debug menu: the lifecycle checks (spec §H), results in the log.
 
     @objc func simulateMemoryPressure(_ sender: Any?) {
         let ids = tabs?.handleMemoryPressure(.moderate) ?? []

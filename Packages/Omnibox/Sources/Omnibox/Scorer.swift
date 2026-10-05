@@ -158,8 +158,8 @@ public struct Omnibox: Sendable {
         self.providers = providers
     }
 
-    /// The providers that need nothing but the context; the app adds
-    /// `HistoryProvider` with its database.
+    /// The providers that need nothing but the context (history comes from
+    /// the engine's autocomplete, `EngineHistoryProvider`, since 3.5).
     public static let localProviders: [any OmniboxProvider] = [VerbatimProvider(), OpenTabsProvider(), PinnedProvider(),
                                                                SiteSearchProvider(), CommandsProvider()]
 

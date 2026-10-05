@@ -6,15 +6,12 @@ import Model
 import Omnibox
 import Palette
 import Store
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
 /// Phase 2.4b spikes on the live engine (`Room -RoomSpike <name>`):
 /// - `palette2` (with `-RoomSidebarFixture demo`, optionally
-///   `-RoomSpikeCaptureDirectory <dir>`): history recording through
-///   `didCommitNavigation` on CEF (a typed URL, a script navigation, a
-///   same-document `pushState`, a reload, an error page, a search), then
+///   `-RoomSpikeCaptureDirectory <dir>`): what the engine's history records
+///   (a typed URL, a script navigation, a same-document `pushState`, a
+///   reload, an error page, a search), then
 ///   captures of the palette with history rows and inline completion, in
 ///   commands mode and in site-search mode, light and dark.
 /// - `suggestcheck` (optionally `-RoomSuggestionsOff YES`, `-RoomSuggestProxy
@@ -22,12 +19,11 @@ import EngineCEF
 ///   after each, and reports the suggestion rows seen; the no-network check
 ///   runs it through a logging proxy.
 extension SpikeRunner.Context {
-    // MARK: History recording on CEF
+    // MARK: History recording (the engine's, since 3.5)
 
     func palette2Checks() async {
         restorePaletteHooks()
         guard let palette else { return SpikeRunner.record("error", "no palette") }
-        let history = tabs.store.history
         func settle(_ milliseconds: Int = 600) async { try? await Task.sleep(for: .milliseconds(milliseconds)) }
         func loaded() async {
             await settle(300)
@@ -59,29 +55,19 @@ extension SpikeRunner.Context {
         press("↩")
         await loaded()
         await settle(800)
-        // Phase 3.5: on RoomCore the visits are Chrome's (its tab helpers record them); the store's table no longer grows.
+        // The visits are Chrome's (its tab helpers record them, 3.5); the store keeps no history (schema v6, 3.9).
         let engineHistory = tabs.engineProfiles[historyProfile]?.history
-        SpikeRunner.record("history_source", engineHistory == nil ? "store" : "engine")
-        for url in [typedURL, "https://example.org/", "https://example.org/pushed", "https://nonexistent.invalid/"] {
-            if let engineHistory, let page = URL(string: url) {
-                let found = await engineHistory.visits(for: page)
-                let visits = found?.visits.map { HistoryTransition($0.transition).rawValue } ?? []
-                SpikeRunner.record("history \(url)", "visits=\(visits) title=\(found?.entry.title ?? "nil")")
-                continue
-            }
-            let visits = (try? history.visits(url: url, profile: historyProfile)) ?? []
-            let title = (try? history.row(url: url, profile: historyProfile))?.title ?? "nil"
-            SpikeRunner.record("history \(url)", "visits=\(visits.map(\.1.rawValue)) title=\(title)")
-        }
+        SpikeRunner.record("history_source", engineHistory == nil ? "none" : "engine")
         if let engineHistory {
+            for url in [typedURL, "https://example.org/", "https://example.org/pushed", "https://nonexistent.invalid/"] {
+                guard let page = URL(string: url) else { continue }
+                let found = await engineHistory.visits(for: page)
+                let visits = found?.visits.map { "\($0.transition)" } ?? []
+                SpikeRunner.record("history \(url)", "visits=\(visits) title=\(found?.entry.title ?? "nil")")
+            }
             let search = await engineHistory.search("room browser palette", limit: 3)
             SpikeRunner.record("history search page", search.map { "\($0.url.absoluteString) visits=\($0.visitCount)" }.joined(separator: ", "))
             SpikeRunner.record("history rows total", await engineHistory.entries(from: nil, to: nil, limit: 0).count)
-            SpikeRunner.record("store_history_rows", (try? history.count(profile: historyProfile)) ?? -1)
-        } else {
-            let search = (try? history.search("room browser palette", profile: historyProfile, limit: 3)) ?? []
-            SpikeRunner.record("history search page", search.map { "\($0.url) visits=\($0.visitCount)" }.joined(separator: ", "))
-            SpikeRunner.record("history rows total", (try? history.count(profile: historyProfile)) ?? -1)
         }
 
         // The palette finds what was visited, and inline-completes the typed host.
@@ -95,9 +81,9 @@ extension SpikeRunner.Context {
 
     // MARK: Captures
 
-    private func seedCaptureHistory(_ history: History) async {
+    private func seedCaptureHistory() async {
         let now = Date()
-        let visits: [(String, String, HistoryTransition, Int)] = [
+        let visits: [(String, String, PageTransition, Int)] = [
             ("https://github.com/", "GitHub", .typed, 6),
             ("https://github.com/apple/swift", "apple/swift: The Swift Programming Language", .link, 4),
             ("https://github.com/swiftlang/swift-evolution", "swiftlang/swift-evolution: Proposals for Swift", .link, 2),
@@ -107,34 +93,28 @@ extension SpikeRunner.Context {
             ("https://www.youtube.com/watch?v=rUxyKA_-grg", "lofi beats for coding", .link, 1),
             ("https://news.ycombinator.com/", "Hacker News", .typed, 5),
         ]
-        // RoomCore: into Chrome's history (the palette reads it there), as the import would.
-        if let engineHistory = tabs.engineProfiles[historyProfile]?.history {
-            let entries = visits.compactMap { url, title, transition, count in
-                URL(string: url).map { page in
-                    HistoryImportEntry(url: page, title: title, visits: (0..<count).map { index in
-                        HistoryVisit(time: now.addingTimeInterval(Double(-index) * 3_600), transition: index == 0 ? PageTransition(transition) : .link)
-                    })
-                }
-            }
-            let result = await engineHistory.importEntries(entries)
-            SpikeRunner.record("seeded_capture_history", "engine urls=\(result.urls) visits=\(result.visits)")
-            // Chrome's omnibox index learns the rows from the history service's notification.
-            try? await Task.sleep(for: .seconds(1))
-            return
+        // Into Chrome's history (the palette reads it there), as the import would.
+        guard let engineHistory = tabs.engineProfiles[historyProfile]?.history else {
+            return SpikeRunner.record("seeded_capture_history", "skipped: the engine keeps no history")
         }
-        for (url, title, transition, count) in visits {
-            for index in 0..<count {
-                try? history.recordVisitNow(url: url, title: title, transition: index == 0 ? transition : .link, profile: historyProfile,
-                                            at: now.addingTimeInterval(Double(-index) * 3_600))
+        let entries = visits.compactMap { url, title, transition, count in
+            URL(string: url).map { page in
+                HistoryImportEntry(url: page, title: title, visits: (0..<count).map { index in
+                    HistoryVisit(time: now.addingTimeInterval(Double(-index) * 3_600), transition: index == 0 ? transition : .link)
+                })
             }
         }
+        let result = await engineHistory.importEntries(entries)
+        SpikeRunner.record("seeded_capture_history", "engine urls=\(result.urls) visits=\(result.visits)")
+        // Chrome's omnibox index learns the rows from the history service's notification.
+        try? await Task.sleep(for: .seconds(1))
     }
 
     private func palette2Captures() async {
         guard let palette, let directoryPath = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory") else { return }
         let directory = URL(fileURLWithPath: directoryPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        await seedCaptureHistory(tabs.store.history)
+        await seedCaptureHistory()
         // Captures without live suggestions: deterministic, and no third-party text in the repository.
         // The setting comes back as it was: later runs on the same state (the grand tour) read it.
         let suggestionsWere = tabs.store.settings.settings.searchSuggestions
@@ -216,38 +196,8 @@ extension SpikeRunner.Context {
     }
 }
 
-extension PageTransition {
-    init(_ transition: HistoryTransition) {
-        self = switch transition {
-        case .typed: .typed
-        case .link: .link
-        case .bookmark: .bookmark
-        case .generated: .generated
-        case .keyword: .keyword
-        case .formSubmit: .formSubmit
-        case .reload: .reload
-        case .other: .other
-        }
-    }
-}
-
-extension HistoryTransition {
-    init(_ transition: PageTransition) {
-        self = switch transition {
-        case .typed: .typed
-        case .link: .link
-        case .bookmark: .bookmark
-        case .generated: .generated
-        case .keyword: .keyword
-        case .formSubmit: .formSubmit
-        case .reload: .reload
-        case .other: .other
-        }
-    }
-}
-
 extension SpikeRunner.Context {
     /// The active space's profile: history follows it (ROADMAP 2.5).
-    var historyProfile: UUID { sidebar.activeSpace?.profileID ?? History.orphanProfile }
+    var historyProfile: UUID { sidebar.activeSpace?.profileID ?? UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) }
 }
 #endif

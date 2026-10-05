@@ -8,9 +8,6 @@ import Palette
 import Sidebar
 import Store
 import Tabs
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
 /// Phase 2.4a spikes on the live engine (`Room -RoomSpike <name>`):
 /// - `palette` (with `-RoomSidebarFixture demo`, optionally
@@ -67,7 +64,7 @@ extension SpikeRunner.Context {
 
     private var responderName: String { window.firstResponder.map { String(describing: Swift.type(of: $0)) } ?? "nil" }
 
-    // MARK: Behaviour on CEF
+    // MARK: Behaviour on the engine
 
     func paletteChecks() async {
         restorePaletteHooks()
@@ -203,7 +200,6 @@ extension SpikeRunner.Context {
         guard let palette else { return SpikeRunner.record("error", "no palette") }
         let entries = store.entries.values.filter { $0.kind != .folder }.count
         SpikeRunner.record("entries", entries)
-        SpikeRunner.record("history_rows", (try? tabs.store.history.count()) ?? -1)
         // Phase 3.5: on RoomCore Chrome's omnibox answers the palette from its own history (the imported rows).
         SpikeRunner.record("engine_autocomplete", palette.usesEngineAutocomplete)
         if let profile = sidebar.activeSpace?.profileID, let history = tabs.engineProfiles[profile]?.history {
