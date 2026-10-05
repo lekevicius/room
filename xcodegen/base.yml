@@ -1,5 +1,6 @@
-# Everything that builds without an engine distribution. project.yml adds the
-# CEF engine (xcodegen/cef.yml); CI generates from xcodegen/ci.yml (base only).
+# Everything that builds without an engine distribution. project.yml adds
+# Room.app on RoomCore and the embryo host (xcodegen/roomcore.yml); CI
+# generates from xcodegen/ci.yml (base only: the engine-free Room target).
 name: Room
 options:
   bundleIdPrefix: app.room.desktop
@@ -11,7 +12,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
-    # Apple silicon only: the CEF distribution (and the fork build) is arm64.
+    # Apple silicon only: the fork build is arm64.
     ARCHS: arm64
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
@@ -51,8 +52,8 @@ packages:
     path: Packages/Palette
   Integration:
     path: Packages/Integration
-# Settings Room.app has on either engine (the Room target here, the RoomCore
-# app target in xcodegen/roomcore.yml).
+# Settings Room.app has with or without its engine (the Room target here, the
+# RoomCore app target in xcodegen/roomcore.yml).
 settingGroups:
   RoomApp:
     PRODUCT_NAME: Room
@@ -71,8 +72,11 @@ settingGroups:
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_STRICT_CONCURRENCY: complete
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
-    # ROOM_ENGINE (cef | roomcore, PLAN §4 Engine selection) becomes the Swift
-    # condition ROOM_ENGINE_CEF / ROOM_ENGINE_ROOMCORE for App's composition root.
+    # ROOM_ENGINE (roomcore | none, PLAN §4 Engine selection) becomes the Swift
+    # condition ROOM_ENGINE_ROOMCORE / ROOM_ENGINE_NONE for App's composition
+    # root. RoomCore is the default (3.9: CEF deleted); the Room target below,
+    # which CI builds without the fork, sets none.
+    ROOM_ENGINE: roomcore
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) ROOM_ENGINE_$(ROOM_ENGINE:upper)"
 targets:
   Room:
@@ -132,9 +136,10 @@ targets:
     settings:
       groups: [RoomApp]
       base:
-        # The CEF scheme's engine (xcodegen/cef.yml); without EngineCEF (CI) the
-        # app compiles with NoEngineApplication. Room on RoomCore: xcodegen/roomcore.yml.
-        ROOM_ENGINE: cef
+        # No engine: the app compiles with NoEngineApplication (CI's compile
+        # check and the package tests, the scheme below). Room.app on RoomCore
+        # is the RoomCoreApp target, scheme "Room (RoomCore)" (xcodegen/roomcore.yml).
+        ROOM_ENGINE: none
     dependencies:
       - package: Engine
       - package: Design

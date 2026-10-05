@@ -14,12 +14,12 @@ core.delegate = host
 core.applicationDelegate = host
 
 do {
-    // Separate from the CEF build's Engine directory: different engine,
-    // different profile format.
+    // The engine's data root, shared with Room.app on RoomCore unless a
+    // spike passes its own.
     let requestedDirectory = UserDefaults.standard.string(forKey: "RoomUserDataDir")
     let userData = try AppPaths.ensureDirectory(
         requestedDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? AppPaths.applicationSupport.appending(path: "RoomCore", directoryHint: .isDirectory))
+            ?? AppPaths.engineUserData)
     // Ad-hoc builds get a new code identity per build, so macOS asks for the
     // login password before every read of the "Room Safe Storage" item, and
     // the cookie store (which needs that key) holds every navigation until it

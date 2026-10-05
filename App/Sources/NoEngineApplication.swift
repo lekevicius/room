@@ -1,8 +1,9 @@
-#if !canImport(EngineCEF) && !ROOM_ENGINE_ROOMCORE
+#if !ROOM_ENGINE_ROOMCORE
 import AppKit
 import Engine
 
-/// Stand-in used when the app is compiled without an engine (CI compile check).
+/// Stand-in used when the app is compiled without an engine (`ROOM_ENGINE=none`:
+/// the Room target CI builds and tests).
 final class NoEngineApplication: EngineApplication {
     func initialize(_ configuration: EngineConfiguration) throws {}
 

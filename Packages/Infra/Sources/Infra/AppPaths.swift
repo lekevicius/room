@@ -7,9 +7,11 @@ public enum AppPaths {
         URL.applicationSupportDirectory.appending(path: "Room", directoryHint: .isDirectory)
     }
 
-    /// Engine user data (profiles, caches): `~/Library/Application Support/Room/Engine`
+    /// The engine's data root (profiles, caches, `Local State`, `RoomCore.log`,
+    /// Crashpad): `~/Library/Application Support/Room/RoomCore`. (Chapters 1–2's
+    /// CEF engine used `Room/Engine`, which nothing reads any more.)
     public static var engineUserData: URL {
-        applicationSupport.appending(path: "Engine", directoryHint: .isDirectory)
+        applicationSupport.appending(path: "RoomCore", directoryHint: .isDirectory)
     }
 
     /// `~/Library/Logs/Room`
