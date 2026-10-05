@@ -97,7 +97,9 @@ def main():
         with (run_dir / 'host.log').open('w') as log:
             process = subprocess.Popen([str(executable), '-RoomSpike', 'open10',
                 '-RoomSpikeOutput', str(spike), '-RoomUserDataDir', str(run_dir / 'profile'),
-                '--use-mock-keychain', *fixture_args, *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
+                # No AppKit window-restore prompt after an earlier crash (3.4b).
+                '--use-mock-keychain', '-ApplePersistenceIgnoreState', 'YES',
+                *fixture_args, *diagnostic_args], stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 120
             try:
                 if args.process_observer == 'libproc':

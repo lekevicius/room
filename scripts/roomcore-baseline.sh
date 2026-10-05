@@ -15,7 +15,7 @@ app=Path(sys.argv[1]); out=Path(sys.argv[2]); started=time.time()
 with (out/'nav-host.log').open('w') as log:
     result=subprocess.run([str(app/'Contents/MacOS/Room'),'-RoomSpike','nav',
         '-RoomSpikeOutput',str(out/'nav.txt'),'-RoomUserDataDir',str(out/'nav-profile'),
-        '--use-mock-keychain'],stdout=log,stderr=subprocess.STDOUT,timeout=120)
+        '--use-mock-keychain','-ApplePersistenceIgnoreState','YES'],stdout=log,stderr=subprocess.STDOUT,timeout=120)
 markers=dict(line.split(': ',1) for line in (out/'nav.txt').read_text().splitlines() if ': ' in line)
 expected={'load1':['https://example.com/','back=false'],
           'load2':['https://en.wikipedia.org/wiki/Special:Version','back=true','forward=false'],
