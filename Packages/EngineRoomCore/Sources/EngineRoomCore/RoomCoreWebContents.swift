@@ -73,6 +73,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     @ObservationIgnored private var roomDevTools: RoomCoreDevTools?
     /// Between `find` and `stopFind`: results that arrive after a stop are dropped.
     @ObservationIgnored private var findActive = false
+    /// From a denied certificate error to the end of the run-loop turn.
+    @ObservationIgnored private var certificateDenialPending = false
 
     init(page: RoomWebContents, configuration: WebContentsConfiguration, profile: RoomCoreProfile?) {
         self.page = page
@@ -165,7 +167,14 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         page.loadURL(url, transition: RoomPageTransition(transition), fromAddressBar: fromAddressBar)
     }
 
-    public func goBack() { page.goBack() }
+    public func goBack() {
+        // After a denied certificate error RoomCore already left the failed
+        // navigation (the page shows what it showed before); the presenter's
+        // Go Back in the same turn, written for CEF's committed error page,
+        // would step one entry too far.
+        if certificateDenialPending { return }
+        page.goBack()
+    }
     public func goForward() { page.goForward() }
     public func reload() { page.reload() }
     /// `ReloadType::BYPASSING_CACHE`.
@@ -431,6 +440,79 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }
 
+    // MARK: Prompts, menus, files (3.4a)
+
+    /// Chrome's `PermissionRequestManager` prompt (patch 0017): the host's
+    /// popover answers with Accept / AcceptThisTime / Deny / Dismiss.
+    public func webContents(_ webContents: RoomWebContents, willAskForPermissions requests: [RoomPermissionRequest],
+                            quietReason: RoomPermissionQuietReason, completion: @escaping (RoomPermissionResponse) -> Void) {
+        let mapped = requests.compactMap(PermissionRequest.init)
+        guard let uiDelegate, !mapped.isEmpty else { return completion(.dismissed) }
+        uiDelegate.webContents(self, willAskForPermission: mapped, quietReason: PermissionQuietReason(quietReason)) { response in
+            switch response {
+            case .granted: completion(.granted)
+            case .grantedOnce: completion(.grantedOnce)
+            case .denied: completion(.denied)
+            case .dismissed: completion(.dismissed)
+            }
+        }
+    }
+
+    public func webContentsDidDismissPermissionPrompt(_ webContents: RoomWebContents) {
+        uiDelegate?.webContentsDidDismissPermissionPrompt(self)
+    }
+
+    /// Chrome's `RenderViewContextMenu` (patch 0018): the host shows its own
+    /// menu with Room's items first; Chrome runs the command chosen.
+    public func webContents(_ webContents: RoomWebContents, willShowContextMenu menu: RoomContextMenu) -> Bool {
+        guard let uiDelegate else { return false }
+        let model = MenuModel(items: menu.items.map(MenuItem.init)) { id in
+            if let id { menu.selectCommand(id) } else { menu.cancel() }
+        }
+        return uiDelegate.webContents(self, willShowContextMenu: model, for: ContextMenuElement(menu))
+    }
+
+    /// Chrome's `LoginHandler` with the host's sign-in sheet (patch 0020).
+    public func webContents(_ webContents: RoomWebContents, didReceiveAuthChallenge challenge: RoomAuthChallenge,
+                            completion: @escaping (String?, String?) -> Void) {
+        guard let uiDelegate else { return completion(nil, nil) }
+        let mapped = AuthChallenge(origin: challenge.origin, realm: challenge.realm, scheme: challenge.scheme, isProxy: challenge.isProxyChallenge)
+        uiDelegate.webContents(self, didReceiveAuthChallenge: mapped) { credential in
+            if let credential, let user = credential.user {
+                completion(user, credential.password ?? "")
+            } else {
+                completion(nil, nil)
+            }
+        }
+    }
+
+    /// A certificate error with Chrome's verdict (patch 0021): HSTS and
+    /// pinned hosts are never overridable (B-24). A denial stops the
+    /// navigation in RoomCore; the presenter's Go Back in the same turn is
+    /// skipped (`goBack()`).
+    public func webContents(_ webContents: RoomWebContents, didFailCertificateCheck error: RoomCertificateError,
+                            completion: @escaping (Bool) -> Void) {
+        guard let uiDelegate else { return completion(false) }
+        let mapped = CertificateError(url: error.url, code: error.errorCode, description: error.errorName,
+                                      certificateChain: error.certificateChain, isOverridable: error.isOverridable)
+        uiDelegate.webContents(self, didFailCertificateCheck: mapped) { [weak self] proceed in
+            if !proceed, let self {
+                self.certificateDenialPending = true
+                DispatchQueue.main.async { [weak self] in
+                    MainActor.assumeIsolated { self?.certificateDenialPending = false }
+                }
+            }
+            completion(proceed)
+        }
+    }
+
+    /// `<input type=file>` through the host's open panel (patch 0022).
+    public func webContents(_ webContents: RoomWebContents, runFileChooser request: RoomFileChooserRequest,
+                            completion: @escaping ([URL]?) -> Void) {
+        guard let uiDelegate else { return completion(nil) }
+        uiDelegate.webContents(self, runFileChooser: FileChooserRequest(request), completion: completion)
+    }
+
     public func webContents(_ webContents: RoomWebContents, didConsumeKeyCode keyCode: UInt16,
                             modifierFlags: NSEvent.ModifierFlags, phase: RoomKeyEventPhase) {
         let mapped: KeyEventInfo.Phase = switch phase {
@@ -522,6 +604,110 @@ extension NavigationAction {
         self.init(url: action.url, referrer: action.referrer, kind: kind, transition: PageTransition(action.transition),
                   disposition: Disposition(action.disposition), isUserGesture: action.isUserGesture,
                   isRedirect: action.isRedirect, isClientRedirect: action.isClientRedirect)
+    }
+}
+
+extension PermissionRequest {
+    /// Chrome's request in the protocol's terms: local and loopback network
+    /// are one kind; navigator.storage.persist() (kDiskQuota) has none (CEF
+    /// drops it too).
+    init?(_ request: RoomPermissionRequest) {
+        let kind: Kind
+        switch request.kind {
+        case .camera: kind = .camera
+        case .microphone: kind = .microphone
+        case .cameraPanTiltZoom: kind = .cameraPanTiltZoom
+        case .geolocation: kind = .geolocation
+        case .notifications: kind = .notifications
+        case .clipboard: kind = .clipboard
+        case .midiSysex: kind = .midiSysex
+        case .storageAccess: kind = .storageAccess
+        case .topLevelStorageAccess: kind = .topLevelStorageAccess
+        case .windowManagement: kind = .windowManagement
+        case .localFonts: kind = .localFonts
+        case .idleDetection: kind = .idleDetection
+        case .keyboardLock: kind = .keyboardLock
+        case .pointerLock: kind = .pointerLock
+        case .multipleDownloads: kind = .multipleDownloads
+        case .registerProtocolHandler: kind = .registerProtocolHandler
+        case .fileSystemAccess: kind = .fileSystemAccess
+        case .localNetwork, .loopbackNetwork: kind = .localNetworkAccess
+        case .sensors: kind = .sensors
+        case .arSession: kind = .arSession
+        case .vrSession: kind = .vrSession
+        case .handTracking: kind = .handTracking
+        case .identityProvider: kind = .identityProvider
+        case .webAppInstallation: kind = .webAppInstallation
+        case .capturedSurfaceControl: kind = .capturedSurfaceControl
+        default: return nil
+        }
+        let system: SystemAuthorization = switch request.systemAuthorization {
+        case .notDetermined: .notDetermined
+        case .denied: .denied
+        case .authorized: .authorized
+        default: .notApplicable
+        }
+        self.init(kind: kind, origin: request.origin, systemAuthorization: system)
+    }
+}
+
+extension PermissionQuietReason {
+    /// Chrome's quiet-UI reasons; the predictions are one case, disruptive
+    /// behaviour reads as abusive content, a request without a gesture as
+    /// abusive requests.
+    init?(_ reason: RoomPermissionQuietReason) {
+        switch reason {
+        case .enabledInSettings: self = .enabledInSettings
+        case .crowdDeny: self = .crowdDeny
+        case .abusiveRequests, .lackOfGesture: self = .abusiveRequests
+        case .abusiveContent, .disruptiveBehavior: self = .abusiveContent
+        case .servicePredictedUnlikelyGrant, .onDevicePredictedUnlikelyGrant: self = .predictedUnlikelyGrant
+        default: return nil
+        }
+    }
+}
+
+extension MenuItem {
+    init(_ item: RoomMenuItem) {
+        let kind: Kind = switch item.type {
+        case .check: .checkbox
+        case .radio: .radio(group: item.groupId)
+        case .separator: .separator
+        case .submenu: .submenu((item.submenu ?? []).map(MenuItem.init))
+        default: .command
+        }
+        self.init(id: item.commandId, kind: kind, title: item.title, isEnabled: item.isEnabled, isChecked: item.isChecked,
+                  keyEquivalent: item.keyEquivalent, keyEquivalentModifiers: item.keyEquivalentModifierMask)
+    }
+}
+
+extension ContextMenuElement {
+    init(_ menu: RoomContextMenu) {
+        let media: MediaType = switch menu.mediaType {
+        case .image: .image
+        case .video: .video
+        case .audio: .audio
+        case .canvas: .canvas
+        case .file: .file
+        case .plugin: .plugin
+        default: .none
+        }
+        self.init(location: menu.location, pageURL: menu.pageURL, frameURL: menu.frameURL, linkURL: menu.linkURL,
+                  linkText: menu.linkText, sourceURL: menu.sourceURL, mediaType: media, selectionText: menu.selectionText,
+                  isEditable: menu.isEditable, misspelledWord: menu.misspelledWord,
+                  dictionarySuggestions: menu.dictionarySuggestions)
+    }
+}
+
+extension FileChooserRequest {
+    init(_ request: RoomFileChooserRequest) {
+        let mode: Mode = switch request.mode {
+        case .openMultiple: .openMultiple
+        case .uploadFolder, .openDirectory: .openFolder
+        case .save: .save
+        default: .open
+        }
+        self.init(mode: mode, title: request.title, defaultPath: request.defaultPath, acceptTypes: request.acceptTypes)
     }
 }
 

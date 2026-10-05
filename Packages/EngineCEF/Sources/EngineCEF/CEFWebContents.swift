@@ -593,7 +593,10 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
 
     public func browser(_ browser: RoomCEFBrowser, permissionPrompt promptID: UInt64, origin: String, permissions: RoomCEFPermissionTypes, completion: @escaping (RoomCEFPermissionResult) -> Void) {
         let originURL = URL(string: origin) ?? URL(string: "about:blank")!
-        let requests = PermissionRequest.Kind.kinds(in: permissions).map { PermissionRequest(kind: $0, origin: originURL) }
+        // CEF does not report macOS's authorization (`.notApplicable`).
+        let requests = PermissionRequest.Kind.kinds(in: permissions).map {
+            PermissionRequest(kind: $0, origin: originURL, systemAuthorization: .notApplicable)
+        }
         guard let uiDelegate, !requests.isEmpty else {
             completion(.dismiss)
             return
@@ -613,7 +616,10 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
 
     public func browser(_ browser: RoomCEFBrowser, mediaAccessForOrigin origin: String, permissions: RoomCEFMediaAccess, completion: @escaping (RoomCEFMediaAccess) -> Void) {
         let originURL = URL(string: origin) ?? URL(string: "about:blank")!
-        let requests = PermissionRequest.Kind.kinds(in: permissions).map { PermissionRequest(kind: $0, origin: originURL) }
+        // CEF does not report macOS's authorization (`.notApplicable`).
+        let requests = PermissionRequest.Kind.kinds(in: permissions).map {
+            PermissionRequest(kind: $0, origin: originURL, systemAuthorization: .notApplicable)
+        }
         guard let uiDelegate, !requests.isEmpty else {
             completion([])
             return

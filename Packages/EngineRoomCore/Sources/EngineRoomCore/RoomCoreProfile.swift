@@ -6,11 +6,19 @@ import RoomCore
 /// `<user data>/Room Profile <name>`). It creates pages, binds each to the
 /// Chrome `Browser` of its host window (one `RoomBrowser` per window and
 /// profile, 3.2a: a Chrome `Browser` holds one profile's tabs, and a Room
-/// window shows several profiles' spaces) and stores the downloads delegate;
-/// the rest is `nil` or `notSupported` (docs/engine-api.md, RoomCore column).
-public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
+/// window shows several profiles' spaces), hands Chrome's downloads to the
+/// downloads delegate (3.4a: the host picks the file; Chrome's
+/// `DownloadHistory` replays earlier sessions' downloads), and reads and
+/// writes the site panel's settings (`HostContentSettingsMap`); history,
+/// bookmarks, extensions and autocomplete are `nil` until their phases
+/// (docs/engine-api.md, RoomCore column).
+public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, RoomProfileDownloadsDelegate {
     public let name: String
-    public weak var downloadsDelegate: (any DownloadsDelegate)?
+    /// Set: RoomCore asks it for every new download's file and replays the
+    /// downloads Chrome remembers (B-28).
+    public weak var downloadsDelegate: (any DownloadsDelegate)? {
+        didSet { profile.downloadsDelegate = downloadsDelegate == nil ? nil : self }
+    }
 
     let profile: RoomProfile
     private let liveContents = NSHashTable<RoomCoreWebContents>.weakObjects()
@@ -81,22 +89,74 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
         for contents in liveContents.allObjects { contents.close() }
     }
 
-    // Downloads (3.4a): RoomCore does not report downloads yet.
-    public func pauseDownload(id: DownloadItem.ID) {}
-    public func resumeDownload(id: DownloadItem.ID) {}
-    public func cancelDownload(id: DownloadItem.ID) {}
+    /// Chrome is about to close a window with downloads in progress (the
+    /// quit): Room continues and the downloads are cancelled (the Chapter 3
+    /// decision; Settings says so in Chapter 4). Chrome's own prompt never shows.
+    public func browser(_ browser: RoomBrowser, shouldCloseWithPendingDownloads count: Int,
+                        completion: @escaping (Bool) -> Void) {
+        NSLog("RoomCore: closing with %ld downloads in progress; they are cancelled", count)
+        completion(true)
+    }
+
+    // MARK: Downloads (3.4a)
+
+    /// `download::DownloadItem::Pause / Resume / Cancel` by GUID.
+    public func pauseDownload(id: DownloadItem.ID) { profile.pauseDownload(id) }
+    public func resumeDownload(id: DownloadItem.ID) { profile.resumeDownload(id) }
+    public func cancelDownload(id: DownloadItem.ID) { profile.cancelDownload(id) }
+
+    /// `DetermineDownloadTarget` (patch 0019): the delegate picks the file.
+    public func profile(_ profile: RoomProfile, willBeginDownload item: RoomDownloadItem,
+                        completion: @escaping (URL?) -> Void) {
+        guard let downloadsDelegate else { return completion(nil) }
+        downloadsDelegate.profile(self, willBeginDownload: DownloadItem(item), completion: completion)
+    }
+
+    public func profile(_ profile: RoomProfile, didUpdateDownload item: RoomDownloadItem) {
+        downloadsDelegate?.profile(self, didUpdateDownload: DownloadItem(item))
+    }
 
     /// Chrome's `FaviconService::GetFaviconImageForPageURL`.
     public func favicon(for pageURL: URL) async -> NSImage? {
         await profile.favicon(forPageURL: pageURL)
     }
 
+    /// `BrowsingDataRemover` for cookies, cache and storage (the origin's
+    /// site), the network context's HTTP auth cache, and for permissions the
+    /// content settings plus the certificate decisions (`SSLHostStateDelegate`).
     public func clearSiteData(_ types: SiteDataTypes, for origin: URL?) async throws {
-        throw EngineError.notSupported("RoomCoreProfile.clearSiteData")
+        var mask: RoomSiteDataTypes = []
+        if types.contains(.cookies) { mask.insert(.cookies) }
+        if types.contains(.cache) { mask.insert(.cache) }
+        if types.contains(.storage) { mask.insert(.storage) }
+        if types.contains(.httpAuthCredentials) { mask.insert(.httpAuthCredentials) }
+        if types.contains(.permissions) { mask.insert(.permissions) }
+        await withCheckedContinuation { continuation in
+            profile.clearSiteData(mask, for: origin) { continuation.resume() }
+        }
     }
 
-    public func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting? { nil }
-    public func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL) {}
+    /// `HostContentSettingsMap::GetContentSetting`; `nil` when only the
+    /// default (wildcard) setting applies.
+    public func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting? {
+        switch profile.contentSetting(for: RoomContentSettingType(permission), origin: origin) {
+        case .allow: .allow
+        case .block: .block
+        case .ask: .ask
+        default: nil
+        }
+    }
+
+    /// `SetContentSettingDefaultScope`; `nil` removes the site's setting.
+    public func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL) {
+        let value: RoomContentSetting = switch setting {
+        case .allow?: .allow
+        case .block?: .block
+        case .ask?: .ask
+        case nil: .default
+        }
+        profile.setContentSetting(value, for: RoomContentSettingType(permission), origin: origin)
+    }
 
     public var history: (any ProfileHistory)? { nil }
     public var bookmarks: (any ProfileBookmarks)? { nil }
@@ -108,4 +168,40 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
 struct Weak<Object: AnyObject> {
     weak var object: Object?
     init(_ object: Object) { self.object = object }
+}
+
+extension RoomContentSettingType {
+    /// The site panel's permissions as Chrome's content settings types.
+    init(_ permission: SitePermission) {
+        switch permission {
+        case .geolocation: self = .geolocation
+        case .camera: self = .camera
+        case .microphone: self = .microphone
+        case .notifications: self = .notifications
+        case .clipboard: self = .clipboard
+        case .sensors: self = .sensors
+        case .midiSysex: self = .midiSysex
+        case .popups: self = .popups
+        case .sound: self = .sound
+        case .automaticDownloads: self = .automaticDownloads
+        case .javascript: self = .javaScript
+        case .images: self = .images
+        }
+    }
+}
+
+extension DownloadItem {
+    /// A snapshot of Chrome's `download::DownloadItem` (the GUID is the id).
+    init(_ item: RoomDownloadItem) {
+        let state: State = switch item.state {
+        case .complete: .complete
+        case .cancelled: .cancelled
+        case .interrupted: .interrupted
+        default: .inProgress
+        }
+        self.init(id: item.identifier, url: item.url, suggestedFilename: item.suggestedFilename,
+                  destination: item.destination, mimeType: item.mimeType, receivedBytes: item.receivedBytes,
+                  totalBytes: item.totalBytes >= 0 ? item.totalBytes : nil, currentSpeed: item.currentSpeed,
+                  state: state, isPaused: item.isPaused, canResume: item.canResume, startTime: item.startTime)
+    }
 }

@@ -33,13 +33,29 @@ nonisolated public struct PermissionRequest: Sendable, Hashable {
         case displayCapture
     }
 
+    /// macOS's own authorization for what the request needs (camera,
+    /// microphone, location, notifications), so the host can explain a
+    /// system denial; `.notApplicable` for the rest and where the engine
+    /// cannot tell (CEF).
+    public enum SystemAuthorization: Sendable, Hashable {
+        case notApplicable
+        /// macOS has not asked yet; it will when the page gets access.
+        case notDetermined
+        /// Blocked in System Settings › Privacy & Security: an Allow here
+        /// still gives the page nothing.
+        case denied
+        case authorized
+    }
+
     public var kind: Kind
     /// The requesting origin.
     public var origin: URL
+    public var systemAuthorization: SystemAuthorization
 
-    public init(kind: Kind, origin: URL) {
+    public init(kind: Kind, origin: URL, systemAuthorization: SystemAuthorization = .notApplicable) {
         self.kind = kind
         self.origin = origin
+        self.systemAuthorization = systemAuthorization
     }
 }
 

@@ -69,10 +69,11 @@ public extension FakeWebContents {
 
     func simulatePermissionRequest(
         _ kinds: [PermissionRequest.Kind],
-        quietReason: PermissionQuietReason? = nil
+        quietReason: PermissionQuietReason? = nil,
+        systemAuthorization: PermissionRequest.SystemAuthorization = .notApplicable
     ) async -> PermissionResponse {
         let origin = origin ?? URL(string: "about:blank")!
-        let requests = kinds.map { PermissionRequest(kind: $0, origin: origin) }
+        let requests = kinds.map { PermissionRequest(kind: $0, origin: origin, systemAuthorization: systemAuthorization) }
         return await withCheckedContinuation { continuation in
             effectiveUIDelegate.webContents(self, willAskForPermission: requests, quietReason: quietReason) {
                 continuation.resume(returning: $0)
