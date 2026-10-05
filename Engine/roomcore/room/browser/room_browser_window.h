@@ -219,7 +219,7 @@ class RoomBrowserWindow : public BrowserWindow {
   void DisableTabStripEditingForTesting() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
-      UnloadController::DownloadCloseType dialog_type,
+      DownloadCloseType dialog_type,
       base::OnceCallback<void(bool)> callback) override;
   void ShowEmojiPanel() override;
   // Chrome's translate bubble (Views) on the host's site button (3.7b): the

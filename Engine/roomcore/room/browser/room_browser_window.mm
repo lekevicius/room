@@ -824,7 +824,7 @@ void RoomBrowserWindow::ShowEmojiPanel() {
 
 void RoomBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
     int download_count,
-    UnloadController::DownloadCloseType dialog_type,
+    DownloadCloseType dialog_type,
     base::OnceCallback<void(bool)> callback) {
   // The host decides (Phase 3.4a); a window without a client closes.
   if (!client_) {

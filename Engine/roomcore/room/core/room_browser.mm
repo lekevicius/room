@@ -666,7 +666,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     if (count < 1) { return @(-1); }
     auto state = std::make_shared<int>(0);
     BrowserWindow::FromBrowser(_browser)->ConfirmBrowserCloseWithPendingDownloads(
-        count, UnloadController::DownloadCloseType::kBrowserShutdown,
+        count, DownloadCloseType::kBrowserShutdown,
         base::BindOnce([](std::shared_ptr<int> result, bool cancel_downloads) {
           *result = 1 | (cancel_downloads ? 2 : 0);
           LOG(WARNING) << "Room UI probe download close callback cancel_downloads=" << cancel_downloads;
