@@ -145,11 +145,18 @@ public final class SitePanelModel {
 
     public var hasStoredSettings: Bool { !stored.isEmpty }
 
-    /// Every permission back to its default.
-    public func resetPermissions() {
+    /// Every permission back to its default, and the site's certificate
+    /// decisions with them ("Visit … Anyway" is forgotten: B-43).
+    public func resetPermissions() async {
         for permission in stored.keys { profile?.setPermissionSetting(nil, for: permission, origin: origin) }
         refresh()
         needsReload = true
+        do {
+            try await profile?.clearSiteData(.permissions, for: origin)
+        } catch {
+            NSLog("Room: resetting permissions for \(origin): \(error)")
+        }
+        refresh()
     }
 
     /// Cookies and storage of this origin (the engine's profile; no network).
@@ -260,7 +267,7 @@ struct SitePanelView: View {
                 }
             }
             if model.hasStoredSettings {
-                Button("Reset Permissions") { model.resetPermissions() }
+                Button("Reset Permissions") { Task { await model.resetPermissions() } }
                     .buttonStyle(.link)
                     .accessibilityIdentifier("site-reset-permissions")
             }

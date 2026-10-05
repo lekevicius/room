@@ -527,6 +527,14 @@ final class PermissionPromptViewController: NSViewController {
             row.addArrangedSubview(label)
             stack.addArrangedSubview(row)
         }
+        // The site's Allow gives nothing while macOS blocks Room itself (3.4a).
+        if pending.requests.contains(where: { $0.systemAuthorization == .denied }) {
+            let note = NSTextField(wrappingLabelWithString: "macOS doesn’t allow Room to do this. Turn it on in System Settings › Privacy & Security.")
+            note.font = .systemFont(ofSize: 11)
+            note.textColor = .secondaryLabelColor
+            note.setAccessibilityIdentifier("permission-system-denied")
+            stack.addArrangedSubview(note)
+        }
         let buttons = NSStackView()
         buttons.orientation = .horizontal
         buttons.spacing = 8

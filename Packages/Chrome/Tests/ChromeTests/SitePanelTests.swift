@@ -36,7 +36,7 @@ struct SitePanelTests {
     }
 
     @Test("Changing a row writes the page's profile for its origin only; the default removes it; Reset clears all; a reload is offered")
-    func modelOnFakeProfile() throws {
+    func modelOnFakeProfile() async throws {
         let engine = FakeApplication()
         try engine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
         let profile = try engine.profile(named: "Work")
@@ -52,8 +52,10 @@ struct SitePanelTests {
         #expect(model.needsReload)
         model.set(.ask, for: .notifications)
         #expect(profile.permissionSetting(.notifications, for: origin) == nil)
-        model.resetPermissions()
+        await model.resetPermissions()
         #expect(profile.permissionSettings["https://a.example"]?.isEmpty ?? true)
+        // B-43: the reset also forgets the site's certificate decisions.
+        #expect(profile.clearedSiteData.contains { $0.0 == .permissions && $0.1 == origin })
         #expect(!model.hasStoredSettings)
         model.reload()
         #expect(reloads == 1 && !model.needsReload)
