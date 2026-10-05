@@ -539,6 +539,10 @@ bool RunExternalProtocolDialog(const GURL& url,
             << base::SysNSStringToUTF8(request.description);
   base::WeakPtr<content::WebContents> weak = contents->GetWeakPtr();
   content::WeakDocumentPtr document = initiator_document;
+  // A copy: a block captures a C++ reference as a reference, and Chrome's
+  // URL is gone by the time the host answers (the first run launched an
+  // empty URL).
+  const GURL launch_url = url;
   auto answered = std::make_shared<bool>(false);
   [wrapper.delegate webContents:wrapper
       shouldOpenExternalProtocol:request
@@ -549,14 +553,14 @@ bool RunExternalProtocolDialog(const GURL& url,
                         *answered = true;
                         if (!open || !weak) {
                           LOG(INFO) << "RoomCore: external protocol blocked "
-                                    << url.possibly_invalid_spec();
+                                    << launch_url.possibly_invalid_spec();
                           return;
                         }
                         LOG(INFO) << "RoomCore: external protocol opened "
-                                  << url.possibly_invalid_spec();
+                                  << launch_url.possibly_invalid_spec();
                         // What ExternalProtocolDialog::OnDialogAccepted does.
                         ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
-                            url, weak.get(), document);
+                            launch_url, weak.get(), document);
                       }];
   return true;
 }

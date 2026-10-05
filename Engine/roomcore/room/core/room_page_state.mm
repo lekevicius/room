@@ -460,7 +460,9 @@ class PageServices : public content::WebContentsUserData<PageServices>,
       return;
     }
     RoomMediaSessionInfo* info = nil;
-    if (metadata_ && (active_ || !metadata_->title.empty())) {
+    // Chrome gives every page default metadata (its title and host); a
+    // session is the page's only while it has media (not inactive).
+    if (metadata_ && active_) {
       info = [[RoomMediaSessionInfo alloc]
           initWithTitle:base::SysUTF16ToNSString(metadata_->title)
                  artist:base::SysUTF16ToNSString(metadata_->artist)

@@ -315,7 +315,10 @@ class RoomPermissionPrompt : public permissions::PermissionPrompt {
     // Geolocation with options (the approximate-location experiment) takes
     // the accuracy; Room asks for precise.
     PromptOptions options = std::monostate();
-    if (delegate_->GetGeolocationPromptType().has_value()) {
+    // GetGeolocationPromptType() CHECKs a single request (a camera and
+    // microphone prompt has two; found by 3.4b's capture run).
+    if (delegate_->Requests().size() == 1 &&
+        delegate_->GetGeolocationPromptType().has_value()) {
       options = GeolocationPromptOptions{GeolocationAccuracy::kPrecise};
     }
     // Each call finalizes the requests and destroys `this`.

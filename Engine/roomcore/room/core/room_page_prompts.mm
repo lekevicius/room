@@ -304,6 +304,8 @@ bool HandleCertificateError(content::WebContents* contents,
             << base::SysNSStringToUTF8(error.description);
   base::WeakPtr<content::WebContents> weak = contents->GetWeakPtr();
   scoped_refptr<net::X509Certificate> cert = ssl_info.cert;
+  // A copy for the block (it would capture the reference parameter).
+  const GURL url = request_url;
   auto answered = std::make_shared<bool>(false);
   [wrapper.delegate
               webContents:wrapper
@@ -324,15 +326,14 @@ bool HandleCertificateError(content::WebContents* contents,
                      if (content::SSLHostStateDelegate* state =
                              weak->GetBrowserContext()->GetSSLHostStateDelegate()) {
                        state->AllowCert(
-                           std::string(request_url.host()), *cert, cert_error,
+                           std::string(url.host()), *cert, cert_error,
                            weak->GetPrimaryMainFrame()->GetStoragePartition());
                      }
-                     content::NavigationController::LoadURLParams params(
-                         request_url);
+                     content::NavigationController::LoadURLParams params(url);
                      content::NavigationEntry* pending =
                          weak->GetController().GetPendingEntry();
                      params.transition_type =
-                         pending && pending->GetURL() == request_url
+                         pending && pending->GetURL() == url
                              ? pending->GetTransitionType()
                              : ui::PAGE_TRANSITION_LINK;
                      weak->GetController().LoadURLWithParams(params);
