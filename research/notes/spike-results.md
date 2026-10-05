@@ -1378,6 +1378,119 @@ nav passed 10.8 s; ten-page quits **0.241 / 0.284 / 0.216 s** (load 5.4 / 6.2 / 
 
 Both steps again hung after their `end:` line behind Chrome's app-modal "Leave site?" alert (a layer-8 260 × 218 Room window; the beforeunload page the dialogs check leaves): the instances were killed 30–45 s after the end so the tour could go on (3.4b's).
 
+## Phase 3.4b — JavaScript dialogs, beforeunload and the quit, the hung page, external protocols, notices, capture state, media session, the Views bubbles that stay (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Room.app on RoomCore (component build `out/dev`, series 22, Debug Swift app) through `scripts/chrome-surfaces.sh --session 2.6a|2.6b|3.4b light` (throwaway engine directories, the `demo` fixture, 1244 × 818 pt, 60 Hz, `window_main: true` in every run, load 3–8) and `scripts/run-spike.sh closeunload|quitstay` (throwaway state and engine directories, no DevTools port); the embryo host through `scripts/roomcore-features.sh <drive>` (`build/evidence-3.4b/feature-*`). Evidence: `build/evidence-3.4b/`. Captures: `research/screenshots/phase-3.4b/`.
+
+### How each surface reaches the host (seams before patches, B-61)
+
+| Surface | Chrome's path | Room's route | Patch? |
+|---|---|---|---|
+| alert, confirm, prompt | `BrowserWebContentsDelegate::GetJavaScriptDialogManager` → `TabModalDialogManager::FromWebContents` → its delegate's `CreateNewDialog` (Views) | the page's `TabModalDialogManager` recreated with a `//room` delegate (Chrome's desktop delegate inside); its view is the host's sheet | no (the 0023-shaped hook in `GetJavaScriptDialogManager` was not needed) |
+| beforeunload (⌘W, reload, quit) | always app-modal: `AppModalDialogManager` → its native dialog factory (Chrome's Cocoa alert) | `SetNativeDialogFactory` (Chrome's factory kept for other pages) | no |
+| hung renderer | `RendererUnresponsive` → `TabDialogs::ShowHungRendererDialog` (Views) | the page's `TabDialogs` user data wrapped by `RoomTabDialogs` | no |
+| external protocol | `ExternalProtocolHandler::RunExternalProtocolDialog` (Views static) | patch 0023 → the host's sheet → `LaunchUrlWithoutSecurityCheck` | **0023** (no seam: the only override is `SetDelegateForTesting`, which replaces the whole handler) |
+| infobars | `ContentInfoBarManager` (container: BrowserView, never drawn for Room pages) | `InfoBarManager::Observer` → toast | no |
+| translate offer | desktop: `ChromeTranslateClient::ShowBubble` → `TranslateBubbleFactory::Show` (a bubble, not an infobar) | `TranslateBubbleFactory::SetFactory` → the same notice path | no |
+| capture state | `MediaStreamCaptureIndicator` | its `Observer`, `StopMediaCapturing` | no |
+| media session | `content::MediaSession` | `MediaSessionObserver` (mojo) | no |
+
+### Task 5: dialogs and beforeunload (`chromesurfaces2 -RoomSpikeOnly dialogs,dismissals`, then the full 2.6a/2.6b runs)
+
+| Check | RoomCore 3.4b | RoomCore 3.4a | CEF 2.6b |
+|---|---|---|---|
+| confirm ×2, prompt, alert ×2 | Room's sheet each time (`DialogPanelView`; the prompt's field has the keyboard); answers `[confirm,true],[confirm,false],[prompt,"Grace"],[alert,"ok"]` (read from the page's DOM mirror, B-55); engine log: 7 "to the host", 0 Chrome dialogs | Chrome's Views dialogs, the tour failed | the same answers |
+| the second alert withdrawn by a navigation | sheet gone, `webContentsDidDismissJavaScriptDialogs` 0 → 1 (`TabModalDialogManager::DidStartNavigation` → `CloseDialogWithoutCallback`), the page reached the new URL | — | the same (CEF needs Room's own dismissal) |
+| ⌘W with beforeunload armed: Stay | Room's Leave/Stay sheet; page in the card, **the same entry** (`entry kept=true`) | Chrome's alert, entry already removed | sheet; page back in a **new** Today entry |
+| ⌘W: Leave | page closed, entry removed | — | the same |
+| `closeunload` (no CDP): `close()` stay / leave | sheet after 22 / 21 ms; alive / closed | CDP answered Chrome's alert | — |
+| `closeunload`: ⌘W stay / leave | sheet after 22 ms; page alive, entry kept and selected, Today 1 → 1 / page closed, entry removed, Today 1 → 0 | — | — |
+| `quitstay` (no CDP): ten pages, ⌘Q's path, Stay | the host's sheet (541 ms after `NSApp.terminate`, through Chrome's close path); `RoomAppController: stopTryingToTerminateApplication`, `quit cancelled (1 waiting)` 177 ms after the sheet (150 ms of it the spike's own pause); 10 → 10 pages alive, the same objects, 10 → 10 entries, window visible | CDP answered Chrome's alert (15–25 ms) | — |
+| the runner's quit after it: Leave | the sheet again after 28 ms; `quit proceeds (1 waiting)` | — | — |
+| embryo `dialogs` (no dialog members: Chrome's own) | Chrome's tab-modal dialogs and its beforeunload, answered over CDP; `beforeunload-cancelled: true` (Chrome's factory kept for pages that do not answer) | the same | — |
+
+The first run showed the confirm in Room's sheet and then a page that never answered a script: the view deleted itself before running the manager's button callback, and `TabModalDialogManager::CloseDialog` returns early once its view is gone; fixed (callback first). A renderer of one of the ten typical sites hit a Blink `DCHECK` (`layout_object.h:518`, `NeedsLayout`) during the quit-stay run (Chromium's, the dev build's `DCHECK_ALWAYS_ON`); the pages stayed alive.
+
+### Task 6: the hung page, external protocols, notices (`pageservices`, `--enable-features=RendererHangWatcher:delay/3s`)
+
+| Check | Result |
+|---|---|
+| `hang.html`: a two-minute busy loop, then a key | the unresponsive-page view after **4,013 ms** (3 s delay + Chrome's 1 s ping), "This Page Is Not Responding" with Wait and Exit Page (`phase-3.4b-unresponsive-light.png`) |
+| Wait | the view goes, the page stays (`alive`); still hung, asked again after 3,600 ms |
+| Exit Page | `RESULT_CODE_HUNG`: `processGone(.killed)`, the crashed-page view ("This Page Was Stopped", Reload); Return/Reload brings the page back (`…-unresponsive-exited-light.png`). Chrome's Views hung-page dialog never shown; `webContentsDidBecomeUnresponsive` 2. The responsive edge (`Hide…`) was not exercised: the fixture's loop outlasts the run |
+| `external.html` → `roomtest://open` (a throwaway applet handling `roomtest:`, `scripts/external-protocol-fixture.sh`; Launch Services ignores applets under `$TMPDIR`) | Room's sheet "Open “RoomTestHandler”?" (`…-external-sheet-light.png`); request: gesture, initiating origin `http://127.0.0.1:8766/`; Cancel → blocked, no launch |
+| the same link again | asked again (a refusal is not remembered); Open → the applet launched and recorded the URL |
+| `roomtest://again` | the delegate asked, **no sheet** (scheme allowed for the session), launched (2 records) |
+| `nosuchscheme-room://x` | the host never asked: Chrome's "does not have a registered handler" console error before its dialog step |
+| `translate.html` (German) | Chrome's offer as a notice: "Translate this page from German to English?" with Translate, as a toast (`…-translate-offer-light.png`); Translate → the offer withdrawn (`didRemoveInfoBar`), the toast gone, the heading "Welcome to the library", `lang=en` after 8 s. Needs an API key: Chrome's `TranslateManager` offers nothing without `google_apis::HasAPIKeyConfigured()`; the run sets `GOOGLE_API_KEY=room-placeholder-no-key` (the element script loaded and translated anyway). Chrome's translate bubble never appeared |
+| an engine infobar: CDP `Emulation.setAutomationOverride` | `AUTOMATION_INFOBAR_DELEGATE` (73), "Chrome is being controlled by automated test software", no buttons, as a toast (`…-infobar-light.png`); `enabled: false` → removed, the toast taken down |
+| page unresponsive as an infobar | not on the desktop in M154 (it is the hung-page dialog above) |
+
+### Task 7: capture state and the media session
+
+| Check | Result |
+|---|---|
+| `capture.html` with `--use-fake-device-for-media-stream` (no fake UI): Camera and microphone | Room's popover (camera + microphone), Allow → `captureState` camera + microphone (3) 21 ms after the answer; the row shows the red camera symbol beside the speaker (`…-capture-on-light.png`); the page: `audio:live,video:live` |
+| `stopCapturing(.userMedia)` | `captureState` empty after 22 ms, the row's indicator gone; the page: `audio:ended,video:ended` |
+| the first run | Allow crashed: 3.4a's prompt asked `GetGeolocationPromptType()`, which CHECKs one request (camera + microphone are two); fixed |
+| embryo `ui-capture` | Chrome's indicator 3 → 0 after `StopMediaCapturing`; `//room`'s state 0 → 2 → 3 → 1 → 0 on the page |
+| embryo `ui-screen-share` | the desktop picker (Views) opened and cancelled: `NotAllowedError` |
+| `media.html`: `navigator.mediaSession.metadata` and a playing tone | `mediaSession`: "Room Test Tone" / "Phase 3.4b" / "Fixtures", artwork `http://127.0.0.1:8766/image.svg`, playing; logged by the tab controller (`Room: media session …`). Before the fix every page reported a session (Chrome's default metadata: title and host); now only while the session is not inactive |
+
+### Task 8: the Views bubbles that stay
+
+| Drive | Result |
+|---|---|
+| embryo `fedcm` (15 s, exit 0) | the passive failure bubble and the active loading modal shown and destroyed (`fedcm-passive: 1`, `fedcm-active: 1`) through patch 0008's anchor |
+| embryo `ui-usb` (7 s) | one owned chooser, cancelled: `NotFoundError` |
+| embryo `ui-hid` (8 s) | one owned chooser, cancelled: empty list, `granted: 0` |
+| embryo `ui-bluetooth` (8 s) | CDP `DeviceAccess.deviceRequestPrompted`, one owned chooser with 0 devices, cancelled: `NotFoundError` |
+| embryo `ui-extension-device` (8 s) | the extension page's `requestDevice` settles `NotFoundError`: patch 0012's safe rejection, **not** a chooser (3.6b) |
+| embryo `ui-serial` | **not verified**: the host is ended by macOS (TCC, "must contain an NSBluetoothAlwaysUsageDescription key") when Web Serial enumerates Bluetooth ports. The drive launches the host from a shell, so the responsible process for TCC is the launching app (here the Claude desktop app), not Room; the key is now in Room's Info.plist (Chrome ships it), the crash stays for shell launches. Next: launch the drive through `open` or disclaim responsibility; by hand on Room.app |
+| Room.app: `chooser.html` → `navigator.usb.requestDevice` | Chrome's USB chooser (`NativeWidgetMacNSWindow`, 448 × 444 pt) over Room's window, anchored at the header (`phase-3.4b-usb-chooser-light.png`; a stale "Room quit unexpectedly" dialog is on screen beside it); Esc → closed, the page `NotFoundError` |
+
+### The 2.6 checklist on RoomCore (`chrome-surfaces.sh --session 2.6b light`, recording proxies)
+
+| Member | RoomCore 3.4b calls | CEF 2.6b |
+|---|---|---|
+| `didCreate` | 2 | 2 |
+| `webContentsDidRequestEnterFullscreen` / `…Exit` | 1 / 1 | 1 / 1 |
+| `didChangeStatusText` | 6 | 32 |
+| `willShowContextMenu` | 4 | 2 |
+| `runJavaScriptAlert` / `Confirm` / `Prompt` | 2 / 2 / 1 | 2 / 2 / 1 |
+| `runBeforeUnloadDialogForReload` | 2 | 2 |
+| `webContentsDidDismissJavaScriptDialogs` | 1 | 8 (CEF also resets on navigations) |
+| `willAskForPermission` / `webContentsDidDismissPermissionPrompt` | 3 / 1 | 3 / 1 |
+| `didReceiveAuthChallenge` | 1 | 1 |
+| `didFailCertificateCheck` | 2 | 2 |
+| `runFileChooser` | 3 | 3 |
+| `isReservedKeyEvent` / `handleUnhandledKeyEvent` | 11 / 9 | 11 / 9 |
+| `didConsumeKey` | 0 in this run (no key the page consumed; 3.2b's `keys` spike measured it) | not available |
+| `didChangeAudible` / `didChangeMuted` | 2 / 2 | 2 / 2 |
+| `didChangeSecurityState` | 2 | 24 (CEF on every load) |
+| `processGone` | 1 (`.crashed`) | 1 |
+| `webContentsDidClose` | 4 | 3 |
+| `decidePolicy` / `didCommitNavigation` | 36 / 30 | 33 / 26 |
+| `willBeginDownload` / `didUpdateDownload` | 5 / 47 (downloads step rerun after a spike race fix; the full run had 4 / 41) | 5 / 52 |
+| 3.4b: `webContentsDidBecomeUnresponsive` / `…Responsive` | 2 / 0 (`pageservices`) | — |
+| `shouldOpenExternalURL` | 3 | — |
+| `didAddInfoBar` / `didRemoveInfoBar` | 2 / 2 | — |
+| `didChangeCaptureState` | 4 | — |
+
+New rows of the exit: permission types (3.4a: geolocation, notifications, local and loopback network; 3.4b: camera + microphone with fake devices), capture state (above), download restore (3.4a: 5 of 5), HSTS (3.4a). The downloads step's "(1)" name was missing in the full run: the spike clicked the second link before the first download's row existed (an `allSatisfy` on an empty list) and Blink dropped the second navigation as a duplicate (14 ms apart); the spike waits for the row now: `room-2.6b-small.txt`, `room-2.6b-small (1).txt`.
+
+### The baseline after the last engine change (`build/baseline/3.4b-final`, embryo host)
+
+nav passed 10.4 s; ten-page quits **0.244 / 0.245 / 0.253 s** (load 4.5 / 6.4 / 11.2), 0 helpers left, 0 crash reports; stub hits none. Two earlier attempts: one stopped at run 3 on stackoverflow.com's 403 (as 3.4a), the other hung at launch behind AppKit's "reopen windows?" alert, which the host showed after this session's crashes (the TCC ends and the profile CHECK below); the engine scripts pass `-ApplePersistenceIgnoreState YES` now. Earlier baselines found two of this session's bugs: the capture observer's list must be empty when the dispatcher singleton goes at exit (removed at the quit and by an at-exit task), and `closeunload` crashed after closing a window's only page: Chrome destroyed the profile with its last Browser and the next page found it gone (each `RoomProfile` holds a `ScopedProfileKeepAlive`).
+
+### The grand tour's chrome section (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups chrome light`, `build/grand-tour/20261005-113816-roomcore`, 2.4 min)
+
+| Step | 3.4a | 3.4b | Failures, attributed |
+|---|---|---|---|
+| chrome26a | 22 / 3 | **23 / 2** | the dialog answers and the `window.open` opener messages read page globals from the isolated world (B-55): both read the page's DOM mirror after the tour (`dialog_results` and `opener messages=["hello from open"]` in a standalone rerun) |
+| chrome26b | 48 / 5 | **50 / 3** | the same two (B-55); the helper crash report count (CEF-shaped; Crashpad writes under the data root) |
+| total | 70 / 8 | **73 / 5** | nothing 3.4b owns fails; both steps quit without a hang (wall time 2.4 vs 8.8 min) |
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.
