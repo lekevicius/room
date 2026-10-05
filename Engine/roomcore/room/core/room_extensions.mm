@@ -23,6 +23,7 @@
 #include "base/scoped_observation.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/apps/platform_apps/shortcut_manager.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
@@ -962,6 +963,12 @@ void InstallExtensionHooks() {
   static base::NoDestructor<base::AutoReset<bool>> no_post_install_ui(
       ExtensionInstallUI::disable_ui_for_tests(true));
   RoomUpdateClientConfig::Install();
+  // Chrome Apps' OS shortcuts: AppShortcutManager deletes "all shortcuts" of
+  // every uninstalled extension, which creates ~/Applications/Chromium
+  // Apps.localized with its icon (3.6a: made by the first uninstall). Room
+  // has no Chrome Apps; the switch (named for tests upstream, no test
+  // behaviour) turns the shortcut manager's file work off.
+  AppShortcutManager::SuppressShortcutsForTesting();
 }
 
 }  // namespace room

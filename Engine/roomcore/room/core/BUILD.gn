@@ -96,6 +96,7 @@ source_set("core") {
     "//components/keyed_service/content",
     "//chrome/browser/ui",
     "//chrome/browser/devtools",
+    "//chrome/browser/apps/platform_apps",
     "//chrome/browser/extensions",
     "//chrome/browser/ui/toolbar",
     "//skia",
