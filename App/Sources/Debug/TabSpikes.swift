@@ -284,6 +284,7 @@ extension SpikeRunner.Context {
             _ = await waitUntil(45) { !page.isLoading }
         }
         SpikeRunner.record("launch_to_selected_loaded_s", String(format: "%.2f", Date().timeIntervalSince(launched)))
+        for line in AppDelegate.launchLog { SpikeRunner.record("launch_log", line) }
         SpikeRunner.record("selected", store.entry(id)?.currentURL ?? "nil")
         try? await Task.sleep(for: .seconds(5))
         SpikeRunner.record("loaded_pages", tabs.loadedEntryIDs.count)

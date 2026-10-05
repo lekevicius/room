@@ -14,6 +14,9 @@
 # on a fresh state and engine directory with the first-run card shown.
 # ROOM_NETCHECK_IDLE=<seconds> lengthens the idle after launch (default 8 s;
 # 3.1b runs 600 on Room.app on RoomCore: launch, 10 min idle, browse, quit).
+# ROOM_NETCHECK_SUGGESTIONS_OFF=1 (3.5) turns the suggestions switch off and
+# types three queries in the palette after the browse (phase "typing"): with
+# the switch off nothing may leave the machine while typing.
 # ROOM_APP picks the build; on RoomCore the engine's net-log comes from the
 # same --log-net-log switch.
 # Usage: scripts/netlog-check.sh [output directory]
@@ -60,6 +63,7 @@ ROOM_SPIKE_OUT="$OUTDIR/spike.txt" scripts/run-spike.sh netcheck -RoomFirstRun Y
   -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml -RoomSentryDSN http://public@127.0.0.1:8771/1 \
   -RoomSuggestProxy 127.0.0.1:8771 \
   ${ROOM_NETCHECK_IDLE:+-RoomNetcheckIdleSeconds "$ROOM_NETCHECK_IDLE"} \
+  ${ROOM_NETCHECK_SUGGESTIONS_OFF:+-RoomSuggestionsOff YES} \
   "--log-net-log=$OUTDIR/netlog.json" --net-log-capture-mode=Everything >/dev/null
 sleep 2
 kill "$nettop_pid" 2>/dev/null || true

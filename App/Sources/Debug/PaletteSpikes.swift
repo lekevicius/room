@@ -204,6 +204,11 @@ extension SpikeRunner.Context {
         let entries = store.entries.values.filter { $0.kind != .folder }.count
         SpikeRunner.record("entries", entries)
         SpikeRunner.record("history_rows", (try? tabs.store.history.count()) ?? -1)
+        // Phase 3.5: on RoomCore Chrome's omnibox answers the palette from its own history (the imported rows).
+        SpikeRunner.record("engine_autocomplete", palette.usesEngineAutocomplete)
+        if let profile = sidebar.activeSpace?.profileID, let history = tabs.engineProfiles[profile]?.history {
+            SpikeRunner.record("engine_history_rows", await history.entries(from: nil, to: nil, limit: 0).count)
+        }
         // The no-network check types with suggestions off (`-RoomSuggestionsOff YES`).
         // `-RoomSuggestionsOff` holds for this run only: later runs on the same state (the grand tour) read the setting.
         let suggestionsWere = tabs.store.settings.settings.searchSuggestions
@@ -255,6 +260,14 @@ extension SpikeRunner.Context {
         var keyTurn: [Double] = [], firstKey: [Double] = [], laterKeys: [Double] = [], rows: [Int] = []
         var firstKeyBeforeDisplay: [Double] = [], laterKeysBeforeDisplay: [Double] = [], firstKeyLog: [String] = []
         var historyRows: [Int] = [], inline = 0
+        // Engine updates after a keystroke's own turn (Chrome's asynchronous passes): key to update, ms.
+        var keyStart = ContinuousClock.now, engineAsync: [Double] = [], engineAsyncDone: [Double] = []
+        palette.onEngineUpdate = { done in
+            let elapsed = ContinuousClock.now - keyStart
+            let ms = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
+            engineAsync.append(ms)
+            if done { engineAsyncDone.append(ms) }
+        }
         // Sidebar entries (2.4a) and history: hosts, words, a path, common
         // trigrams ("com", "the"), a miss.
         let texts = ["today tab 3", "pinned 4", "github", "swift docs", "news", "rust kernel", "developer.apple.com/sw", "wiki",
@@ -278,6 +291,7 @@ extension SpikeRunner.Context {
                     let until = ContinuousClock.now + .milliseconds(25)
                     while ContinuousClock.now < until {}
                 }
+                keyStart = ContinuousClock.now
                 let timing = await timedTurn { self.type(String(character)) }
                 keyTurn.append(timing.turn)
                 if index == 0 { firstKey.append(timing.turn) } else { laterKeys.append(timing.turn) }
@@ -308,6 +322,9 @@ extension SpikeRunner.Context {
         SpikeRunner.record("history_rows_per_keystroke", "min \(historyRows.min() ?? 0) max \(historyRows.max() ?? 0) "
             + "mean \(String(format: "%.1f", Double(historyRows.reduce(0, +)) / Double(max(1, historyRows.count))))")
         SpikeRunner.record("keystrokes_with_inline_completion", inline)
+        palette.onEngineUpdate = nil
+        SpikeRunner.record("engine_async_updates", SpikeRunner.stats(engineAsync))
+        SpikeRunner.record("engine_async_done", SpikeRunner.stats(engineAsyncDone))
     }
 }
 

@@ -418,9 +418,22 @@ def _palette2(c):
     hist = {l.split(": ", 1)[0]: l for l in c.spike if l.startswith("history ")}
     c.check("typed URL recorded as typed", '"typed"' in hist.get("history https://example.com/", ""), hist.get("history https://example.com/", "missing"))
     c.check("script navigation recorded as link", '["link"]' in hist.get("history https://example.org/", ""), "")
-    c.check("same-document pushState recorded", '["link"]' in hist.get("history https://example.org/pushed", ""), "")
+    pushed = hist.get("history https://example.org/pushed", "")
+    if c.first("history source") == "engine":
+        # 3.5 on RoomCore: Chrome's history also keeps the reload that follows as a visit of its own (Chrome's rule, not the store's).
+        c.check("same-document pushState recorded (Chrome's history)", 'visits=["link"' in pushed, pushed)
+    else:
+        c.check("same-document pushState recorded", '["link"]' in pushed, "")
     c.check("DNS error page not recorded", "visits=[]" in hist.get("history https://nonexistent.invalid/", "visits=[]"), "")
     c.check("a search recorded", "history search page" in hist, "missing")
+    if c.first("history source") == "engine":
+        # 3.5: on RoomCore the store's table no longer grows; Chrome's history has the visit and the palette finds it.
+        around = c.first("store history rows around a navigation") or ""
+        before_after = re.findall(r"\d+", around)
+        c.check("the store's history does not grow on RoomCore", len(before_after) == 2 and before_after[0] == before_after[1], around or "missing")
+        c.check("a visit on RoomCore is in Chrome's history", '"typed"' in (c.first("engine visit recorded") or ""), c.first("engine visit recorded") or "missing")
+        c.check("the palette finds it from Chrome's history", "found=true" in (c.first("palette room35") or ""), c.first("palette room35") or "missing")
+        c.check("⌘Y lists Chrome's history", re.search(r"rows=[1-9]", c.first("cmd_y") or "") is not None, c.first("cmd_y") or "missing")
     exa = next((l for l in c.spike if l.startswith("palette exa: ")), "")
     c.check("inline host completion from history (exa → example.com)", "inline=mple.com" in exa, exa or "missing")
     for appearance in ("light", "dark"):
@@ -441,8 +454,18 @@ def _suggeston(c):
     c.check("suggestions on (the default; nothing left them off)", c.first("suggestions") == "on", f"suggestions: {c.first('suggestions')}")
     reqs = proxy_requests(c)
     connects = [r for r in reqs if " CONNECT " in r]
-    # 2.4b: three requests, one per pause (the 120 ms debounce), none between keystrokes.
-    c.check("one suggestion request per pause (3), through the logging proxy", len(connects) == 3, f"{len(connects)}: " + "; ".join(r[:80] for r in reqs[:5]))
+    engine = [r for r in reqs if " GET /complete/search" in r]
+    if engine and not connects:
+        # 3.5 on RoomCore: Chrome's SearchProvider asks Room's engine, pointed at the logging server's
+        # suggestion endpoint; it polls while typing (Chrome's own debounce), so at least one request per query.
+        queries = {q for q in ("swift", "weather", "room") if any(f"q={q}" in r for r in engine)}
+        c.check("the engine's suggestion requests reach the logging server for each of the three queries", len(queries) == 3,
+                f"{len(engine)} requests: " + "; ".join(r[:90] for r in engine[:4]))
+        c.check("suggestion rows shown from the engine", any(not v.endswith("[]") for v in c.values.get("suggest_rows", [])),
+                "; ".join(c.values.get("suggest_rows", []))[:200])
+    else:
+        # 2.4b: three requests, one per pause (the 120 ms debounce), none between keystrokes.
+        c.check("one suggestion request per pause (3), through the logging proxy", len(connects) == 3, f"{len(connects)}: " + "; ".join(r[:80] for r in reqs[:5]))
     c.number("proxy requests", len(reqs))
 
 

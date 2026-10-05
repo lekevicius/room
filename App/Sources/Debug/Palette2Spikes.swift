@@ -59,26 +59,43 @@ extension SpikeRunner.Context {
         press("↩")
         await loaded()
         await settle(800)
+        // Phase 3.5: on RoomCore the visits are Chrome's (its tab helpers record them); the store's table no longer grows.
+        let engineHistory = tabs.engineProfiles[historyProfile]?.history
+        SpikeRunner.record("history source", engineHistory == nil ? "store" : "engine")
         for url in [typedURL, "https://example.org/", "https://example.org/pushed", "https://nonexistent.invalid/"] {
+            if let engineHistory, let page = URL(string: url) {
+                let found = await engineHistory.visits(for: page)
+                let visits = found?.visits.map { HistoryTransition($0.transition).rawValue } ?? []
+                SpikeRunner.record("history \(url)", "visits=\(visits) title=\(found?.entry.title ?? "nil")")
+                continue
+            }
             let visits = (try? history.visits(url: url, profile: historyProfile)) ?? []
             let title = (try? history.row(url: url, profile: historyProfile))?.title ?? "nil"
             SpikeRunner.record("history \(url)", "visits=\(visits.map(\.1.rawValue)) title=\(title)")
         }
-        let search = (try? history.search("room browser palette", profile: historyProfile, limit: 3)) ?? []
-        SpikeRunner.record("history search page", search.map { "\($0.url) visits=\($0.visitCount)" }.joined(separator: ", "))
-        SpikeRunner.record("history rows total", (try? history.count(profile: historyProfile)) ?? -1)
+        if let engineHistory {
+            let search = await engineHistory.search("room browser palette", limit: 3)
+            SpikeRunner.record("history search page", search.map { "\($0.url.absoluteString) visits=\($0.visitCount)" }.joined(separator: ", "))
+            SpikeRunner.record("history rows total", await engineHistory.entries(from: nil, to: nil, limit: 0).count)
+            SpikeRunner.record("store history rows (unchanged on the engine path)", (try? history.count(profile: historyProfile)) ?? -1)
+        } else {
+            let search = (try? history.search("room browser palette", profile: historyProfile, limit: 3)) ?? []
+            SpikeRunner.record("history search page", search.map { "\($0.url) visits=\($0.visitCount)" }.joined(separator: ", "))
+            SpikeRunner.record("history rows total", (try? history.count(profile: historyProfile)) ?? -1)
+        }
 
         // The palette finds what was visited, and inline-completes the typed host.
         press("⌘T")
         type("exa")
         SpikeRunner.record("palette exa", "inline=\(palette.result.inlineCompletion ?? "nil") rows=\(palette.result.matches.map { "\($0.provider.rawValue):\($0.title)" })")
         press("⎋")
+        await engineChecks()
         await palette2Captures()
     }
 
     // MARK: Captures
 
-    private func seedCaptureHistory(_ history: History) {
+    private func seedCaptureHistory(_ history: History) async {
         let now = Date()
         let visits: [(String, String, HistoryTransition, Int)] = [
             ("https://github.com/", "GitHub", .typed, 6),
@@ -90,6 +107,21 @@ extension SpikeRunner.Context {
             ("https://www.youtube.com/watch?v=rUxyKA_-grg", "lofi beats for coding", .link, 1),
             ("https://news.ycombinator.com/", "Hacker News", .typed, 5),
         ]
+        // RoomCore: into Chrome's history (the palette reads it there), as the import would.
+        if let engineHistory = tabs.engineProfiles[historyProfile]?.history {
+            let entries = visits.compactMap { url, title, transition, count in
+                URL(string: url).map { page in
+                    HistoryImportEntry(url: page, title: title, visits: (0..<count).map { index in
+                        HistoryVisit(time: now.addingTimeInterval(Double(-index) * 3_600), transition: index == 0 ? PageTransition(transition) : .link)
+                    })
+                }
+            }
+            let result = await engineHistory.importEntries(entries)
+            SpikeRunner.record("capture history seeded", "engine urls=\(result.urls) visits=\(result.visits)")
+            // Chrome's omnibox index learns the rows from the history service's notification.
+            try? await Task.sleep(for: .seconds(1))
+            return
+        }
         for (url, title, transition, count) in visits {
             for index in 0..<count {
                 try? history.recordVisitNow(url: url, title: title, transition: index == 0 ? transition : .link, profile: historyProfile,
@@ -102,7 +134,7 @@ extension SpikeRunner.Context {
         guard let palette, let directoryPath = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory") else { return }
         let directory = URL(fileURLWithPath: directoryPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        seedCaptureHistory(tabs.store.history)
+        await seedCaptureHistory(tabs.store.history)
         // Captures without live suggestions: deterministic, and no third-party text in the repository.
         // The setting comes back as it was: later runs on the same state (the grand tour) read it.
         let suggestionsWere = tabs.store.settings.settings.searchSuggestions
@@ -181,6 +213,36 @@ extension SpikeRunner.Context {
         }
         SpikeRunner.record("typing_end_epoch_ms", Int(Date().timeIntervalSince1970 * 1000))
         for line in seen { SpikeRunner.record("suggest_rows", line) }
+    }
+}
+
+extension PageTransition {
+    init(_ transition: HistoryTransition) {
+        self = switch transition {
+        case .typed: .typed
+        case .link: .link
+        case .bookmark: .bookmark
+        case .generated: .generated
+        case .keyword: .keyword
+        case .formSubmit: .formSubmit
+        case .reload: .reload
+        case .other: .other
+        }
+    }
+}
+
+extension HistoryTransition {
+    init(_ transition: PageTransition) {
+        self = switch transition {
+        case .typed: .typed
+        case .link: .link
+        case .bookmark: .bookmark
+        case .generated: .generated
+        case .keyword: .keyword
+        case .formSubmit: .formSubmit
+        case .reload: .reload
+        case .other: .other
+        }
     }
 }
 

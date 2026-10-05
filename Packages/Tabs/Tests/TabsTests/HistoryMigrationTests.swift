@@ -62,3 +62,27 @@ struct HistoryMigrationTests {
         #expect(try f.store.history.count(profile: f.space.profileID) == 0)
     }
 }
+
+/// Records the engine's requests for the address field.
+final class FocusRequests: WebContentsUIDelegate {
+    private(set) var pages: [ObjectIdentifier] = []
+    func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) { pages.append(ObjectIdentifier(webContents)) }
+}
+
+@Suite("The engine's focus-the-location-bar command (ROADMAP 3.5 task 4)")
+struct FocusLocationBarTests {
+    @Test("Reaches the window's UI delegate for the page it shows, not for a page in the background")
+    func shownPageOnly() async throws {
+        let f = try TabsFixture()
+        let shown = try f.today("https://shown.example/"), background = try f.today("https://background.example/")
+        f.sidebar.select(background.id)
+        f.sidebar.select(shown.id)
+        await f.settle()
+        let recorder = FocusRequests()
+        f.tabs.pageUIDelegate = recorder
+        let shownPage = try #require(f.page(shown.id)), backgroundPage = try #require(f.page(background.id))
+        backgroundPage.simulateFocusLocationBarRequest()
+        shownPage.simulateFocusLocationBarRequest()
+        #expect(recorder.pages == [ObjectIdentifier(shownPage)])
+    }
+}

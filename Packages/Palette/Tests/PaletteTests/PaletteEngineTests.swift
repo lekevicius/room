@@ -77,14 +77,15 @@ struct PaletteEngineTests {
         #expect(controller.starts.last?.providers.contains(.search) == false)
     }
 
-    @Test("⌘Y lists the engine's most visited pages")
+    @Test("⌘Y lists the engine's history, most recent first")
     func commandY() async throws {
         let (f, _, history) = try engineFixture()
-        for _ in 0..<3 { history.addVisit(URL(string: "https://news.example/")!, title: "News") }
-        history.addVisit(URL(string: "https://once.example/")!, title: "Once")
+        let now = Date()
+        for hour in 1...3 { history.addVisit(URL(string: "https://news.example/")!, title: "News", at: now.addingTimeInterval(Double(-hour) * 3_600)) }
+        history.addVisit(URL(string: "https://latest.example/")!, title: "Latest", at: now)
         f.palette.toggleHistory()
         await settle { f.palette.result.matches.count == 2 }
-        #expect(f.palette.result.matches.map(\.title) == ["News", "Once"])
+        #expect(f.palette.result.matches.map(\.title) == ["Latest", "News"])
     }
 
     @Test("⇧Delete on an engine history row deletes it in the engine's history")

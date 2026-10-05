@@ -2,6 +2,8 @@
 import AppKit
 import Integration
 import Model
+import Omnibox
+import Palette
 import Sidebar
 import UIKitCore
 
@@ -322,6 +324,27 @@ extension SpikeRunner.Context {
         if let page = tabs.current { await waitLoaded(page) }
         stamp("browse_idle")
         try? await Task.sleep(for: .seconds(8))
+        // 3.5: `-RoomSuggestionsOff YES` types three queries in the palette with the switch off
+        // (on RoomCore Chrome's omnibox answers them): the net-log must show nothing for the typing.
+        if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff"), let palette = app.palette {
+            app.store?.settings.update { $0.searchSuggestions = false }
+            SpikeRunner.record("suggestions", "off; engine autocomplete=\(palette.usesEngineAutocomplete)")
+            stamp("typing")
+            for query in ["swift concurrency", "weather in vilnius", "room browser"] {
+                palette.toggleNew()
+                for character in query {
+                    type(String(character))
+                    try? await Task.sleep(for: .milliseconds(60))
+                }
+                try? await Task.sleep(for: .milliseconds(1_200))
+                SpikeRunner.record("typed", "\(query): providers=\(palette.lastEngineProviders.map(Self.describe) ?? "none") "
+                    + "suggest rows=\(palette.result.matches.filter { $0.provider == .suggest }.count)")
+                palette.dismiss()
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            stamp("typing_idle")
+            try? await Task.sleep(for: .seconds(4))
+        }
         SpikeRunner.record("opt_ins_end", "updater created=\(app.optIns?.updater != nil) crash reporter created=\(app.optIns?.crashReporter != nil)")
         stamp("quit")
     }

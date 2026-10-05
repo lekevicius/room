@@ -15,6 +15,9 @@ import SwiftUI
 import Tabs
 import UIKitCore
 import Updates
+#if ROOM_ENGINE_ROOMCORE
+import EngineRoomCore
+#endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let engine: any EngineApplication
@@ -29,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var debugPageHost: PageHost? { pageHost }
     #endif
     private(set) var pageDelegate: PageUIDelegate?
+    #if DEBUG
+    /// Launch lines the spikes report (the state open time, the history migration).
+    static var launchLog: [String] = []
+    #endif
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
     /// The window's pages: entries on the engine (Phase 2.3).
@@ -127,8 +134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             for model in profiles where tabs.engineProfiles[model.id] == nil {
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
                 profile.downloadsDelegate = downloads?.list
+                applySearchSettings(to: profile)
                 if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
             }
+            // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
+            await migrateHistory(tabs: tabs)
             // The Phase 1.4 overlay spikes (DEBUG `SpikeRunner`).
             overlays = OverlaySpike(rootView: controller.rootView)
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
@@ -311,8 +321,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let opening = ContinuousClock.now
             let store = try RoomStore.open(directory: directory)
             let elapsed = ContinuousClock.now - opening
-            NSLog("Room: state opened in %.1f ms (%@)", Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000,
-                  store.integrityCheck == .full ? "integrity_check" : store.integrityCheck == .quick ? "quick_check" : "recovered")
+            let check = store.integrityCheck == .full ? "integrity_check" : store.integrityCheck == .quick ? "quick_check" : "recovered"
+            let milliseconds = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
+            NSLog("Room: state opened in %.1f ms (%@)", milliseconds, check)
+            #if DEBUG
+            Self.launchLog.append(String(format: "state opened in %.1f ms (%@)", milliseconds, check))
+            #endif
             if store.uncleanExit { NSLog("Room: the previous session did not quit cleanly") }
             if let recovery = store.recovery { NSLog("Room: database rebuilt at launch: \(recovery)") }
             return store
@@ -385,6 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 do {
                     let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
                     profile.downloadsDelegate = self.downloads?.list
+                    self.applySearchSettings(to: profile)
                     tabs.setEngineProfile(profile, for: model.id)
                 } catch {
                     NSLog("Room: no engine profile for \(model.name): \(error)")
@@ -468,6 +483,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         proxy = UserDefaults.standard.string(forKey: "RoomSuggestProxy")
         #endif
         palette.suggest = SuggestClient(transport: URLSessionSuggestTransport(proxy: proxy), debounce: .seconds(Timing.suggestDebounce))
+        // RoomCore (3.5): Chrome's omnibox and history answer the palette; nil on CEF (the providers above run).
+        palette.makeAutocomplete = { [weak tabs] profile in tabs?.engineProfiles[profile]?.makeAutocompleteController() }
+        palette.engineHistory = { [weak tabs] profile in tabs?.engineProfiles[profile]?.history }
+        pageDelegate.onFocusLocationBar = { [weak tabs, weak palette] _ in
+            guard let palette, !palette.isOpen else { return }
+            tabs?.openLocation()
+        }
         observeSuggestionsSwitch(settings, palette: palette)
         tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
         tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
@@ -778,12 +800,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func observeSuggestionsSwitch(_ settings: SettingsStore, palette: PaletteController) {
         withObservationTracking {
             _ = settings.settings.searchSuggestions
+            _ = settings.settings.searchEngine
         } onChange: { [weak self, weak settings, weak palette] in
             Task { @MainActor in
                 guard let self, let settings, let palette else { return }
                 palette.suggestionsSettingChanged()
+                for profile in self.tabs?.engineProfiles.values.map({ $0 }) ?? [] { self.applySearchSettings(to: profile) }
                 self.observeSuggestionsSwitch(settings, palette: palette)
             }
+        }
+    }
+
+    /// Room's search engine as the engine profile's default (3.5: Chrome's
+    /// SearchProvider asks it, only while the switch is on); on RoomCore the
+    /// switch is mirrored into Chrome's search-suggest preference as well.
+    /// DEBUG: `-RoomSuggestURL <template>`, or `-RoomSuggestProxy host:port`
+    /// (the tour's logging server), points the suggestions at a local endpoint.
+    func applySearchSettings(to profile: any Engine.Profile) {
+        guard let settings = store?.settings.settings else { return }
+        var suggestURL: String?
+        #if DEBUG
+        if let template = UserDefaults.standard.string(forKey: "RoomSuggestURL") {
+            suggestURL = template
+        } else if let proxy = UserDefaults.standard.string(forKey: "RoomSuggestProxy") {
+            suggestURL = "http://\(proxy)/complete/search?client=room&q={searchTerms}"
+        }
+        #endif
+        profile.setDefaultSearchEngine(SearchEngine.named(settings.searchEngine).engineTemplate(suggestURL: suggestURL))
+        #if ROOM_ENGINE_ROOMCORE
+        (profile as? RoomCoreProfile)?.searchSuggestEnabled = settings.searchSuggestions
+        #endif
+    }
+
+    /// ROADMAP 3.5 task 5: each profile's Chapter 2 history into the engine's
+    /// history service, once (the flag is in Settings); a no-op on engines
+    /// without history (CEF keeps recording locally until 3.9).
+    private func migrateHistory(tabs: TabController) async {
+        guard let store else { return }
+        #if DEBUG
+        // `-RoomHistoryMigration NO`: the launch measurement's "before" runs (3.5).
+        if UserDefaults.standard.object(forKey: "RoomHistoryMigration") != nil, !UserDefaults.standard.bool(forKey: "RoomHistoryMigration") {
+            Self.launchLog.append("history migration: skipped (-RoomHistoryMigration NO)")
+            return
+        }
+        #endif
+        for model in store.sidebar.profiles {
+            guard let history = tabs.engineProfiles[model.id]?.history else { continue }
+            let line: String
+            if let report = await HistoryMigration.run(store: store, profile: model.id, into: history) {
+                line = String(format: "history migration: profile %@: %ld local URLs -> %ld URLs, %ld visits imported "
+                              + "(%ld visits, %ld URLs older than the engine keeps) in %.2f s", model.name, report.localURLs,
+                              report.result.urls, report.result.visits, report.result.expiredVisits, report.result.expiredURLs, report.seconds)
+            } else {
+                line = "history migration: profile \(model.name) already imported (flag set); nothing read"
+            }
+            NSLog("Room: %@", line)
+            #if DEBUG
+            Self.launchLog.append(line)
+            #endif
         }
     }
 

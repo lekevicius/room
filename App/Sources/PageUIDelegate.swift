@@ -24,6 +24,10 @@ final class PageUIDelegate {
     @ObservationIgnored weak var toasts: ToastCenter?
     /// A page closed (the find bar forgets its text).
     @ObservationIgnored var onPageClosed: ((any WebContents) -> Void)?
+    /// The engine asked for the address field (Chromium's IDC_FOCUS_LOCATION, 3.5): the palette as ⌘L.
+    @ObservationIgnored var onFocusLocationBar: ((any WebContents) -> Void)?
+    /// How often the engine asked (the spike reads it).
+    @ObservationIgnored private(set) var focusLocationBarRequests = 0
     /// The last keys the engine reported as reserved, unhandled or consumed, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
     /// Keys the page consumed so far (the keyboard spike counts them).
@@ -50,6 +54,12 @@ extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {
         statusText = text
         onStatusText?(text)
+    }
+
+    func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {
+        focusLocationBarRequests += 1
+        NSLog("Room: the engine asked to focus the location bar (%ld)", focusLocationBarRequests)
+        onFocusLocationBar?(webContents)
     }
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {

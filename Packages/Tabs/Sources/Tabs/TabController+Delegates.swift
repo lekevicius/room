@@ -146,6 +146,12 @@ extension TabController: WebContentsUIDelegate {
         pageUIDelegate?.webContents(webContents, didChangeStatusText: text)
     }
 
+    /// Chromium's focus-the-location-bar command (3.5): the window's field, for the page it shows only.
+    public func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {
+        guard webContents === focusedPage else { return }
+        pageUIDelegate?.webContentsDidRequestFocusOnLocationBar(webContents)
+    }
+
     public func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         pageUIDelegate?.webContents(webContents, willShowContextMenu: menu, for: element) ?? false
     }

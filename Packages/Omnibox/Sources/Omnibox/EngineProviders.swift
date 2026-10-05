@@ -74,7 +74,7 @@ public enum EngineHistoryProvider {
         }
     }
 
-    /// ⌘Y with nothing typed: the engine's most visited pages, in its order.
+    /// ⌘Y with nothing typed: the engine's history pages (most recent first), in its order.
     public static func recentMatches(from entries: [HistoryEntry], limit: Int = OmniboxResult.limit) -> [OmniboxMatch] {
         entries.prefix(limit).enumerated().map { index, entry in
             let url = entry.url.absoluteString

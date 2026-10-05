@@ -6,10 +6,13 @@ HTTP on 127.0.0.1:8771:
   GET  /appcast.xml       the dev update feed (one entry, version 9.9, no archive)
   POST /api/<id>/envelope/ a stand-in Sentry endpoint, answers 200
   CONNECT host:port       a logging proxy that refuses the tunnel (502)
+  GET  /complete/search?q= an OpenSearch suggestion endpoint (Phase 3.5: the
+                          engine's SearchProvider pointed here by
+                          -RoomSuggestProxy answers three suggestions)
 Every request line is appended, with a timestamp, to the log file given as
 the first argument (stderr without one), so a check can count who asked.
 """
-import http.server, os, sys, time
+import http.server, json, os, sys, time, urllib.parse
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = 8771
@@ -32,6 +35,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self.record()
+        if self.path.startswith("/complete/search"):
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("q", [""])[0]
+            body = json.dumps([query, [query + " one", query + " two", query + " three"]]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         super().do_GET()
 
     def do_HEAD(self):

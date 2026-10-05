@@ -8,8 +8,12 @@ import Store
 /// measurement (keystroke to local results with 50k history rows).
 /// Deterministic: the same rows every run. Hosts follow a steep power law
 /// (a few sites hold most visits, as in real history), paths and titles are
-/// word salad, visits span a year, 10% typed, 10% search results pages.
+/// word salad, visits span 85 days (a year until Phase 3.5: Chromium keeps
+/// 90 days, so the import into its history would drop the rest), 10% typed,
+/// 10% search results pages.
 enum HistoryFixture {
+    static let spanDays = 85.0
+
     static var requestedRows: Int? {
         let rows = UserDefaults.standard.integer(forKey: "RoomHistoryRows")
         return rows > 0 ? rows : nil
@@ -54,7 +58,9 @@ enum HistoryFixture {
             guard seen.insert(path).inserted else { continue }
             let count = 1 + Int(-log(max(1e-9, random.double())) * 2.5)
             let visits: [(at: Date, transition: HistoryTransition)] = (0..<min(count, 30)).map { _ in
-                let age = random.double() * random.double() * 365 * 86_400
+                // Within 85 days (Phase 3.5): Chromium keeps 90 days of history, so the
+                // whole fixture survives the import into its history service.
+                let age = random.double() * random.double() * Self.spanDays * 86_400
                 let transition: HistoryTransition = isSearch ? .generated : (random.int(10) == 0 ? .typed : .link)
                 return (now.addingTimeInterval(-age), transition)
             }

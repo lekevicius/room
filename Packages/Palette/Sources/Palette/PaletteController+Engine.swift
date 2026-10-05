@@ -77,12 +77,15 @@ extension PaletteController: AutocompleteControllerDelegate {
         if isOpen, engineMatches.count != before { rankKeepingHighlight() }
     }
 
-    /// ⌘Y: the engine's most visited pages, asked once per open.
+    /// ⌘Y: the engine's most recent pages, asked once per open. Not its
+    /// most visited: Chromium's `QueryMostVisitedURLs` counts navigation
+    /// segments, which imported visits do not have, so the Chapter 2 history
+    /// would be missing from it.
     func requestRecentHistory(_ history: any ProfileHistory) {
         guard !engineRecentRequested else { return }
         engineRecentRequested = true
         Task { [weak self] in
-            let entries = await history.mostVisited(limit: OmniboxResult.limit)
+            let entries = await history.entries(from: nil, to: nil, limit: OmniboxResult.limit)
             guard let self, self.isOpen, self.engineRecentRequested else { return }
             self.engineRecent = EngineHistoryProvider.recentMatches(from: entries)
             if self.typedText.isEmpty { self.query(preventingInline: true) }
