@@ -127,7 +127,8 @@ extension SpikeRunner.Context {
 
     func dialogsCheck() async {
         guard let page = await openTest("dialogs.html") else { return }
-        let results = { await self.js(page, "JSON.stringify(window.__results)") }
+        // The page mirrors its results into #log: RoomCore's scripts run in an isolated world (B-55).
+        let results = { await self.js(page, "window.__results ? JSON.stringify(window.__results) : document.getElementById('log').textContent") }
 
         Task { await self.click(page, "#confirm") }
         SpikeRunner.record("confirm_dialog", await waitForDialog() + " responder=\(responderName)")
@@ -395,7 +396,7 @@ extension SpikeRunner.Context {
         let child = session.current
         if let child { await waitLoaded(child) }
         try? await Task.sleep(for: .milliseconds(500))
-        SpikeRunner.record("popup_window_open", "today \(before)→\(store.today(space: sidebar.activeSpaceID).count) selected=\(child !== page) title=\(child?.title ?? "nil") opener messages=\(await js(page, "JSON.stringify(window.__messages)"))")
+        SpikeRunner.record("popup_window_open", "today \(before)→\(store.today(space: sidebar.activeSpaceID).count) selected=\(child !== page) title=\(child?.title ?? "nil") opener messages=\(await js(page, "window.__messages ? JSON.stringify(window.__messages) : document.getElementById('log').textContent"))")
         if let child, child !== page {
             await click(child, "#close")
             let closed = await waitUntil(5) { self.tabs.entryID(for: child) == nil }
