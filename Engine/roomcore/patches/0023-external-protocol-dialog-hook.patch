@@ -1,0 +1,56 @@
+Room: the external protocol request of a Room page goes to the host.
+
+Chrome confirms a link to another application (mailto:, a custom scheme)
+in a Views tab-modal dialog (ExternalProtocolDialog over its BrowserView). A
+Room page's request belongs to the host's confirmation (the Engine
+protocol's shouldOpenExternalProtocol, Phase 3.4b: confirmed once per
+scheme). Chrome's checks before the dialog stay (the block state and
+policy, the handler's existence, Room not being the handler); "open" is
+Chrome's LaunchUrlWithoutSecurityCheck, as the dialog's OK.
+
+No existing hook: RunExternalProtocolDialog is a static defined once per UI
+toolkit (this file on desktop) and called by external_protocol_handler.cc;
+the only override, ExternalProtocolHandler::SetDelegateForTesting, replaces
+the whole handler (block state, the shell worker, the launch) and is
+test-only. //room takes the request only for pages it wraps whose delegate
+answers it; every other page keeps Chrome's dialog.
+
+Phase 3.4b, 2026-10-05. //room: room/core/room_page_dialogs.mm.
+diff --git a/chrome/browser/ui/views/external_protocol_dialog.cc b/chrome/browser/ui/views/external_protocol_dialog.cc
+index 952d7ad1435fd..017ed5fbda6d2 100644
+--- a/chrome/browser/ui/views/external_protocol_dialog.cc
++++ b/chrome/browser/ui/views/external_protocol_dialog.cc
+@@ -35,6 +35,19 @@
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/window/dialog_client_view.h"
+ 
++namespace room {
++// Room: set by //room/core at startup. Takes the external protocol request of
++// a page in a Room window (the host's confirmation) and returns true; false
++// otherwise (Chrome's dialog).
++bool (*g_run_external_protocol_dialog_hook)(
++    const GURL&,
++    content::WebContents*,
++    bool has_user_gesture,
++    const std::optional<url::Origin>&,
++    content::WeakDocumentPtr&,
++    const std::u16string& program_name) = nullptr;
++}  // namespace room
++
+ using content::WebContents;
+ 
+ namespace {
+@@ -107,6 +120,13 @@ void ExternalProtocolHandler::RunExternalProtocolDialog(
+     return;
+   }
+ 
++  if (room::g_run_external_protocol_dialog_hook &&
++      room::g_run_external_protocol_dialog_hook(
++          url, web_contents, ignored_has_user_gesture, initiating_origin,
++          initiator_document, program_name)) {
++    return;
++  }
++
+   // Windowing system takes ownership.
+   new ExternalProtocolDialog(web_contents, url, program_name, initiating_origin,
+                              std::move(initiator_document));

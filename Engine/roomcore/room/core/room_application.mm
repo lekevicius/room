@@ -270,6 +270,7 @@ void SetCrashKeys() {
   room::InstallContextMenuHook();
   room::InstallDownloadTargetHook();
   room::InstallPagePromptHooks();
+  room::InstallPageDialogHooks();
 
   __weak RoomApplication* weakSelf = self;
   _willTerminateObserver = [NSNotificationCenter.defaultCenter
@@ -278,6 +279,7 @@ void SetCrashKeys() {
                    queue:nil
               usingBlock:^(NSNotification*) {
                 RoomApplication* strongSelf = weakSelf;
+                room::DetachPageServiceObservers();
                 [strongSelf room_finishTermination:YES];
                 id<RoomApplicationDelegate> delegate = strongSelf.delegate;
                 if ([delegate respondsToSelector:@selector
@@ -399,6 +401,8 @@ void SetCrashKeys() {
 
 - (void)room_didFinishLaunching {
   SetCrashKeys();
+  // Chrome installed its Cocoa alert factory in PreProfileInit.
+  room::InstallAppModalDialogFactory();
   LOG(INFO) << "RoomCore: NSApp.delegate is "
             << (NSApp.delegate
                     ? base::SysNSStringToUTF8(

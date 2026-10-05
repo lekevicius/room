@@ -2,6 +2,8 @@
 
 #import "room/core/room_profile_internal.h"
 
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include <memory>
 
 #include "base/files/file_path.h"
@@ -75,6 +77,11 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   std::unique_ptr<base::CancelableTaskTracker> _faviconTasks;
   // The DownloadManager observer and the host's downloads delegate.
   std::unique_ptr<room::ProfileDownloads> _downloads;
+  // The host keeps its profiles for the whole session (its windows show
+  // their pages); without this Chrome destroys a profile when its last
+  // Browser closes (the last page of a window), and the next page the host
+  // makes for it would find it gone (found by 3.4b's closeunload).
+  std::unique_ptr<ScopedProfileKeepAlive> _keepAlive;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -107,6 +114,10 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
     _directory = [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())
                             isDirectory:YES];
     _offTheRecord = profile->IsOffTheRecord();
+    if (!_offTheRecord) {
+      _keepAlive = std::make_unique<ScopedProfileKeepAlive>(
+          profile, ProfileKeepAliveOrigin::kBrowserWindow);
+    }
     _lastExitWasClean = YES;
     if (ExitTypeService* exits =
             ExitTypeService::GetInstanceForProfile(profile)) {
@@ -155,6 +166,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 }
 
 - (void)room_profileWillBeDestroyed {
+  _keepAlive.reset();
   _downloads.reset();
   _faviconTasks.reset();
   _profile = nullptr;

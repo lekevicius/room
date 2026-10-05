@@ -312,6 +312,107 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, copy) NSArray<NSString*>* acceptTypes;
 @end
 
+// The kinds of JavaScript dialog (content::JavaScriptDialogType).
+typedef NS_ENUM(NSInteger, RoomJavaScriptDialogType) {
+  RoomJavaScriptDialogTypeAlert = 0,
+  RoomJavaScriptDialogTypeConfirm,
+  RoomJavaScriptDialogTypePrompt,
+};
+
+// The host's answer to an unresponsive renderer (Chrome's hung-page dialog:
+// Wait restarts the hang monitor, Exit ends the renderer with RESULT_CODE_HUNG).
+typedef NS_ENUM(NSInteger, RoomUnresponsiveAction) {
+  RoomUnresponsiveActionWait = 0,
+  RoomUnresponsiveActionTerminate,
+};
+
+// A page asks to open a URL in another application (mailto:, a custom
+// scheme): Chrome's external protocol dialog (ExternalProtocolHandler) after
+// its own checks (the scheme is not blocked, the application exists and is
+// not Room).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomExternalProtocolRequest : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly, copy) NSURL* URL;
+@property(nonatomic, readonly, copy) NSString* scheme;
+// The site that asked (the precursor origin for a sandboxed frame).
+@property(nonatomic, readonly, copy, nullable) NSURL* initiatingOrigin;
+@property(nonatomic, readonly, getter=isUserGesture) BOOL userGesture;
+// The application macOS would open it with ("Mail").
+@property(nonatomic, readonly, copy) NSString* applicationName;
+@end
+
+typedef NS_ENUM(NSInteger, RoomInfoBarKind) {
+  // One of Chrome's confirm infobars (infobars::ContentInfoBarManager).
+  RoomInfoBarKindChrome = 0,
+  // Chrome's translate offer (on the desktop a bubble through
+  // BrowserWindow::ShowTranslateBubble, handed over the same way).
+  RoomInfoBarKindTranslateOffer,
+};
+
+// A notice Chrome would show above the page: an infobar
+// (ConfirmInfoBarDelegate) or the translate offer. The host shows it (a
+// toast) until -webContents:didRemoveInfoBar:, and answers at most once.
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomInfoBar : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) RoomInfoBarKind kind;
+// Chrome's infobars::InfoBarDelegate::InfoBarIdentifier (the translate
+// offer: TRANSLATE_INFOBAR_DELEGATE_NON_AURA).
+@property(nonatomic, readonly) NSInteger identifier;
+@property(nonatomic, readonly, copy) NSString* message;
+// The button labels, the primary (OK, Translate) first; empty for a notice
+// without buttons.
+@property(nonatomic, readonly, copy) NSArray<NSString*>* buttons;
+// The translate offer's languages (BCP 47 codes and display names).
+@property(nonatomic, readonly, copy, nullable) NSString* sourceLanguage;
+@property(nonatomic, readonly, copy, nullable) NSString* targetLanguage;
+// Presses a button (0 = the primary): ConfirmInfoBarDelegate::Accept or
+// Cancel; the translate offer's Translate (TranslateManager::TranslatePage).
+- (void)pressButtonAtIndex:(NSInteger)index;
+// Closes it without a choice (InfoBarDismissed).
+- (void)dismiss;
+@end
+
+// What a page captures now (Chrome's MediaStreamCaptureIndicator): its
+// camera, microphone, a screen, a tab or a window, and whether the page
+// itself is being captured (mirrored) by another.
+typedef NS_OPTIONS(NSUInteger, RoomCaptureState) {
+  RoomCaptureStateCamera = 1 << 0,
+  RoomCaptureStateMicrophone = 1 << 1,
+  RoomCaptureStateDisplay = 1 << 2,
+  RoomCaptureStateTab = 1 << 3,
+  RoomCaptureStateWindow = 1 << 4,
+  RoomCaptureStateMirrored = 1 << 5,
+};
+
+// What -stopCapturing: ends (MediaStreamCaptureIndicator::MediaType).
+typedef NS_OPTIONS(NSUInteger, RoomCaptureKinds) {
+  // getUserMedia: camera and microphone.
+  RoomCaptureKindsUserMedia = 1 << 0,
+  // getDisplayMedia: screens, windows, tabs.
+  RoomCaptureKindsDisplayMedia = 1 << 1,
+};
+
+typedef NS_ENUM(NSInteger, RoomMediaPlaybackState) {
+  RoomMediaPlaybackStateNone = 0,
+  RoomMediaPlaybackStatePaused,
+  RoomMediaPlaybackStatePlaying,
+};
+
+// The page's media session (content::MediaSession: navigator.mediaSession
+// metadata, or what Chrome infers from the playing media).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomMediaSessionInfo : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly, copy) NSString* title;
+@property(nonatomic, readonly, copy) NSString* artist;
+@property(nonatomic, readonly, copy) NSString* album;
+// The first artwork image's URL.
+@property(nonatomic, readonly, copy, nullable) NSURL* artworkURL;
+@property(nonatomic, readonly) RoomMediaPlaybackState playbackState;
+@end
+
 // What a page asks of the UI around it. Called on the main thread.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomWebContentsDelegate <NSObject>
@@ -420,6 +521,53 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
      runFileChooser:(RoomFileChooserRequest*)request
          completion:(void (^)(NSArray<NSURL*>* _Nullable files))completion
     NS_SWIFT_NAME(webContents(_:runFileChooser:completion:));
+// alert(), confirm(), prompt() of the page (Chrome's TabModalDialogManager,
+// whose policy stays: dialogs of a page that is not shown are deferred or
+// refused, a navigation withdraws them). Call `completion` once: OK with the
+// prompt's text, or Cancel; after -webContentsDidDismissJavaScriptDialogs:
+// it is ignored. Not implemented: Chrome's own dialog.
+- (void)webContents:(RoomWebContents*)webContents
+    runJavaScriptDialog:(RoomJavaScriptDialogType)type
+                message:(NSString*)message
+            defaultText:(NSString*)defaultText
+                 origin:(nullable NSURL*)origin
+             completion:(void (^)(BOOL accepted,
+                                  NSString* _Nullable text))completion
+    NS_SWIFT_NAME(webContents(_:runJavaScriptDialog:message:defaultText:origin:completion:));
+// The page's beforeunload asks whether to leave (a close, a reload, the
+// quit): YES leaves. A "stay" during a quit cancels the quit. Not
+// implemented: Chrome's own alert.
+- (void)webContents:(RoomWebContents*)webContents
+    runBeforeUnloadDialogForReload:(BOOL)isReload
+                        completion:(void (^)(BOOL leave))completion
+    NS_SWIFT_NAME(webContents(_:runBeforeUnloadDialogForReload:completion:));
+// Chrome withdrew the page's pending dialog (a navigation, the page closing
+// or hidden, automation answered it): the host closes its sheet unanswered.
+- (void)webContentsDidDismissJavaScriptDialogs:(RoomWebContents*)webContents;
+// The page's renderer stopped answering input (Chrome's hang monitor):
+// RoomUnresponsiveActionWait keeps waiting (asked again if it stays hung),
+// Terminate ends the renderer (the page then reports its process gone). Not
+// implemented: Chrome's own dialog.
+- (void)webContentsRendererDidBecomeUnresponsive:(RoomWebContents*)webContents
+                                      completion:
+                                          (void (^)(RoomUnresponsiveAction action))
+                                              completion
+    NS_SWIFT_NAME(webContentsRendererDidBecomeUnresponsive(_:completion:));
+// The renderer answers again: the question is withdrawn.
+- (void)webContentsRendererDidBecomeResponsive:(RoomWebContents*)webContents;
+// The page asks to open `request.URL` in another application; YES opens it
+// (ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck), NO blocks it.
+// Not implemented: Chrome's own dialog.
+- (void)webContents:(RoomWebContents*)webContents
+    shouldOpenExternalProtocol:(RoomExternalProtocolRequest*)request
+                    completion:(void (^)(BOOL open))completion
+    NS_SWIFT_NAME(webContents(_:shouldOpenExternalProtocol:completion:));
+// Chrome added a notice for the page (an infobar, the translate offer).
+- (void)webContents:(RoomWebContents*)webContents
+      didAddInfoBar:(RoomInfoBar*)infoBar;
+// The notice went (answered, the page navigated, Chrome removed it).
+- (void)webContents:(RoomWebContents*)webContents
+    didRemoveInfoBar:(RoomInfoBar*)infoBar;
 @end
 
 // One page (content::WebContents). Properties are KVO-observable and change on
@@ -463,6 +611,11 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // other pages change with it).
 @property(nonatomic) double zoomFactor;
 @property(nonatomic, readonly) RoomLifecycleState lifecycleState;
+// What the page captures now (camera, microphone, screen, tab, window) and
+// whether it is being captured (MediaStreamCaptureIndicator).
+@property(nonatomic, readonly) RoomCaptureState captureState;
+// The page's media session; nil when it has none.
+@property(nonatomic, readonly, nullable) RoomMediaSessionInfo* mediaSession;
 
 // Navigates as if typed into the address bar.
 - (void)loadURL:(NSURL*)URL;
@@ -487,6 +640,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // Leaves element fullscreen (the page's exitFullscreen()).
 - (void)exitFullscreen;
 
+// Ends the page's captures of `kinds` (MediaStreamCaptureIndicator::
+// StopMediaCapturing); captureState follows.
+- (void)stopCapturing:(RoomCaptureKinds)kinds;
+
 // Runs `script` in RoomCore's isolated world of the page's main frame (the
 // page's DOM is shared; its own JavaScript globals are not visible) and
 // delivers the completion value as Foundation objects: NSString, NSNumber,
@@ -500,8 +657,9 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
     NS_SWIFT_NAME(evaluateJavaScript(_:completion:));
 
 // Closes the page. A page in a RoomBrowser closes through its tab strip,
-// which runs its beforeunload handler first (Chrome's dialog until the host
-// answers dialogs); the closed change follows once it is gone. A page in no
+// which runs its beforeunload handler first (the delegate's
+// -webContents:runBeforeUnloadDialogForReload:completion:); the closed
+// change follows once it is gone. A page in no
 // RoomBrowser closes at once.
 - (void)close;
 

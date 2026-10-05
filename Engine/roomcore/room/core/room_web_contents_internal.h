@@ -63,6 +63,9 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 - (void)room_replaceWebContents:(content::WebContents*)newContents;
 // The delegate's navigation policy (CurrentTab when it has none).
 - (RoomWindowOpenDisposition)room_decidePolicy:(RoomNavigationAction*)action;
+// The page's capture state and media session (room_page_state.mm), KVO.
+- (void)room_setCaptureState:(RoomCaptureState)state;
+- (void)room_setMediaSession:(RoomMediaSessionInfo*)info;
 - (void)room_didCreateWebContents:(RoomWebContents*)newContents
                         targetURL:(NSURL*)targetURL
                       disposition:(RoomWindowOpenDisposition)disposition

@@ -18,8 +18,14 @@ _OBJC_CLASS_$_RoomCrApplication
 _OBJC_METACLASS_$_RoomCrApplication
 _OBJC_CLASS_$_RoomDownloadItem
 _OBJC_METACLASS_$_RoomDownloadItem
+_OBJC_CLASS_$_RoomExternalProtocolRequest
+_OBJC_METACLASS_$_RoomExternalProtocolRequest
 _OBJC_CLASS_$_RoomFileChooserRequest
 _OBJC_METACLASS_$_RoomFileChooserRequest
+_OBJC_CLASS_$_RoomInfoBar
+_OBJC_METACLASS_$_RoomInfoBar
+_OBJC_CLASS_$_RoomMediaSessionInfo
+_OBJC_METACLASS_$_RoomMediaSessionInfo
 _OBJC_CLASS_$_RoomMenuItem
 _OBJC_METACLASS_$_RoomMenuItem
 _OBJC_CLASS_$_RoomNavigationAction

@@ -61,6 +61,7 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 #import "room/core/room_browser_internal.h"
+#import "room/core/room_page_ui_internal.h"
 #import "room/core/room_profile_internal.h"
 
 namespace room {
@@ -146,6 +147,8 @@ extern void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&)
 @property(nonatomic, readwrite) BOOL hasMixedContent;
 @property(nonatomic, readwrite, getter=isAudible) BOOL audible;
 @property(nonatomic, readwrite) RoomLifecycleState lifecycleState;
+@property(nonatomic, readwrite) RoomCaptureState captureState;
+@property(nonatomic, readwrite, nullable) RoomMediaSessionInfo* mediaSession;
 - (void)room_refresh;
 - (void)room_refreshColors;
 - (void)room_refreshSecurity;
@@ -758,6 +761,8 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 @synthesize hasMixedContent = _hasMixedContent;
 @synthesize audible = _audible;
 @synthesize lifecycleState = _lifecycleState;
+@synthesize captureState = _captureState;
+@synthesize mediaSession = _mediaSession;
 
 - (instancetype)initWithChromeWebContents:
                     (std::unique_ptr<content::WebContents>)webContents
@@ -789,6 +794,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     _observer = std::make_unique<Observer>(_contents, self);
     // Chrome inserted it into a tab strip: its tab helpers exist.
     _observer->ObserveTabHelpers();
+    room::AttachPageServices(_contents);
     [self room_refresh];
     [self room_refreshColors];
     [self room_refreshSecurity];
@@ -974,6 +980,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     return;
   }
   _observer->ObserveTabHelpers();
+  room::AttachPageServices(_contents);
   static bool logged = false;
   if (!logged) {
     logged = true;
@@ -1322,6 +1329,25 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     // to edge): ask for the renderer update now.
     _contents->ExitFullscreen(/*will_cause_resize=*/false);
   }
+}
+
+- (void)room_setCaptureState:(RoomCaptureState)state {
+  if (state != _captureState) {
+    self.captureState = state;
+  }
+}
+
+- (void)room_setMediaSession:(RoomMediaSessionInfo*)info {
+  if (info == _mediaSession || [info isEqual:_mediaSession]) {
+    return;
+  }
+  LOG(INFO) << "RoomCore: media session "
+            << (info ? base::SysNSStringToUTF8(info.description) : "none");
+  self.mediaSession = info;
+}
+
+- (void)stopCapturing:(RoomCaptureKinds)kinds {
+  room::StopCapturing(_contents, kinds);
 }
 
 - (void)close {

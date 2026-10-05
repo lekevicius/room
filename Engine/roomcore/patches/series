@@ -22,3 +22,4 @@
 0020-login-handler-hook.patch
 0021-ssl-error-hook.patch
 0022-file-chooser-hook.patch
+0023-external-protocol-dialog-hook.patch
