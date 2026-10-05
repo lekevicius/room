@@ -2164,3 +2164,105 @@ nav passed 20.4 s; ten-page quits **0.291 / 0.236 / 0.249 s** (load 8.6 / 10.6 /
 Numbers from the tour (light): memory baseline 1,230 MB, 10 hidden 5,816 MB (19 renderers), 30 hidden 11,825 MB; ten loaded (tabsmeasure) 6,250 MB (17 renderers); switch select call 6.97 / 11.02 ms, main-thread turn 16.31 / 24.50 ms, page visible 6.11 / 13.91 ms; relaunch 2.09 s to load start, 4.51 s to the selected page loaded; quits 0.60 / 0.69 / 0.63 s with 0 helpers left and 0 crash reports; open10 all loaded in 12 s; DevTools 28 ms (docked, already warm) and 325 ms median to the front-end loaded in chrome26b; find 32 / 426 ms median / p95 (Chromium's short-query delay in the first keys); killtest 100 kills, 0 failures; sidebar500 full reload 43.8 / 50.9 ms. Stub hits: one `CreateSadTab` (the crash step).
 
 Baseline (`build/baseline/rebase-154.0.8037.98-223920`): nav passed 16.2 s; the external ten-page quits did not complete in four attempts: Stack Overflow kept loading behind Cloudflare's Turnstile challenge after the ready check (the host log carries the challenge script), so the fixture refused to quit-measure; the tour's `quittiming` above stands in for the three quits. 0 new crash reports in the session.
+
+## Phase 3.9 — grand tour on RoomCore 154.0.8037.98 (preview under the 155 build) (2026-10-06, Mac mini M4, 24 GB, RoomCore, Debug)
+
+The full tour (Phase 2.9's method: `scripts/grand-tour.sh`, 34 steps, one Debug build, one state and one engine directory per appearance, the four test servers once; "Phase 2.9 — grand tour" above) on the packaged component build of rebase 1 (`build/roomcore`, framework `Versions/154.0.8037.98`, ad hoc, mock keychain), run as `ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build light dark` at `43720a4` before anything was deleted (`build/grand-tour/20261006-002018-roomcore`, binary sha256 `68390aebfa34`). Conditions: **under build load**: the clean 155.0.8059.36 `out/dev` build ran beside it at 6 jobs the whole time (load average 10–30, 18–20 typical; the quit-timing steps record load1 35–39); pageouts grew 76,505 → 77,072 over the 48 min (no swapping to speak of, so dark ran too); 60 Hz external display; the Claude desktop app frontmost; console unlocked. A preview: the exit's run is 3.9-2's on 155 without the build.
+
+| Run | Wall time | Checks | Failed |
+|---|---|---|---|
+| CEF, Phase 2.9 run 3 (bd98bf9) | 36.3 min (18.6 + 17.6) | light 490 / 1, dark 489 / 2 | B-41 (switching p95) ×2, one 29 ms reveal frame |
+| **RoomCore 154.0.8037.98, 3.9-1 (43720a4)** | **48.3 min (24.1 + 24.2)** | **light 498 / 7, dark 499 / 6** | below |
+
+Per step (light / dark; the tour's checks grew since 2.9: 505 per appearance against 491):
+
+| Step | Group | Time (s) | Light | Dark |
+|---|---|---|---|---|
+| smoke | layout | 15 / 6 | 6/6 | 6/6 |
+| window | layout | 26 / 26 | 10/10 | 10/10 |
+| cdp | layout | 16 / 16 | 12/12 | 12/12 |
+| scroll | layout | 19 / 20 | 12/12 | 12/12 |
+| resize | layout | 13 / 13 | 9/9 | 9/9 |
+| memory | layout | 171 / 173 | 16/16 | 16/16 |
+| audio | layout | 20 / 20 | 12/13 | 12/13 |
+| popups | layout | 15 / 16 | 11/12 | 11/12 |
+| hidden | layout | 16 / 15 | 11/11 | 11/11 |
+| open10 | layout | 27 / 26 | 9/9 | 9/9 |
+| diaframe | layout | 11 / 11 | 7/7 | 7/7 |
+| keys | layout | 15 / 15 | 19/19 | 19/19 |
+| devtools | layout | 22 / 22 | 10/10 | 10/10 |
+| quittiming | layout | 88 / 89 | 9/9 | 9/9 |
+| killtest | sidebar | 78 / 91 | 7/7 | 7/7 |
+| sidebardemo | sidebar | 26 / 26 | 7/7 | 7/7 |
+| sidebar500 | sidebar | 34 / 34 | 11/11 | 11/11 |
+| spaces | spaces | 107 / 107 | 14/14 | 14/14 |
+| spacecaptures | spaces | 40 / 41 | 7/7 | 7/7 |
+| cookies | spaces | 18 / 18 | 14/14 | 14/14 |
+| palette | palette | 27 / 26 | 19/19 | 19/19 |
+| palette2 | palette | 43 / 44 | 26/26 | 26/26 |
+| suggeston | palette | 20 / 20 | 10/10 | 10/10 |
+| suggestoff | palette | 19 / 20 | 10/10 | 10/10 |
+| palettemeasure | palette | 48 / 51 | 13/13 | 13/13 |
+| tabs | tabs | 37 / 36 | 18/19 | 18/19 |
+| tabsmeasure | tabs | 105 / 104 | 10/12 | 10/12 |
+| tabcapture | tabs | 20 / 19 | 9/9 | 9/9 |
+| chrome26a | chrome | 48 / 48 | 25/25 | 25/25 |
+| chrome26b | chrome | 117 / 117 | 51/53 | 52/53 |
+| layoutmodes | layoutmodes | 82 / 81 | 30/30 | 30/30 |
+| app28a | appintegration | 36 / 37 | 29/29 | 29/29 |
+| app28b | appintegration | 28 / 27 | 25/25 | 25/25 |
+| netlog | netlog | 33 / 33 | 10/10 | 10/10 |
+
+Every failure, attributed:
+
+| Failure | Light / dark | Kind | Attribution, fix, rerun |
+|---|---|---|---|
+| popups: "alert as a sheet, completed" | ✗ / ✗ | spike fault | B-75: the check read `window.__alerted` from the isolated world (B-55's read). `popups.html` marks the DOM (`data-alerted`) and the spike reads it; `--only popups` passes light and dark (`build/grand-tour/20261006-011329-roomcore`). B-75 closed |
+| chrome26b: "one helper crash report, the renderer `chrome://crash` killed: 0" | ✗ / ✗ | check fault (CEF-shaped) | the tour counted helper crashes in `~/Library/Logs/DiagnosticReports`, where RoomCore's Crashpad never writes; the tour now counts the engine directory's `Crashpad/{pending,completed}` minidumps per step and names each with its FATAL line (`steps/<step>.crashpad`); `--only chrome26b` 53/53 light and dark, then 54/54 light after the line fix (`20261006-013947-roomcore`) |
+| chrome26b: "⌥⌘C turns on the element picker" (`panel="console picker=false"`) | ✗ / ✓ | conditions | light only; the front-end loaded in 439 ms median, 1.48 s max under the load (3.3b: 331 ms); passes in dark and in all three `--only` reruns |
+| audio: "round1_became_audible within 2 s" (2,652 / 2,619 ms) | ✗ / ✗ | conditions (dev-build process launch) | the first play in a fresh page; round 2 and Web Audio 141–149 ms; 1,572 ms in 3.8-2's verify (load 7–16), 2,533–2,594 ms in the `--only` reruns (load 15–20): the component build's first audio-service launch under load, the same cause as B-57; B-57 annotated, judged on 3.9-2's run without the build |
+| tabs: "Discard Background Pages: … renderers released" (15 → 16) | ✗ / ✗ | known row | B-56 |
+| tabsmeasure: switching median and p95 under 16 ms | ✗ ✗ / ✗ ✗ | known row | B-53: median 16.18 / 17.83 ms, p95 23.23 / 24.28 ms (3.8-2: 16.31 / 24.50) |
+| renderer minidumps (not counted by this run's harness, found by the fix above) | 9 + 1 / 9 + 1 | product finding (dev build) | **B-76** (new): per appearance 8 × `layout_object.h:518 DCHECK failed: !NeedsLayout() || ChildLayoutBlockedByDisplayLock()` (memory ×4, open10 ×1, quittiming ×3: live sites) and 1 × `inline_node.cc:2330 DCHECK failed: (*max_size_out)->Round() == content_size.Round() (1193 vs. 1177)` (palette), plus the expected `chrome://crash` kill. Since 3.1a every RoomCore tour had 0–10 such dumps, unseen. Under the fixed harness these steps fail "no helper crash report" with the DCHECK named (`--only memory,open10,quittiming,palette light`: 4 / 1 / 3 / 1 dumps, `20261006-013454-roomcore`); quittiming's run 3 there took 1.55 s at load1 37.6 (bound 1.5 s: conditions) |
+| Stack Overflow's Cloudflare challenge, `window_main` / activation | — | — | not hit in this run (no external quit baseline in the tour; every `window_main` check passed) |
+
+Product findings: one (B-76, a dev-build condition; the release build has no DCHECKs). Nothing fixed in the product from the tour.
+
+Numbers from the run (light / dark; the conditions above; CEF's 2.9 tour and RoomCore's phase numbers beside them in `chapter-3-review.md` "Numbers"):
+
+| Measure | Light | Dark |
+|---|---|---|
+| Memory baseline; 1 / 10 / 30 hidden pages | 1,233 MB; 1,627 / 5,249 / 10,283 MB (30 loaded, 36 renderers) | 1,243 MB; 1,385 / 5,080 / 8,627 MB (41 renderers) |
+| 10 loaded of 50 entries (tabsmeasure) | 4,164 MB, 17 renderers | 4,649 MB |
+| 50 loaded over 5 spaces | 9,790 MB, 52 renderers | 9,234 MB |
+| Tab switch: select call; click → committed (median / p95); page visible | 6.74 / 8.17; 16.18 / 23.23; 5.88 ms | 7.78 / 10.94; 17.83 / 24.28; 6.36 ms |
+| Relaunch: load start; selected loaded | 2.54 s; 6.03 s | 2.54 s; 6.30 s |
+| Quit with ten pages (3 runs) | 1.14 / 0.78 / 0.89 s, 0 helpers left (load1 35–39) | 0.80 / 1.47 / 0.92 s |
+| Smoke quit | 9.36 s (the first launch of the packaged binary; under the 10 s watchdog) | 0.68 s |
+| Palette at 50k rows (engine): first key median; later keys p95; query only p95 | 22.99; 10.12; 15.52 ms | 22.41; 13.25; 14.33 ms |
+| Palette open: call; to next frame median | 2.21; 5.32 ms | 1.28; 4.28 ms |
+| Space switch, ⌃digit → first slide frame median / p95; lists loaded in 60 switches | 12.69 / 18.05 ms; 0 | 12.57 / 18.36 ms; 0 |
+| Find keystroke → match median / p95 | 37 / 424 ms (Chromium's short-query delay in the first keys) | 40 / 424 ms |
+| DevTools ⌥⌘I → front-end loaded, median | 439 ms | 431 ms |
+| Peek decision → overlay frame; → first contentful paint | 27.2; 1,646 ms | 27.6; 761 ms (B-57) |
+| Split created → laid out; → next frame | 5.38; 11.76 ms | 5.23; 11.86 ms |
+| Kill test, 100 kills | 0 failures, 50 rolled back, commit 8.3 / 22.4 ms | 0 failures, 52 rolled back, 8.7 / 18.8 ms |
+| 500-entry sidebar: full reload; select | 49.2; 4.38 ms | 48.4; 4.28 ms |
+| CDP-free `executeJavaScript` round trip median / p95 | 0.15 / 0.61 ms | 0.14 / 0.59 ms |
+| Cold launch by a link: event → requested; running link (open / AppleScript / NSWorkspace) | 479 ms; 25.6 / 23.3 / 20.9 ms | 496 ms; 33.8 / 26.3 / 26.9 ms |
+| Suggestions on: requests through the proxy; net-log engine hosts | 34 (B-64); 0 | 34; 0 |
+| Stub hits | `CreateSadTab` (the crash step) only | same |
+
+## Phase 3.9 — schema v6: the local history dropped, the archive, the open time (2026-10-06, Mac mini M4, 24 GB, RoomCore 154.0.8037.98, Debug, under build load)
+
+v6 (`Schema.createV6`) writes `history-archive.json` beside `Room.sqlite` (`HistoryArchive`: for a profile 3.5 imported, the URLs with visits older than 89 days, with those visits; for a profile never imported, every URL and visit), then drops `history_fts` (and its three sync triggers), `history_visit`, `history_host` and `history_url`; `RoomDatabase` then vacuums a file that is more than half free pages once. Method: the 3.5 50k state (`build/3.5/s50k`: 500 entries, 50,000 URLs, 151,779 visits, imported in 3.5) copied, and the `relaunch` spike as in 3.5 (`build/3.9/`), load 11–22.
+
+| State | Launch | Process → session | → selected loaded | State open (B-42's line) | Archive | History |
+|---|---|---|---|---|---|---|
+| imported (flag set), first v6 launch | 1 | 2.76 s | 6.04 s | **251.8 ms** (v5 → v6, archive, drop, vacuum) | 631 B: the profile, 50,000 table URLs, 0 archived (the fixture's visits are within 85 days of 2026-10-05) | Chrome's, unchanged |
+| imported, later launches | 3 | 2.30 / 2.24 / 2.27 s | 5.34 / 5.38 / 5.73 s | **12.0 / 12.1 / 11.9 ms** (quick_check) | — | — |
+| 3.5's numbers on the same state (v5) | 3 | 2.22 / 2.17 / 2.16 s | 3.98 / 3.92 / 3.92 s | 156.7 / 158.1 / 158.2 ms | — | — |
+| never imported (flag cleared, fresh engine directory), first v6 launch | 1 | 7.77 s | 8.17 s | 1,377.8 ms (the archive written) | **32,079,196 B (30.6 MiB, pretty-printed JSON): 50,000 URLs, 151,779 visits** | imported from the archive at the same launch: "50000 archived URLs -> 50000 URLs, 151779 visits imported (0 visits, 0 URLs older than the engine keeps) in 3.46 s" (3.5's from the table: 3.83 s) |
+| never imported, next launch | 1 | 2.29 s | 5.32 s | 11.5 ms | — | "already imported (flag set)" |
+
+The database file: 41.8 MB before; after v6 10,163 of 10,215 pages were free (the first build, without the vacuum), and with the vacuum 52 pages, 213 KB. The launch to the selected page is ~1.4 s slower than 3.5's on this run's load (18–22 vs 3.5–6.3), not by the state (the open is 146 ms faster). Kill test on v6 (`scripts/persistence-kill-test.sh 100 300 2101`): 100 kills in 67.6 s, 0 failures, 50 mid-transaction rolled back, commit 7.2 / 16.2 ms. `palettemeasure` with the history fixture now writing straight into Chrome's history (the tour's `--only` rerun, light / dark): `engine_history_rows` 50,000, first key 21.56 / 21.94 ms, later keys p95 11.12 / 10.67 ms, query only p95 12.94 / 13.05 ms (3.5: 20.5–24.7 / 9.2–12.1 ms).
