@@ -35,6 +35,8 @@ final class SpikeSession {
     var store: SidebarStore { sidebar.store.sidebar }
 
     var keyLog: [String] { pageDelegate.keyLog }
+    /// Keys the engine reported the page consumed (`didConsumeKey`; RoomCore only).
+    var consumedKeyCount: Int { pageDelegate.consumedKeyCount }
 
     /// Today tabs with a page, in sidebar order.
     var pages: [any WebContents] {

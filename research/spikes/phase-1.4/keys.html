@@ -3,7 +3,7 @@
 <title>Keys</title>
 <style>body{font:15px -apple-system;margin:24px} textarea{width:420px;height:80px}</style>
 <h1>Keyboard spike</h1>
-<p>Every keydown the page sees is logged in <code>window.__keys</code>.</p>
+<p>Every keydown the page sees is logged in <code>window.__keys</code> and, for scripts in an isolated world (RoomCore), as JSON in <code>data-keys</code> on the root element.</p>
 <textarea id="t">select me and copy</textarea>
 <pre id="log"></pre>
 <script>
@@ -11,6 +11,7 @@ window.__keys = [];
 addEventListener('keydown', e => {
   const k = (e.metaKey ? '⌘' : '') + (e.ctrlKey ? '⌃' : '') + (e.altKey ? '⌥' : '') + (e.shiftKey ? '⇧' : '') + e.key + '/' + e.code;
   __keys.push(k);
+  document.documentElement.dataset.keys = JSON.stringify(__keys);
   document.getElementById('log').textContent = __keys.slice(-12).join('\n');
 }, true);
 </script>

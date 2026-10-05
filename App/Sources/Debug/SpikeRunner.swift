@@ -77,6 +77,8 @@ enum SpikeRunner {
         case "appintegration": await context.appIntegration()
         case "appintegration2": await context.appIntegration2()
         case "netcheck": await context.netCheck()
+        case "quitstay": await context.quitStay()
+        case "quitflags": await context.quitFlags()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -583,11 +585,16 @@ enum SpikeRunner {
                     SpikeRunner.record("layout_\(layoutID)", "not installed")
                     continue
                 }
-                _ = await js(page, "window.__keys = []; const t = document.getElementById('t'); t.value = 'select me and copy'; t.focus(); t.select(); 0")
+                // The page's key log is read from the DOM (`data-keys`): RoomCore's
+                // scripts run in an isolated world, where the page's globals are not visible.
+                let seenBefore = Int(await js(page, "JSON.parse(document.documentElement.dataset.keys || '[]').length")) ?? 0
+                _ = await js(page, "const t = document.getElementById('t'); t.value = 'select me and copy'; t.focus(); t.select(); 0")
                 focusPage(page)
                 var results: [String] = []
+                let consumedBefore = session.consumedKeyCount
                 // Reserved: ⌘T (New Page), ⌘L (Open Location). Key codes are where the layout puts the letter.
                 let newTabsBefore = session.newTabRequests
+                let reservedBefore = session.keyLog.filter { $0.hasPrefix("reserved") }.count
                 if let code = layout.keyCode(for: "t") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(400))
                 let newPage = session.newTabRequests > newTabsBefore
@@ -596,6 +603,7 @@ enum SpikeRunner {
                 if let code = layout.keyCode(for: "l") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let focusedAddress = session.addressFocusRequest > focusBefore
+                let reservedCalls = session.keyLog.filter { $0.hasPrefix("reserved") }.count - reservedBefore
                 focusPage(page)
                 _ = await js(page, "document.getElementById('t').focus(); document.getElementById('t').select(); 0")
                 // Editing: ⌘C, ⌘V, ⌘Z reach the page and fall through to the menu.
@@ -612,13 +620,24 @@ enum SpikeRunner {
                 if let code = layout.keyCode(for: "z") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let afterUndo = await js(page, "document.getElementById('t').value")
-                let seen = await js(page, "JSON.stringify(window.__keys)")
+                // A plain letter (not reserved) types into the field.
+                _ = await js(page, "const t = document.getElementById('t'); t.focus(); t.selectionStart = t.selectionEnd = t.value.length; 0")
+                var typed = "nil"
+                if let code = layout.keyCode(for: "o") {
+                    send(layout, code, [])
+                    try? await Task.sleep(for: .milliseconds(300))
+                    typed = await js(page, "document.getElementById('t').value")
+                }
+                let seen = await js(page, "JSON.stringify(JSON.parse(document.documentElement.dataset.keys || '[]').slice(\(seenBefore)))")
                 results.append("⌘T newPage=\(newPage)")
                 results.append("⌘L addressFocus=\(focusedAddress)")
+                results.append("reserved calls=\(reservedCalls)")
                 results.append("⌘C pasteboard=\(copied.map { "\"\($0)\"" } ?? "nil")")
                 results.append("⌘V value=\(afterPaste)")
                 results.append("⌘Z value=\(afterUndo)")
+                results.append("o typed value=\(typed)")
                 results.append("page saw \(seen)")
+                results.append("consumed=\(session.consumedKeyCount - consumedBefore)")
                 // What ⌘ + the number row produces in this layout (for ⌘1–9 later).
                 let digits = [18, 19, 20, 21, 23, 22, 26, 28, 25].map { layout.characters(UInt16($0), command: true) }.joined(separator: " ")
                 results.append("⌘+number row chars: \(digits)")
