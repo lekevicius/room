@@ -4,7 +4,7 @@
 # Timings are printed as "STEP <name> <seconds>" for research/notes/build-log.md.
 set -euo pipefail
 
-TAG="${CHROMIUM_TAG:-154.0.8037.58}"
+TAG="${CHROMIUM_TAG:-$(tr -d '[:space:]' < "$(dirname "$0")/../Engine/roomcore/CHROMIUM_TAG")}"
 source "$(dirname "$0")/lib/chromium-env.sh"
 ROOT="$CHROMIUM_ROOT"
 

@@ -11,7 +11,8 @@
 # skipped, so re-running never touches file mtimes (which would cost a
 # rebuild); a changed patch file rebuilds the branch from that patch on.
 #
-# Env: CHROMIUM_TAG, ROOM_OUT_DIR (or OUT; default out/dev), ROOM_GN_ARGS (a
+# Env: CHROMIUM_TAG (default: the pin in Engine/roomcore/CHROMIUM_TAG, which
+# scripts/roomcore-rebase.sh moves), ROOM_OUT_DIR (or OUT; default out/dev), ROOM_GN_ARGS (a
 # file name in Engine/roomcore/args, default dev.gn); checkout location from
 # scripts/lib/chromium-env.sh (local.env).
 set -euo pipefail
@@ -19,7 +20,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 source "$(dirname "$0")/lib/chromium-env.sh"
 SRC="$CHROMIUM_SRC"
-TAG="${CHROMIUM_TAG:-154.0.8037.58}"
+TAG="${CHROMIUM_TAG:-$(tr -d '[:space:]' < "$(dirname "$0")/../Engine/roomcore/CHROMIUM_TAG")}"
 OUT="${ROOM_OUT_DIR:-${OUT:-out/dev}}"
 ROOMCORE="$REPO/Engine/roomcore"
 ARGS_FILE="$ROOMCORE/args/${ROOM_GN_ARGS:-dev.gn}"
