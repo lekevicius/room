@@ -386,7 +386,6 @@ extension SpikeRunner.Context {
         SpikeRunner.record("states_after_pressure", states())
         SpikeRunner.record("pressure_level_after", tabs.memoryPressure)
         tabs.debugDidDiscard = nil
-        if let tone = pages.first(where: { $0.name == "tone" })?.page { await click(tone, "#stop") }
     }
 
     // MARK: spelling
