@@ -8,7 +8,8 @@ which need a password, a GUI login or an Apple account.
 
 - Apple silicon Mac, macOS 26 or later, Xcode 27 (launched once, license accepted).
 - Disk: ~200 GB free on an APFS volume for Chromium (checkout 113 GB with
-  full history, `out/dev` ~10 GB), plus a few GB for CEF and Room builds.
+  full history, `out/dev` ~10 GB), plus ~20 GB under `build/` for the
+  packaged apps (the staged framework, DerivedData, the release staging).
   The Chromium location is configurable (below), so it can be another drive.
 - A fast, unmetered connection: the Chromium fetch is ~57 GB.
 
@@ -18,7 +19,7 @@ which need a password, a GUI login or an Apple account.
 xcode-select -p                                   # must point at Xcode.app, not CommandLineTools
 xcodebuild -downloadComponent MetalToolchain      # Chromium's ANGLE needs it; Xcode 27 does not ship it
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"   # if no Homebrew (user: needs the login password)
-brew install xcodegen cmake gh
+brew install xcodegen gh
 ```
 
 depot_tools is cloned by `scripts/chromium-checkout.sh` into `~/depot_tools`.
@@ -34,14 +35,21 @@ git clone git@github.com:lekevicius/room.git ~/Code/room
 Clone into `~/Code/room` if possible: Claude Code's per-project memory is
 keyed by path, and docs use repo-relative paths only, so any path works.
 
-## 3. CEF (the Chapter 1–2 engine)
+## 3. The app without the engine (CI's build, the package tests)
+
+The `Room` target in `xcodegen/base.yml` links no engine (`ROOM_ENGINE=none`,
+`NoEngineApplication`): it is what CI compiles, and its scheme runs every
+package's unit tests. Locally the same scheme with `CI` unset also runs the
+window tier (AGENTS.md "Testing"):
 
 ```bash
-scripts/bootstrap-cef.sh     # ~3–4 min: pinned CEF 154.0.32 into Engine/cef/dist, wrapper, cefsimple check
 xcodegen
-xcodebuild -scheme Room -configuration Debug -derivedDataPath build/DerivedData build
-scripts/smoke-launch.sh      # launches Room.app on CEF and quits it
+xcodebuild test -scheme Room -configuration Debug -derivedDataPath build/DerivedData
+#   CI generates from the base spec only: xcodegen --spec xcodegen/ci.yml --project-root . --project .
 ```
+
+Room.app itself runs on RoomCore (§4): Chapters 1–2's CEF engine was deleted
+in 3.9 (`docs/engine-api.md` "What CEF could not do").
 
 ## 4. Chromium checkout and RoomCore (the fork)
 
@@ -74,9 +82,14 @@ bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'
 #   clean component build of `chrome` (Room.app + RoomCore.framework): hours.
 #   Under ~32 GB RAM add ROOM_BUILD_JOBS=6 (inside the bash -c): ten parallel
 #   Blink compiles swap on a 24 GB Mac mini (4 h 15 min at 6 jobs)
-scripts/roomcore-package.sh   # stage the framework, build Room.app on RoomCore (scheme "Room (RoomCore)")
-#   and the embryo host (scheme "RoomCore Host", build/roomcore-host)
+scripts/roomcore-package.sh   # stage the framework, build Room.app on RoomCore (scheme "Room (RoomCore)",
+#   build/roomcore/DerivedData) and the embryo host (scheme "RoomCore Host", build/roomcore-host)
+scripts/smoke-launch.sh       # launches Room.app (build/roomcore/DerivedData/…/Room.app) and quits it
 ```
+
+Every spike wrapper (`scripts/run-spike.sh`, the tour, the snapshot scripts)
+defaults to `build/roomcore/DerivedData/Build/Products/Debug/Room.app`;
+`ROOM_APP` (or the script's app argument) points them elsewhere.
 
 Engine-level checks (from PR #1, merged in 3.1a), all on the packaged host
 (`ROOM_APP` overrides the app path): `scripts/roomcore-baseline.sh <new-dir>`
@@ -147,11 +160,10 @@ ANGLE, Dawn, WebRTC there) and everything below a changed header
 
 ## 5. Signing (user)
 
-Identity (PLAN §4): bundle id `app.room.desktop` for Room.app on either
-engine and the embryo host; the CEF helpers are `app.room.desktop.helper`,
-`.helper.gpu`, `.helper.renderer`, `.helper.plugin`, `.helper.alerts`; the
-RoomCore framework's helpers take Chromium's own suffixes under the same id
-(`.helper`, `.helper.renderer`, `.framework.AlertNotificationService`). The
+Identity (PLAN §4): bundle id `app.room.desktop` for Room.app and the embryo
+host; the RoomCore framework's helpers take Chromium's own suffixes under the
+same id (`.helper`, `.helper.renderer`, `.framework.AlertNotificationService`;
+B-46). The
 defaults domain is `app.room.desktop` (it was `com.lekevicius.room` through
 Chapter 2).
 
@@ -186,7 +198,6 @@ the team identity avoids that and is needed for the notarization pipeline.
 `research/repos/` is gitignored. Recreate what a task needs:
 
 ```bash
-git clone https://bitbucket.org/chromiumembedded/cef.git research/repos/cef
 git clone https://github.com/zen-browser/desktop research/repos/zen-desktop
 # ArcCore headers (proprietary, study only, never copy code), if Dia is installed:
 mkdir -p research/repos/arccore-headers

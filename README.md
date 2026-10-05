@@ -7,16 +7,15 @@ A macOS browser: Chromium engine, native Swift/AppKit chrome, the Arc/Zen sideba
 - `docs/progress.md` — phase tracker and log.
 - `research/` — the research reports the plan is based on (`research/README.md` is the index).
 
-Status: Chapter 1 (Foundations), Phases 1.1–1.4 done; next Phase 1.5.
+Status: Chapter 3 (RoomCore), Phase 3.9: Room runs on its own Chromium fork only (CEF, the Chapters 1–2 scaffold, was deleted in 3.9).
 
 ## Layout
 
 ```
-App/               Swift app target: main.swift, AppDelegate, menus, composition root
-Helpers/           helper app targets (Info.plist + entitlements per helper)
-Packages/          local Swift packages (Engine, EngineCEF, UIKitCore, Card, Design, Infra, …)
-Engine/cef/        pinned CEF distribution + CMake wrapper build (dist/ is gitignored)
-Engine/roomcore/   the Chromium fork: room/ (our GN targets), patches/, chromium_src/, args/
+App/               Swift app target: main.swift, AppDelegate, menus, composition root;
+                   App/RoomCore is the embryo host the engine-level scripts drive
+Packages/          local Swift packages (Engine, EngineRoomCore, UIKitCore, Card, Design, Infra, …)
+Engine/roomcore/   the Chromium fork: room/ (our GN targets, the ObjC API), patches/, args/
 Design/            tokens, reference material
 scripts/           bootstrap, build, sign, notarize, appcast
 docs/              engine API mapping, backlog, progress
@@ -25,14 +24,15 @@ research/          notes/, screenshots/, repos/ (gitignored clones)
 
 ## Requirements
 
-macOS 26+ on Apple silicon, Xcode 27, XcodeGen, CMake, jq, depot_tools (for the fork; checkout lives outside the repo at `~/chromium`).
+macOS 26+ on Apple silicon, Xcode 27, XcodeGen, jq, depot_tools (for the fork; the checkout lives outside the repo, `CHROMIUM_ROOT` in `local.env`, default `~/chromium`). `docs/setup.md` has every step.
 
 ## Build
 
 ```
-scripts/bootstrap-cef.sh       # pinned CEF into Engine/cef/dist, builds libcef_dll_wrapper
-xcodegen                       # project.yml → Room.xcodeproj
-xcodebuild -scheme Room -derivedDataPath build/DerivedData build
+scripts/chromium-checkout.sh   # Chromium on the pinned tag (hours, ~110 GB)
+scripts/roomcore-apply.sh      # the room branch with the patches, gn gen
+scripts/roomcore-build.sh      # the component build (hours; ROOM_BUILD_JOBS=6 under 32 GB)
+scripts/roomcore-package.sh    # stage RoomCore.framework, build Room.app (scheme "Room (RoomCore)")
 scripts/smoke-launch.sh        # launch, quit, check for a clean exit
-scripts/chromium-checkout.sh   # ~/chromium on the pinned tag (hours, ~100 GB)
+xcodegen && xcodebuild test -scheme Room -derivedDataPath build/DerivedData   # the engine-free app and the unit tests (CI)
 ```

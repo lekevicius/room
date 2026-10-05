@@ -112,11 +112,9 @@ room/
   PLAN.md, README.md, .gitignore
   project.yml                    XcodeGen → Room.xcodeproj (never hand-edited)
   App/                           AppDelegate, main.swift, menus, composition root
-  Helpers/                       helper app targets (Info.plist, entitlements)
-  Packages/                      local SwiftPM packages (Engine, EngineCEF, Model, Store,
+  Packages/                      local SwiftPM packages (Engine, EngineRoomCore, Model, Store,
                                  Omnibox, UIKitCore, Sidebar, Card, Palette, Chrome,
                                  Settings, Infra)
-  Engine/cef/                    pinned CEF version, CMake for libcef_dll_wrapper, scripts
   Engine/roomcore/               fork: //room GN targets, patches/, chromium_src/, gn args,
                                  build + sign + package scripts (Chromium checkout lives
                                  outside the repo, e.g. ~/chromium/src, with //room symlinked)
@@ -165,14 +163,14 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 | Default browser | `NSWorkspace.setDefaultApplication(at:toOpenURLsWithScheme:)` + Chrome's CoreServicesUIAgent activation trick; `application(_:open:)` for URLs | fork report §7, UI report §7.4 |
 | Project tooling | XcodeGen `project.yml` + local SwiftPM packages; CMake for CEF wrapper; GN/siso for RoomCore; scripts for sign/notarize/appcast | reproducible, diff-able |
 | Name | "Room" (working name); avoid any "Chrom*" in product/framework names | Google trademark |
-| Identity | Product name **Room**; bundle id **`app.room.desktop`** (helpers `app.room.desktop.helper`, `.helper.gpu`, `.helper.renderer`, `.helper.plugin`, `.helper.alerts`; decided 2026-10-04, applied in 3.1a; was `com.lekevicius.room` through Chapter 2); engine framework **`RoomCore.framework`** (CEF's `Chromium Embedded Framework.framework` until Chapter 3) | the user's decision; domain owned by the author |
+| Identity | Product name **Room**; bundle id **`app.room.desktop`** (decided 2026-10-04, applied in 3.1a; was `com.lekevicius.room` through Chapter 2). **Amended in 3.9 (B-46, the planner's provisional choice; the user may object):** the helpers take Chromium's own suffixes under it (`app.room.desktop.helper` for the base, GPU and plugin helpers, `.helper.renderer`, `.framework.AlertNotificationService`); the `.helper.gpu`, `.helper.plugin`, `.helper.alerts` ids were the CEF helpers', deleted with CEF, and matching them on RoomCore would take a `chrome/BUILD.gn` patch the patch policy does not justify; engine framework **`RoomCore.framework`** (CEF's `Chromium Embedded Framework.framework` until Chapter 3) | the user's decision; domain owned by the author |
 | Minimum macOS | **26 (Tahoe)**; dev machine runs 27; built with Xcode 27 | `NSGlassEffectView` for overlays requires 26 |
 | Keychain | **Added in Phase 1.6.** RoomCore's OSCrypt item is "Room Safe Storage" (patch 0002). Team-signed builds use the login keychain; ad-hoc builds pass `--use-mock-keychain` (a new code identity per build makes macOS prompt on every read, and the cookie store holds every navigation until the prompt is answered). CEF builds always use the mock keychain (Phase 1.4) | Phase 1.5 finding |
 | Network calls | **Added in Phase 1.6.** No request the user did not ask for (CLAUDE.md). Chromium's launch-time requests (component updater, `accounts.google.com`, `google.com/async`) are audited and disabled in Chapter 3.1, by prefs/switches first and `//room` hooks second; Widevine's CDM download is the one deliberate exception, on first use | Phase 1.5 net-log |
 | Main menu | **Decided 2026-10-04 (Chapter 3 spec).** The host owns `NSApp.delegate` and the whole menu bar (2.8's `MainMenuTable`); Chrome's `AppController` is not installed: 3.2 adds a small factory hook and `RoomAppController`, which implements only what Chrome calls (command dispatch, extension commands, `windowDidBecomeMain` without menu bridges). The hidden Bookmarks item goes with it | Phase 1.5 crash; 2.8 made the host's menu the one source of shortcuts |
 | Hybrid UI in Chapter 3 | Chrome's Views bubbles for autofill, passwords, FedCM, device choosers, print preview and web-modal dialogs stay, anchored on the host's site button or field rect through the hardening branch's modal host; native replacements are Chapter 5 work by measured annoyance. The 2.6 delegate surfaces stay native | PR #1 measured what each bubble needs; the `ShowXxxBubble` long tail is where projects stall (fork report §4.4) |
 | Patch policy | Tiny factory redirects and anchor hooks only; `//base` or `//content` patches need a reproducible failure on the release build (patch 0010 parked, B-40); spike hooks and diagnostics compile only with `room_enable_spikes=true` | rebase cost (risk 1) |
-| Engine selection | `App` picks `EngineCEF` or `EngineRoomCore` by the `ROOM_ENGINE` build setting from 3.1 until 3.9 deletes CEF; the same spikes run on both | the Chapter 2 app is the acceptance harness for RoomCore |
+| Engine selection | `App` picks `EngineCEF` or `EngineRoomCore` by the `ROOM_ENGINE` build setting from 3.1 until 3.9 deletes CEF; the same spikes run on both. **3.9:** CEF deleted; `ROOM_ENGINE` is `roomcore` by default and `none` for the engine-free Room target CI builds (`NoEngineApplication`) | the Chapter 2 app is the acceptance harness for RoomCore |
 
 ---
 
