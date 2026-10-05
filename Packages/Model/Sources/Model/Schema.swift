@@ -14,12 +14,19 @@ public enum Schema {
     /// Phase 2.7b: a split group's pane order (`SplitGroup.members`).
     public static let v4 = "v4-split-members"
 
+    /// Phase 3.7b: each entry's back/forward list as the engine serialised it
+    /// (`Entry.navigationState`, a BLOB), so a relaunch, a crash recovery and
+    /// every revival of an unloaded entry keep its history. (3.9's drop of
+    /// the local history tables, planned as v5 in ROADMAP 3.9, becomes v6.)
+    public static let v5 = "v5-entry-navigation-state"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
         migrator.registerMigration(v2, migrate: createV2)
         migrator.registerMigration(v3, migrate: createV3)
         migrator.registerMigration(v4, migrate: createV4)
+        migrator.registerMigration(v5, migrate: createV5)
         return migrator
     }
 
@@ -152,6 +159,14 @@ public enum Schema {
             let ids = sorted.compactMap { ($0["id"] as UUID?)?.uuidString }
             let json = String(data: try JSONSerialization.data(withJSONObject: ids), encoding: .utf8) ?? "[]"
             try db.execute(sql: "UPDATE split_group SET members = ? WHERE id = ?", arguments: [json, group])
+        }
+    }
+
+    /// `entry.navigationState`: existing entries have none (they come back
+    /// at their URL, as before).
+    static func createV5(_ db: Database) throws {
+        try db.alter(table: "entry") { t in
+            t.add(column: "navigationState", .blob)
         }
     }
 

@@ -123,7 +123,14 @@ final class Mutator {
             case 45..<52:
                 if let entry { try sidebar.rename(entry.id, to: Bool.random(using: &random) ? "Renamed \(roll)" : nil) }
             case 52..<64:
-                if let entry { try sidebar.setLivePage(entry.id, url: url(), title: "Live \(roll)") }
+                if let entry {
+                    try sidebar.setLivePage(entry.id, url: url(), title: "Live \(roll)")
+                    // The page's serialised back/forward list (schema v5, 3.7b): 1–8 KB, as engines write.
+                    if Bool.random(using: &random) {
+                        let size = Int.random(in: 1_024...8_192, using: &random)
+                        try sidebar.setNavigationState(entry.id, Data((0..<size).map { _ in UInt8.random(in: 0...255, using: &random) }))
+                    }
+                }
             case 64..<72:
                 if let entry {
                     try sidebar.markActive(entry.id)

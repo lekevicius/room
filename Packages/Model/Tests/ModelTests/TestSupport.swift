@@ -28,7 +28,8 @@ func sampleState() -> RoomState {
     let todayID = UUID()
     let group = SplitGroup(layout: .vbox, ratios: [0.25, 0.75], members: [todayID])
     let today = Entry(id: todayID, kind: .today, spaceID: home.id, profileID: profile.id, splitGroupID: group.id,
-                      createdAt: Timestamp(milliseconds: 4_000), liveURL: "https://news.example.com", liveTitle: "News")
+                      createdAt: Timestamp(milliseconds: 4_000), liveURL: "https://news.example.com", liveTitle: "News",
+                      navigationState: Data("opaque engine state".utf8))
     var window = WindowState(sidebarWidth: 260, sidebarVisible: false, activeSpaceID: home.id)
     window.frame = CGRect(x: 10, y: 20, width: 1200, height: 800)
     var settings = Settings()

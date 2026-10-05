@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 creates every table; v2 (history frecency), v3 (history per profile) and v4 (split pane order) follow")
+    @Test("v1 creates every table; v2 (history frecency), v3 (history per profile), v4 (split pane order) and v5 (navigation state) follow")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
@@ -14,7 +14,7 @@ struct SchemaTests {
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }
@@ -34,13 +34,55 @@ struct SchemaTests {
             try profile.insert(db)
             try space.insert(db)
             try db.execute(sql: "INSERT INTO split_group (id, layout, ratios) VALUES (?, 'hbox', '[0.3,0.3,0.4]')", arguments: [group])
-            for entry in [today1, pinned, today0] { try entry.insert(db) }
+            // The v3 column set (Entry gained navigationState in v5).
+            for entry in [today1, pinned, today0] {
+                try db.execute(sql: """
+                    INSERT INTO entry (id, kind, spaceID, profileID, splitGroupID, position, isCollapsed, createdAt)
+                    VALUES (?, ?, ?, ?, ?, ?, 0, 1)
+                    """, arguments: [entry.id, entry.kind, entry.spaceID, entry.profileID, entry.splitGroupID, entry.position])
+            }
         }
         migrator = Schema.migrator
         try migrator.migrate(queue)
         let loaded = try queue.read { db in try SplitGroup.fetchOne(db, key: group) }
         #expect(loaded?.members == [pinned.id, today0.id, today1.id])
         #expect(loaded?.ratios == [0.3, 0.3, 0.4])
+    }
+
+    @Test("v5 keeps every entry and gives each an empty navigation state; a state written after it round-trips")
+    func v5NavigationState() throws {
+        let queue = try DatabaseQueue()
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v4)
+        let profile = Profile(name: "P", position: 0)
+        let space = Space(name: "S", profileID: profile.id, position: 0)
+        let entry = Entry(kind: .today, spaceID: space.id, profileID: profile.id, liveURL: "https://a.example/2", liveTitle: "Two")
+        try queue.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            // The v4 column set (no navigationState yet).
+            try db.execute(sql: """
+                INSERT INTO entry (id, kind, spaceID, profileID, position, isCollapsed, createdAt, liveURL, liveTitle)
+                VALUES (?, 'today', ?, ?, 0, 0, 1, ?, ?)
+                """, arguments: [entry.id, space.id, profile.id, entry.liveURL, entry.liveTitle])
+        }
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+        let migrated = try queue.read { db in try Entry.fetchOne(db, key: entry.id) }
+        #expect(migrated?.liveURL == "https://a.example/2" && migrated?.navigationState == nil)
+        var updated = try #require(migrated)
+        updated.navigationState = Data([0, 1, 2, 255])
+        try queue.write { db in try updated.update(db) }
+        #expect(try queue.read { db in try Entry.fetchOne(db, key: entry.id) }?.navigationState == Data([0, 1, 2, 255]))
+    }
+
+    @Test("A JSON snapshot from before v5 decodes with no navigation state")
+    func entryDecodesWithoutNavigationState() throws {
+        let entry = Entry(kind: .pinned, spaceID: UUID(), profileID: UUID(), storedURL: "https://a.example/")
+        var object = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
+        object["navigationState"] = nil
+        let decoded = try JSONDecoder().decode(Entry.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(decoded.navigationState == nil && decoded.storedURL == "https://a.example/")
     }
 
     @Test("A JSON snapshot from before v4 decodes with no pane order")
@@ -59,6 +101,7 @@ struct SchemaTests {
         #expect(Set(columns) == [
             "id", "kind", "spaceID", "profileID", "folderID", "splitGroupID", "position", "storedURL", "storedTitle",
             "customLabel", "customIcon", "faviconID", "isCollapsed", "createdAt", "lastActiveAt", "liveURL", "liveTitle",
+            "navigationState",
         ])
     }
 

@@ -145,13 +145,19 @@ public struct Entry: Hashable, Sendable, Codable, Identifiable, FetchableRecord,
     /// The page the entry last showed (restored unloaded at launch).
     public var liveURL: String?
     public var liveTitle: String?
+    /// The page's back/forward list as the engine serialised it
+    /// (`WebContents.navigationState`, opaque; schema v5, Phase 3.7b): an
+    /// entry revived from unloaded (relaunch, crash recovery, discard, ⌘W's
+    /// unload, ⇧⌘T) goes Back where it was. `nil` when the page had none or
+    /// the engine cannot serialise it (CEF).
+    public var navigationState: Data?
 
     public init(
         id: UUID = UUID(), kind: EntryKind, spaceID: UUID?, profileID: UUID, folderID: UUID? = nil,
         splitGroupID: UUID? = nil, position: Int = 0, storedURL: String? = nil, storedTitle: String? = nil,
         customLabel: String? = nil, customIcon: String? = nil, faviconID: Int64? = nil,
         isCollapsed: Bool = false, createdAt: Timestamp = .now, lastActiveAt: Timestamp? = nil,
-        liveURL: String? = nil, liveTitle: String? = nil
+        liveURL: String? = nil, liveTitle: String? = nil, navigationState: Data? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -170,6 +176,7 @@ public struct Entry: Hashable, Sendable, Codable, Identifiable, FetchableRecord,
         self.lastActiveAt = lastActiveAt
         self.liveURL = liveURL
         self.liveTitle = liveTitle
+        self.navigationState = navigationState
     }
 
     /// The URL a click loads: the live page if there is one, else the stored one.

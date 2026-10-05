@@ -92,6 +92,28 @@ struct PersistenceTests {
         #expect(!clean.uncleanExit)
     }
 
+    @Test("An entry's navigation state goes out with the next debounced write, survives an unclean exit, and tells no observer")
+    func navigationState() async throws {
+        let test = try TestStore(debounce: .milliseconds(80))
+        let store = test.store
+        let space = try #require(store.sidebar.spaces.first)
+        let entry = try store.sidebar.addEntry(.today, url: "https://a.example/2", space: space.id)
+        let commits = CommitWaiter(store.persistence)
+        #expect(await commits.next() != nil)
+        var heard = 0
+        let token = store.sidebar.observe { _ in heard += 1 }
+        let start = store.persistence.generation
+        try store.sidebar.setNavigationState(entry.id, Data("history".utf8))
+        try store.sidebar.setNavigationState(entry.id, Data("history 2".utf8))
+        #expect(await commits.next() == start + 1, "one transaction for both")
+        #expect(heard == 0)
+        // No close(): the next launch is an unclean one and still reads it (crash recovery).
+        let reopened = try test.reopen()
+        #expect(reopened.uncleanExit)
+        #expect(reopened.sidebar.entry(entry.id)?.navigationState == Data("history 2".utf8))
+        token.cancel()
+    }
+
     @Test("Generations increase across launches")
     func generations() throws {
         let test = try TestStore()

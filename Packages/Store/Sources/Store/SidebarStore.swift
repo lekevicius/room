@@ -619,6 +619,19 @@ public final class SidebarStore {
         }
     }
 
+    /// The engine's serialised back/forward list of the entry's page
+    /// (`WebContents.navigationState`, Phase 3.7b). Written with the next
+    /// state write (the debounced single transaction, 2.1); no observer hears
+    /// it: nothing on screen shows it, and it changes with every commit and
+    /// scroll-state update of a page.
+    public func setNavigationState(_ id: UUID, _ state: Data?) throws(SidebarError) {
+        guard var entry = entries[id] else { throw .unknownEntry(id) }
+        guard entry.navigationState != state else { return }
+        entry.navigationState = state
+        entries[id] = entry
+        persistence?.scheduleWrite()
+    }
+
     public func setFavicon(_ id: UUID, _ faviconID: Int64?) throws(SidebarError) {
         try update(id) { $0.faviconID = faviconID }
     }
