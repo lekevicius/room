@@ -266,14 +266,26 @@ def _keys(c):
     c.check("three layouts (ABC, Colemak, Lithuanian)", len(layouts) >= 3, ", ".join(layouts))
     for k in layouts:
         v = c.first(k)
+        # ⌘V lands in the field: CEF replaces the selection (" PASTED"), RoomCore pastes at the caret the
+        # spike placed at the end ("select me and copy PASTED", 3.2b); either way the page saw it first.
         c.check(f"{k}: ⌘C/⌘V/⌘Z page-first, then the Edit menu",
-                'pasteboard="select me and copy"' in v and 'value=" PASTED"' in v and 'Z value="select me and copy"' in v, v[:200])
+                'pasteboard="select me and copy"' in v and re.search(r'⌘V value="[^"]*PASTED"', v) is not None
+                and 'Z value="select me and copy"' in v, v[:200])
+        if "o typed value=" in v:
+            c.check(f"{k}: a plain letter types into the field", re.search(r'o typed value="[^"]*o"', v) is not None, "")
         c.check(f"{k}: ⌘ + number row gives 1…9", "chars: 1 2 3 4 5 6 7 8 9" in v, "")
     reached = [k for k in layouts if "⌘T newPage=true" in c.first(k) and "⌘L addressFocus=true" in c.first(k)]
     c.check("⌘T and ⌘L reach the app in the active layout (synthetic events of other layouts cannot dispatch, 1.4)", len(reached) >= 1, "")
-    log = c.first("delegate_key_log") or ""
-    # The log keeps its last 12 entries: the last two layouts' ⌘T and ⌘L.
-    c.check("⌘T and ⌘L classified reserved (the log's last two layouts)", log.count("reserved") >= 4, f"{log.count('reserved')} reserved")
+    if all("reserved calls=" in c.first(k) for k in layouts):
+        # Since 3.2b each layout counts its own reserved calls (the log also holds consumed keys now).
+        c.check("⌘T and ⌘L classified reserved in every layout", all("reserved calls=2" in c.first(k) for k in layouts),
+                ", ".join(re.search(r"reserved calls=\d+", c.first(k)).group(0) for k in layouts))
+        consumed = [int(m.group(1)) for k in layouts if (m := re.search(r"consumed=(\d+)", c.first(k)))]
+        c.number("didConsumeKey calls per layout (CEF: never)", ", ".join(map(str, consumed)) or "n/a")
+    else:
+        log = c.first("delegate_key_log") or ""
+        # The log keeps its last 12 entries: the last two layouts' ⌘T and ⌘L.
+        c.check("⌘T and ⌘L classified reserved (the log's last two layouts)", log.count("reserved") >= 4, f"{log.count('reserved')} reserved")
 
 
 @step_check("devtools")
