@@ -2,15 +2,58 @@
   "manifest_version": 3,
   "name": "Room 3.6 fixture",
   "version": "1.0",
-  "description": "Phase 3.6a: an action with a badge and an icon, a content script, a service worker that reads chrome.tabs, an options page.",
-  "icons": { "16": "icon16.png", "32": "icon32.png", "48": "icon48.png", "128": "icon128.png" },
+  "description": "Phase 3.6 fixture: an action with a badge, an icon and a popup that resizes itself, a content script, a service worker that reads chrome.tabs and opens the popup on request (action.openPopup), two commands (_execute_action and a named one whose handler calls sidePanel.open), a side panel, an options page.",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "action": {
     "default_title": "Room fixture",
     "default_popup": "popup.html",
-    "default_icon": { "16": "action16.png", "32": "action32.png" }
+    "default_icon": {
+      "16": "action16.png",
+      "32": "action32.png"
+    }
   },
-  "background": { "service_worker": "worker.js" },
+  "background": {
+    "service_worker": "worker.js"
+  },
   "options_page": "options.html",
-  "permissions": ["tabs", "storage"],
-  "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_end" }]
+  "permissions": [
+    "tabs",
+    "storage",
+    "sidePanel"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      }
+    },
+    "room-named": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U",
+        "mac": "Command+Shift+U"
+      },
+      "description": "Room fixture named command"
+    }
+  }
 }

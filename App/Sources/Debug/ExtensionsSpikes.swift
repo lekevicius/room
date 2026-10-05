@@ -307,6 +307,11 @@ extension SpikeRunner.Context {
             _ = await waitUntil(5) { installed(id)?.icon16 != nil }
             if let item = installed(id) { SpikeRunner.record("installed_\(id)", describe(item)) }
             await effects(of: id, section: section, center: center)
+            // 3.6b's exit: the popup from the header's button (-RoomWebstorePopups YES).
+            if UserDefaults.standard.bool(forKey: "RoomWebstorePopups"), let page = await open(URL(string: "https://example.com/")!) {
+                try? await Task.sleep(for: .seconds(2))
+                await webstorePopupChecks(id, page: page)
+            }
             SpikeRunner.record("phase", String(format: "installed_%@ %.3f", id, Date().timeIntervalSince1970))
         }
         // Settings ▸ Extensions with the installs.

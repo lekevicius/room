@@ -7,3 +7,9 @@ chrome.runtime.sendMessage({ q: "tabs" }).then((answer) => {
 }).catch((error) => {
   document.documentElement.dataset.roomFixtureTabs = "error: " + error;
 });
+// 3.6b: a page event asks the worker to open the action's popup (action.openPopup).
+document.addEventListener("room-open-popup", () => {
+  chrome.runtime.sendMessage({ q: "openPopup" }).then((answer) => {
+    document.documentElement.dataset.roomFixtureOpenPopup = String(answer);
+  });
+});
