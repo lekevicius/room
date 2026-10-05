@@ -24,5 +24,7 @@ final class NoEngineApplication: EngineApplication {
     func createProfile(name: String) async throws -> any Profile {
         throw EngineError.notSupported("NoEngineApplication.createProfile")
     }
+
+    func site(of url: URL) -> String? { PublicSuffixList.site(of: url) }
 }
 #endif
