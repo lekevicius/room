@@ -72,3 +72,7 @@ Outcome: accepted. `scripts/roomcore-rebase.sh` (fetch, predict, replay in a scr
 
 The rebase-1 build (pid 70841, started 19:28) was cut off at 9,468 completed steps by a power outage; the Mac rebooted, the Chromium sparse bundle did not remount by itself (`hdiutil attach` by hand), the checkout was intact (`154.0.8037.98-24-g…`, clean, `0 applied / 24 already`), the planner's scratchpad was lost (the session prompts live in this conversation and the loop log; nothing in the repository was lost: the last fold-in `9ae53a2` was pushed with CI green). The build was restarted from bash with nohup at 21:55 (`build/roomcore-rebase-1-build-2.log`); siso resumes from its deps log, so the lost time is the build's second half, about two hours. Rebase 1's build time will be reported as two segments.
 
+### 3.8-2 — accepted (2026-10-05 22:30 → 2026-10-06 00:09, 99 min; the 155 build runs until ~03:30)
+
+Outcome: accepted. Rebase 1 verified (293 / 5, nothing new), rebase 2 applied by the script to 155.0.8059.36 with five `//room` API fixes and one new stub; the clean build runs. Decisions: PLAN §4's cadence row written now (Stable; the build dominates the cost, the hooks did not churn), confirmed by the tour on 155; 0012 dropped after that tour; `GetAcceleratorProvider` stays a logged nullptr. Scheduling: rather than idle through the clean build, 3.9's app-side session runs now on the packaged 154.0.8037.98 build (the full tour as a preview under build load, with its numbers so conditioned); 3.9-2 verifies 155 when the build ends and starts the release build last.
+
