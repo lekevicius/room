@@ -52,3 +52,7 @@ Outcome: accepted; the phase closed. Decisions: B-66 (Chromium's 90-day history 
 
 Outcome: accepted. The Web Store question is answered: three real extensions install through Room's consent in the unbranded build; risk 7 keeps only Widevine's real-service half. Decisions: two more hooks accepted (24); B-68 is the user's (extensions' own requests are theirs); B-67 (extension pages in the active space's profile) waits for 4.4/4.5. Seen on the machine: DaisyDisk ran during the baseline (load 20; the user was at the Mac), and an uninstall created `~/Applications/Chromium Apps.localized` once before the suppression (left for the user). User's list: `chapter-3-by-hand.md` 3.6a (1Password with an account, the store by hand, the stray folder).
 
+### 3.6b — accepted; Phase 3.6 closed (2026-10-05 15:38 → 16:56, 78 min)
+
+Outcome: accepted; the phase closed. Extensions work end to end on RoomCore with popups in a native popover. Decisions: no patch again (seams: container user data, `ExtensionView`, a keybinding registry subclass, `SidePanelService`); B-69 (native messaging hosts) is the user's with "none registered in Chapter 3" as the provisional choice; B-70, B-71 to Chapter 4.5. Condition noted: most runs had the app inactive behind a system dialog, so `action.openPopup` (which Chrome refuses without an active window) was proven in the active standalone runs only. User's list: `chapter-3-by-hand.md` 3.6b (the header buttons, the uBO and Dark Reader popups, 1Password with an account, the commands, the system dialog).
+
