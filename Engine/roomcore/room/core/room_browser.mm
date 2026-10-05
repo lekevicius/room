@@ -27,6 +27,8 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/printing/print_preview_dialog_controller.h"
+#include "chrome/browser/ui/location_bar/location_bar.h"
+#include "components/omnibox/browser/location_bar_model.h"
 #include "chrome/browser/ui/webui/print_preview/print_preview_ui.h"
 #include "content/public/browser/web_ui.h"
 #include "printing/print_job_constants.h"
@@ -80,6 +82,7 @@
 - (void)room_tabStripChanged:(const TabStripModelChange&)change
                    selection:(const TabStripSelectionChange&)selection;
 - (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
+- (void)room_focusLocationBarRequested;
 - (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
 @end
 
@@ -110,6 +113,9 @@ class Client : public room::RoomBrowserWindowClient {
     NSEvent* ns_event = event.os_event.Get();
     return [[browser_ room_keyTargetFor:ns_event]
         room_handleUnhandledKeyEvent:ns_event];
+  }
+  void OnFocusLocationBarRequested(bool is_user_initiated) override {
+    [browser_ room_focusLocationBarRequested];
   }
   bool AllowOpenFromTab(const NavigateParams& params) override {
     return room::AllowOpenFromRoomPage(params);
@@ -443,6 +449,16 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   }
 }
 
+// Chrome asked for the address field (IDC_FOCUS_LOCATION and friends): the
+// active page's delegate hears it, as the host's field belongs to the page
+// the window shows.
+- (void)room_focusLocationBarRequested {
+  RoomWebContents* page = self.activeWebContents;
+  LOG(INFO) << "RoomBrowser: focus the location bar asked; active page "
+            << (page ? "yes" : "none");
+  [page room_requestFocusOnLocationBar];
+}
+
 - (void)room_activeContentsChanged:(content::WebContents*)contents {
   RoomWebContents* wrapper = [self room_wrapperFor:contents];
   [self willChangeValueForKey:@"activeWebContents"];
@@ -496,6 +512,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     case IDC_ZOOM_NORMAL:
     case IDC_PRINT:
     case IDC_DEV_TOOLS:
+    case IDC_FOCUS_LOCATION:
       if (!chrome::IsCommandEnabled(_browser, command_id)) {
         return @NO;
       }
@@ -511,6 +528,15 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   if (!_browser ||
       ![[NSProcessInfo processInfo].arguments containsObject:@"-RoomSpike"]) {
     return @(-1);
+  }
+  if ([action isEqualToString:@"location-bar-security"]) {
+    // What Chrome code reads from the LocationBar for the active page
+    // (Phase 3.5: the chip's state beside the host's securityLevel).
+    BrowserWindow* window = BrowserWindow::FromBrowser(_browser);
+    LocationBar* location_bar = window ? window->GetLocationBar() : nullptr;
+    LocationBarModel* model =
+        location_bar ? location_bar->GetLocationBarModel() : nullptr;
+    return @(model ? static_cast<int>(model->GetSecurityLevel()) : -1);
   }
   auto* contents = _browser->GetTabStripModel()->GetActiveWebContents();
   if (!contents || contents->GetVisibleURL().host() != "127.0.0.1") {

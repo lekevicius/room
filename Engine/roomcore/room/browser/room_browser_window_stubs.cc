@@ -78,10 +78,6 @@ void RoomBrowserWindow::SetContentsSize(const gfx::Size& size) {
   RoomStubHit("SetContentsSize");
 }
 
-void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
-  RoomStubHit("SetFocusToLocationBar");
-}
-
 void RoomBrowserWindow::UpdateCustomTabBarVisibility(bool visible, bool animate) {
   RoomStubHit("UpdateCustomTabBarVisibility");
 }

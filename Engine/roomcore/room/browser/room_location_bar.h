@@ -64,6 +64,7 @@ class RoomLocationBar : public LocationBar {
 
  private:
   raw_ptr<BrowserWindowInterface> browser_;
+  bool logged_model_request_ = false;
 };
 
 }  // namespace room

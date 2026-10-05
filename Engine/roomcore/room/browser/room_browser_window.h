@@ -91,6 +91,9 @@ class RoomBrowserWindowClient {
   virtual void ConfirmCloseWithPendingDownloads(
       int download_count,
       base::OnceCallback<void(bool)> callback) = 0;
+  // Chrome wants the address field focused (IDC_FOCUS_LOCATION,
+  // chrome::FocusLocationBar, LocationBar::FocusLocation): the host's field.
+  virtual void OnFocusLocationBarRequested(bool is_user_initiated) = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created
@@ -191,6 +194,7 @@ class RoomBrowserWindow : public BrowserWindow {
   bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) override;
   BrowserView* AsBrowserView() override;
   LocationBar* GetLocationBar() const override;
+  void SetFocusToLocationBar(bool is_user_initiated) override;
   ExclusiveAccessContext* GetExclusiveAccessContext() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(
@@ -217,7 +221,6 @@ class RoomBrowserWindow : public BrowserWindow {
   int GetTopControlsHeight() const override;
   void SetTopControlsGestureScrollInProgress(bool in_progress) override;
   void SetContentsSize(const gfx::Size& size) override;
-  void SetFocusToLocationBar(bool is_user_initiated) override;
   void UpdateCustomTabBarVisibility(bool visible, bool animate) override;
   void FocusToolbar() override;
   void ToolbarSizeChanged(bool is_animating) override;

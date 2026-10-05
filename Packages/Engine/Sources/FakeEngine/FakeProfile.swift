@@ -153,10 +153,34 @@ public final class FakeProfile: Profile {
         "\(url.scheme ?? "")://\(url.host() ?? "")" + (url.port.map { ":\($0)" } ?? "")
     }
 
+    // MARK: History and autocomplete (Phase 3.5), opt-in
+
+    /// `history` when set: a test that wants the engine's history sets one
+    /// (the Chapter 2 path runs without it, as on CEF).
+    public var fakeHistory: FakeHistory?
+    /// `makeAutocompleteController()` makes a `FakeAutocompleteController`
+    /// over `fakeHistory` when set (and `fakeHistory` exists).
+    public var providesAutocomplete = false
+    /// The controllers handed out, in order.
+    public private(set) var autocompleteControllers: [FakeAutocompleteController] = []
+    /// What `setDefaultSearchEngine` received, in order.
+    public private(set) var defaultSearchEngines: [SearchEngineTemplate] = []
+
+    public var history: (any ProfileHistory)? { fakeHistory }
+
+    public func makeAutocompleteController() -> (any AutocompleteController)? {
+        guard providesAutocomplete, let fakeHistory else { return nil }
+        let controller = FakeAutocompleteController(history: fakeHistory)
+        autocompleteControllers.append(controller)
+        return controller
+    }
+
+    public func setDefaultSearchEngine(_ engine: SearchEngineTemplate) {
+        defaultSearchEngines.append(engine)
+    }
+
     // MARK: Capabilities the fake does not provide
 
-    public var history: (any ProfileHistory)? { nil }
     public var bookmarks: (any ProfileBookmarks)? { nil }
     public var extensions: (any ProfileExtensions)? { nil }
-    public func makeAutocompleteController() -> (any AutocompleteController)? { nil }
 }

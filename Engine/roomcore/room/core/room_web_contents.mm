@@ -879,6 +879,14 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (void)room_requestFocusOnLocationBar {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector
+                (webContentsDidRequestFocusOnLocationBar:)]) {
+    [delegate webContentsDidRequestFocusOnLocationBar:self];
+  }
+}
+
 - (void)room_didEnterFullscreen:(const url::Origin&)origin {
   NSURL* originURL =
       origin.opaque() ? nil : net::NSURLWithGURL(origin.GetURL());

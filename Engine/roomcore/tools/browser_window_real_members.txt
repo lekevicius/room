@@ -50,3 +50,5 @@ ResetToolbarTabState
 OnTabDetached
 LinkOpeningFromGesture
 ShowEmojiPanel
+# Made real in Phase 3.5: Chrome's focus-the-address-bar command reaches the host.
+SetFocusToLocationBar

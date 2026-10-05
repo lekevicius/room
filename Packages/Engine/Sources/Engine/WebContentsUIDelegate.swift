@@ -28,6 +28,10 @@ public protocol WebContentsUIDelegate: AnyObject {
 
     /// Hovered-link URL or page status; `nil` clears the status pill.
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?)
+    /// The engine wants the address field focused for this page (Chromium's
+    /// focus-the-location-bar command, `IDC_FOCUS_LOCATION`, Phase 3.5): the
+    /// host opens its field as ⌘L does. CEF never asks.
+    func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents)
     /// Return `true` if the delegate presents `menu` itself (and later calls
     /// `menu.select` or `menu.cancel`); `false` lets the engine show its own.
     func webContents(
@@ -151,6 +155,7 @@ public extension WebContentsUIDelegate {
     func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {}
     func webContentsDidRequestExitFullscreen(_ webContents: any WebContents) {}
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {}
+    func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {}
     func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         false
     }

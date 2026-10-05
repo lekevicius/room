@@ -50,6 +50,8 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 
 // Delegate calls from //room (main thread, never re-entrant from Chrome).
 - (void)room_targetURLChanged:(const GURL&)url;
+// Chrome wants the address field focused (RoomLocationBar::FocusLocation).
+- (void)room_requestFocusOnLocationBar;
 - (void)room_didEnterFullscreen:(const url::Origin&)origin;
 - (void)room_didExitFullscreen;
 // Key routing from the page's RoomBrowserWindow (the delegate's answer).

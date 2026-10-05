@@ -132,6 +132,11 @@ public extension FakeWebContents {
         effectiveUIDelegate.webContents(self, didChangeStatusText: text)
     }
 
+    /// The engine asks for the address field (Chromium's IDC_FOCUS_LOCATION).
+    func simulateFocusLocationBarRequest() {
+        effectiveUIDelegate.webContentsDidRequestFocusOnLocationBar(self)
+    }
+
     func simulateFullscreenRequest(enter: Bool) {
         isFullscreen = enter
         if enter {

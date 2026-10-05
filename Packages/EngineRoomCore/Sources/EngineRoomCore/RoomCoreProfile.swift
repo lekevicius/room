@@ -9,9 +9,10 @@ import RoomCore
 /// window shows several profiles' spaces), hands Chrome's downloads to the
 /// downloads delegate (3.4a: the host picks the file; Chrome's
 /// `DownloadHistory` replays earlier sessions' downloads), and reads and
-/// writes the site panel's settings (`HostContentSettingsMap`); history,
-/// bookmarks, extensions and autocomplete are `nil` until their phases
-/// (docs/engine-api.md, RoomCore column).
+/// writes the site panel's settings (`HostContentSettingsMap`); since 3.5
+/// it gives Chromium's history and omnibox (`RoomCoreOmnibox.swift`);
+/// bookmarks and extensions are `nil` until their phases (docs/engine-api.md,
+/// RoomCore column).
 public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, RoomProfileDownloadsDelegate {
     public let name: String
     /// Set: RoomCore asks it for every new download's file and replays the
@@ -78,6 +79,10 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         browsers.append((Weak(window), browser))
         return browser
     }
+
+    /// The Chrome `Browser`s of this profile's windows (DEBUG spikes reach
+    /// their private spike selectors through them).
+    public var spikeBrowsers: [RoomBrowser] { browsers.filter { !$0.browser.isClosed }.map(\.browser) }
 
     // MARK: RoomBrowserDelegate
 
@@ -158,10 +163,31 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         profile.setContentSetting(value, for: RoomContentSettingType(permission), origin: origin)
     }
 
-    public var history: (any ProfileHistory)? { nil }
+    // MARK: History and the omnibox (3.5)
+
+    private lazy var roomHistory: RoomCoreHistory? = profile.history.map { RoomCoreHistory(history: $0) }
+
+    /// Chromium's `HistoryService` for this profile.
+    public var history: (any ProfileHistory)? { roomHistory }
+
+    /// Chromium's `AutocompleteController` with `ChromeAutocompleteProviderClient`.
+    public func makeAutocompleteController() -> (any AutocompleteController)? {
+        profile.makeAutocompleteController().map { RoomCoreAutocompleteController(controller: $0) }
+    }
+
+    /// `TemplateURLService`: the default search engine SearchProvider asks.
+    public func setDefaultSearchEngine(_ engine: SearchEngineTemplate) {
+        profile.setDefaultSearchEngine(name: engine.name, keyword: engine.keyword, searchURL: engine.searchURL, suggestURL: engine.suggestURL)
+    }
+
+    /// Chromium's search-suggest preference, kept equal to the host's switch.
+    public var searchSuggestEnabled: Bool {
+        get { profile.searchSuggestEnabled }
+        set { profile.searchSuggestEnabled = newValue }
+    }
+
     public var bookmarks: (any ProfileBookmarks)? { nil }
     public var extensions: (any ProfileExtensions)? { nil }
-    public func makeAutocompleteController() -> (any AutocompleteController)? { nil }
 }
 
 /// A weak reference in a collection.

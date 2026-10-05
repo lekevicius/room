@@ -444,6 +444,13 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate?.webContents(self, didChangeStatusText: text)
     }
 
+    /// Chrome's focus-the-location-bar command (`IDC_FOCUS_LOCATION` through
+    /// `RoomAppController`'s dispatch, `RoomLocationBar::FocusLocation`).
+    public func webContentsDidRequestFocusOnLocationBar(_ webContents: RoomWebContents) {
+        NSLog("RoomCore: Chrome asked to focus the location bar")
+        uiDelegate?.webContentsDidRequestFocusOnLocationBar(self)
+    }
+
     public func webContentsDidRequestEnterFullscreen(_ webContents: RoomWebContents, origin: URL?) {
         uiDelegate?.webContentsDidRequestEnterFullscreen(self, origin: origin)
     }

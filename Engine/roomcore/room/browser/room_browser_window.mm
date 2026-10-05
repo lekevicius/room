@@ -790,6 +790,13 @@ ExclusiveAccessContext* RoomBrowserWindow::GetExclusiveAccessContext() {
   return exclusive_access_context_.get();
 }
 
+void RoomBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
+  // BrowserView focuses its LocationBarView; the address field is the
+  // host's, which RoomLocationBar::FocusLocation asks for.
+  GetLocationBar()->FocusLocation(is_user_initiated,
+                                  /*clear_focus_if_failed=*/false);
+}
+
 LocationBar* RoomBrowserWindow::GetLocationBar() const {
   if (!location_bar_) {
     location_bar_ = std::make_unique<room::RoomLocationBar>(browser_);

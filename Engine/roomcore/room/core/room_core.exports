@@ -8,6 +8,10 @@ _OBJC_CLASS_$_RoomApplication
 _OBJC_METACLASS_$_RoomApplication
 _OBJC_CLASS_$_RoomAuthChallenge
 _OBJC_METACLASS_$_RoomAuthChallenge
+_OBJC_CLASS_$_RoomAutocompleteController
+_OBJC_METACLASS_$_RoomAutocompleteController
+_OBJC_CLASS_$_RoomAutocompleteMatch
+_OBJC_METACLASS_$_RoomAutocompleteMatch
 _OBJC_CLASS_$_RoomBrowser
 _OBJC_METACLASS_$_RoomBrowser
 _OBJC_CLASS_$_RoomCertificateError
@@ -22,6 +26,12 @@ _OBJC_CLASS_$_RoomExternalProtocolRequest
 _OBJC_METACLASS_$_RoomExternalProtocolRequest
 _OBJC_CLASS_$_RoomFileChooserRequest
 _OBJC_METACLASS_$_RoomFileChooserRequest
+_OBJC_CLASS_$_RoomHistoryEntry
+_OBJC_METACLASS_$_RoomHistoryEntry
+_OBJC_CLASS_$_RoomHistoryImportEntry
+_OBJC_METACLASS_$_RoomHistoryImportEntry
+_OBJC_CLASS_$_RoomHistoryVisit
+_OBJC_METACLASS_$_RoomHistoryVisit
 _OBJC_CLASS_$_RoomInfoBar
 _OBJC_METACLASS_$_RoomInfoBar
 _OBJC_CLASS_$_RoomMediaSessionInfo
@@ -34,5 +44,7 @@ _OBJC_CLASS_$_RoomPermissionRequest
 _OBJC_METACLASS_$_RoomPermissionRequest
 _OBJC_CLASS_$_RoomProfile
 _OBJC_METACLASS_$_RoomProfile
+_OBJC_CLASS_$_RoomProfileHistory
+_OBJC_METACLASS_$_RoomProfileHistory
 _OBJC_CLASS_$_RoomWebContents
 _OBJC_METACLASS_$_RoomWebContents

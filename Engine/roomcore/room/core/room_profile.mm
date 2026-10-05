@@ -16,6 +16,8 @@
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/sessions/exit_type_service.h"
 #include "components/prefs/pref_service.h"
+#include "chrome/common/pref_names.h"
+#include "base/strings/sys_string_conversions.h"
 #include "base/logging.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
@@ -25,6 +27,7 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/gfx/image/image.h"
+#import "room/core/room_omnibox_internal.h"
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
 
@@ -82,6 +85,10 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   // Browser closes (the last page of a window), and the next page the host
   // makes for it would find it gone (found by 3.4b's closeunload).
   std::unique_ptr<ScopedProfileKeepAlive> _keepAlive;
+  // Chrome's history and the omnibox controllers handed out (3.5); both
+  // let go of the profile's services when it goes away.
+  RoomProfileHistory* _history;
+  NSHashTable<RoomAutocompleteController*>* _autocompleteControllers;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -166,6 +173,11 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 }
 
 - (void)room_profileWillBeDestroyed {
+  [_history room_profileWillBeDestroyed];
+  for (RoomAutocompleteController* controller in _autocompleteControllers) {
+    [controller room_profileWillBeDestroyed];
+  }
+  _autocompleteControllers = nil;
   _keepAlive.reset();
   _downloads.reset();
   _faviconTasks.reset();
@@ -269,6 +281,52 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
             forOrigin:(NSURL*)origin
            completion:(void (^)(void))completion {
   room::ClearSiteData(_profile, types, origin, completion);
+}
+
+// MARK: History and the omnibox (Phase 3.5)
+
+- (RoomProfileHistory*)history {
+  if (!_history && _profile && !_offTheRecord) {
+    _history = [[RoomProfileHistory alloc] initWithChromeProfile:_profile];
+  }
+  return _history;
+}
+
+- (RoomAutocompleteController*)makeAutocompleteController {
+  if (!_profile || _offTheRecord) {
+    return nil;
+  }
+  RoomAutocompleteController* controller =
+      [[RoomAutocompleteController alloc] initWithChromeProfile:_profile];
+  if (!_autocompleteControllers) {
+    _autocompleteControllers = [NSHashTable weakObjectsHashTable];
+  }
+  [_autocompleteControllers addObject:controller];
+  return controller;
+}
+
+- (void)setDefaultSearchEngineWithName:(NSString*)name
+                               keyword:(NSString*)keyword
+                             searchURL:(NSString*)searchURL
+                            suggestURL:(NSString*)suggestURL {
+  if (!_profile) {
+    return;
+  }
+  room::SetDefaultSearchEngine(
+      _profile, base::SysNSStringToUTF16(name),
+      base::SysNSStringToUTF16(keyword), base::SysNSStringToUTF8(searchURL),
+      suggestURL ? base::SysNSStringToUTF8(suggestURL) : std::string());
+}
+
+- (BOOL)searchSuggestEnabled {
+  return _profile &&
+         _profile->GetPrefs()->GetBoolean(prefs::kSearchSuggestEnabled);
+}
+
+- (void)setSearchSuggestEnabled:(BOOL)enabled {
+  if (_profile) {
+    _profile->GetPrefs()->SetBoolean(prefs::kSearchSuggestEnabled, enabled);
+  }
 }
 
 @end

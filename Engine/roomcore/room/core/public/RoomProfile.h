@@ -5,6 +5,8 @@
 #import "RoomExport.h"
 
 @class RoomWebContents;
+@class RoomProfileHistory;
+@class RoomAutocompleteController;
 
 NS_ASSUME_NONNULL_BEGIN
 @class RoomProfile;
@@ -160,6 +162,26 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
             forOrigin:(nullable NSURL*)origin
            completion:(void (^)(void))completion
     NS_SWIFT_NAME(clearSiteData(_:for:completion:));
+
+// Chrome's history for this profile (HistoryService; RoomOmnibox.h); nil
+// for an off-the-record profile.
+@property(nonatomic, readonly, nullable) RoomProfileHistory* history;
+// A new omnibox AutocompleteController for one address field
+// (RoomOmnibox.h); nil for an off-the-record profile.
+- (nullable RoomAutocompleteController*)makeAutocompleteController;
+// Makes Room's engine the profile's default search engine
+// (TemplateURLService): SearchProvider's suggestions and its search matches
+// use it. Templates take Chrome's {searchTerms}; `suggestURL` nil means no
+// suggestions endpoint. The keyword names the engine (a different keyword is
+// a different engine; the host's own site-search keywords stay the host's).
+- (void)setDefaultSearchEngineWithName:(NSString*)name
+                               keyword:(NSString*)keyword
+                             searchURL:(NSString*)searchURL
+                            suggestURL:(nullable NSString*)suggestURL
+    NS_SWIFT_NAME(setDefaultSearchEngine(name:keyword:searchURL:suggestURL:));
+// Chrome's search-suggest preference (prefs::kSearchSuggestEnabled); the
+// host mirrors its suggestions switch here as well as choosing providers.
+@property(nonatomic) BOOL searchSuggestEnabled;
 
 @end
 

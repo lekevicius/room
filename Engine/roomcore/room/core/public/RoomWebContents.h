@@ -433,6 +433,11 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // The link under the pointer or keyboard focus changed; nil when none.
 - (void)webContents:(RoomWebContents*)webContents
     didChangeStatusText:(nullable NSString*)text;
+// Chrome wants the address field focused (IDC_FOCUS_LOCATION through the
+// command dispatch, chrome::FocusLocationBar, LocationBar::FocusLocation):
+// the host focuses its own field for this page.
+- (void)webContentsDidRequestFocusOnLocationBar:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(webContentsDidRequestFocusOnLocationBar(_:));
 // The page entered element fullscreen (Chrome granted it); the host makes
 // the page fill the window, or calls -exitFullscreen to refuse.
 - (void)webContentsDidRequestEnterFullscreen:(RoomWebContents*)webContents

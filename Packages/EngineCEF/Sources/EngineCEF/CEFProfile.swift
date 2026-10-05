@@ -135,6 +135,8 @@ public final class CEFProfile: Profile {
     public var bookmarks: (any ProfileBookmarks)? { nil }
     public var extensions: (any ProfileExtensions)? { nil }
     public func makeAutocompleteController() -> (any AutocompleteController)? { nil }
+    /// CEF has no omnibox: the palette's own suggest client uses the engine.
+    public func setDefaultSearchEngine(_ engine: SearchEngineTemplate) {}
 }
 
 extension RoomCEFContentSettingType {
