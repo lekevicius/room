@@ -5,9 +5,6 @@ import Carbon
 import Chrome
 import Engine
 import UIKitCore
-#if canImport(EngineCEF)
-import EngineCEF
-#endif
 
 /// `Room -RoomSpike <name> -RoomSpikeOutput <file>` (Debug builds): runs one
 /// Phase 1.4 measurement against the live engine, appends `key: value` lines
@@ -395,9 +392,6 @@ enum SpikeRunner {
                 SpikeRunner.record("error", "audio: audio.html did not open")
                 return
             }
-            #if canImport(EngineCEF)
-            (page as? CEFWebContents)?.audibilityPollInterval = .milliseconds(500)
-            #endif
             var cost: [Double] = []
             for _ in 0..<30 {
                 let start = ContinuousClock.now
@@ -530,7 +524,8 @@ enum SpikeRunner {
             prompts.respond(.accept(text: nil))
             _ = await waitUntil(3) { prompts.visibleDialog == nil }
             try? await Task.sleep(for: .milliseconds(300))
-            SpikeRunner.record("alert_completed", await js(page, "String(window.__alerted === true)"))
+            // The DOM mark, not `window.__alerted`: the engine's script runs in an isolated world (B-75).
+            SpikeRunner.record("alert_completed", await js(page, "String(document.documentElement.dataset.alerted === 'true')"))
         }
 
         /// Clicks an element with real mouse events on the page's view (a user

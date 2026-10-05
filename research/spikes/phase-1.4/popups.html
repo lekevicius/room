@@ -12,5 +12,5 @@
 <select id="sel"><option>One</option><option>Two</option><option>Three</option><option>Four</option></select>
 <input id="date" type="date">
 <input id="color" type="color">
-<button id="alert" onclick="alert('alert from page'); window.__alerted = true">alert()</button>
+<button id="alert" onclick="alert('alert from page'); window.__alerted = true; document.documentElement.dataset.alerted = 'true'">alert()</button>
 <button id="confirm" onclick="window.__confirmed = confirm('confirm from page')">confirm()</button>

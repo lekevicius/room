@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Phase 2.9 grand tour: every spike of Chapters 1 and 2, in sequence, on one
-# Debug build and one state directory (plus one engine directory), so each
+# Debug build of Room.app on RoomCore (the only engine since 3.9: scheme
+# "Room (RoomCore)", build/roomcore/DerivedData, the framework staged by
+# scripts/roomcore-package.sh) and one state directory (plus one engine
+# directory), so each
 # spike starts from what the ones before it left: the sidebar, history,
 # favicons, settings, profiles, cookies, windows.
 #
@@ -23,22 +26,20 @@
 # build/grand-tour/<stamp>/summary.md for both appearances.
 # Needs the screen unlocked, Room frontmost-able, Screen Recording for the
 # shell (window captures) and Automation for Room (activate/quit).
-# Groups (`--groups layout,tabs`, Chapter 3 runs the tour section by section on
-# RoomCore): layout, sidebar, spaces, palette, tabs, chrome, layoutmodes,
-# appintegration, netlog. `--only` takes step names, `--from` a step to start at.
-# ROOM_TOUR_ENGINE=roomcore runs the tour on Room.app on RoomCore (scheme
-# "Room (RoomCore)", build/roomcore/DerivedData; the framework staged by
-# scripts/roomcore-package.sh); the default is the CEF app (scheme "Room").
+# Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
+# layout, sidebar, spaces, palette, tabs, chrome, layoutmodes, appintegration,
+# netlog. `--only` takes step names, `--from` a step to start at.
+# Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
+# and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
+# there, never to DiagnosticReports: B-76); each step's new minidumps are named
+# with their FATAL line (a DCHECK) in steps/<step>.crashpad.
 # Usage: scripts/grand-tour.sh [--no-build] [--groups <group,...>] [--from <step>] [--only <step,...>] [light] [dark]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-ENGINE_NAME="${ROOM_TOUR_ENGINE:-cef}"
-case "$ENGINE_NAME" in
-  cef) SCHEME="Room"; DERIVED="build/DerivedData" ;;
-  roomcore) SCHEME="Room (RoomCore)"; DERIVED="build/roomcore/DerivedData" ;;
-  *) echo "ROOM_TOUR_ENGINE must be cef or roomcore" >&2; exit 2 ;;
-esac
+ENGINE_NAME=roomcore
+SCHEME="Room (RoomCore)"
+DERIVED="build/roomcore/DerivedData"
 APP="$DERIVED/Build/Products/Debug/Room.app"
 export ROOM_APP="$APP"
 
@@ -63,6 +64,8 @@ now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 # Room's own crash reports and its helpers' (a renderer `chrome://crash` kills is expected in 2.6b).
 crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room-' || true; }
 helper_crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room Helper' || true; }
+# The engine's minidumps (pending and completed) under the run's engine directory.
+crashpad_dumps() { ls "$ENGINE"/Crashpad/pending/*.dmp "$ENGINE"/Crashpad/completed/*.dmp 2>/dev/null | sort || true; }
 room_pids() { pgrep -f "Room.app/Contents/MacOS/Room" || true; }
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -134,9 +137,10 @@ step() {
   [[ -n "$only" && "$only" != *",$name,"* ]] && return 0
   [[ -n "$groups" && "$groups" != *",$group,"* ]] && return 0
   local log="$STEPS/$name.out" err="$STEPS/$name.err"
-  local crashes_before helpers_before t0 t1 status=0 left
+  local crashes_before helpers_before dumps_before t0 t1 status=0 left dumps dump
   crashes_before=$(crash_count)
   helpers_before=$(helper_crash_count)
+  dumps_before=$(crashpad_dumps)
   if ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked | grep -q '<true/>'; then
     echo "the screen locked before $name; stopping (unlock and rerun with --from $name)" >&2; exit 1
   fi
@@ -149,8 +153,16 @@ step() {
   left=$(room_pids | wc -l | tr -d ' ')
   for pid in $(room_pids); do kill -TERM "$pid" 2>/dev/null || true; done
   while pgrep -f "Room Helper" >/dev/null; do sleep 0.5; done
+  # New engine minidumps: one line each, with the check that failed (a dev-build DCHECK) or none (a kill).
+  dumps=0
+  : > "$STEPS/$name.crashpad"
+  for dump in $(comm -13 <(printf '%s\n' "$dumps_before") <(crashpad_dumps)); do
+    dumps=$((dumps + 1))
+    printf '%s\t%s\n' "$(basename "$dump")" \
+      "$(strings -n 8 "$dump" | grep -m1 -oE 'FATAL:[^]]*\] .{0,160}' || echo 'no FATAL line (killed, or a crash without a check)')" >> "$STEPS/$name.crashpad"
+  done
   printf '%s\t%s\t%s\t%.1f\t%s\t%s\t%s\n' "$name" "$group" "$status" "$(perl -e "print $t1 - $t0")" \
-    "$(( $(crash_count) - crashes_before ))" "$left" "$(( $(helper_crash_count) - helpers_before ))" >> "$RUN/steps.tsv"
+    "$(( $(crash_count) - crashes_before ))" "$left" "$(( $(helper_crash_count) - helpers_before + dumps ))" >> "$RUN/steps.tsv"
 }
 
 spike() { # spike <name> [app args...]: one SpikeRunner spike, output in steps/<step>.spike

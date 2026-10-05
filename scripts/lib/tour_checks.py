@@ -9,8 +9,8 @@ running, the spike reached its end, no `error:` or `capture_timeout:`
 lines). The per-step checks below are the spec's or the phase's own
 criterion where it is a rule (a count, an identity, a state), and a
 presence check where it is a number: a result line that is missing fails,
-so a spike that skips a section (a CEF-only path on another engine, a
-guard that returned early) cannot pass by saying nothing. Timings are
+so a spike that skips a section (an engine-only path, a guard that
+returned early) cannot pass by saying nothing. Timings are
 reported as numbers, not judged here, except where the phase set a bound;
 `spike-results.md` "Phase 2.9 — grand tour" compares them with the phases.
 """
@@ -97,7 +97,9 @@ def evaluate(run, step):
     c.check("exit 0", step["status"] == "0", "" if step["status"] == "0" else f"exit {step['status']}")
     c.check("no crash report", step["crash_reports"] == "0", f"{step['crash_reports']} new")
     if step.get("helper_crash_reports", "0") != "0" and c.name != "chrome26b":
-        c.check("no helper crash report", False, f"{step['helper_crash_reports']} new")
+        dumps = c.file(".crashpad")
+        c.check("no helper crash report", False, f"{step['helper_crash_reports']} new"
+                + (": " + "; ".join(l.split("\t", 1)[-1][:140] for l in dumps) if dumps else ""))
     c.check("no Room left running", step["left_running"] == "0", f"{step['left_running']} stopped by the tour")
     if c.spike:
         c.check("spike reached its end", bool(c.values.get("end")), "no `end:` line")
@@ -223,7 +225,7 @@ def _audio(c):
     v = c.first("webaudio_still_audible_after_2s_playing")
     c.check("Web Audio stop reported", v is not None, "missing")
     if v == "false":
-        c.notes.append("Web Audio reads silent while playing: the known CEF cap (ROADMAP Chapter 2 caps; RoomCore 3.3a)")
+        c.notes.append("Web Audio reads silent while playing (the Chapter 2 engine's cap, lifted on RoomCore in 3.3a): a regression")
 
 
 @step_check("popups")
@@ -235,7 +237,10 @@ def _popups(c):
         oa, ob = re.search(r"offset (.*)$", a), re.search(r"offset (.*)$", b)
         c.check(f"<{'select' if kind == 'sel' else 'input type=date'}> popup keeps its offset after the window moves",
                 oa and ob and oa.group(1) == ob.group(1), f"{a} / {b}")
-    c.check("alert as a sheet, completed", c.first("alert_sheet") == "true" and "true" in (c.first("alert_completed") or ""), "")
+    # The page marks the DOM after its alert returns (B-75: the spike's script runs in an isolated world and
+    # cannot read the page's `window.__alerted`).
+    c.check("alert as a sheet, completed", c.first("alert_sheet") == "true" and "true" in (c.first("alert_completed") or ""),
+            f"sheet={c.first('alert_sheet')} completed={c.first('alert_completed')}")
 
 
 @step_check("hidden")
@@ -266,8 +271,8 @@ def _keys(c):
     c.check("three layouts (ABC, Colemak, Lithuanian)", len(layouts) >= 3, ", ".join(layouts))
     for k in layouts:
         v = c.first(k)
-        # ⌘V lands in the field: CEF replaces the selection (" PASTED"), RoomCore pastes at the caret the
-        # spike placed at the end ("select me and copy PASTED", 3.2b); either way the page saw it first.
+        # ⌘V lands in the field: RoomCore pastes at the caret the spike placed at the end
+        # ("select me and copy PASTED", 3.2b; Chapter 2's engine replaced the selection); the page saw it first.
         c.check(f"{k}: ⌘C/⌘V/⌘Z page-first, then the Edit menu",
                 'pasteboard="select me and copy"' in v and re.search(r'⌘V value="[^"]*PASTED"', v) is not None
                 and 'Z value="select me and copy"' in v, v[:200])
@@ -281,7 +286,7 @@ def _keys(c):
         c.check("⌘T and ⌘L classified reserved in every layout", all("reserved calls=2" in c.first(k) for k in layouts),
                 ", ".join(re.search(r"reserved calls=\d+", c.first(k)).group(0) for k in layouts))
         consumed = [int(m.group(1)) for k in layouts if (m := re.search(r"consumed=(\d+)", c.first(k)))]
-        c.number("didConsumeKey calls per layout (CEF: never)", ", ".join(map(str, consumed)) or "n/a")
+        c.number("didConsumeKey calls per layout", ", ".join(map(str, consumed)) or "n/a")
     else:
         log = c.first("delegate_key_log") or ""
         # The log keeps its last 12 entries: the last two layouts' ⌘T and ⌘L.
@@ -390,7 +395,9 @@ def _cookies(c):
             c.first("after_move_to_work") or "missing")
     c.check("engine profiles are direct children of the root", c.first("engine_profile_directories") == "Room Profile Default, Room Profile Work",
             c.first("engine_profile_directories") or "missing")
-    c.check("Work has no history from Default (history follows the profile)", "Work=0" in (c.first("history_rows") or ""), c.first("history_rows") or "")
+    # History follows the profile: each profile's engine history holds only its own visits (3.5; 3.9 reads the engine's).
+    c.check("history follows the profile: Default has only ?set=home, Work only ?set=work",
+            c.first("history_by_profile") == "Default: home=true work=false; Work: home=false work=true", c.first("history_by_profile") or "missing")
 
 
 # --- palette (2.4, 2.6a) -------------------------------------------------------
@@ -428,9 +435,8 @@ def _palette2(c):
     c.check("a search recorded", "history search page" in hist, "missing")
     if c.first("history_source") == "engine":
         # 3.5: on RoomCore the store's table no longer grows; Chrome's history has the visit and the palette finds it.
-        around = c.first("store_history_rows_around_a_navigation") or ""
-        before_after = re.findall(r"\d+", around)
-        c.check("the store's history does not grow on RoomCore", len(before_after) == 2 and before_after[0] == before_after[1], around or "missing")
+        # 3.9: schema v6 dropped the store's history tables; Chrome's history is the only one.
+        c.check("the store has no history table (schema v6)", c.first("store_history_tables") == "none", c.first("store_history_tables") or "missing")
         c.check("a visit on RoomCore is in Chrome's history", '"typed"' in (c.first("engine_visit_recorded") or ""), c.first("engine_visit_recorded") or "missing")
         c.check("the palette finds it from Chrome's history", "found=true" in (c.first("palette_room35") or ""), c.first("palette_room35") or "missing")
         c.check("⌘Y lists Chrome's history", re.search(r"rows=[1-9]", c.first("cmd_y") or "") is not None, c.first("cmd_y") or "missing")
@@ -487,13 +493,12 @@ def _suggestoff(c):
 
 @step_check("palettemeasure")
 def _palettemeasure(c):
-    c.check("500 entries and 50,000 history rows", c.first("entries") == "500" and c.first("history_rows") == "50000",
-            f"entries {c.first('entries')} history {c.first('history_rows')}")
-    if c.first("engine_autocomplete") == "true":
-        # 3.5 on RoomCore: Chrome's omnibox answers from its own history, which must hold the 50k rows.
-        c.check("Chrome's history holds the 50,000 rows the palette reads (plus the tour's own visits)", int(c.first("engine_history_rows") or 0) >= 50000,
-                f"engine history {c.first('engine_history_rows')}")
-        c.number("engine_async_done")
+    c.check("500 entries", c.first("entries") == "500", f"entries {c.first('entries')}")
+    # Chrome's omnibox answers from its own history (3.5), which the fixture fills to 50k rows (3.9: the only history).
+    c.check("Chrome's omnibox answers the palette", c.first("engine_autocomplete") == "true", c.first("engine_autocomplete") or "missing")
+    c.check("Chrome's history holds the 50,000 rows the palette reads (plus the tour's own visits)", int(c.first("engine_history_rows") or 0) >= 50000,
+            f"engine history {c.first('engine_history_rows')}")
+    c.number("engine_async_done")
     q = c.first("keystroke_query_only")
     c.check("local results p95 under 16 ms at 50k rows (ROADMAP 2.4 exit)", (field(q, "p95") or 99) < 16, q or "missing")
     later = c.first("keystroke_to_rows_later_keys")
@@ -531,7 +536,7 @@ def _tabs(c):
     c.number("discard", m.group(0) if m else v[:120])
     c.contains("discarded_reselect", "state=alive", label="a discarded tab reloads on selection")
     if "canGoBack=false" in (c.first("discarded_reselect") or ""):
-        c.notes.append("the reloaded discarded tab has no back history: CEF cap B-13 (3.3a)")
+        c.notes.append("the reloaded discarded tab has no back history (B-13, closed on RoomCore in 3.3a): a regression")
     c.check("⇧⌘M mutes the selected page", c.first("mute") == "selectedMuted=true", c.first("mute") or "missing")
 
 
@@ -610,8 +615,8 @@ def _chrome26a(c):
         c.notes.append("geolocation reads \"prompt\" after Allow: B-26 (3.4a)")
 
 
-# Every delegate member the recorder saw called on CEF in 2.6b (docs/engine-api.md, "Phase 2.6 exit checklist");
-# didConsumeKey is the one CEF never calls.
+# Every delegate member the 2.6b recorder saw called (docs/engine-api.md, "What CEF could not do": the
+# Phase 2.6 checklist); didConsumeKey is measured by the keys spike, not this one.
 DELEGATE_MEMBERS = """decidePolicy didChangeAudible didChangeMuted didChangeSecurityState didChangeStatusText didCommitNavigation didCreate
 didFailCertificateCheck didReceiveAuthChallenge didUpdateDownload handleUnhandledKeyEvent isReservedKeyEvent processGone runBeforeUnloadDialog
 runFileChooser runJavaScriptAlert runJavaScriptConfirm runJavaScriptPrompt webContentsDidClose webContentsDidDismissJavaScriptDialogs
@@ -621,15 +626,19 @@ willBeginDownload willShowContextMenu""".split()
 
 @step_check("chrome26b")
 def _chrome26b(c):
-    # chrome://crash makes one renderer crash report: expected here, and only here.
-    helpers = c.step.get("helper_crash_reports", c.step["crash_reports"])
-    if "helper_crash_reports" not in c.step:  # the first light run counted both together
-        c.checks = [ch for ch in c.checks if ch[0] != "no crash report"]
-    c.check("one helper crash report, the renderer `chrome://crash` killed", helpers == "1", f"{helpers}")
+    # chrome://crash kills one renderer: its minidump (no FATAL line) is expected here, and only here.
+    # RoomCore's Crashpad writes under the engine directory (steps/chrome26b.crashpad); a dev-build
+    # DCHECK in another renderer (a FATAL line) is not this step's and fails on its own (B-76).
+    dumps = c.file(".crashpad")
+    killed = [l for l in dumps if "no FATAL line" in l]
+    checks = [l.split("\t", 1)[-1][:140] for l in dumps if "no FATAL line" not in l]
+    c.check("one helper crash report, the renderer `chrome://crash` killed", len(killed) == 1,
+            f"{len(killed)} killed renderer dumps (helper crash reports {c.step.get('helper_crash_reports')})")
+    c.check("no other helper crash report", not checks, "; ".join(checks))
     _chrome26a(c)
     calls = dict(p.split("=") for p in (c.first("delegate_calls") or "").split() if "=" in p)
     missing = [m for m in DELEGATE_MEMBERS if m not in calls]
-    c.check(f"every delegate member called on CEF ({len(DELEGATE_MEMBERS)}; didConsumeKey never, as known)", not missing, "missing: " + ", ".join(missing))
+    c.check(f"every delegate member called ({len(DELEGATE_MEMBERS)}; didConsumeKey: the keys spike)", not missing, "missing: " + ", ".join(missing))
     c.contains("download_begin", "ring=", label="download begins with the ring")
     c.contains("download_names", "on disk=true", label="download lands in Settings' folder")
     c.contains("download_controls", "paused=true", "resumed=true", "cancelled=true", "file left=false", label="pause, resume, cancel")
@@ -645,7 +654,7 @@ def _chrome26b(c):
         c.contains("print_preview", "← Room's window", label="⌘P: Chrome's print preview over Room's window (B-29)")
         c.contains("print_preview_dismissed", "closed by Esc", label="Esc closes the print preview")
     else:
-        c.contains("print_panel", "modal NSPanel", label="⌘P: CEF's print panel (B-29)")
+        c.contains("print_panel", "modal NSPanel", label="⌘P: a system print panel (no print preview appeared)")
     c.contains("status_pill_dodge", "leading → trailing", label="status pill dodges the pointer")
     c.contains("site_panel_page_sees", 'geolocation\\":\\"denied', label="site panel Block reaches the page")
     c.contains("site_panel_clear", "cleared=true", 'cookie=""', label="site panel Clear empties cookies and storage")
@@ -771,4 +780,4 @@ def _netlog(c):
     hosts = re.search(r"hosts: (\d+) \((\d+) not page traffic: ([^)]*)\)", text)
     if hosts:
         c.number("engine hosts (not page traffic)", f"{hosts.group(2)}: {hosts.group(3)}")
-        c.notes.append(f"the engine's own requests (B-19, Chapter 3.1b): {hosts.group(3)}")
+        c.notes.append(f"the engine's own requests (0 expected since 3.1b-2): {hosts.group(3)}")
