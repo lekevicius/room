@@ -62,6 +62,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let resetButton = makeIconButton(.resetPinned, size: 11, label: "Back to pinned URL")
     private let closeButton = makeIconButton(.closeTab, size: 10, label: "Close Tab")
     private let audioButton = AudioIndicatorView()
+    /// The page captures its camera, microphone or a screen (3.4b).
+    private let captureIndicator = NSImageView()
 
     /// The pointer is over the row.
     var isHovered = false { didSet { if isHovered != oldValue { updateHoverState() } } }
@@ -89,7 +91,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         resetButton.setAccessibilityIdentifier("row-reset")
         closeButton.setAccessibilityIdentifier("row-close")
         audioButton.setAccessibilityIdentifier("row-audio")
-        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton] as [NSView] {
+        captureIndicator.isHidden = true
+        captureIndicator.contentTintColor = .systemRed
+        captureIndicator.setAccessibilityIdentifier("row-capture")
+        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator] as [NSView] {
             addSubview(view)
         }
     }
@@ -138,6 +143,17 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             if model.page.isAudible, !model.page.isMuted, !Motion.reduceMotion {
                 audioButton.addSymbolEffect(.variableColor.iterative)
             }
+        }
+        captureIndicator.isHidden = model.page.capture == nil
+        if let capture = model.page.capture {
+            let (symbol, label): (Symbol, String) = switch capture {
+            case .screen: (.screenSharing, "Sharing your screen")
+            case .camera: (.camera, "Using your camera")
+            case .microphone: (.microphone, "Using your microphone")
+            }
+            captureIndicator.image = symbol.image(pointSize: 11, weight: .medium, accessibilityDescription: label)
+            captureIndicator.toolTip = label
+            captureIndicator.setAccessibilityLabel(label)
         }
         setAccessibilityLabel(EntryLabel.title(entry))
         updateHoverState()
@@ -209,6 +225,11 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         if !audioButton.isHidden {
             let width = SidebarMetrics.audioIndicatorWidth
             audioButton.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
+            trailing -= width
+        }
+        if !captureIndicator.isHidden {
+            let width = SidebarMetrics.audioIndicatorWidth
+            captureIndicator.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
             trailing -= width
         }
         let x = icon.maxX + SidebarMetrics.faviconTitleGap

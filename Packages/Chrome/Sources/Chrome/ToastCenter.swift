@@ -52,6 +52,15 @@ public final class ToastCenter: ToastPresenting {
         queue.show(toast)
     }
 
+    /// Takes down the showing toast if it is `id` (a notice the engine withdrew).
+    public func dismiss(id: String) {
+        guard queue.current?.id == id else { return }
+        queue.dismiss()
+    }
+
+    /// The toast on screen (spikes).
+    public var currentToast: Toast? { queue.current }
+
     /// Call when the window or sidebar geometry changes.
     public func updateAnchor() {
         guard let hostView else { return }

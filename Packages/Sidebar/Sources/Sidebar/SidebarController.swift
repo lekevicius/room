@@ -634,6 +634,17 @@ public final class SidebarController: NSObject {
               let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID) else { return }
         let hadPage = pageState(id).isLoaded
         if plan.steps.contains(.switchAway), selectedEntryID == id { applyFallback(plan.fallback) }
+        // A Today tab's entry goes only once its page closed: "stay" in the
+        // page's beforeunload dialog keeps both (spec §A.3, 2.6a).
+        if plan.steps.contains(.remove), plan.steps.contains(.unload), hadPage, let host {
+            host.closePage(id) { [weak self] closed in
+                guard let self, closed, self.sidebar.entry(id) != nil else { return }
+                if let removed = try? self.sidebar.remove(id) { self.closedTabs.push(.removed([removed])) }
+                self.pageStateDidChange([id])
+            }
+            pageStateDidChange([id])
+            return
+        }
         if plan.steps.contains(.unload) { host?.unload(id) }
         if plan.steps.contains(.reset) {
             try? sidebar.resetToStoredURL(id)

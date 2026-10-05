@@ -10,13 +10,15 @@ public enum PageDialog: Equatable {
     case beforeUnload(isReload: Bool, origin: URL?)
     case auth(AuthChallenge)
     case certificate(CertificateError)
+    /// A link to another application (3.4b; asked once per scheme, `ExternalApps`).
+    case externalApp(ExternalURLRequest)
 
     /// Closed by the engine itself when the page navigates or resets its
     /// dialogs (`webContentsDidDismissJavaScriptDialogs`).
     var isJavaScript: Bool {
         switch self {
         case .alert, .confirm, .prompt, .beforeUnload: true
-        case .auth, .certificate: false
+        case .auth, .certificate, .externalApp: false
         }
     }
 }
@@ -44,7 +46,7 @@ public enum PromptRules {
     /// Return: the dialog's primary button. A certificate error's is Go Back.
     public static func returnResponse(for dialog: PageDialog, text: String?) -> DialogResponse {
         switch dialog {
-        case .alert, .confirm, .beforeUnload: .accept(text: nil)
+        case .alert, .confirm, .beforeUnload, .externalApp: .accept(text: nil)
         case .prompt: .accept(text: text ?? "")
         case .auth: .signIn(user: text ?? "", password: "")
         case .certificate: .cancel
@@ -216,5 +218,23 @@ public final class PagePrompts {
     private func takeID() -> Int {
         defer { nextID += 1 }
         return nextID
+    }
+}
+
+/// Links to other applications (3.4b): the first link of a scheme in the
+/// session asks (`PageDialog.externalApp`); once opened, that scheme opens
+/// without asking until the app quits. A refusal asks again next time.
+/// "Always open" across launches is Chapter 4's Settings.
+public final class ExternalApps {
+    public private(set) var allowedSchemes: Set<String> = []
+
+    public init() {}
+
+    public func isAllowed(_ scheme: String) -> Bool {
+        allowedSchemes.contains(scheme.lowercased())
+    }
+
+    public func allow(_ scheme: String) {
+        allowedSchemes.insert(scheme.lowercased())
     }
 }

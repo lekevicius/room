@@ -432,6 +432,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
+        // The engine's notices (infobars, the translate offer) as toasts (3.4b).
+        pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }
+        pageDelegate.chrome.dismissNotice = { [weak toasts] id in toasts?.dismiss(id: id) }
+        pageDelegate.toasts = toasts
         let downloads = DownloadsUI(button: sidebar.downloadsButton, rootView: rootView, toasts: toasts, settings: store.settings)
         downloads.pageFavicon = { [weak tabs] in tabs?.current?.favicon }
         self.downloads = downloads

@@ -66,7 +66,10 @@ extension TabController: WebContentsUIDelegate {
     public func webContentsDidClose(_ webContents: any WebContents) {
         // Its prompts are answered (the presentation forgets the page).
         pageUIDelegate?.webContentsDidClose(webContents)
-        if closing.removeValue(forKey: ObjectIdentifier(webContents)) != nil { return }
+        if closing.removeValue(forKey: ObjectIdentifier(webContents)) != nil {
+            pageClosers.removeValue(forKey: ObjectIdentifier(webContents))?(true)
+            return
+        }
         if closingPeeks.remove(ObjectIdentifier(webContents)) != nil { return }
         // A Peek's page closed itself (`window.close()`): the Peek goes.
         if let opener = peekOpener(of: webContents) {
@@ -90,7 +93,9 @@ extension TabController: WebContentsUIDelegate {
         let key = ObjectIdentifier(webContents)
         let answer: (Bool) -> Void = { [weak self] leave in
             if !leave, let self, let closed = closing.removeValue(forKey: key) {
-                // After the close command has finished with the entry (it may remove it).
+                // ⌘W's entry stays (its removal waited for the page to close).
+                pageClosers.removeValue(forKey: key)?(false)
+                // After the close command has finished with the entry.
                 Task { @MainActor in self.stay(closed.contents, entry: closed.entry) }
             }
             completion(leave)
@@ -236,5 +241,48 @@ extension TabController: WebContentsUIDelegate {
 
     public func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {
         pageUIDelegate?.webContents(webContents, processGone: status)
+    }
+
+    // MARK: The renderer, other applications, notices, capture (3.4b)
+
+    public func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
+                                                 completion: @escaping (UnresponsiveRendererAction) -> Void) {
+        guard let pageUIDelegate else { return completion(.wait) }
+        pageUIDelegate.webContentsDidBecomeUnresponsive(webContents, completion: completion)
+    }
+
+    public func webContentsDidBecomeResponsive(_ webContents: any WebContents) {
+        pageUIDelegate?.webContentsDidBecomeResponsive(webContents)
+    }
+
+    public func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest,
+                            completion: @escaping (Bool) -> Void) {
+        guard let pageUIDelegate else { return completion(false) }
+        pageUIDelegate.webContents(webContents, shouldOpenExternalURL: request, completion: completion)
+    }
+
+    public func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar) {
+        pageUIDelegate?.webContents(webContents, didAddInfoBar: infoBar)
+    }
+
+    public func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar) {
+        pageUIDelegate?.webContents(webContents, didRemoveInfoBar: infoBar)
+    }
+
+    /// The row's capture indicator follows `captureState` through `track`.
+    public func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState) {
+        pageUIDelegate?.webContents(webContents, didChangeCaptureState: state)
+    }
+
+    /// The footer's media row is 4.6's: the session is logged once per change.
+    func logMediaSession(_ page: Page, _ session: MediaSessionInfo?, entry: UUID) {
+        guard page.loggedMediaSession != session else { return }
+        page.loggedMediaSession = session
+        if let session {
+            NSLog("Room: media session \"%@\" by \"%@\" on \"%@\" (%@) art=%@ entry %@", session.title, session.artist, session.album,
+                  "\(session.playbackState)", session.artworkURL?.absoluteString ?? "none", entry.uuidString)
+        } else {
+            NSLog("Room: media session ended, entry %@", entry.uuidString)
+        }
     }
 }

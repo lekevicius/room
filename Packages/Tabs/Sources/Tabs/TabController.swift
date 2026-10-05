@@ -58,6 +58,8 @@ final class Page {
     /// The link under the pointer or keyboard focus (the status text): Peek's
     /// rule tells a click on it from a navigation the page's script started.
     var hoveredLink: URL?
+    /// The media session last logged (the footer's row is 4.6's).
+    var loggedMediaSession: MediaSessionInfo?
 
     init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
@@ -188,6 +190,9 @@ public final class TabController: SidebarHost {
     @ObservationIgnored public var debugPeekDecisions: ((NavigationAction, PeekDecision) -> Void)?
     /// Pages being closed by `unload`, until the engine reports them gone.
     @ObservationIgnored var closing: [ObjectIdentifier: (contents: any WebContents, entry: UUID)] = [:]
+    /// ⌘W's question to a closing page (`closePage`): closed, or kept by its
+    /// beforeunload "stay".
+    @ObservationIgnored var pageClosers: [ObjectIdentifier: (Bool) -> Void] = [:]
     /// The last tab a page opened, while the user has not switched tabs (§A.7).
     @ObservationIgnored var relatedChain: (opener: UUID, last: UUID)?
     /// How the next page made for an entry starts (the palette's typed URL,
@@ -266,8 +271,11 @@ public final class TabController: SidebarHost {
         guard let page = pages[entry] else { return EntryPageState(favicon: storedFavicon(for: entry)) }
         let contents = page.contents
         let alive = contents.state == .alive
+        let capture = alive ? contents.captureState : []
+        let indicator: EntryPageState.Capture? = capture.isSharingScreen ? .screen
+            : capture.contains(.camera) ? .camera : capture.contains(.microphone) ? .microphone : nil
         return EntryPageState(isLoaded: alive, isLoading: alive && contents.isLoading, isAudible: alive && contents.isAudible,
-                              isMuted: contents.isMuted, favicon: page.favicon ?? storedFavicon(for: entry))
+                              isMuted: contents.isMuted, favicon: page.favicon ?? storedFavicon(for: entry), capture: indicator)
     }
 
     public func activate(_ entry: Entry) {
@@ -368,6 +376,17 @@ public final class TabController: SidebarHost {
         guard page.contents.state != .closed else { return }
         closing[ObjectIdentifier(page.contents)] = (page.contents, entry)
         page.contents.close()
+    }
+
+    /// ⌘W on a Today tab: the page closes (its beforeunload may keep it,
+    /// then the entry stays and is selected again, spec §A.3).
+    public func closePage(_ entry: UUID, completion: @escaping (Bool) -> Void) {
+        guard let page = pages[entry], page.contents.state != .closed else {
+            unload(entry)
+            return completion(true)
+        }
+        pageClosers[ObjectIdentifier(page.contents)] = completion
+        unload(entry)
     }
 
     public func reset(_ entry: Entry) {
@@ -553,7 +572,8 @@ public final class TabController: SidebarHost {
         guard pages[entry] === page, page.generation == generation else { return }
         let contents = page.contents
         let (url, title, favicon) = withObservationTracking {
-            _ = (contents.isLoading, contents.isAudible, contents.isMuted, contents.state)
+            _ = (contents.isLoading, contents.isAudible, contents.isMuted, contents.state, contents.captureState)
+            logMediaSession(page, contents.mediaSession, entry: entry)
             return (contents.url, contents.title, contents.favicon)
         } onChange: { [weak self, weak page] in
             // Fires before the new value is stored; read it on the next turn.

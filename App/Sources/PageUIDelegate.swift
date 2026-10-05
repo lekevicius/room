@@ -20,6 +20,8 @@ final class PageUIDelegate {
     var statusText: String?
     /// The status pill follows it.
     @ObservationIgnored var onStatusText: ((String?) -> Void)?
+    /// The window's toasts (the engine's notices, 3.4b); spikes read the one on screen.
+    @ObservationIgnored weak var toasts: ToastCenter?
     /// A page closed (the find bar forgets its text).
     @ObservationIgnored var onPageClosed: ((any WebContents) -> Void)?
     /// The last keys the engine reported as reserved, unhandled or consumed, for the keyboard spike.
@@ -124,6 +126,43 @@ extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {
         chrome.webContents(webContents, processGone: status)
         fullscreen?.exit(webContents)
+    }
+
+    // The renderer, other applications, notices, capture (3.4b).
+
+    func webContentsDidBecomeUnresponsive(_ webContents: any WebContents, completion: @escaping (UnresponsiveRendererAction) -> Void) {
+        NSLog("Room: page unresponsive: %@", webContents.url?.absoluteString ?? "-")
+        chrome.webContentsDidBecomeUnresponsive(webContents, completion: completion)
+    }
+
+    func webContentsDidBecomeResponsive(_ webContents: any WebContents) {
+        NSLog("Room: page responsive again: %@", webContents.url?.absoluteString ?? "-")
+        chrome.webContentsDidBecomeResponsive(webContents)
+    }
+
+    func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest, completion: @escaping (Bool) -> Void) {
+        let asks = !chrome.externalApps.isAllowed(request.scheme)
+        NSLog("Room: external URL %@ (%@)%@", request.url.absoluteString, request.applicationName, asks ? ", asking" : ", scheme already allowed")
+        chrome.webContents(webContents, shouldOpenExternalURL: request) { open in
+            NSLog("Room: external URL %@ %@", request.url.absoluteString, open ? "opened" : "blocked")
+            completion(open)
+        }
+    }
+
+    func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar) {
+        NSLog("Room: notice added %d \"%@\" %@", infoBar.id, infoBar.message, "\(infoBar.kind)")
+        chrome.webContents(webContents, didAddInfoBar: infoBar)
+    }
+
+    func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar) {
+        NSLog("Room: notice removed %d", infoBar.id)
+        chrome.webContents(webContents, didRemoveInfoBar: infoBar)
+    }
+
+    /// The row shows the indicator (`TabController.pageState`); logged here.
+    func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState) {
+        NSLog("Room: capture state %d (camera %d, microphone %d, screen %d) %@", state.rawValue, state.contains(.camera) ? 1 : 0,
+              state.contains(.microphone) ? 1 : 0, state.isSharingScreen ? 1 : 0, webContents.url?.absoluteString ?? "-")
     }
 
     func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {

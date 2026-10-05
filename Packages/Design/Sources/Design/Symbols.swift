@@ -109,6 +109,10 @@ public enum Symbol: CaseIterable, Sendable {
 
     // The page's state and tools in the card (Phase 2.6b)
     case pageCrashed
+    /// The page's renderer stopped responding (3.4b).
+    case pageUnresponsive
+    /// The page shares a screen, a window or a tab (3.4b, the row's indicator).
+    case screenSharing
     case findPrevious
     case findNext
     case dismiss
@@ -199,6 +203,8 @@ public enum Symbol: CaseIterable, Sendable {
         case .undo: "arrow.uturn.backward.circle"
         case .info: "info.circle"
         case .pageCrashed: "exclamationmark.octagon"
+        case .pageUnresponsive: "hourglass"
+        case .screenSharing: "rectangle.inset.filled.and.person.filled"
         case .findPrevious: "chevron.up"
         case .findNext: "chevron.down"
         case .dismiss: "xmark.circle.fill"

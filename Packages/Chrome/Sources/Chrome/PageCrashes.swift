@@ -13,7 +13,15 @@ public final class PageCrashes {
         let status: TerminationStatus
     }
 
+    private struct Hang {
+        weak var page: (any WebContents)?
+        let answer: (UnresponsiveRendererAction) -> Void
+    }
+
     private var crashes: [ObjectIdentifier: Crash] = [:]
+    /// Pages whose renderer stopped responding (3.4b): the card shows the
+    /// unresponsive-page view, Wait or Exit, until it answers or crashes.
+    private var hangs: [ObjectIdentifier: Hang] = [:]
     /// Called after a page crashed or recovered.
     public var onChange: (() -> Void)?
 
@@ -28,8 +36,39 @@ public final class PageCrashes {
         page.flatMap { crashes[$0]?.status }
     }
 
+    /// Whether the card shows the unresponsive-page view for `page`.
+    public func isUnresponsive(_ page: ObjectIdentifier?) -> Bool {
+        page.map { hangs[$0] != nil } ?? false
+    }
+
+    /// The engine's hang monitor: the view asks until the page answers again.
+    public func unresponsive(_ page: any WebContents, answer: @escaping (UnresponsiveRendererAction) -> Void) {
+        let id = ObjectIdentifier(page)
+        hangs.removeValue(forKey: id)?.answer(.wait)
+        hangs[id] = Hang(page: page, answer: answer)
+        onChange?()
+    }
+
+    /// The renderer responds again: the question is withdrawn.
+    public func responsive(_ page: any WebContents) {
+        guard hangs.removeValue(forKey: ObjectIdentifier(page)) != nil else { return }
+        onChange?()
+    }
+
+    /// The view's Wait (Return) and Exit buttons.
+    public func answerHang(_ id: ObjectIdentifier, _ action: UnresponsiveRendererAction) {
+        guard let hang = hangs.removeValue(forKey: id) else { return }
+        onChange?()
+        hang.answer(action)
+    }
+
     public func crashed(_ page: any WebContents, status: TerminationStatus) {
-        guard Self.showsCrashView(for: status) else { return }
+        // A crash ends the question (Exit, or the renderer died on its own).
+        hangs.removeValue(forKey: ObjectIdentifier(page))
+        guard Self.showsCrashView(for: status) else {
+            onChange?()
+            return
+        }
         let id = ObjectIdentifier(page)
         crashes[id] = Crash(page: page, status: status)
         watch(page, id: id)
@@ -44,6 +83,7 @@ public final class PageCrashes {
     }
 
     public func pageClosed(_ page: any WebContents) {
+        hangs.removeValue(forKey: ObjectIdentifier(page))?.answer(.wait)
         recovered(ObjectIdentifier(page))
     }
 
@@ -81,11 +121,24 @@ final class CrashedPageView: NSView {
     let reloadButton = NSButton()
     private let reload: () -> Void
 
+    private var exitPage: (() -> Void)?
+    let exitButton = NSButton()
+
     init(status: TerminationStatus, host: String?, reload: @escaping () -> Void) {
         self.reload = reload
         super.init(frame: .zero)
         wantsLayer = true
         build(status: status, host: host)
+    }
+
+    /// The page's renderer stopped responding (3.4b): Wait (Return) keeps
+    /// waiting, Exit Page ends the renderer and the crashed view follows.
+    init(unresponsiveHost host: String?, wait: @escaping () -> Void, exit: @escaping () -> Void) {
+        self.reload = wait
+        self.exitPage = exit
+        super.init(frame: .zero)
+        wantsLayer = true
+        buildUnresponsive(host: host)
     }
 
     @available(*, unavailable)
@@ -167,7 +220,59 @@ final class CrashedPageView: NSView {
         column.addArrangedSubview(reloadButton)
     }
 
+    private func buildUnresponsive(host: String?) {
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("This Page Is Not Responding")
+        setAccessibilityIdentifier("unresponsive-page")
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 14
+        column.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(column)
+        let top = column.topAnchor.constraint(equalTo: topAnchor, constant: 120)
+        top.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+            column.centerXAnchor.constraint(equalTo: centerXAnchor),
+            column.widthAnchor.constraint(equalToConstant: PromptMetrics.interstitialWidth),
+            top,
+            column.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 24),
+        ])
+        let icon = NSImageView(image: Symbol.pageUnresponsive.image(pointSize: PromptMetrics.interstitialIconSize) ?? NSImage())
+        icon.contentTintColor = .secondaryLabelColor
+        column.addArrangedSubview(icon)
+        let title = NSTextField(labelWithString: "This Page Is Not Responding")
+        title.font = .systemFont(ofSize: 24, weight: .semibold)
+        column.addArrangedSubview(title)
+        let what = host.map { "\($0) stopped responding." } ?? "This page stopped responding."
+        let text = NSTextField(wrappingLabelWithString: what + " You can wait for it, or exit the page; what you typed into it may be lost.")
+        text.font = .systemFont(ofSize: 14)
+        text.textColor = .secondaryLabelColor
+        text.preferredMaxLayoutWidth = PromptMetrics.interstitialWidth
+        text.widthAnchor.constraint(equalToConstant: PromptMetrics.interstitialWidth).isActive = true
+        column.addArrangedSubview(text)
+        let buttons = NSStackView()
+        buttons.orientation = .horizontal
+        buttons.spacing = 8
+        exitButton.title = "Exit Page"
+        exitButton.bezelStyle = .push
+        exitButton.target = self
+        exitButton.action = #selector(exitClicked)
+        exitButton.setAccessibilityIdentifier("unresponsive-page-exit")
+        reloadButton.title = "Wait"
+        reloadButton.bezelStyle = .push
+        reloadButton.keyEquivalent = "\r"
+        reloadButton.target = self
+        reloadButton.action = #selector(reloadClicked)
+        reloadButton.setAccessibilityIdentifier("unresponsive-page-wait")
+        buttons.addArrangedSubview(exitButton)
+        buttons.addArrangedSubview(reloadButton)
+        column.setCustomSpacing(24, after: text)
+        column.addArrangedSubview(buttons)
+    }
+
     @objc private func reloadClicked() { reload() }
+    @objc private func exitClicked() { exitPage?() }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76 { return reloadClicked() }

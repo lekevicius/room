@@ -1,4 +1,5 @@
 import AppKit
+import Design
 import Engine
 
 /// The page's chrome surfaces behind the engine's UI delegate (ROADMAP 2.6
@@ -24,6 +25,14 @@ public final class PageChrome: WebContentsUIDelegate {
     public var performMenuAction: ((RoomMenuAction, any WebContents) -> Void)?
     /// Whether Open Link in Peek is enabled (Phase 2.7).
     public var isPeekAvailable = false
+    /// Links to other applications: once per scheme for the session (3.4b).
+    public let externalApps = ExternalApps()
+    /// Shows a notice (an engine infobar, the translate offer) as a toast;
+    /// `dismissNotice` takes it down by the toast's id (3.4b).
+    public var showNotice: ((Toast) -> Void)?
+    public var dismissNotice: ((String) -> Void)?
+    /// The notices still pending, oldest first (spikes read them).
+    public private(set) var notices: [InfoBar] = []
 
     public init() {}
 
@@ -102,6 +111,45 @@ public final class PageChrome: WebContentsUIDelegate {
     public func webContents(_ webContents: any WebContents, runFileChooser request: FileChooserRequest,
                             completion: @escaping ([URL]?) -> Void) {
         chooseFiles(request, webContents, completion)
+    }
+
+    // MARK: The renderer, other applications, notices (3.4b)
+
+    public func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
+                                                 completion: @escaping (UnresponsiveRendererAction) -> Void) {
+        crashes.unresponsive(webContents, answer: completion)
+    }
+
+    public func webContentsDidBecomeResponsive(_ webContents: any WebContents) {
+        crashes.responsive(webContents)
+    }
+
+    /// The first link of a scheme asks (a sheet in the card); after Open the
+    /// scheme opens without asking for the rest of the session.
+    public func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest,
+                            completion: @escaping (Bool) -> Void) {
+        if externalApps.isAllowed(request.scheme) { return completion(true) }
+        prompts.ask(.externalApp(request), for: webContents) { [weak self] response in
+            let open = response == .accept(text: nil)
+            if open { self?.externalApps.allow(request.scheme) }
+            completion(open)
+        }
+    }
+
+    public static func noticeToastID(_ infoBar: InfoBar) -> String { "notice-\(infoBar.id)" }
+
+    /// A toast with the notice's first button; it goes when the engine removes the notice.
+    public func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar) {
+        notices.append(infoBar)
+        let action = infoBar.buttons.first.map { title in
+            Toast.Action(title: title) { [weak infoBar] in infoBar?.press(0) }
+        }
+        showNotice?(Toast(id: Self.noticeToastID(infoBar), symbol: .info, message: infoBar.message, action: action))
+    }
+
+    public func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar) {
+        notices.removeAll { $0 === infoBar }
+        dismissNotice?(Self.noticeToastID(infoBar))
     }
 
     // MARK: Lifetime

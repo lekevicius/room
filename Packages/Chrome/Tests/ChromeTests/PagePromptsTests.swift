@@ -203,3 +203,43 @@ struct PermissionPromptTests {
         #expect(!PromptRules.offersOneTimeGrant([.init(kind: .notifications, origin: origin)]))
     }
 }
+
+@MainActor
+@Suite("Links to other applications (3.4b, FakeEngine)")
+struct ExternalAppTests {
+    @Test("The first link of a scheme asks; after Open the scheme opens without asking; a refusal asks again")
+    func confirmOncePerScheme() async throws {
+        let f = try PromptsFixture()
+        let mail = URL(string: "mailto:someone@example.com")!
+
+        // Refused: blocked, and the next link of that scheme asks again.
+        let refused = Task { await f.a.simulateExternalURL(mail) }
+        await f.settle()
+        guard case .externalApp(let request)? = f.prompts.visibleDialog?.dialog else {
+            Issue.record("no confirmation")
+            return
+        }
+        #expect(request.scheme == "mailto")
+        f.prompts.respond(.cancel)
+        #expect(await refused.value == false)
+
+        let opened = Task { await f.a.simulateExternalURL(mail) }
+        await f.settle()
+        #expect(f.prompts.visibleDialog != nil)
+        f.prompts.respond(.accept(text: nil))
+        #expect(await opened.value == true)
+
+        // The same scheme again, from another page too: no question.
+        #expect(await f.a.simulateExternalURL(URL(string: "mailto:other@example.com")!) == true)
+        #expect(await f.b.simulateExternalURL(mail) == true)
+        #expect(f.prompts.visibleDialog == nil)
+
+        // Another scheme asks.
+        let other = Task { await f.a.simulateExternalURL(URL(string: "roomtest://x")!, applicationName: "Room Test") }
+        await f.settle()
+        #expect(f.prompts.visibleDialog != nil)
+        f.prompts.respond(.cancel)
+        #expect(await other.value == false)
+        #expect(f.a.openedExternalURLs.count == 2)
+    }
+}

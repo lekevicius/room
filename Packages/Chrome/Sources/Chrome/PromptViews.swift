@@ -17,6 +17,8 @@ enum PromptText {
             return challenge.isProxy ? "Sign in to the proxy" : "Sign in to \(displayHost(challenge.origin) ?? "this site")"
         case .certificate:
             return "This Connection Is Not Private"
+        case .externalApp(let request):
+            return "Open “\(request.applicationName)”?"
         }
     }
 
@@ -231,6 +233,12 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
             addButtons(primary: "Sign In", cancel: "Cancel")
             initialResponder = user
         case .certificate:
+            initialResponder = self
+        case .externalApp(let request):
+            let site = PromptText.displayHost(request.initiatingOrigin) ?? "This page"
+            addMessage("\(site) wants to open this link with \(request.applicationName).")
+            addMessage(request.url.absoluteString, secondary: true)
+            addButtons(primary: "Open \(request.applicationName)", cancel: "Cancel")
             initialResponder = self
         }
     }
@@ -580,7 +588,7 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
     private let crashes: PageCrashes?
     /// The current page's host, for the crashed-page view.
     private let pageHost: (ObjectIdentifier) -> String?
-    private var shownCrash: (page: ObjectIdentifier, view: CrashedPageView)?
+    private var shownCrash: (page: ObjectIdentifier, view: CrashedPageView, unresponsive: Bool)?
     private var shownDialog: (id: Int, view: PromptOverlayView)?
     private var shownPermission: (id: Int, popover: NSPopover)?
     /// Set while Room closes the popover itself (a tab switch): not an answer.
@@ -632,22 +640,32 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         update()
     }
 
-    /// The crashed-page view under any dialog, while the page in the card is crashed.
+    /// The crashed-page view (or the unresponsive-page view, 3.4b) under
+    /// any dialog, while the page in the card is crashed (or hung).
     private func updateCrash() {
         let page = prompts.currentPage
         let status = crashes?.status(of: page)
-        if let shown = shownCrash, shown.page != page || status == nil {
+        let unresponsive = status == nil && crashes?.isUnresponsive(page) == true
+        let wanted = status != nil || unresponsive
+        if let shown = shownCrash, shown.page != page || !wanted || shown.unresponsive != unresponsive {
             let hadFocus = Self.contains(shown.view, responder: shown.view.window?.firstResponder)
             shown.view.removeFromSuperview()
             shownCrash = nil
-            if hadFocus, status == nil { focusPage() }
+            if hadFocus, !wanted { focusPage() }
         }
-        guard shownCrash == nil, let page, let status, let host else { return }
-        let view = CrashedPageView(status: status, host: pageHost(page)) { [weak crashes] in crashes?.reload(page) }
+        guard shownCrash == nil, let page, wanted, let host else { return }
+        let view: CrashedPageView
+        if let status {
+            view = CrashedPageView(status: status, host: pageHost(page)) { [weak crashes] in crashes?.reload(page) }
+        } else {
+            view = CrashedPageView(unresponsiveHost: pageHost(page),
+                                   wait: { [weak crashes] in crashes?.answerHang(page, .wait) },
+                                   exit: { [weak crashes] in crashes?.answerHang(page, .terminate) })
+        }
         view.frame = host.bounds
         view.autoresizingMask = [.width, .height]
         host.addSubview(view, positioned: .below, relativeTo: nil)
-        shownCrash = (page, view)
+        shownCrash = (page, view, unresponsive)
         if shownDialog == nil { view.window?.makeFirstResponder(view) }
     }
 

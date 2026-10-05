@@ -375,7 +375,7 @@ struct CloseTests {
         #expect(Set(f.todayIDs) == [a.id, b.id, c.id])
     }
 
-    @Test("Keeping a page in its beforeunload dialog during ⌘W brings it back as a Today tab, selected")
+    @Test("⌘W and \"stay\" in the page's beforeunload dialog: the page stays alive in its own entry, selected (§A.3)")
     func beforeUnloadStay() async throws {
         let f = try TabsFixture()
         let answer = BeforeUnloadAnswer(leave: false)
@@ -388,10 +388,31 @@ struct CloseTests {
         f.sidebar.closeCommandTargets()
         await f.settle()
         #expect(page.state == .alive)
+        #expect(f.sidebarStore.entry(b.id)?.kind == .today)
+        #expect(f.sidebar.selectedEntryID == b.id)
+        #expect(f.tabs.contents(for: b.id) === page)
+        #expect(f.todayIDs.count == 2)
+        // Nothing was closed, so ⇧⌘T has nothing to reopen.
+        f.sidebar.reopenClosedTab()
+        #expect(f.todayIDs.count == 2)
+    }
+
+    @Test("⌘W and \"leave\": the entry goes once its page closed, and ⇧⌘T brings it back")
+    func beforeUnloadLeave() async throws {
+        let f = try TabsFixture()
+        f.tabs.pageUIDelegate = BeforeUnloadAnswer(leave: true)
+        let a = try f.today("https://a.example"), b = try f.today("https://form.example")
+        f.sidebar.select(a.id)
+        f.sidebar.select(b.id)
+        let page = try #require(f.page(b.id))
+        page.hasBeforeUnloadHandler = true
+        f.sidebar.closeCommandTargets()
+        await f.settle()
+        #expect(page.state == .closed)
         #expect(f.sidebarStore.entry(b.id) == nil)
-        let kept = try #require(f.sidebar.selectedEntryID)
-        #expect(f.tabs.contents(for: kept) === page)
-        #expect(f.sidebarStore.entry(kept)?.kind == .today)
+        #expect(f.sidebar.selectedEntryID == a.id)
+        f.sidebar.reopenClosedTab()
+        #expect(f.sidebarStore.entry(b.id) != nil)
     }
 }
 

@@ -4,19 +4,27 @@ import Model
 /// What the sidebar shows about an entry's live page (not persisted). The
 /// host (the tab controller from Phase 2.3; FakeEngine pages in 2.2) owns it.
 public struct EntryPageState: Equatable {
+    /// What the page captures, as the row shows it (3.4b): a screen wins over
+    /// the camera, the camera over the microphone.
+    public enum Capture: Equatable, Sendable {
+        case microphone, camera, screen
+    }
+
     public var isLoaded: Bool
     public var isLoading: Bool
     public var isAudible: Bool
     public var isMuted: Bool
     public var favicon: NSImage?
+    public var capture: Capture?
 
     public init(isLoaded: Bool = false, isLoading: Bool = false, isAudible: Bool = false, isMuted: Bool = false,
-                favicon: NSImage? = nil) {
+                favicon: NSImage? = nil, capture: Capture? = nil) {
         self.isLoaded = isLoaded
         self.isLoading = isLoading
         self.isAudible = isAudible
         self.isMuted = isMuted
         self.favicon = favicon
+        self.capture = capture
     }
 
     public static let unloaded = EntryPageState()
@@ -35,6 +43,10 @@ public protocol SidebarHost: AnyObject {
     func deactivate()
     /// Drop the entry's page; the entry stays.
     func unload(_ entry: UUID)
+    /// ⌘W on a Today tab (3.4b, spec §A.3): close the entry's page and report
+    /// whether it closed. A page can refuse in its beforeunload dialog
+    /// ("stay"): then it keeps its entry, which stays.
+    func closePage(_ entry: UUID, completion: @escaping (Bool) -> Void)
     /// Navigate the loaded page back to the stored URL (the store already
     /// holds `liveURL = storedURL`).
     func reset(_ entry: Entry)
@@ -56,6 +68,10 @@ public protocol SidebarHost: AnyObject {
 }
 
 public extension SidebarHost {
+    func closePage(_ entry: UUID, completion: @escaping (Bool) -> Void) {
+        unload(entry)
+        completion(true)
+    }
     func openLocation() { editAddress() }
     func peek(_ entry: Entry) {}
     func reopenPeek(url: String, over entry: UUID) {}
