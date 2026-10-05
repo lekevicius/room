@@ -78,6 +78,11 @@ void RoomBrowserWindow::SetContentsSize(const gfx::Size& size) {
   RoomStubHit("SetContentsSize");
 }
 
+ui::AcceleratorProvider* RoomBrowserWindow::GetAcceleratorProvider() {
+  RoomStubHit("GetAcceleratorProvider");
+  return nullptr;
+}
+
 void RoomBrowserWindow::UpdateCustomTabBarVisibility(bool visible, bool animate) {
   RoomStubHit("UpdateCustomTabBarVisibility");
 }

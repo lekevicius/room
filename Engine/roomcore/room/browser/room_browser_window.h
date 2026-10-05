@@ -245,6 +245,7 @@ class RoomBrowserWindow : public BrowserWindow {
   int GetTopControlsHeight() const override;
   void SetTopControlsGestureScrollInProgress(bool in_progress) override;
   void SetContentsSize(const gfx::Size& size) override;
+  ui::AcceleratorProvider* GetAcceleratorProvider() override;
   void UpdateCustomTabBarVisibility(bool visible, bool animate) override;
   void FocusToolbar() override;
   void ToolbarSizeChanged(bool is_animating) override;
