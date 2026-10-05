@@ -973,6 +973,144 @@ Every failure in run 2, by cause:
 
 Passed in full: smoke (6/6; 3.1a failed it on B-45), window, resize, open10, diaframe, killtest, sidebardemo, sidebar500, spaces, spacecaptures.
 
+## Phase 3.2b — the AppController hook, the quit through Chrome's close path, key routing, isolated-world scripts (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Component build `out/dev` (tag 154.0.8037.58, **14 patches**: 0001–0009, 0011–0015; 0010 parked), ad hoc, mock keychain. `scripts/roomcore-apply.sh`: "3 applied, 11 already" (0013 new; 0014 and 0015 recommitted behind it, same content), then **"0 applied, 14 already"**. `gn check out/dev '//room/*'`: OK after three deps were added. Load 3–12 (screen sharing's encoder beside every run).
+
+### The `AppController` shape: (ii), a separate `NSObject` behind the accessor
+
+Patch 0013 (two files, 23 lines with the declarations): `+[AppController sharedController]` returns `room::g_app_controller_hook()` when `//room` installed it, and `ChromeBrowserMainPartsMac::PreCreateThreads` creates `//room`'s controller and returns before `CHECK_EQ(nil, NSApp.delegate)`, `chrome::BuildMainMenu` and `-mainMenuCreated`. A subclass (i) needed the same two hunks (`+sharedController` creates the base class from a function-local static, and the menu build and delegate CHECKs still had to go) and would have inherited `-init` (the keep-alive, `NSMenu`'s key-equivalent pre-search block that walks the File menu), every `NSApplicationDelegate` method and the menu-bridge state: same patch, larger surprise surface. `RoomAppController` (`room/core/room_app_controller.mm`) implements what Chrome calls and what a zero answer would get wrong; every other `AppController` message is forwarded to a first-hit log (`RoomAppController stub hit: <selector>`) with `AppController`'s method signature and a zeroed return.
+
+Every Chrome caller of `AppController.sharedController` / `app_controller_mac::` (non-test code, M154) and what it gets now:
+
+| Caller | Message | Now | Hit this session |
+|---|---|---|---|
+| `chrome_browser_main_mac.mm:159` `PreCreateThreads` | `sharedController`, `-mainMenuCreated`, `BuildMainMenu` | patch 0013: creates `RoomAppController` (its `APP_CONTROLLER` keep-alive), no delegate CHECKs, no Chrome menu | every launch |
+| `chrome_browser_main_mac.mm:185` `DidEndMainMessageLoop` | `-didEndMainMessageLoop` | implemented: `TabRestoreServiceFactory::ResetForProfile` for every loaded profile without Browsers (AppController: the last profile) | every quit |
+| `chrome_browser_application_mac.mm:319` `-terminate:` | `-tryToTerminateApplication` | implemented: `chrome::OnClosingAllBrowsers(true)` + `CloseAllBrowsersAndQuit()` (no downloads prompt, confirm-to-quit or apps check); reached after `RoomCrApplication -terminate:` asked the host's delegate, and from `-[RoomApplication tryToTerminateWithCompletion:]` | every quit |
+| `chrome_browser_application_mac.mm:324` `-cancelTerminate:` | `-stopTryingToTerminateApplication` | implemented: `SetTryingToQuit(false)`; called by `JavaScriptAppModalDialogCocoa` (`javascript_app_modal_dialog_cocoa.mm:110`) when the beforeunload alert answers "stay" | after each "stay" |
+| `browser_process_platform_part_mac.mm:40` `AttemptExit` (`chrome::AttemptUserExit`, chrome://quit) | `-confirmQuitIfNeeded` | implemented: `ConfirmQuitResultNotPrompted` (then `[NSApp terminate:]`, the host decides) | no |
+| `app_controller_mac.mm:813` (AppController `-init`'s NSMenu pre-search block) | `-updateMenuItemKeyEquivalents` | never installed (`AppController -init` never runs) | no |
+| `app_controller_mac.mm:2632` `UpdateProfileInUse` | `-setLastProfile:` | forwarded stub (menus only) | no |
+| `app_controller_mac.mm:2686` `GetSafeProfile` | `-safeProfileForNewWindows:` | implemented: the profile itself | no |
+| `app_controller_mac.mm:2741` `EnterpriseStartupDialogClosed` | `-applicationDidFinishLaunching:` | forwarded stub (no enterprise startup dialog in Room) | no |
+| `app_controller_mac.mm:2748` `RunInLastProfileSafely` | `-lastProfileIfLoaded` | implemented: the most recently activated Room Browser's profile, else `ProfileManager::GetLastUsedProfileIfLoaded()` | no |
+| `app_controller_mac.mm:2780` `AllowApplicationToTerminate` (`startup_browser_creator_impl.cc:410`) | `-allowApplicationToTerminate` | implemented: releases the keep-alive | no |
+| `app_controller_mac.mm:2849` `ResetKeepAliveWhileHidden` (`app_shim_manager_mac.cc:1152`) | `-resetKeepAliveWhileHidden` | forwarded stub (no app shims) | no |
+| AppleScript: `bookmark_item_applescript.mm:67`, `bookmark_node_applescript.mm:129`, `browsercrapplication+applescript.mm:84,105`, `window_applescript.mm:59` | `lastProfile` | implemented (as `lastProfileIfLoaded`); Room's sdef does not expose Chrome's classes | no |
+| `bookmark_menu_cocoa_controller.mm:205`, `history_menu_cocoa_controller.mm:85`, `browser_native_widget_mac.mm:474` | `-keyWindowIsModal` | implemented: a modal window or a sheet on the key window (the menus and `BrowserView`'s widget are never created) | no |
+| `group_menu_util.mm:30`, `history_menu_bridge.mm:403,444`, `tab_group_menu_bridge.mm:141` | `-lastActiveColorProvider` | a default `ui::ColorProvider`, logged as a stub (menu bridges are never created) | no |
+| `session_service.cc:220`, `smart_restart_policy.cc:98,124` | `app_controller_mac::IsOpeningNewWindow()` | a file-static of `app_controller_mac.mm` set only by AppController's own command handling: always false (Room Browsers are omitted from session restore anyway) | — |
+| `global_keyboard_shortcuts_mac.mm:52`, `browser_window_command_handler.mm:69–118`, `confirm_quit_panel_controller.mm:433` | `-commandDispatch:` / `-commandDispatchUsingKeyModifiers:` targets | implemented: `IDC_EXIT` → `[NSApp terminate:]`, everything else `chrome::ExecuteCommand` on the most recently activated Room Browser if enabled. No live caller today: those paths belong to `BrowserView` windows, Chrome's menu and the confirm-to-quit panel, none of which exist; extension commands go through Views' `ExtensionKeybindingRegistry` (BrowserView) or the global shortcut listener, not `AppController` (3.6 revisits) | no |
+| `ui/base/cocoa/command_dispatcher.mm:165` (Views windows validating a `commandDispatch:` item) | `NSApp.delegate` `-validateUserInterfaceItem:` | the host's `AppDelegate` (it validates by `validateMenuItem:`); only items whose action is `commandDispatch:` ask, and the host's menu has none | no |
+
+NSApp's delegate at launch, logged by RoomCore (`RoomCore: NSApp.delegate is …`) and the app: **`AppDelegate`** (Room.app on RoomCore), **`RoomCoreHost.HostController`** (embryo host), in every run of the session. The hidden Bookmarks menu item is gone (`RoomCrApplication -setMainMenu:` removed).
+
+### Links from other apps reach Room on RoomCore (`ROOM_APP=… scripts/app-integration.sh --session 2.8b --no-captures light`, `build/evidence-3.2b-appintegration2.txt`)
+
+| Route | RoomCore (3.2b) | CEF (2.8b, light / dark) |
+|---|---|---|
+| Cold launch by a link: `application(_:open:)` after process start (queued) | 9,472 ms (the first launch of a freshly packaged component build: dyld and 518 dylibs; `launch_to_spike` 9.61 s, 1.9–2.1 s on later launches) | 294 / 225 ms |
+| … queued → requested / requested → loaded | 134.9 / 1,706 ms | 183 / 205 ms |
+| Running, `open -a`: hand-over → event / event → requested / requested → loaded | **52.5 / 28.2 / 47.6 ms** | 50.6 / 26.8 / 26.6 ms |
+| Running, AppleScript `open location` | **167.1 / 15.1 / 46.2 ms** | 109.6 / 25.2 / 26.4 ms |
+| Running, another process's `NSWorkspace.open(_:withApplicationAt:)` | **45.2 / 20.6 / 661.1 ms** | 47.9 / 26.0 / 25.9 ms |
+| After ⇧⌘W: `open -a` → window shown again, main, tab selected | event → requested 28.1 ms | 39.6 ms |
+
+Every link became a selected Today tab; before 3.2b these went to Chrome's `AppController`.
+
+### The baseline after the last engine change (embryo host)
+
+| Run | nav | Ten-page quit ×3 | Helpers seen / left | Crash reports | load1 |
+|---|---|---|---|---|---|
+| after tasks 4–6 (`build/baseline/3.2b-1`) | passed, 16.8 s | **0.216 / 0.324 / 0.254 s** | 26, 26, 24 / 0 | 0 | 3.9 / 4.9 / 7.6 |
+| after the Apple-event reply fix and the crash-mark commit (`3.2b-final`) | passed, 16.6 s | **0.240 / 0.210 / 0.244 s** | 26, 24, 24 / 0 | 0 | 6.0 / 5.3 / 8.2 |
+| after the GN deps (the last engine change, `3.2b-final2`) | passed, 11.1 s | **0.302 / 0.313 / 0.231 s** | 26, 24, 24 / 0 | 0 | 3.6 / 7.3 / 9.5 |
+
+(The first `3.2b-final2` attempt stopped at the open10 fixture: stackoverflow.com still loading at "ready", as in 3.2a; rerun.) Stub hits in the baselines: none from `RoomAppController`; one window-side line, `RoomBrowserWindow stub hit: CreateSadTab` in `3.2b-final` run 2 — the `RoomSadTab` fallback logging its first use after a renderer died on a Blink DCHECK in a real site's layout (`blink::Document::AssertLayoutTreeUpdatedAfterLayout` from `Element.clientWidth`, ptype renderer), not Room code; the run's quit was clean. `RoomAppController` lines in every baseline: `tryToTerminateApplication`, `didEndMainMessageLoop` only.
+
+### ⌘Q with ten pages and a beforeunload "stay" (`quitstay`, Room.app on RoomCore)
+
+`scripts/run-spike.sh quitstay --remote-debugging-port=9333 -RoomSpikeCDPPort 9333`: nine typical sites hidden, `research/spikes/phase-2.6/dialogs.html` selected and armed by a real click; `NSApp.terminate` (⌘Q's path) → `AppDelegate.applicationShouldTerminate` → `RoomCoreApplication.tryToTerminate` → Chrome's close path; the dialog is answered over the DevTools protocol on the Debug port (`Page.handleJavaScriptDialog`), "stay", then, after the spike's end, "leave" for the runner's own quit.
+
+| Run | Dialog after the quit request | "Stay" | Pages / entries after | Then "leave" |
+|---|---|---|---|---|
+| 1 (`quitstay-1.txt`) | beforeunload, 25 ms | quit cancelled, `isTerminating` false | 10 → 10 alive, the same objects; 10 → 10 entries, the same ids; window visible | the app exited |
+| 2 (direct launch, stderr kept: `quitstay-2.stderr`) | 15 ms | same | 11 → 11 (the previous run's selected entry restored), 20 → 20 entries | `Room: quit requested` 54.278 → `Room: final state written` 54.355 → `Room: quit proceeds` 54.355 (the reply), exit |
+| 3 (final build) | 19 ms | same | 10 → 10, 10 → 10 | exit |
+
+The engine side of run 1 (`RoomCore.log`): `tryToTerminateApplication` 40.639, `stopTryingToTerminateApplication` and `RoomCore: quit cancelled (1 waiting)` 40.677 (13 ms after the dialog event), `quit proceeds` 41.819 after the runner's quit. The spike's "cancelled after 1,077 ms" is the DevTools call's reply arriving late, not the cancel. The beforeunload dialog is Chrome's app-modal Cocoa alert (`JavaScriptAppModalDialogCocoa`), whose "stay" calls `chrome_browser_application_mac::CancelTerminate()`; 3.4b routes it to the host's sheet. The next launch on run 1's state (`quitstay-2`) read `previous exit clean=true (store uncleanExit=false, engine lastExitWasClean Default=true)` and the profile's `exit_type` pref was `Normal`.
+
+### Clean-exit and crash flags (`quitflags`, kill -9)
+
+| Sequence | `exit_type` on disk | The next launch reads |
+|---|---|---|
+| clean quit | Normal | `clean=true (store uncleanExit=false, engine … Default=true)` |
+| kill -9 ~4 s after launch, before the crash-mark commit (first build) | **Normal** (the service's "Crashed" mark waits for the pref writer's ~10 s batch) | `clean=false (store uncleanExit=true, engine … Default=true)` |
+| kill -9 15 s after launch | Crashed | `clean=false (store uncleanExit=true, engine … Default=false)` |
+| … then a clean quit | Normal (RoomCore acknowledged the crash; without it Chrome keeps "Crashed" until a session-restored Browser gets a tab) | `clean=true` |
+| final build: kill -9 ~1.5 s after the spike ended (`killb-*`) | **Crashed** (committed at profile load) | `clean=false (store uncleanExit=true, engine … Default=false)`; after the next clean quit `Normal`, `clean=true` |
+
+### Quit timing and the lingering renderer (Room.app on RoomCore, `scripts/quit-timing.sh 3`, the quit Apple event)
+
+| Build | Quits ×3 | helpers_left 1 s after exit |
+|---|---|---|
+| 3.2a tour (pages closed by `//room`, then Chrome's quit) | 0.32 / 0.33 / 0.32 s | 1 each |
+| 3.2b first build | **did not exit within 15 s** ×3: AppKit's `-_handleAEQuit` asks the delegate itself and runs a modal loop until `replyToApplicationShouldTerminate:`, which `RoomCrApplication` swallowed (it only knew its own `-terminate:` path); the reply now goes to AppKit when `-terminate:` was not the caller | — |
+| 3.2b, after the fix | **0.30 / 0.31 / 0.31 s** (load 9–12) | 1 each |
+| 3.2b tour (`quittiming`) | 0.28 / 0.25 / 0.26 s | 1 each |
+
+The process left behind is one `Room Helper (Aperitif Renderer)` (`--type=renderer`, the highest renderer client id of the run), reparented to launchd, gone 1.0–1.3 s after the browser (10 samples at 0.1 s, three quits). Unchanged by the close path: B-54.
+
+### Keys (`scripts/run-spike.sh keys`; events built from each layout's data, sent through `NSApp.sendEvent`; the active input source is Colemak)
+
+| Layout | RoomCore (3.2b) | CEF (same spike, same day) |
+|---|---|---|
+| ABC | ⌘T/⌘L reserved (2 `isReservedKeyEvent` calls, the page never saw them), menu dispatch: no (not the active layout); ⌘C copied, ⌘V `"select me and copy PASTED"`, ⌘Z restored, `o` typed (`"…copyo"`); page saw ⌘c, ⌘v, ⌘z, o; **consumed 1** (the `o` character) | reserved 2, dispatch no; ⌘V `" PASTED"` (the selection replaced), `o` typed (`"o"`); page saw the same; consumed 0 (CEF: never) |
+| Colemak (active) | reserved 2, **⌘T opened the palette, ⌘L focused the address**; rest as ABC; consumed 1 | reserved 2, dispatch yes; consumed 0 |
+| Lithuanian | as ABC; consumed 1 | as ABC on CEF |
+| LithuanianColemak | not installed | not installed |
+
+Unhandled keys in the delegate log: ⌘C, ⌘V, ⌘Z and the `o` key-down (a text field consumes the character event, not the key-down) went to `handleUnhandledKeyEvent` → the menu. The tour's `keys` step passes 19/19 with the checks made engine-neutral (they had codified CEF's `" PASTED"`).
+
+### `executeJavaScript` (the `cdp` spike's 100 evaluations)
+
+RoomCore isolated world: **median 0.14 ms, p95 0.51 ms, max 4.44 ms**; CEF over CDP `Runtime.evaluate`: 0.21 ms median (Phase 1.4). Promise results work (the transparent page's `visibilityAndFrames` probe resolved to `{"visibility":"visible","rafPerSecond":62}`).
+
+### The grand tour's layout, sidebar, spaces, tabs and layout-modes sections (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups layout,sidebar,spaces,tabs,layoutmodes light`, `build/grand-tour/20261005-034756-roomcore`, 23.2 min, load 5–12)
+
+| Section | 3.2a run 2 | 3.2b | 3.2b, keys checks fixed and popups rerun |
+|---|---|---|---|
+| layout + sidebar | 144 / 33 | **157 / 20** | 165 / 15 (`keys` 19/19, `popups` 11/12 in `20261005-042014-roomcore`) |
+| spaces | 28 / 7 | **35 / 0** | 35 / 0 |
+| tabs | 30 / 10 | **37 / 3** | 37 / 3 |
+| layoutmodes | not run | **27 / 3** | 27 / 3 |
+| total | 202 / 50 | **256 / 26** | 264 / 21 |
+
+The `popups` step hung for 9 min in the tour (killed by hand): the page's `alert()` is Chrome's own dialog until 3.4b, and a script sent to a page with a dialog open never returns; `executeJavaScript` now gives up after 30 s with an error (rerun: 57 s, 11/12).
+
+Every remaining failure, by cause:
+
+| Step | Failed | Why |
+|---|---|---|
+| cdp | 1 / 12 | `captureViewport` (3.3b); `executeJavaScript` passes now |
+| memory | 2 / 16 | the hidden-page probe runs now and reads `visibility: visible, 63 rAF/s` for hidden pages: RoomCore ignores `initiallyHidden` and the page views the host takes out of the window still render (3.3a, `createWebContents` options and visibility) |
+| audio | 3 / 13 | the audible edge (3.3a); `play()` by script runs now |
+| popups | 1 / 12 | the alert sheet (3.4b); `<select>`/date positions pass now |
+| hidden | 1 / 11 | the never-shown page is visible to Chromium (3.3a, as memory) |
+| devtools | 4 / 10 | no DevTools host (3.3b) |
+| quittiming | 3 / 9 | the lingering renderer (B-54); quits 0.25–0.28 s, no crash report |
+| tabs | 1 / 19 | discard (3.3a); same-site navigation and ⇧⌘T pass now |
+| tabsmeasure | 1 / 12 | switching p95 **21.92 ms** (median 14.91, max 23.30; 3.2a 18.25). Standalone afterwards (`build/evidence-3.2b/tabsmeasure`, load 5–6): select call p95 11.78 ms, turn p95 **22.40 ms** (median 15.66). Over the 16 ms bound by more than a quarter; the lead is the same as memory's: every loaded page renders as if visible (B-53, 3.3a) |
+| tabcapture | 1 / 9 | `captureViewport` (3.3b) |
+| layoutmodes | 3 / 30 | Peek does not open (an off-site link from a pinned entry navigates in place): `decidePolicy` (3.3a); hide/reveal and split pass (27) |
+
+Passed in full: smoke, window, scroll, resize, open10, diaframe, keys (rerun), killtest, sidebardemo, sidebar500, spaces, spacecaptures, cookies.
+
+### The stub-hit log over the tour and the session
+
+`RoomBrowserWindow stub hit:` lines in every surviving engine log (the two tour states' `RoomCore.log`, which keep each state's last launch; the embryo baselines; the quit, kill and keys runs): **none** of the 41 generated stubs (they are named in "Phase 3.2a" ▸ the real-vs-stub table); the one `CreateSadTab` line above is the SadTab fallback. `RoomAppController stub hit:` lines: **none**. `RoomAppController` members hit: `tryToTerminateApplication`, `stopTryingToTerminateApplication` (after a "stay"), `didEndMainMessageLoop`. No `refused a Chrome BrowserView` line.
+
 ## Background hardening (laptop, 2026-10-03)
 
 PR #1 (`bg/roomcore-hardening`), merged in 3.1a. Measured on the laptop (M1 Max, 64 GB), component build. Backlog ids renumbered at the merge: the shutdown watchdog and concurrent teardown are B-38, the TLS attribution B-39, parked patch 0010 B-40.

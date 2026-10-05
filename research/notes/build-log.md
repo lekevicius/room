@@ -225,6 +225,22 @@ Other steps this session:
 | `scripts/roomcore-package.sh` (both targets) | 30 s | host 8.6 s, app 16.2 s |
 | `scripts/roomcore-package.sh --app-only` / `--host-only` (spike changes) | 8–17 s each | |
 
+
+### Phase 3.2b on the Mac mini (2026-10-05)
+
+`out/dev`, `ROOM_BUILD_JOBS=6`, nothing else building; `out/release` untouched (stale since the `//room` edits).
+
+| Step | Time | Notes |
+|---|---|---|
+| `scripts/roomcore-apply.sh` with patch 0013 inserted | ~20 s | "3 applied, 11 already" (0014 and 0015 recommitted behind 0013); the run after: "0 applied, 14 already" |
+| `scripts/roomcore-build.sh`: patch 0013 (`app_controller_mac.mm`, `chrome_browser_main_mac.mm`), `room_app_controller.mm` new, `//room/core` and `//room/browser` edits | **79 s** build part | load 2.2 → 4.9; compiled on the first attempt |
+| rebuild: the Apple-event reply fix, the crash-mark commit | 46 s | load 4.0 → 4.9 |
+| rebuild: `RoomCrApplication.h` comment | 47 s | |
+| `gn check out/dev '//room/*'` | 8 s | three missing deps (`app_controller_mac`, `lifetime`, `browser_active_state_manager`) added; then OK |
+| rebuild after the GN deps (the last engine change) | 48 s | |
+| `scripts/roomcore-package.sh` | 37 s first (Swift: host 15.7 s, app 15.1 s), 17–19 s later | framework 924 MB staged, 518 dylibs |
+| `xcodebuild -scheme Room` (CEF, for the keys comparison) | 13 s | incremental |
+
 ## RoomCore background hardening — M1 Max laptop, 2026-10-03
 
 64 GB RAM, default Siso job count, existing `out/dev` resumed from the prior
