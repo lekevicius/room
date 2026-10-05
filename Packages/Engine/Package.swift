@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "FakeEngine", targets: ["FakeEngine"]),
     ],
     targets: [
-        .target(name: "Engine", swiftSettings: mainActorByDefault),
+        .target(name: "Engine", resources: [.copy("Resources/public_suffix_list.dat")], swiftSettings: mainActorByDefault),
         .target(name: "FakeEngine", dependencies: ["Engine"], swiftSettings: mainActorByDefault),
         .testTarget(name: "EngineTests", dependencies: ["Engine", "FakeEngine"], swiftSettings: mainActorByDefault),
     ]

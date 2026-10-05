@@ -38,11 +38,16 @@ nonisolated public enum Disposition: Sendable, Hashable {
 /// A navigation about to start in a web contents' main frame.
 nonisolated public struct NavigationAction: Sendable, Hashable {
     public enum Kind: Sendable, Hashable {
+        /// A click on a link (an anchor, also one a script clicks while the
+        /// user's gesture lasts). Never the page's script setting
+        /// `window.location`, which is `.other` with a `.link` transition:
+        /// exact on RoomCore; CEF tells them apart by the link under the
+        /// pointer (its status text, B-33).
         case linkActivated
         case formSubmitted
         case backForward
         case reload
-        /// Address field, script-initiated or anything else.
+        /// Address field, the page's script, anything else.
         case other
     }
 

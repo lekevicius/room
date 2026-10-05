@@ -81,4 +81,22 @@ public protocol EngineApplication: AnyObject {
     /// Returns the already-loaded profile when called twice with one name.
     /// Valid only while the main loop runs.
     func createProfile(name: String) async throws -> any Profile
+
+    /// The site of `url` as the engine counts it for same-site rules (spec
+    /// §A.4 "same eTLD+1", Peek): the registrable domain of its host by the
+    /// Public Suffix List with the private section, lower-case and in
+    /// punycode; an IP address, `localhost` or any host without a
+    /// registrable domain is its own site; `nil` without a host (`about:`,
+    /// `data:`, `file:`). RoomCore: Chromium's
+    /// `net::registry_controlled_domains`; CEF and the fake: the bundled
+    /// `PublicSuffixList`.
+    func site(of url: URL) -> String?
+}
+
+public extension EngineApplication {
+    /// Both URLs have a host and the same site (`site(of:)`).
+    func isSameSite(_ a: URL, _ b: URL) -> Bool {
+        guard let siteA = site(of: a), let siteB = site(of: b) else { return false }
+        return siteA == siteB
+    }
 }

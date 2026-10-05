@@ -3,9 +3,15 @@ import Foundation
 /// Sites as Chromium counts them for "same site" (spec §A.4 "same eTLD+1"):
 /// the registrable domain, the public suffix plus one label, by the Public
 /// Suffix List with its private section (`Resources/public_suffix_list.dat`,
-/// as `net::SchemefulSite` uses `INCLUDE_PRIVATE_REGISTRIES`). An IP
-/// address, `localhost` or any host without a registrable domain is its own site.
-nonisolated public enum SiteRules {
+/// Chromium 154's copy, as `net::SchemefulSite` uses
+/// `INCLUDE_PRIVATE_REGISTRIES`). An IP address, `localhost` or any host
+/// without a registrable domain is its own site.
+///
+/// The bundled list behind `EngineApplication.site(of:)` for engines without
+/// Chromium's `net::registry_controlled_domains` (CEF, the fake). It skips the
+/// list's IDN rules (hosts arrive in punycode; B-34): RoomCore uses Chromium's
+/// own table, which updates with Chromium.
+nonisolated public enum PublicSuffixList {
     /// The site of `host` (lower-cased, without a trailing dot).
     public static func site(ofHost host: String) -> String {
         var host = host.lowercased()

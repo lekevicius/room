@@ -15,7 +15,7 @@ let package = Package(
         .package(path: "../Sidebar"),
     ],
     targets: [
-        .target(name: "Tabs", dependencies: ["Design", "Engine", "Model", "Store", "Sidebar"], resources: [.copy("Resources/public_suffix_list.dat")],
+        .target(name: "Tabs", dependencies: ["Design", "Engine", "Model", "Store", "Sidebar"],
                 swiftSettings: mainActorByDefault),
         .testTarget(name: "TabsTests",
                     dependencies: ["Tabs", "Engine", .product(name: "FakeEngine", package: "Engine"), "Model", "Store", "Sidebar"],

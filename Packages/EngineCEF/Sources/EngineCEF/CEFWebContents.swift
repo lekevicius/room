@@ -63,6 +63,9 @@ public final class CEFWebContents: NSObject, WebContents {
     /// Permission prompts the UI delegate answered (their dismissal is not a withdrawal).
     @ObservationIgnored private var answeredPrompts: Set<UInt64> = []
     @ObservationIgnored private var faviconURL: String?
+    /// The link under the pointer or keyboard focus (CEF's status message):
+    /// tells a click on a link from a script navigation (B-33).
+    @ObservationIgnored private var hoveredLink: URL?
     /// What the last `load` asked for: CEF commits every browser-initiated
     /// load as TYPED, so the requested transition stands in for it.
     @ObservationIgnored private var requestedTransition: PageTransition?
@@ -474,6 +477,7 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
     }
 
     public func browser(_ browser: RoomCEFBrowser, didChangeStatusMessage message: String?) {
+        hoveredLink = message.flatMap(URL.init(string:))
         uiDelegate?.webContents(self, didChangeStatusText: message?.isEmpty == true ? nil : message)
     }
 
@@ -518,7 +522,16 @@ extension CEFWebContents: RoomCEFBrowserDelegate {
     public func browser(_ browser: RoomCEFBrowser, shouldCancelNavigation request: RoomCEFNavigationRequest) -> Bool {
         if !request.redirect { failedURL = nil }
         guard let navigationDelegate else { return false }
-        let action = NavigationAction(request)
+        var action = NavigationAction(request)
+        // CEF reports a click on a link and the page's script setting
+        // `window.location` alike (TT_LINK with a gesture): only a navigation
+        // to the link under the pointer or keyboard focus (the status text)
+        // counts as a click; anything else is the script's (B-33: a page that
+        // rewrites href on mousedown is misjudged; RoomCore knows exactly).
+        if action.kind == .linkActivated, !request.redirect,
+           !(hoveredLink.map { Self.sameDocument($0, action.url) } ?? false) {
+            action.kind = .other
+        }
         let decision = navigationDelegate.webContents(self, decidePolicyFor: action)
         switch decision {
         case .currentTab:
@@ -770,5 +783,18 @@ enum CertificateErrorNames {
         case -217: "ERR_CERT_KNOWN_INTERCEPTION_BLOCKED"
         default: "net error \(code)"
         }
+    }
+}
+
+extension CEFWebContents {
+    /// The same URL but for the fragment and a trailing slash.
+    nonisolated static func sameDocument(_ a: URL, _ b: URL) -> Bool {
+        func key(_ url: URL) -> String {
+            var string = url.absoluteString
+            if let hash = string.firstIndex(of: "#") { string = String(string[..<hash]) }
+            if string.hasSuffix("/") { string.removeLast() }
+            return string
+        }
+        return key(a) == key(b)
     }
 }

@@ -18,6 +18,10 @@ public final class CEFApplication: EngineApplication {
     public var remoteDebuggingPort = 0
     public private(set) var profiles: [any Profile] = []
 
+    /// CEF exposes no registry-controlled-domain API: the bundled Public
+    /// Suffix List (Chromium 154's, IDN rules skipped; B-34).
+    public func site(of url: URL) -> String? { PublicSuffixList.site(of: url) }
+
     private var userDataDirectory: URL?
     private var isRunning = false
     private var pendingProfiles: [String: Task<CEFProfile, any Error>] = [:]

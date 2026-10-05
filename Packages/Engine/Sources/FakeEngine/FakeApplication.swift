@@ -45,6 +45,9 @@ public final class FakeApplication: EngineApplication {
 
     public var profiles: [any Profile] { fakeProfiles }
 
+    /// The bundled Public Suffix List, as the CEF engine (RoomCore asks Chromium).
+    public func site(of url: URL) -> String? { PublicSuffixList.site(of: url) }
+
     public func createProfile(name: String) async throws -> any Profile {
         try profile(named: name)
     }

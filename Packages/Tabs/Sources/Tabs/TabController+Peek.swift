@@ -133,12 +133,15 @@ extension TabController {
 
     /// The Peek's decision for a navigation of an entry's page (`nil`: not one of its pages).
     func peekDecision(for action: NavigationAction, in contents: any WebContents) -> PeekDecision {
-        guard let id = entryID(for: contents), let page = pages[id], let entry = store.sidebar.entry(id) else { return .asRequested }
+        guard let id = entryID(for: contents), pages[id] != nil, let entry = store.sidebar.entry(id) else { return .asRequested }
         let since = lastUserInput.map { uptime() - $0 }
         let context = PeekRules.Context(isPermanentEntry: entry.kind.isPermanent, isEnabled: isPeekEnabled(),
                                         currentURL: contents.url ?? entry.currentURL.flatMap(URL.init(string:)),
-                                        hoveredLink: page.hoveredLink, secondsSinceUserInput: since)
-        let decision = PeekRules.decision(for: action, context: context)
+                                        secondsSinceUserInput: since)
+        let engine = engine
+        let decision = PeekRules.decision(for: action, context: context) { a, b in
+            engine?.isSameSite(a, b) ?? PublicSuffixList.isSameSite(a, b)
+        }
         debugPeekDecisions?(action, decision)
         return decision
     }

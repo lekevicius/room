@@ -25,6 +25,14 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
 
     public private(set) var features = EngineFeatures()
     public var profiles: [any Profile] { loadedProfiles }
+
+    /// Chromium's registrable domain (`net::registry_controlled_domains`,
+    /// private registries included), so the list updates with Chromium.
+    public func site(of url: URL) -> String? {
+        guard var host = url.host(percentEncoded: false), !host.isEmpty else { return nil }
+        if host.hasSuffix(".") { host.removeLast() }
+        return RoomApplication.site(forHost: host)
+    }
     /// Chromium's `browser_shutdown::IsTryingToQuit()`: true while a quit
     /// closes the pages, false again after a beforeunload "stay".
     public var isTerminating: Bool { core.isTerminating }
