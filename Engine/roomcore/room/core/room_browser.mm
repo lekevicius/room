@@ -52,6 +52,8 @@
 #include "chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/views/passwords/password_bubble_view_base.h"
+#include "chrome/browser/ui/passwords/passwords_model_delegate.h"
+#include "components/password_manager/core/common/password_manager_ui.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
@@ -65,6 +67,8 @@
 #include "components/permissions/permission_request_manager.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/gfx/geometry/rect_conversions.h"
+#include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
 #include "room/build/buildflags.h"
@@ -84,6 +88,7 @@
                    selection:(const TabStripSelectionChange&)selection;
 - (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
 - (void)room_focusLocationBarRequested;
+- (NSRect)room_bubbleAnchorRect;
 - (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
 - (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event;
 @end
@@ -122,6 +127,13 @@ class Client : public room::RoomBrowserWindowClient {
   }
   void OnFocusLocationBarRequested(bool is_user_initiated) override {
     [browser_ room_focusLocationBarRequested];
+  }
+  std::optional<gfx::Rect> GetBubbleAnchorRect() override {
+    const NSRect rect = [browser_ room_bubbleAnchorRect];
+    if (NSIsEmptyRect(rect)) {
+      return std::nullopt;
+    }
+    return gfx::ToEnclosingRect(gfx::RectF(NSRectToCGRect(rect)));
   }
   bool AllowOpenFromTab(const NavigateParams& params) override {
     return room::AllowOpenFromRoomPage(params);
@@ -477,6 +489,12 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   [page room_requestFocusOnLocationBar];
 }
 
+// Chrome's bubbles point at the host's site button: the active page's
+// delegate knows where it is (3.7a).
+- (NSRect)room_bubbleAnchorRect {
+  return [self.activeWebContents room_bubbleAnchorRect];
+}
+
 - (void)room_activeContentsChanged:(content::WebContents*)contents {
   RoomWebContents* wrapper = [self room_wrapperFor:contents];
   [self willChangeValueForKey:@"activeWebContents"];
@@ -729,11 +747,22 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   if ([action isEqualToString:@"password-presentation"]) {
     auto* dialogs = TabDialogs::FromWebContents(contents);
     if (!dialogs) { return @(-1); }
-    dialogs->ShowManagePasswordsBubble(true);
+    // 3.7a: with Room's ToolbarButtonProvider the presentation reaches
+    // CreateBubble, which has no view for the inactive state (NOTREACHED):
+    // Chrome shows the bubble only for a pending or managed password. The
+    // real save/update flow is Room.app's `passwords` spike (a submitted form).
     bool provider = ToolbarButtonProvider::From(_browser) != nullptr;
+    base::WeakPtr<PasswordsModelDelegate> model =
+        PasswordsModelDelegateFromWebContents(contents);
+    bool inactive = !model ||
+                    model->GetState() == password_manager::ui::INACTIVE_STATE;
+    if (!inactive) {
+      dialogs->ShowManagePasswordsBubble(true);
+    }
     bool bubble = PasswordBubbleViewBase::manage_password_bubble() != nullptr;
-    LOG(WARNING) << "Room UI probe password provider=" << provider << " bubble=" << bubble;
-    return @(1 | (provider ? 2 : 0) | (bubble ? 4 : 0));
+    LOG(WARNING) << "Room UI probe password provider=" << provider
+                 << " inactive=" << inactive << " bubble=" << bubble;
+    return @(1 | (provider ? 2 : 0) | (bubble ? 4 : 0) | (inactive ? 8 : 0));
   }
   if ([action isEqualToString:@"card-save"]) {
     autofill::CreditCard card;

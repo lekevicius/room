@@ -903,6 +903,14 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (NSRect)room_bubbleAnchorRect {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if (![delegate respondsToSelector:@selector(webContentsBubbleAnchorRect:)]) {
+    return NSZeroRect;
+  }
+  return [delegate webContentsBubbleAnchorRect:self];
+}
+
 - (void)room_didEnterFullscreen:(const url::Origin&)origin {
   NSURL* originURL =
       origin.opaque() ? nil : net::NSURLWithGURL(origin.GetURL());

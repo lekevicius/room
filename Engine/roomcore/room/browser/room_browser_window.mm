@@ -25,6 +25,8 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
 #include "chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.h"
+#include "components/autofill/content/browser/content_autofill_client.h"
+#include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
@@ -54,27 +56,62 @@ extern bool (*g_browser_for_disposition_hook)(const NavigateParams&,
 
 namespace {
 
-// Private adapter for retained Chromium autofill bubbles. Do not register this
-// as the browser's ToolbarButtonProvider: Room has no Chrome toolbar controls.
-class RoomAutofillAnchors : public ToolbarButtonProvider {
+// Chrome's toolbar for its Views bubbles (3.7a). Chrome asks the Browser's
+// ToolbarButtonProvider (user data ToolbarView registers) where a password,
+// address or card bubble points: PasswordBubbleViewBase::ShowBubble returns
+// without a bubble when there is none, the autofill bubble handler and the
+// send-tab/QR/sharing bubbles call GetBubbleAnchor. Room has no Chrome
+// toolbar: every anchor is the window's bubble anchor (at the host's site
+// button, RoomBrowserWindow::GetBubbleAnchor), every control null. Members
+// Chrome reaches for beyond the anchor log their first hit; the extensions
+// container stays null (Room's is ExtensionsContainer user data, 3.6b, not
+// a Views container: B-71).
+class RoomToolbarButtonProvider : public ToolbarButtonProvider {
  public:
-  explicit RoomAutofillAnchors(RoomBrowserWindow* window) : window_(window) {}
+  RoomToolbarButtonProvider(RoomBrowserWindow* window,
+                            BrowserWindowInterface* browser)
+      : window_(window) {
+    if (browser) {
+      registration_.emplace(browser->GetUnownedUserDataHost(),
+                            static_cast<ToolbarButtonProvider&>(*this));
+    }
+  }
+  ~RoomToolbarButtonProvider() override = default;
+
   ExtensionsContainerViews* GetExtensionsContainerViews() override {
+    RoomStubHit("ToolbarButtonProvider::GetExtensionsContainerViews");
     return nullptr;
   }
-  PinnedToolbarActions* GetPinnedToolbarActions() override { return nullptr; }
-  gfx::Size GetToolbarButtonSize() const override { return {}; }
+  PinnedToolbarActions* GetPinnedToolbarActions() override {
+    RoomStubHit("ToolbarButtonProvider::GetPinnedToolbarActions");
+    return nullptr;
+  }
+  gfx::Size GetToolbarButtonSize() const override {
+    RoomStubHit("ToolbarButtonProvider::GetToolbarButtonSize");
+    return {};
+  }
   views::BubbleAnchor GetDefaultExtensionDialogAnchor() override {
+    RoomStubHit("ToolbarButtonProvider::GetDefaultExtensionDialogAnchor");
     return Anchor();
   }
   page_actions::PageActionViewInterface* GetPageActionViewInterface(
       actions::ActionId) override {
+    RoomStubHit("ToolbarButtonProvider::GetPageActionViewInterface");
     return nullptr;
   }
-  AppMenuControl* GetAppMenuControl() override { return nullptr; }
-  gfx::Rect GetFindBarBoundingBox(int) override { return {}; }
-  void FocusToolbar() override {}
+  AppMenuControl* GetAppMenuControl() override {
+    RoomStubHit("ToolbarButtonProvider::GetAppMenuControl");
+    return nullptr;
+  }
+  gfx::Rect GetFindBarBoundingBox(int) override {
+    RoomStubHit("ToolbarButtonProvider::GetFindBarBoundingBox");
+    return {};
+  }
+  void FocusToolbar() override {
+    RoomStubHit("ToolbarButtonProvider::FocusToolbar");
+  }
   views::AccessiblePaneView* GetAsAccessiblePaneView() override {
+    RoomStubHit("ToolbarButtonProvider::GetAsAccessiblePaneView");
     return nullptr;
   }
   views::BubbleAnchor GetBubbleAnchor(
@@ -86,11 +123,21 @@ class RoomAutofillAnchors : public ToolbarButtonProvider {
   }
   void ZoomChangedForActiveTab(bool) override {}
   AvatarToolbarButtonInterface* GetAvatarToolbarButtonInterface() override {
+    RoomStubHit("ToolbarButtonProvider::GetAvatarToolbarButtonInterface");
     return nullptr;
   }
-  ToolbarButton* GetBackButton() override { return nullptr; }
-  ReloadControl* GetReloadButton() override { return nullptr; }
-  ToolbarButton* GetDownloadButton() override { return nullptr; }
+  ToolbarButton* GetBackButton() override {
+    RoomStubHit("ToolbarButtonProvider::GetBackButton");
+    return nullptr;
+  }
+  ReloadControl* GetReloadButton() override {
+    RoomStubHit("ToolbarButtonProvider::GetReloadButton");
+    return nullptr;
+  }
+  ToolbarButton* GetDownloadButton() override {
+    RoomStubHit("ToolbarButtonProvider::GetDownloadButton");
+    return nullptr;
+  }
   WebUIToolbarWebView* GetWebUIToolbarViewForTesting() override {
     return nullptr;
   }
@@ -100,6 +147,8 @@ class RoomAutofillAnchors : public ToolbarButtonProvider {
     return views::BubbleAnchor(window_->GetBubbleAnchor());
   }
   raw_ptr<RoomBrowserWindow> window_;
+  std::optional<ui::ScopedUnownedUserData<ToolbarButtonProvider>>
+      registration_;
 };
 
 auto& RoomWindows() {
@@ -150,7 +199,16 @@ class RoomSadTab : public SadTab {
 // lifetime even though Room does not own a BrowserView.
 class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
  public:
-  explicit RoomModalDialogHost(NSWindow* window) : window_(window) {
+  // `anchor_rect` answers where bubbles point, in `window`'s coordinates
+  // (the host's site button), or nullopt for the corner default.
+  // `window_changed` runs when the host window moves or resizes.
+  RoomModalDialogHost(NSWindow* window,
+                      base::RepeatingCallback<std::optional<gfx::Rect>()>
+                          anchor_rect,
+                      base::RepeatingClosure window_changed)
+      : window_(window),
+        anchor_rect_(std::move(anchor_rect)),
+        window_changed_(std::move(window_changed)) {
     // NativeWidgetMac's child-modal path needs a Views NSWindow host, not
     // merely an arbitrary NSView. A transparent, noninteractive child widget
     // supplies that bridge without replacing the Swift-owned browser window.
@@ -178,10 +236,10 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
     widget_->ShowInactive();
     resize_observer_ = [NSNotificationCenter.defaultCenter
         addObserverForName:NSWindowDidResizeNotification object:window queue:nil
-        usingBlock:^(NSNotification*) { NotifyPositionRequiresUpdate(); }];
+        usingBlock:^(NSNotification*) { WindowChanged(); }];
     move_observer_ = [NSNotificationCenter.defaultCenter
         addObserverForName:NSWindowDidMoveNotification object:window queue:nil
-        usingBlock:^(NSNotification*) { NotifyPositionRequiresUpdate(); }];
+        usingBlock:^(NSNotification*) { WindowChanged(); }];
   }
   ~RoomModalDialogHost() override {
     [NSNotificationCenter.defaultCenter removeObserver:resize_observer_];
@@ -195,7 +253,10 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   gfx::NativeView GetHostView() const override {
     return widget_->GetNativeView();
   }
-  views::View* GetBubbleAnchor() { return bubble_anchor_; }
+  views::View* GetBubbleAnchor() {
+    PositionAnchor();
+    return bubble_anchor_;
+  }
   gfx::Point GetDialogPosition(const gfx::Size& size) override {
     const gfx::Size bounds = GetMaximumDialogSize();
     return gfx::Point(std::max(0, (bounds.width() - size.width()) / 2),
@@ -218,12 +279,43 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
     }
   }
  private:
+  void WindowChanged() {
+    NotifyPositionRequiresUpdate();
+    if (window_changed_) {
+      window_changed_.Run();
+    }
+  }
   void UpdateBounds() {
     NSRect content = [window_.contentView convertRect:window_.contentView.bounds
                                                toView:nil];
     widget_->SetBounds(gfx::ScreenRectFromNSRect([window_ convertRectToScreen:content]));
+    PositionAnchor();
+  }
+  // The anchor view at the host's rect, in the widget's (top-left) coordinates;
+  // the widget covers the window's content view. Bubbles anchored on it follow
+  // its bounds (BubbleDialogDelegate observes the anchor view and widget).
+  void PositionAnchor() {
+    NSWindow* window = window_;
+    if (!window || !bubble_anchor_) {
+      return;
+    }
+    gfx::Rect bounds(16, 16, 1, 1);
+    if (std::optional<gfx::Rect> rect =
+            anchor_rect_ ? anchor_rect_.Run() : std::nullopt;
+        rect && !rect->IsEmpty()) {
+      NSRect content = [window.contentView convertRect:window.contentView.bounds
+                                                toView:nil];
+      bounds = gfx::Rect(rect->x() - NSMinX(content),
+                         NSMaxY(content) - rect->bottom(), rect->width(),
+                         rect->height());
+    }
+    if (bubble_anchor_->bounds() != bounds) {
+      bubble_anchor_->SetBoundsRect(bounds);
+    }
   }
   NSWindow* __weak window_;
+  base::RepeatingCallback<std::optional<gfx::Rect>()> anchor_rect_;
+  base::RepeatingClosure window_changed_;
   id resize_observer_;
   id move_observer_;
   std::unique_ptr<views::Widget> widget_;
@@ -403,7 +495,9 @@ ScopedPendingHostWindow::~ScopedPendingHostWindow() {
 struct RoomBrowserWindow::ObjCMembers {
   NSWindow* __weak window;
   std::unique_ptr<RoomModalDialogHost> modal_host;
-  std::unique_ptr<RoomAutofillAnchors> autofill_anchors;
+  // Registered as the Browser's ToolbarButtonProvider for a window the host
+  // owns (3.7a); a headless Browser has none (its bubbles have no window).
+  std::unique_ptr<RoomToolbarButtonProvider> toolbar_provider;
   std::unique_ptr<autofill::AutofillBubbleHandlerImpl> autofill_handler;
 };
 
@@ -417,6 +511,8 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser, client)) {
   RoomWindows().emplace(browser, this);
+  objc_->toolbar_provider = std::make_unique<RoomToolbarButtonProvider>(
+      this, is_headless() ? nullptr : browser);
   // Payment bubbles resolve AutofillBubbleHandler through window user data,
   // without calling the legacy BrowserWindow getter first.
   GetAutofillBubbleHandler();
@@ -424,9 +520,8 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
 
 autofill::AutofillBubbleHandler* RoomBrowserWindow::GetAutofillBubbleHandler() {
   if (!objc_->autofill_handler) {
-    objc_->autofill_anchors = std::make_unique<RoomAutofillAnchors>(this);
     objc_->autofill_handler = std::make_unique<autofill::AutofillBubbleHandlerImpl>(
-        browser_, objc_->autofill_anchors.get());
+        browser_, objc_->toolbar_provider.get());
   }
   return objc_->autofill_handler.get();
 }
@@ -456,6 +551,10 @@ std::optional<room::PendingOpen> RoomBrowserWindow::TakePendingOpen() {
 
 RoomBrowserWindow::~RoomBrowserWindow() {
   RoomWindows().erase(browser_);
+  // The handler points at the provider; both go before the Browser's user
+  // data host does.
+  objc_->autofill_handler.reset();
+  objc_->toolbar_provider.reset();
   // What BrowserView and WebUIBrowserWindow do in their destructors: features
   // that hold on to window-scoped objects (side panel entries, for example)
   // let go of them before the Browser destroys the features themselves.
@@ -828,7 +927,18 @@ void RoomBrowserWindow::DeleteBrowserWindow() {
 web_modal::WebContentsModalDialogHost*
 RoomBrowserWindow::GetWebContentsModalDialogHost() {
   if (!objc_->modal_host) {
-    objc_->modal_host = std::make_unique<RoomModalDialogHost>(objc_->window);
+    objc_->modal_host = std::make_unique<RoomModalDialogHost>(
+        objc_->window,
+        base::BindRepeating(
+            [](base::WeakPtr<RoomBrowserWindow> window)
+                -> std::optional<gfx::Rect> {
+              return window && window->client()
+                         ? window->client()->GetBubbleAnchorRect()
+                         : std::nullopt;
+            },
+            weak_factory_.GetWeakPtr()),
+        base::BindRepeating(&RoomBrowserWindow::HideAutofillSuggestions,
+                            weak_factory_.GetWeakPtr()));
     // TabDialogManager needs a primary Views widget as well as the native
     // modal parent. This context does not claim to own the page's WebView.
     BrowserElements::From(browser_)->AsA<BrowserElementsViewsImpl>()->Init(
@@ -840,6 +950,22 @@ RoomBrowserWindow::GetWebContentsModalDialogHost() {
 web_modal::WebContentsModalDialogHost*
 RoomBrowserWindow::GetWebContentsModalDialogHostFor(content::WebContents*) {
   return GetWebContentsModalDialogHost();
+}
+
+// Chrome's autofill and password suggestion popups (PopupViewViews) close
+// when their browser widget moves or resizes (PopupBaseView observes it as
+// its parent widget, kWidgetChanged). A Room window is no Views widget, so the
+// popup's parent is null and it would stay where it opened (3.7a: it stayed
+// put after a 60 pt window move): close it the same way here.
+void RoomBrowserWindow::HideAutofillSuggestions() {
+  TabStripModel* strip = browser_->GetTabStripModel();
+  for (int i = 0; i < strip->count(); ++i) {
+    if (auto* client = autofill::ContentAutofillClient::FromWebContents(
+            strip->GetWebContentsAt(i))) {
+      client->HideSuggestions(autofill::SuggestionHidingReason::kWidgetChanged,
+                              std::nullopt);
+    }
+  }
 }
 
 views::View* RoomBrowserWindow::GetBubbleAnchor() {

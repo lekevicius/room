@@ -27,6 +27,8 @@ source_set("browser") {
     "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//chrome/browser/ui/views/frame:toolbar_button_provider",
     "//chrome/browser/ui/views/interaction:impl",
+    "//components/autofill/content/browser",
+    "//components/autofill/core/browser",
     "//components/input",
     "//components/web_modal",
     "//content/public/browser",

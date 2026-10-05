@@ -438,6 +438,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // the host focuses its own field for this page.
 - (void)webContentsDidRequestFocusOnLocationBar:(RoomWebContents*)webContents
     NS_SWIFT_NAME(webContentsDidRequestFocusOnLocationBar(_:));
+// Where Chrome's own bubbles point while this page is its window's active
+// page (the password save and update bubbles, address and card saves,
+// device choosers, FedCM): the host's site button, in the window's
+// coordinates. NSZeroRect (or not implemented): the window's top-left corner.
+// Asked when a bubble is about to show and when the window moves or resizes.
+- (NSRect)webContentsBubbleAnchorRect:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(webContentsBubbleAnchorRect(_:));
 // The page entered element fullscreen (Chrome granted it); the host makes
 // the page fill the window, or calls -exitFullscreen to refuse.
 - (void)webContentsDidRequestEnterFullscreen:(RoomWebContents*)webContents

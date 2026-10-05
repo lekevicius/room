@@ -99,6 +99,11 @@ class RoomBrowserWindowClient {
   // Chrome wants the address field focused (IDC_FOCUS_LOCATION,
   // chrome::FocusLocationBar, LocationBar::FocusLocation): the host's field.
   virtual void OnFocusLocationBarRequested(bool is_user_initiated) = 0;
+  // Where Chrome's Views bubbles point (passwords, address and card saves,
+  // choosers, FedCM, permission chips): the host's site button, in the
+  // NSWindow's coordinates (AppKit, bottom-left origin), asked through the
+  // active page's delegate (3.7a); nullopt: RoomCore's default corner.
+  virtual std::optional<gfx::Rect> GetBubbleAnchorRect() = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created
@@ -143,6 +148,8 @@ class RoomBrowserWindow : public BrowserWindow {
 
   BrowserWindowInterface* browser() const { return browser_; }
   // Internal Views bridge for Chrome bubbles; the host owns the address UI.
+  // Positioned at the host's anchor rect (the client's GetBubbleAnchorRect)
+  // each time it is asked for and when the window moves or resizes.
   views::View* GetBubbleAnchor();
 
   // A Browser //room did not create: no host window, nothing drawn.
@@ -261,6 +268,8 @@ class RoomBrowserWindow : public BrowserWindow {
 
  private:
   void DestroyBrowser();
+  // Closes the pages' autofill suggestion popups (the window moved or resized).
+  void HideAutofillSuggestions();
 
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<room::RoomBrowserWindowClient> client_;
