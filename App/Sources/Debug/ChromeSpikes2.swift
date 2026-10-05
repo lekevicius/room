@@ -55,6 +55,8 @@ extension SpikeRunner.Context {
         if runs("downloads") { await downloadsCheck(folder: downloadFolder) }
         if runs("find") { await findCheck() }
         if runs("zoom") { await zoomCheck() }
+        // Real sites over the network: only when asked (`-RoomSpikeOnly security`, 3.3a).
+        if only.contains("security") { await securityCheck() }
         if runs("print") { await printCheck() }
         if runs("status") { await statusPillCheck() }
         if runs("sitepanel") { await sitePanelCheck() }
@@ -188,6 +190,9 @@ extension SpikeRunner.Context {
     // MARK: Zoom and print
 
     private func zoomCheck() async {
+        // B-27: another loaded page of the same host, in the background (Chrome's zoom is per host).
+        let sibling = session.newPage(URL(string: "http://127.0.0.1:8766/status.html"), hidden: true, select: false)
+        if let sibling { await waitLoaded(sibling) }
         guard let app, let zoom = app.zoom, let page = await openTest("find.html") else { return }
         focusPage(page)
         // ⌘= reaches the page first; unhandled, it comes back to the main menu (handleUnhandledKeyEvent).
@@ -195,6 +200,7 @@ extension SpikeRunner.Context {
         _ = await waitUntil(3) { abs(page.zoomFactor - 1.1) < 0.001 }
         try? await Task.sleep(for: .milliseconds(300))
         SpikeRunner.record("zoom_in", "factor=\(page.zoomFactor) indicator=\"\(zoom.labelText)\" page devicePixelRatio=\(await js(page, "window.devicePixelRatio"))")
+        SpikeRunner.record("zoom_same_host_page", "a background page of the same host: factor=\(sibling.map { "\($0.zoomFactor)" } ?? "nil") (B-27)")
         await captureB("zoom-indicator")
         sendKey("-", keyCode: 27, [.command])
         sendKey("-", keyCode: 27, [.command])
@@ -205,6 +211,22 @@ extension SpikeRunner.Context {
         SpikeRunner.record("zoom_out_reset", "after ⌘- ⌘- \(out), after ⌘0 \(page.zoomFactor)")
         let hidden = await waitUntil(3) { !zoom.isVisible }
         SpikeRunner.record("zoom_indicator_hides", hidden)
+        SpikeRunner.record("zoom_same_host_page_after_reset", "factor=\(sibling.map { "\($0.zoomFactor)" } ?? "nil")")
+        sibling?.close()
+    }
+
+    // MARK: Security state (the header's site icon, 2.3)
+
+    /// The padlock states: a real HTTPS site, a page on the loopback test
+    /// server, a plain-HTTP real site, a self-signed HTTPS page.
+    private func securityCheck() async {
+        for (name, url) in [("https", "https://example.com/"), ("loopback_http", "http://127.0.0.1:8766/find.html"),
+                            ("http", "http://neverssl.com/"), ("self_signed", "https://127.0.0.1:8767/secure.html")] {
+            guard let page = await open(URL(string: url)!) else { continue }
+            await waitLoaded(page)
+            try? await Task.sleep(for: .milliseconds(500))
+            SpikeRunner.record("security_\(name)", "\(page.url?.absoluteString ?? "nil") level=\(page.securityState.level) mixed=\(page.securityState.hasMixedContent)")
+        }
     }
 
     /// CEF's print runs the system panel app-modally (nothing else of the

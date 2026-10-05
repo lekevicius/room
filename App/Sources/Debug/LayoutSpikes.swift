@@ -277,7 +277,9 @@ extension SpikeRunner.Context {
         var decisions: [String] = []
         var decidedAt: (uptime: TimeInterval, epoch: Double)?
         tabs.debugPeekDecisions = { action, decision in
-            decisions.append("\(action.url.host() ?? "")\(action.url.path)\(action.url.query.map { "?" + $0 } ?? "") \(decision == .peek ? "peek" : "in place")")
+            decisions.append("\(action.url.host() ?? "")\(action.url.path)\(action.url.query.map { "?" + $0 } ?? "") \(decision == .peek ? "peek" : "in place")"
+                + " [kind=\(action.kind) transition=\(action.transition) disposition=\(action.disposition) gesture=\(action.isUserGesture)"
+                + " redirect=\(action.isRedirect) client=\(action.isClientRedirect)]")
             if decision == .peek { decidedAt = (ProcessInfo.processInfo.systemUptime, Date().timeIntervalSince1970 * 1000) }
         }
         var presentedAt: TimeInterval?
@@ -407,6 +409,12 @@ extension SpikeRunner.Context {
         await reset()
         SpikeRunner.record("peek_decisions", decisions.joined(separator: " | "))
         tabs.debugPeekDecisions = nil
+        // The engine's same-site key (B-34): an IDN public suffix (東京.jp) the bundled list skipped.
+        if let engine = tabs.engine {
+            let hosts = ["shop.example.xn--1lqs71d.jp", "a.b.example.co.uk", "room.github.io", "127.0.0.1"]
+            SpikeRunner.record("site_engine", hosts.map { "\($0) → \(engine.site(of: URL(string: "https://\($0)/")!) ?? "nil")" }.joined(separator: ", "))
+            SpikeRunner.record("site_bundled_list", hosts.map { "\($0) → \(PublicSuffixList.site(ofHost: $0))" }.joined(separator: ", "))
+        }
     }
 }
 

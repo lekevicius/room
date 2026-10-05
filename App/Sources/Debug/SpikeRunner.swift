@@ -64,6 +64,7 @@ enum SpikeRunner {
         case "switch": await context.switching()
         case "relaunch": await context.relaunch()
         case "capture": await context.captures()
+        case "colors": await context.colors()
         case "palette": await context.paletteChecks()
         case "palettemeasure": await context.paletteMeasure()
         case "palette2": await context.palette2Checks()
@@ -78,6 +79,7 @@ enum SpikeRunner {
         case "appintegration2": await context.appIntegration2()
         case "netcheck": await context.netCheck()
         case "quitstay": await context.quitStay()
+        case "closeunload": await context.closeUnload()
         case "quitflags": await context.quitFlags()
         default: record("error", "unknown spike")
         }
@@ -412,7 +414,10 @@ enum SpikeRunner {
             SpikeRunner.record("webaudio_became_audible", webAudible ? String(format: "%.0fms", ms(since: webAudioAt)) : "no edge within 5s")
             try? await Task.sleep(for: .seconds(2))
             SpikeRunner.record("webaudio_still_audible_after_2s_playing", page.isAudible)
+            let stopAt = ContinuousClock.now
             _ = await js(page, "window.__osc && window.__osc.stop(); 0")
+            let webStopped = await waitUntil(5) { !page.isAudible }
+            SpikeRunner.record("webaudio_reported_stopped", webStopped ? String(format: "%.0fms", ms(since: stopAt)) : "still audible after 5s")
         }
 
         func waitUntil(_ seconds: Double, _ condition: () -> Bool) async -> Bool {

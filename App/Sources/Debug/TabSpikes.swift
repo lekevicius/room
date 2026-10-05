@@ -123,12 +123,23 @@ extension SpikeRunner.Context {
             + "openerIndex=\(order.firstIndex(of: opener.id) ?? -1) backgroundIndexes=\(newIDs.compactMap { order.firstIndex(of: $0) }.sorted()) "
             + "earlierForegroundIndex=\(foregroundTab.flatMap { order.firstIndex(of: $0) } ?? -1)")
 
+        // A has a back/forward list to keep (B-13): one link further, in the background.
+        if let pageA = tabs.contents(for: a) {
+            // Through the engine (a script navigation without a gesture is skipped by back, Chromium's history intervention).
+            pageA.load(URL(string: "https://en.wikipedia.org/wiki/Chromium_(web_browser)")!, transition: .link, fromAddressBar: false)
+            _ = await waitUntil(10) { pageA.url?.path.contains("Chromium") == true }
+            await waitLoaded(pageA)
+            SpikeRunner.record("discard_history_before", "url=\(pageA.url?.absoluteString ?? "nil") canGoBack=\(pageA.canGoBack)")
+        }
+
         // Discard every background page; reselecting one reloads it.
         try? await Task.sleep(for: .seconds(2))
         let memoryBefore = ProcessMemory.snapshot()
         let discarded = tabs.discardBackgroundPages()
         try? await Task.sleep(for: .seconds(4))
         let memoryAfter = ProcessMemory.snapshot()
+        try? await Task.sleep(for: .seconds(6))
+        SpikeRunner.record("discard_renderers_after_10s", ProcessMemory.snapshot().summary)
         SpikeRunner.record("discard", "pages=\(discarded.count) renderers \(memoryBefore.renderers)→\(memoryAfter.renderers) "
             + String(format: "total %.0f→%.0f MB", memoryBefore.totalMB, memoryAfter.totalMB)
             + " states=\(discarded.compactMap { tabs.contents(for: $0)?.state }.map { "\($0)" })"
@@ -138,6 +149,22 @@ extension SpikeRunner.Context {
         let pageA = tabs.contents(for: a)
         SpikeRunner.record("discarded_reselect", "state=\(pageA.map { "\($0.state)" } ?? "nil") url=\(pageA?.url?.absoluteString ?? "nil") "
             + "canGoBack=\(pageA?.canGoBack ?? false) title=\(pageA?.title ?? "nil")")
+        // Back from the revived page reaches the page before the discard (its history survived).
+        if let pageA, pageA.canGoBack {
+            pageA.goBack()
+            _ = await waitUntil(10) { pageA.url?.path.contains("Web_browser") == true }
+            await waitLoaded(pageA)
+            SpikeRunner.record("discarded_back", "url=\(pageA.url?.absoluteString ?? "nil") canGoForward=\(pageA.canGoForward)")
+            pageA.goForward()
+            await waitLoaded(pageA)
+        }
+
+        // Favicons: the page's live one (the row), the store's cache, and the engine's own store (`Profile.favicon(for:)`).
+        if let pageA, let url = pageA.url {
+            func size(_ image: NSImage?) -> String { image.map { "\(Int($0.size.width))×\(Int($0.size.height)) pt, \($0.representations.count) reps" } ?? "nil" }
+            let engineIcon = await tabs.engineProfile(for: pageA)?.favicon(for: url)
+            SpikeRunner.record("favicons", "\(url.host() ?? "") live=\(size(pageA.favicon)) cached=\(size(tabs.favicon(forURL: url.absoluteString))) engine=\(size(engineIcon))")
+        }
 
         // Mute (⇧⌘M through the menu).
         window.makeFirstResponder(nil)
@@ -276,6 +303,37 @@ extension SpikeRunner.Context {
     }
 
     // MARK: Captures
+
+    /// 3.3a: the page's colours from the engine (theme colour, root
+    /// background) and the card's fill following the root background (2.3's
+    /// rule), on the 2.3 capture page (Wikipedia) and a dark page; a window
+    /// capture of the dark one for the reviewer (the runner answers
+    /// `capture:` lines, as the 2.6/2.7 wrappers do).
+    func colors() async {
+        window.setContentSize(NSSize(width: 1244, height: 818))
+        controller.sidebarWidth = 280
+        let dark = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-3.3/dark.html")
+        for (name, url) in [("wikipedia", URL(string: "https://en.wikipedia.org/wiki/Web_browser")!), ("dark", dark)] {
+            guard let page = await open(url) else { continue }
+            await waitLoaded(page)
+            _ = await waitUntil(5) { page.rootBackgroundColor != nil && (name != "dark" || page.themeColor != nil) }
+            try? await Task.sleep(for: .milliseconds(500))
+            func hex(_ color: NSColor?) -> String {
+                guard let c = color?.usingColorSpace(.sRGB) else { return "nil" }
+                return String(format: "#%02x%02x%02x", Int(c.redComponent * 255 + 0.5), Int(c.greenComponent * 255 + 0.5), Int(c.blueComponent * 255 + 0.5))
+            }
+            SpikeRunner.record("colors_\(name)", "themeColor=\(hex(page.themeColor)) rootBackgroundColor=\(hex(page.rootBackgroundColor)) "
+                + "card=\(hex(controller.cardView.backgroundColor)) favicon=\(page.favicon.map { "\(Int($0.size.width))pt" } ?? "nil")")
+            if name == "dark" {
+                SpikeRunner.record("window_id", window.windowNumber)
+                let capture = "phase-3.3a-card-dark-page"
+                SpikeRunner.record("capture", capture)
+                let output = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeOutput") ?? "")
+                let ack = URL(fileURLWithPath: output.path + ".ack-\(capture)")
+                if !(await waitUntil(20) { FileManager.default.fileExists(atPath: ack.path) }) { SpikeRunner.record("capture_timeout", capture) }
+            }
+        }
+    }
 
     func captures() async {
         let directory = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory") ?? NSTemporaryDirectory(),

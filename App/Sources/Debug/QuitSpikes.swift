@@ -15,7 +15,49 @@ import Engine
 ///   requested, final state written, quit proceeds).
 /// - `quitflags`: what the next launch reads about the previous exit (the
 ///   store's `uncleanExit` and every engine profile's `lastExitWasClean`).
+/// - `closeunload` (3.3a; the same port arguments as `quitstay`):
+///   `WebContents.close()` on a page with beforeunload armed runs its dialog
+///   (Chrome's own on RoomCore until 3.4b, answered over the DevTools
+///   protocol): "stay" keeps the page alive, "leave" closes it, and the
+///   close is reported once.
 extension SpikeRunner.Context {
+    func closeUnload() async {
+        let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
+        guard port > 0 else {
+            SpikeRunner.record("error", "closeunload: needs --remote-debugging-port=<p> -RoomSpikeCDPPort <p>")
+            return
+        }
+        let fixture = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-2.6/dialogs.html")
+        guard let page = await open(fixture) else {
+            SpikeRunner.record("error", "closeunload: dialogs.html did not open")
+            return
+        }
+        await click(page, "#arm")
+        let armed = await waitUntil(5) { page.title == "Dialogs (armed)" }
+        let cdp: SpikeCDP
+        do {
+            cdp = try await SpikeCDP.connect(port: port, pageURL: page.url?.absoluteString ?? "")
+            try await cdp.call("Page.enable")
+        } catch {
+            SpikeRunner.record("error", "closeunload: CDP: \(error)")
+            return
+        }
+        var states: [String] = ["\(page.state)"]
+        func note() { if states.last != "\(page.state)" { states.append("\(page.state)") } }
+        for (answer, leave) in [("stay", false), ("leave", true)] {
+            let start = ContinuousClock.now
+            page.close()
+            let opening = try? await cdp.waitForEvent("Page.javascriptDialogOpening", timeout: 10)
+            let type = (opening?["params"] as? [String: Any])?["type"] as? String ?? "none"
+            let dialogMs = ms(since: start)
+            _ = try? await cdp.call("Page.handleJavaScriptDialog", ["accept": leave])
+            _ = await waitUntil(5) { leave ? page.state == .closed : false }
+            note()
+            SpikeRunner.record("close_\(answer)", "armed=\(armed) dialog=\(type) after \(String(format: "%.0f", dialogMs))ms; state=\(page.state)")
+        }
+        SpikeRunner.record("close_states", states.joined(separator: " → "))
+    }
+
     func quitStay() async {
         let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
         guard port > 0, let app = AppDelegate.current else {
