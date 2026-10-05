@@ -754,10 +754,13 @@ bool IsHostKeyDown(const input::NativeWebKeyboardEvent& event) {
 content::KeyboardEventProcessingResult
 RoomBrowserWindow::PreHandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
-  // The host's reserved shortcuts (⌘T, ⌘L, ⌘W …) never reach the page; the
-  // host runs them itself (its menu, once). Everything else goes to the page
-  // first.
-  if (client_ && IsHostKeyDown(event) && client_->IsReservedKeyEvent(event)) {
+  // An extension's command (its keybinding registry, 3.6b: Chrome gives
+  // extension accelerators high priority) and the host's reserved shortcuts
+  // (⌘T, ⌘L, ⌘W …) never reach the page; the host runs its own itself (its
+  // menu, once). Everything else goes to the page first.
+  if (client_ && IsHostKeyDown(event) &&
+      (client_->HandleExtensionKeyEvent(event) ||
+       client_->IsReservedKeyEvent(event))) {
     return content::KeyboardEventProcessingResult::HANDLED;
   }
   return content::KeyboardEventProcessingResult::NOT_HANDLED;
@@ -801,6 +804,14 @@ bool RoomBrowserWindow::IsLocationBarVisible() const {
   // The host's address field is always reachable (⌘L opens the palette even
   // with the sidebar hidden, spec §C); IDC_FOCUS_LOCATION checks this first.
   return true;
+}
+
+bool RoomBrowserWindow::IsToolbarVisible() const {
+  // The host's header is the window's toolbar: its action buttons show the
+  // pinned extensions (3.6b). action.openPopup asks this first
+  // (OpenPopupInBrowser: "Browser window has no toolbar."). Headless
+  // Browsers have none.
+  return !is_headless();
 }
 
 LocationBar* RoomBrowserWindow::GetLocationBar() const {

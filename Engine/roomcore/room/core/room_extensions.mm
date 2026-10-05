@@ -24,6 +24,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/apps/platform_apps/shortcut_manager.h"
+#include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
@@ -33,6 +34,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/extensions/extension_install_ui.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/common/extensions/api/side_panel.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
@@ -61,6 +63,8 @@
 #include "skia/ext/skia_utils_mac.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
+#import "room/core/room_browser_internal.h"
+#import "room/core/room_extension_popups.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
 
@@ -335,6 +339,91 @@ class ExtensionsObserver : public extensions::ExtensionRegistryObserver,
       model_observation_{this};
 };
 
+// Side panels are not supported in v1 (ROADMAP Chapter 3; 3.6b task 5):
+// a Room Browser has no SidePanelUI, and Chrome's sidePanel.open() reaches
+// SidePanelUI::Show through OpenGlobalExtensionSidePanel without a null
+// check (3.6b: the browser process crashed on the fixture's open()). Without
+// a patch: every extension's panel options stay disabled in SidePanelService
+// (its own seam, the source of truth the API and the action consult), so
+// sidePanel.open() rejects ("No active side panel for tabId: N"),
+// setOptions({enabled: true}) is undone at once, getOptions() reports
+// enabled false, and an openPanelOnActionClick action shows its popup or
+// sends onClicked instead.
+class SidePanelGuard : public extensions::SidePanelService::Observer,
+                       public extensions::ExtensionRegistryObserver {
+ public:
+  explicit SidePanelGuard(Profile* profile) : profile_(profile) {
+    service_ = extensions::SidePanelService::Get(profile);
+    if (service_) {
+      service_->AddObserver(this);
+    }
+    registry_observation_.Observe(extensions::ExtensionRegistry::Get(profile));
+    for (const auto& extension :
+         extensions::ExtensionRegistry::Get(profile)->enabled_extensions()) {
+      Disable(*extension, std::nullopt);
+    }
+  }
+
+  ~SidePanelGuard() override {
+    if (service_) {
+      service_->RemoveObserver(this);
+    }
+  }
+
+  // ExtensionRegistryObserver:
+  void OnExtensionLoaded(content::BrowserContext*,
+                         const extensions::Extension* extension) override {
+    Disable(*extension, std::nullopt);
+  }
+  void OnShutdown(extensions::ExtensionRegistry*) override {
+    registry_observation_.Reset();
+  }
+
+  // SidePanelService::Observer: an extension enabled a panel (setOptions):
+  // disabled again before the call returns (an update of the same entry).
+  void OnPanelOptionsChanged(
+      const extensions::ExtensionId& extension_id,
+      const extensions::api::side_panel::PanelOptions& options) override {
+    if (!options.enabled.value_or(true)) {
+      return;
+    }
+    const extensions::Extension* extension =
+        extensions::ExtensionRegistry::Get(profile_)
+            ->enabled_extensions()
+            .GetByID(extension_id);
+    if (extension) {
+      LOG(INFO) << "RoomCore: side panel options of " << extension_id
+                << " enabled by the extension; side panels are not "
+                   "supported, disabled again";
+      Disable(*extension, options.tab_id);
+    }
+  }
+  void OnSidePanelServiceShutdown() override {
+    if (service_) {
+      service_->RemoveObserver(this);
+      service_ = nullptr;
+    }
+  }
+
+ private:
+  void Disable(const extensions::Extension& extension,
+               std::optional<int> tab_id) {
+    if (!service_) {
+      return;
+    }
+    extensions::api::side_panel::PanelOptions options;
+    options.enabled = false;
+    options.tab_id = tab_id;
+    service_->SetOptions(extension, std::move(options));
+  }
+
+  raw_ptr<Profile> profile_;
+  raw_ptr<extensions::SidePanelService> service_ = nullptr;
+  base::ScopedObservation<extensions::ExtensionRegistry,
+                          extensions::ExtensionRegistryObserver>
+      registry_observation_{this};
+};
+
 }  // namespace
 
 // MARK: - RoomProfileExtensions
@@ -342,6 +431,7 @@ class ExtensionsObserver : public extensions::ExtensionRegistryObserver,
 @implementation RoomProfileExtensions {
   raw_ptr<Profile> _profile;
   std::unique_ptr<ExtensionsObserver> _observer;
+  std::unique_ptr<SidePanelGuard> _sidePanelGuard;
   __weak id<RoomProfileExtensionsDelegate> _delegate;
   // Icons loaded through ImageLoader, by extension id; an entry (NSNull)
   // marks a load in flight or an extension without that icon.
@@ -363,6 +453,7 @@ class ExtensionsObserver : public extensions::ExtensionRegistryObserver,
     _icons32 = [NSMutableDictionary dictionary];
     _actionIcons = [NSMutableDictionary dictionary];
     _observer = std::make_unique<ExtensionsObserver>(profile, self);
+    _sidePanelGuard = std::make_unique<SidePanelGuard>(profile);
     __weak RoomProfileExtensions* weakSelf = self;
     extensions::ExtensionSystem::Get(profile)->ready().Post(
         FROM_HERE, base::BindOnce(^{
@@ -377,6 +468,7 @@ class ExtensionsObserver : public extensions::ExtensionRegistryObserver,
 }
 
 - (void)room_profileWillBeDestroyed {
+  _sidePanelGuard.reset();
   _observer.reset();
   _profile = nullptr;
 }
@@ -759,6 +851,57 @@ class ExtensionsObserver : public extensions::ExtensionRegistryObserver,
       initWithAction:*action
                tabID:tabID
          defaultIcon:[self room_defaultActionIcon:extension action:*action]];
+}
+
+// MARK: Popups (3.6b)
+
+- (BOOL)openPopupForExtension:(NSString*)identifier
+                  webContents:(RoomWebContents*)webContents {
+  content::WebContents* contents = webContents.room_webContents;
+  room::RoomBrowserExtensions* window = webContents.room_browser.room_extensions;
+  if (!_profile || !identifier || !contents || !window) {
+    LOG(WARNING) << "RoomCore: no popup: the page is not in a Room window";
+    return NO;
+  }
+  return window->RunActionFromHost(base::SysNSStringToUTF8(identifier),
+                                   contents);
+}
+
+- (void)closePopup:(RoomWebContents*)popup {
+  content::WebContents* contents = popup.room_webContents;
+  if (room::RoomBrowserExtensions* window =
+          contents ? room::BrowserExtensionsForPopup(contents) : nullptr) {
+    window->ClosePopup(contents);
+  }
+}
+
+- (void)room_popupDidOpen:(RoomWebContents*)popup
+                extension:(NSString*)identifier
+              webContents:(RoomWebContents*)webContents
+                     size:(NSSize)size {
+  id<RoomProfileExtensionsDelegate> delegate = _delegate;
+  if ([delegate respondsToSelector:@selector
+                (profileExtensions:didOpenPopup:forExtension:webContents:preferredSize:)]) {
+    [delegate profileExtensions:self
+                   didOpenPopup:popup
+                   forExtension:identifier
+                    webContents:webContents
+                  preferredSize:size];
+  }
+}
+
+- (void)room_popup:(RoomWebContents*)popup didResize:(NSSize)size {
+  id<RoomProfileExtensionsDelegate> delegate = _delegate;
+  if ([delegate respondsToSelector:@selector(profileExtensions:popup:didResizeToSize:)]) {
+    [delegate profileExtensions:self popup:popup didResizeToSize:size];
+  }
+}
+
+- (void)room_popupDidClose:(RoomWebContents*)popup {
+  id<RoomProfileExtensionsDelegate> delegate = _delegate;
+  if ([delegate respondsToSelector:@selector(profileExtensions:popupDidClose:)]) {
+    [delegate profileExtensions:self popupDidClose:popup];
+  }
 }
 
 // MARK: Updates

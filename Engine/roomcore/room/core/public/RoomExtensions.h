@@ -134,6 +134,29 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
     willInstallExtension:(RoomExtensionInstallRequest*)request
               completion:(void (^)(BOOL consent))completion
     NS_SWIFT_NAME(profileExtensions(_:willInstall:completion:));
+// An action popup opened (Phase 3.6b): `popup` is its page (Chrome's
+// ExtensionViewHost), loaded and sized by its own layout (`size`, 25×25 to
+// 800×600); `webContents` is the page the action ran for, whose window shows
+// the popup in a popover on the action's button. After a click on that
+// button (-openPopupForExtension:webContents:), the action's keyboard
+// shortcut (`_execute_action`) or the extension's action.openPopup.
+- (void)profileExtensions:(RoomProfileExtensions*)extensions
+             didOpenPopup:(RoomWebContents*)popup
+             forExtension:(NSString*)identifier
+              webContents:(nullable RoomWebContents*)webContents
+            preferredSize:(NSSize)size
+    NS_SWIFT_NAME(profileExtensions(_:didOpenPopup:forExtension:webContents:preferredSize:));
+// The popup's page changed its size (auto-resize, clamped as above).
+- (void)profileExtensions:(RoomProfileExtensions*)extensions
+                    popup:(RoomWebContents*)popup
+            didResizeToSize:(NSSize)size
+    NS_SWIFT_NAME(profileExtensions(_:popup:didResizeTo:));
+// The popup is gone (the host's -closePopup:, window.close() or Esc in the
+// popup, the window's active page changed, the extension unloaded): the
+// host closes its popover if it still shows it.
+- (void)profileExtensions:(RoomProfileExtensions*)extensions
+            popupDidClose:(RoomWebContents*)popup
+    NS_SWIFT_NAME(profileExtensions(_:popupDidClose:));
 @end
 
 // A profile's extension system (ExtensionRegistry, ExtensionRegistrar,
@@ -182,6 +205,19 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                                         webContents:
                                             (nullable RoomWebContents*)webContents
     NS_SWIFT_NAME(action(forExtension:webContents:));
+// A click on the action's button for `webContents` (a page in a
+// RoomBrowser): ExtensionActionRunner::RunAction with tab permissions
+// (activeTab; action.onClicked when the action has no popup), then the
+// popup when it has one; YES when a popup is opening (the delegate's
+// -profileExtensions:didOpenPopup:… follows once it loaded). A click while
+// that action's popup shows closes it. Side panels are not supported: an
+// action set to open one does nothing.
+- (BOOL)openPopupForExtension:(NSString*)identifier
+                  webContents:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(openPopup(forExtension:webContents:));
+// The host's popover closed (focus loss, Esc): the popup's page is
+// destroyed; -profileExtensions:popupDidClose: follows.
+- (void)closePopup:(RoomWebContents*)popup;
 // ExtensionUpdater::CheckNow for every installed extension: the only way an
 // extension update check reaches the network (Chrome's own schedule is
 // refused). Updates found download and install when the extension is idle.

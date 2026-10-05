@@ -53,3 +53,5 @@ ShowEmojiPanel
 # Made real in Phase 3.5: Chrome's focus-the-address-bar command reaches the host.
 SetFocusToLocationBar
 IsLocationBarVisible
+# Made real in Phase 3.6b: the host's header is the toolbar (action.openPopup asks).
+IsToolbarVisible

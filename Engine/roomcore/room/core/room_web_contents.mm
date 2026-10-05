@@ -803,6 +803,22 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   return self;
 }
 
+- (instancetype)initWithHostedChromeWebContents:
+                    (content::WebContents*)webContents
+                                        profile:(RoomProfile*)profile {
+  if ((self = [super init])) {
+    _profile = profile;
+    _contents = webContents;
+    _title = @"";
+    _loadProgress = 1;
+    UnhideNativeView(_contents);
+    WrapperLink::CreateForWebContents(_contents, self);
+    _observer = std::make_unique<Observer>(_contents, self);
+    [self room_refresh];
+  }
+  return self;
+}
+
 + (RoomWebContents*)room_existingWrapperFor:(content::WebContents*)contents {
   WrapperLink* link = contents ? WrapperLink::FromWebContents(contents) : nullptr;
   return link ? link->wrapper() : nil;

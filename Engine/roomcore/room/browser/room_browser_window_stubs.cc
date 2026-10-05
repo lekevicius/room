@@ -98,11 +98,6 @@ void RoomBrowserWindow::FocusAppMenu() {
   RoomStubHit("FocusAppMenu");
 }
 
-bool RoomBrowserWindow::IsToolbarVisible() const {
-  RoomStubHit("IsToolbarVisible");
-  return false;
-}
-
 bool RoomBrowserWindow::IsToolbarShowing() const {
   RoomStubHit("IsToolbarShowing");
   return false;

@@ -40,6 +40,11 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 - (instancetype)initWithUnownedChromeWebContents:
                     (content::WebContents*)webContents
                                          profile:(RoomProfile*)profile;
+// A page Chrome owns outside any tab strip (an extension's action popup,
+// 3.6b): no tab helpers, no page services; its owner's delegate is Chrome's.
+- (instancetype)initWithHostedChromeWebContents:
+                    (content::WebContents*)webContents
+                                        profile:(RoomProfile*)profile;
 // The wrapper of `webContents`, if one was created.
 + (RoomWebContents*)room_existingWrapperFor:(content::WebContents*)webContents;
 // Hands ownership to a tab strip; nullptr if the wrapper does not own it.

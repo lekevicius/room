@@ -11,6 +11,13 @@ class Profile;
 - (instancetype)initWithChromeProfile:(Profile*)profile;
 // The profile is going away: observers detach, later calls do nothing.
 - (void)room_profileWillBeDestroyed;
+// From the window's popup (room_extension_popups.mm): the delegate hears it.
+- (void)room_popupDidOpen:(RoomWebContents*)popup
+                extension:(NSString*)identifier
+              webContents:(RoomWebContents*)webContents
+                     size:(NSSize)size;
+- (void)room_popup:(RoomWebContents*)popup didResize:(NSSize)size;
+- (void)room_popupDidClose:(RoomWebContents*)popup;
 @end
 
 namespace room {

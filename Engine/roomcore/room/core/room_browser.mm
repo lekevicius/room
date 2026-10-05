@@ -69,6 +69,7 @@
 #include "ui/views/window/dialog_delegate.h"
 #include "room/build/buildflags.h"
 #import "room/browser/room_browser_window.h"
+#import "room/core/room_extension_popups.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
 
@@ -84,6 +85,7 @@
 - (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
 - (void)room_focusLocationBarRequested;
 - (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
+- (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event;
 @end
 
 namespace {
@@ -113,6 +115,10 @@ class Client : public room::RoomBrowserWindowClient {
     NSEvent* ns_event = event.os_event.Get();
     return [[browser_ room_keyTargetFor:ns_event]
         room_handleUnhandledKeyEvent:ns_event];
+  }
+  bool HandleExtensionKeyEvent(
+      const input::NativeWebKeyboardEvent& event) override {
+    return [browser_ room_handleExtensionKeyEvent:event];
   }
   void OnFocusLocationBarRequested(bool is_user_initiated) override {
     [browser_ room_focusLocationBarRequested];
@@ -197,6 +203,8 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   raw_ptr<BrowserWindowInterface> _browser;
   std::unique_ptr<Client> _client;
   std::unique_ptr<StripObserver> _stripObserver;
+  // The window's ExtensionsContainer, popup and extension shortcuts (3.6b).
+  std::unique_ptr<room::RoomBrowserExtensions> _extensions;
   // Set while the host's own page goes into the strip (not a new page).
   BOOL _addingFromHost;
 #if BUILDFLAG(ROOM_ENABLE_SPIKES)
@@ -241,11 +249,21 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     }
     _stripObserver = std::make_unique<StripObserver>(self);
     _browser->GetTabStripModel()->AddObserver(_stripObserver.get());
+    _extensions = room::RoomBrowserExtensions::Create(_browser);
   }
   return self;
 }
 
+- (room::RoomBrowserExtensions*)room_extensions {
+  return _extensions.get();
+}
+
+- (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event {
+  return _extensions && _extensions->HandleKeyEvent(event);
+}
+
 - (void)dealloc {
+  _extensions.reset();
   // The Browser outlives its wrapper only if the host drops it without
   // closing; the window must not call back into a dead object.
   _stripObserver.reset();
@@ -471,6 +489,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 }
 
 - (void)room_windowWillClose {
+  _extensions.reset();
   _stripObserver.reset();
 #if BUILDFLAG(ROOM_ENABLE_SPIKES)
   _spike_identity_controller.reset();
@@ -482,6 +501,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 }
 
 - (void)room_windowDestroyed {
+  _extensions.reset();
   [self willChangeValueForKey:@"closed"];
   _browser = nullptr;
   [self didChangeValueForKey:@"closed"];

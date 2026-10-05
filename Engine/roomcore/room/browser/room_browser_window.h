@@ -91,6 +91,11 @@ class RoomBrowserWindowClient {
   virtual void ConfirmCloseWithPendingDownloads(
       int download_count,
       base::OnceCallback<void(bool)> callback) = 0;
+  // A key-down on its way to a page of this window (or its extension
+  // popup), before the host's reserved keys: true when an extension command
+  // took it (3.6b).
+  virtual bool HandleExtensionKeyEvent(
+      const input::NativeWebKeyboardEvent& event) = 0;
   // Chrome wants the address field focused (IDC_FOCUS_LOCATION,
   // chrome::FocusLocationBar, LocationBar::FocusLocation): the host's field.
   virtual void OnFocusLocationBarRequested(bool is_user_initiated) = 0;
@@ -196,6 +201,7 @@ class RoomBrowserWindow : public BrowserWindow {
   LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool is_user_initiated) override;
   bool IsLocationBarVisible() const override;
+  bool IsToolbarVisible() const override;
   ExclusiveAccessContext* GetExclusiveAccessContext() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost() override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(
@@ -227,7 +233,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void ToolbarSizeChanged(bool is_animating) override;
   void TabDraggingStatusChanged(bool is_dragging) override;
   void FocusAppMenu() override;
-  bool IsToolbarVisible() const override;
   bool IsToolbarShowing() const override;
   void ShowUpdateChromeDialog() override;
   void ShowIntentPickerBubble( std::vector<apps::IntentPickerAppInfo> app_info, bool show_stay_in_chrome, bool show_remember_selection, apps::IntentPickerBubbleType bubble_type, const std::optional<url::Origin>& initiating_origin, IntentPickerResponse callback) override;
