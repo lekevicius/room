@@ -159,7 +159,8 @@ scripts/roomcore-rebase.sh [--no-build] <tag>
 #   gclient sync + runhooks, regenerate the stubs, apply (0 applied), gn gen,
 #   start the build with nohup (6 jobs); exit 2 on a conflict
 scripts/roomcore-rebase.sh --continue        # after fixing the files under build/roomcore-rebase/<tag>/conflict/
-scripts/roomcore-rebase.sh --verify          # after the build: package, baseline, tour sections, build-log.md
+scripts/roomcore-rebase.sh --verify [<tag>]  # after the build: package, baseline, tour sections, build-log.md
+#   (<tag>: an earlier rebase while a later one is in progress; a failed baseline is recorded and the tour still runs)
 ```
 
 Why it re-applies the patch files rather than running `git rebase --onto`: the
