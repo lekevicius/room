@@ -1,7 +1,7 @@
 # Room — instructions for agent sessions (Claude Code, Codex)
 
 ## What this is
-A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.framework`, our Chromium fork; CEF as a scaffold in Chapters 1–2), with the entire browser chrome in Swift/AppKit. Read `PLAN.md` for decisions and `ROADMAP.md` for the current chapter's phases before doing anything.
+A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.framework`, our Chromium fork; CEF was the scaffold of Chapters 1–2, deleted in 3.9), with the entire browser chrome in Swift/AppKit. Read `PLAN.md` for decisions and `ROADMAP.md` for the current chapter's phases before doing anything.
 
 ## Process
 - Work is organized in Chapters → Phases (`ROADMAP.md`). Work on the current phase only; do not start the next phase without the user.
@@ -11,7 +11,7 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 
 ## Engineering rules
 - Swift 6 language mode. UI packages use MainActor default isolation. AppKit for window, sidebar, card, address field, menus, key routing; SwiftUI only in leaf views via `NSHostingView` (settings, onboarding, toasts, forms); list rows that update per keystroke or per frame (palette rows, PLAN §4) are AppKit.
-- The engine is reached only through the `Engine` protocol package. Nothing but `App` may import a concrete engine (`EngineCEF`, later `EngineRoomCore`).
+- The engine is reached only through the `Engine` protocol package. Nothing but `App` may import a concrete engine (`EngineRoomCore`).
 - ObjC/ObjC++ bridge rule: only Foundation/AppKit types and C structs cross the boundary. Never `std::`/`base::` types (Chromium's libc++ ABI differs from Xcode's). Engine ObjC classes are `NS_SWIFT_UI_ACTOR`; callbacks are on the main thread.
 - Minimum macOS 26. Deployment target, entitlements and helper layout are defined in `project.yml`; never hand-edit the generated `.xcodeproj`. The app's `Info.plist` is generated too (the `info:` block in `xcodegen/base.yml`, since 2.8b): add keys there, never in the plist.
 - Traffic lights are never repositioned; layout derives from `standardWindowButton` frames.
@@ -28,11 +28,11 @@ A macOS-only browser: Chromium engine behind an Objective-C API (`RoomCore.frame
 - In-app verification goes through command-line hooks (`-RoomStateDirectory`, `-RoomSpike`, snapshot directories) and reading files and logs. Sessions do not drive the UI through accessibility or computer-use; anything that needs a click is listed in the report for the user to try.
 
 ## Commands
-- New machine: follow `docs/setup.md` (tools, CEF bootstrap, Chromium checkout, RoomCore build, signing).
+- New machine: follow `docs/setup.md` (tools, Chromium checkout, RoomCore build, signing).
 - Generate project: `xcodegen` (project.yml → Room.xcodeproj, gitignored).
-- Engine bootstrap: `scripts/bootstrap-cef.sh` (downloads the pinned CEF into `Engine/cef/dist/`).
+- Fork workflow: `scripts/roomcore-apply.sh`, `roomcore-build.sh`, `roomcore-package.sh`, `roomcore-rebase.sh <tag>` (Engine/roomcore/README.md).
 - Chromium checkout lives at `$CHROMIUM_ROOT/src` (outside the repo; default `~/chromium`, set per machine in the gitignored `local.env`, see `local.env.example`; scripts read it through `scripts/lib/chromium-env.sh`). `Engine/roomcore/room` is symlinked in as `src/room`.
-- Long builds (Chromium, CEF wrapper) run in the background; log timings to `research/notes/build-log.md`.
+- Long builds (Chromium) run in the background from bash with nohup, at `ROOM_BUILD_JOBS=6` on the 24 GB Mac mini; log timings to `research/notes/build-log.md`.
 
 ## Git
 - Commit in small chunks: one commit per completed task or coherent step, never a phase-sized commit. Message style: `phase-1.1: add helper targets` (prefix with the phase id). Push once at the end of a phase or session, after the final commit and the progress-log entry (`git push origin main`); never mid-phase.
