@@ -885,6 +885,33 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
         note("webContentsDidClose")
         target?.webContentsDidClose(webContents)
     }
+    // 3.4b
+    func webContentsDidBecomeUnresponsive(_ webContents: any WebContents, completion: @escaping (UnresponsiveRendererAction) -> Void) {
+        note("webContentsDidBecomeUnresponsive")
+        guard let target else { return completion(.wait) }
+        target.webContentsDidBecomeUnresponsive(webContents, completion: completion)
+    }
+    func webContentsDidBecomeResponsive(_ webContents: any WebContents) {
+        note("webContentsDidBecomeResponsive")
+        target?.webContentsDidBecomeResponsive(webContents)
+    }
+    func webContents(_ webContents: any WebContents, shouldOpenExternalURL request: ExternalURLRequest, completion: @escaping (Bool) -> Void) {
+        note("shouldOpenExternalURL", request.url.absoluteString)
+        guard let target else { return completion(false) }
+        target.webContents(webContents, shouldOpenExternalURL: request, completion: completion)
+    }
+    func webContents(_ webContents: any WebContents, didAddInfoBar infoBar: InfoBar) {
+        note("didAddInfoBar", "\(infoBar.kind) \(infoBar.message)")
+        target?.webContents(webContents, didAddInfoBar: infoBar)
+    }
+    func webContents(_ webContents: any WebContents, didRemoveInfoBar infoBar: InfoBar) {
+        note("didRemoveInfoBar")
+        target?.webContents(webContents, didRemoveInfoBar: infoBar)
+    }
+    func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState) {
+        note("didChangeCaptureState", "\(state.rawValue)")
+        target?.webContents(webContents, didChangeCaptureState: state)
+    }
 
     // MARK: NavigationDelegate
 

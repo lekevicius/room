@@ -4,6 +4,8 @@
 # refuses self-activation of script-launched apps while the user works elsewhere.
 # Usage: scripts/run-spike.sh <cdp|scroll|resize|memory|audio|popups|hidden|open10> [extra app args...]
 # ROOM_SPIKE_OPEN_URL=<url> launches Room with that link (open -a App URL).
+# ROOM_SPIKE_ENV="NAME=value ..." passes environment variables to the app
+# (`open --env`; 3.4b's translate check sets a placeholder GOOGLE_API_KEY).
 # ROOM_TOUR_ARGS (scripts/grand-tour.sh) is appended to the app's arguments;
 # the last occurrence of a `-Key value` pair wins, so the tour's state and
 # engine directories and appearance override a wrapper's own.
@@ -25,7 +27,9 @@ if [[ -n "${ROOM_SPIKE_OPEN_URL:-}" ]]; then
   # Launched by a link (Phase 2.8b): the URL reaches the app before it finishes launching.
   open -n -a "$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")" "$ROOM_SPIKE_OPEN_URL" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
 else
-  open -n "$APP" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
+  env_args=()
+  for pair in ${ROOM_SPIKE_ENV:-}; do env_args+=(--env "$pair"); done
+  open -n ${env_args[@]+"${env_args[@]}"} "$APP" --args -RoomSpike "$SPIKE" -RoomSpikeOutput "$OUT" "$@"
 fi
 sleep 2
 # Our instance, by its arguments (an `activate` that lands just after a quit

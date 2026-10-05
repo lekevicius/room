@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>External protocols</title>
+<!-- Phase 3.4b: links to other applications. roomtest: is handled by a
+     throwaway app the spike registers (it records the URL and quits);
+     nosuchscheme: has no handler (Chrome never asks). -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } a { display: block; margin: 12px 0; font-size: 18px; }</style>
+<h1>External protocols</h1>
+<a id="roomtest" href="roomtest://open?from=room">Open roomtest://</a>
+<a id="roomtest2" href="roomtest://again?from=room">Open roomtest:// again</a>
+<a id="nohandler" href="nosuchscheme-room://x">Open a scheme with no handler</a>
+<a id="mailto" href="mailto:nobody@example.invalid">mailto:</a>

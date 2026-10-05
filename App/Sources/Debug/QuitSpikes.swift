@@ -20,13 +20,66 @@ import Engine
 ///   (Chrome's own on RoomCore until 3.4b, answered over the DevTools
 ///   protocol): "stay" keeps the page alive, "leave" closes it, and the
 ///   close is reported once.
+///
+/// 3.4b: both run without the DevTools protocol too (no `-RoomSpikeCDPPort`):
+/// the host's own Leave/Stay sheet answers (`PagePrompts`), as on CEF;
+/// `closeunload` then also runs ⌘W on the page's Today entry: "stay" keeps
+/// the page alive in the same entry, selected; "leave" closes both.
 extension SpikeRunner.Context {
-    func closeUnload() async {
-        let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
-        guard port > 0 else {
-            SpikeRunner.record("error", "closeunload: needs --remote-debugging-port=<p> -RoomSpikeCDPPort <p>")
+    /// Waits for the host's beforeunload sheet and answers it.
+    func answerBeforeUnloadSheet(leave: Bool, timeout: Double = 10) async -> String {
+        let start = ContinuousClock.now
+        let shown = await waitUntil(timeout) {
+            if case .beforeUnload? = self.prompts.visibleDialog?.dialog { return true }
+            return false
+        }
+        guard shown else { return "no sheet" }
+        let after = ms(since: start)
+        try? await Task.sleep(for: .milliseconds(150))
+        prompts.respond(leave ? .accept(text: nil) : .cancel)
+        return String(format: "sheet after %.0fms", after)
+    }
+
+    private func closeUnloadWithoutCDP() async {
+        let fixture = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-2.6/dialogs.html")
+        guard let page = await open(fixture) else {
+            SpikeRunner.record("error", "closeunload: dialogs.html did not open")
             return
         }
+        await click(page, "#arm")
+        let armed = await waitUntil(5) { page.title == "Dialogs (armed)" }
+        // WebContents.close(): the engine's close with beforeunload.
+        for (answer, leave) in [("stay", false), ("leave", true)] {
+            page.close()
+            let sheet = await answerBeforeUnloadSheet(leave: leave)
+            _ = await waitUntil(5) { leave ? page.state == .closed : false }
+            SpikeRunner.record("close_\(answer)", "armed=\(armed) \(sheet); state=\(page.state)")
+        }
+        // ⌘W on its Today entry (spec §A.3): the entry closes only when the page does.
+        guard let again = await open(fixture), let entry = tabs.entryID(for: again) else {
+            SpikeRunner.record("error", "closeunload: no entry for the second page")
+            return
+        }
+        await click(again, "#arm")
+        let armedAgain = await waitUntil(5) { again.title == "Dialogs (armed)" }
+        let todayBefore = session.store.today(space: sidebar.activeSpaceID).count
+        sendKey("w", keyCode: 13, [.command])
+        let staySheet = await answerBeforeUnloadSheet(leave: false)
+        _ = await waitUntil(5) { self.session.current === again }
+        try? await Task.sleep(for: .milliseconds(300))
+        SpikeRunner.record("cmdw_stay", "armed=\(armedAgain) \(staySheet); page \(again.state) entry kept=\(tabs.entryID(for: again) == entry) "
+            + "entry in store=\(sidebar.store.sidebar.entry(entry) != nil) selected=\(sidebar.selectedEntryID == entry) "
+            + "today \(todayBefore)→\(session.store.today(space: sidebar.activeSpaceID).count)")
+        sendKey("w", keyCode: 13, [.command])
+        let leaveSheet = await answerBeforeUnloadSheet(leave: true)
+        let gone = await waitUntil(5) { again.state == .closed && self.sidebar.store.sidebar.entry(entry) == nil }
+        SpikeRunner.record("cmdw_leave", "\(leaveSheet); page \(again.state) entry removed=\(gone) "
+            + "today \(todayBefore)→\(session.store.today(space: sidebar.activeSpaceID).count)")
+    }
+
+    func closeUnload() async {
+        let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
+        guard port > 0 else { return await closeUnloadWithoutCDP() }
         let fixture = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-2.6/dialogs.html")
         guard let page = await open(fixture) else {
             SpikeRunner.record("error", "closeunload: dialogs.html did not open")
@@ -60,10 +113,7 @@ extension SpikeRunner.Context {
 
     func quitStay() async {
         let port = UserDefaults.standard.integer(forKey: "RoomSpikeCDPPort")
-        guard port > 0, let app = AppDelegate.current else {
-            SpikeRunner.record("error", "quitstay: needs --remote-debugging-port=<p> -RoomSpikeCDPPort <p>")
-            return
-        }
+        guard let app = AppDelegate.current else { return }
         for site in Self.typicalSites.prefix(9) {
             session.newPage(URL(string: site)!, hidden: true, select: false)
         }
@@ -84,6 +134,29 @@ extension SpikeRunner.Context {
         let entriesBefore = session.store.today(space: session.sidebar.activeSpaceID).map(\.id)
         SpikeRunner.record("pages", "\(pagesBefore.count) loaded, \(entriesBefore.count) entries, armed=\(armed)")
 
+        // 3.4b: without a DevTools port the host's own sheet answers.
+        if port <= 0 {
+            let quitStart = ContinuousClock.now
+            NSApp.terminate(nil)
+            SpikeRunner.record("terminating_after_quit", app.engine.isTerminating)
+            let sheet = await answerBeforeUnloadSheet(leave: false, timeout: 15)
+            SpikeRunner.record("dialog", "host \(sheet) (quit requested \(String(format: "%.0f", ms(since: quitStart)))ms ago)")
+            let stayStart = ContinuousClock.now
+            let cancelled = await waitUntil(5) { !app.engine.isTerminating }
+            try? await Task.sleep(for: .seconds(1))
+            let pagesAfter = session.pages
+            let alive = pagesAfter.filter { $0.state != .closed }.count
+            let entriesAfter = session.store.today(space: session.sidebar.activeSpaceID).map(\.id)
+            SpikeRunner.record("stay", "cancelled=\(cancelled) after \(String(format: "%.0f", ms(since: stayStart)))ms terminating=\(app.engine.isTerminating) "
+                + "pages \(pagesBefore.count)→\(pagesAfter.count) alive=\(alive) same pages=\(zip(pagesBefore, pagesAfter).allSatisfy { $0 === $1 }) "
+                + "entries \(entriesBefore.count)→\(entriesAfter.count) same=\(entriesBefore == entriesAfter) window=\(window.isVisible)")
+            // The runner's quit (after `end`) raises the sheet again: "leave".
+            Task { @MainActor in
+                let sheet = await self.answerBeforeUnloadSheet(leave: true, timeout: 30)
+                SpikeRunner.record("leave", sheet == "no sheet" ? "no second sheet" : "host \(sheet); answering leave")
+            }
+            return
+        }
         let cdp: SpikeCDP
         do {
             cdp = try await SpikeCDP.connect(port: port, pageURL: dialogs.url?.absoluteString ?? "")

@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Device chooser</title>
+<!-- Phase 3.4b: Chrome's USB chooser (a Views bubble that stays, PLAN §4)
+     over Room's window. -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
+<h1>Device chooser</h1>
+<button id="usb">Connect a USB device</button>
+<p id="log">idle</p>
+<script>
+document.getElementById('usb').onclick = async () => {
+  document.getElementById('log').textContent = 'asking';
+  try {
+    const device = await navigator.usb.requestDevice({ filters: [] });
+    document.getElementById('log').textContent = 'device: ' + device.productName;
+  } catch (e) {
+    document.getElementById('log').textContent = 'error: ' + e.name;
+  }
+};
+</script>

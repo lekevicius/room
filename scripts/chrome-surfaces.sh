@@ -9,8 +9,12 @@
 # windows included: popovers), `capture_screen: <name> x,y,w,h` with that
 # screen rect (the context menu, a window of its own, inside Room's frame).
 # Captures go to research/screenshots/phase-2.6a/ (or phase-2.6b/).
+# `--session 3.4b` runs `pageservices` (the hung page, external protocols
+# with the throwaway roomtest: handler of scripts/external-protocol-fixture.sh,
+# the translate offer, an engine infobar, capture state with fake devices,
+# the media session, a device chooser) with the arguments it needs.
 # Needs the screen unlocked and Screen Recording for the shell that runs it.
-# Usage: scripts/chrome-surfaces.sh [--session 2.6a|2.6b] [--no-captures] [light|dark ...] [-- extra app args]
+# Usage: scripts/chrome-surfaces.sh [--session 2.6a|2.6b|3.4b] [--no-captures] [light|dark ...] [-- extra app args]
 set -euo pipefail
 APP="${ROOM_APP:-build/DerivedData/Build/Products/Debug/Room.app}"
 session=2.6a
@@ -21,6 +25,19 @@ DIR="${ROOM_CAPTURE_DIR:-research/screenshots/phase-$session}"
 spike=chromesurfaces
 capture_flag=-RoomSpikeCaptures
 if [[ $session == 2.6b ]]; then spike=chromesurfaces2; capture_flag=-RoomSpikeCaptures2b; fi
+session_args=()
+if [[ $session == 3.4b ]]; then
+  spike=pageservices; capture_flag=-RoomSpikeCaptures3b
+  port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+  external_log="$(mktemp -d)/roomtest-handler.log"
+  ROOM_EXTERNAL_LOG="$external_log" scripts/external-protocol-fixture.sh install >&2
+  trap 'scripts/external-protocol-fixture.sh remove >&2 || true' EXIT
+  # Chrome offers translation only with an API key configured; a placeholder
+  # makes the offer appear (the translation itself then fails: no real key).
+  export ROOM_SPIKE_ENV="${ROOM_SPIKE_ENV:-GOOGLE_API_KEY=room-placeholder-no-key}"
+  session_args=(--enable-features=RendererHangWatcher:delay/3s --use-fake-device-for-media-stream
+                "--remote-debugging-port=$port" -RoomSpikeCDPPort "$port" -RoomSpikeExternalLog "$external_log")
+fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-captures) captures=NO; shift ;;
@@ -36,7 +53,11 @@ server=""
 if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
   python3 research/spikes/phase-2.6/server.py 2>/tmp/room-2.6a-server.log &
   server=$!
-  trap 'kill $server 2>/dev/null || true' EXIT
+  if [[ $session == 3.4b ]]; then
+    trap 'kill $server 2>/dev/null || true; scripts/external-protocol-fixture.sh remove >&2 || true' EXIT
+  else
+    trap 'kill $server 2>/dev/null || true' EXIT
+  fi
 fi
 # This session's server (a stale one without /download would serve the pages but no downloads).
 for _ in $(seq 1 50); do [[ $(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8766/download?size=1') == 200 ]] && break; sleep 0.1; done
@@ -50,7 +71,8 @@ for appearance in "${appearances[@]}"; do
   # A throwaway engine directory: permissions, the certificate exception and auth stay out of the real profile.
   engine_dir="$(mktemp -d)/engine"
   ROOM_SPIKE_OUT="$OUT" scripts/run-spike.sh "$spike" -RoomSidebarFixture demo -ApplePersistenceIgnoreState YES \
-    -RoomEngineDirectory "$engine_dir" -RoomSpikeAppearance "$appearance" "$capture_flag" "$captures" "$@" >/dev/null &
+    -RoomEngineDirectory "$engine_dir" -RoomSpikeAppearance "$appearance" "$capture_flag" "$captures" \
+    ${session_args[@]+"${session_args[@]}"} "$@" >/dev/null &
   runner=$!
   done_names=""
   while kill -0 "$runner" 2>/dev/null; do

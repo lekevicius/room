@@ -80,6 +80,7 @@ extension SpikeRunner.Context {
         case .beforeUnload?: "beforeunload"
         case .auth?: "auth"
         case .certificate?: "certificate"
+        case .externalApp?: "externalApp"
         case nil: "none"
         }
     }

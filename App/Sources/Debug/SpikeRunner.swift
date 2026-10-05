@@ -80,6 +80,7 @@ enum SpikeRunner {
         case "netcheck": await context.netCheck()
         case "quitstay": await context.quitStay()
         case "closeunload": await context.closeUnload()
+        case "pageservices": await context.pageServices()
         case "quitflags": await context.quitFlags()
         default: record("error", "unknown spike")
         }

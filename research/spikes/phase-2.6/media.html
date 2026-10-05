@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Media session</title>
+<!-- Phase 3.4b: navigator.mediaSession.metadata while a generated tone
+     plays (a session needs a playing player to be routed). -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
+<h1>Media session</h1>
+<button id="play">Play</button>
+<p id="log">idle</p>
+<audio id="audio" loop></audio>
+<script>
+function tone() {
+  const rate = 8000, seconds = 2, n = rate * seconds;
+  const buffer = new ArrayBuffer(44 + n * 2), v = new DataView(buffer);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin(i / rate * 2 * Math.PI * 440) * 3000, true);
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+document.getElementById('play').onclick = async () => {
+  const audio = document.getElementById('audio');
+  audio.src = tone();
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'Room Test Tone', artist: 'Phase 3.4b', album: 'Fixtures',
+    artwork: [{ src: 'http://127.0.0.1:8766/image.svg', sizes: '96x96', type: 'image/svg+xml' }]
+  });
+  await audio.play();
+  document.getElementById('log').textContent = 'playing';
+};
+</script>

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Capture</title>
+<!-- Phase 3.4b: getUserMedia with Chromium's fake devices
+     (--use-fake-device-for-media-stream); the page mirrors its state into
+     #log (the host's scripts run in an isolated world, B-55). -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; margin-right: 8px; } video { width: 320px; height: 240px; background: #222; display: block; margin-top: 16px; }</style>
+<h1>Capture</h1>
+<button id="start">Camera and microphone</button>
+<button id="stop">Stop</button>
+<p id="log">idle</p>
+<video id="video" autoplay muted playsinline></video>
+<script>
+let stream = null;
+const log = document.getElementById('log');
+document.getElementById('start').onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById('video').srcObject = stream;
+    log.textContent = 'capturing: ' + stream.getTracks().map(t => t.kind + ':' + t.readyState).join(',');
+    stream.getTracks().forEach(t => t.addEventListener('ended', () => {
+      log.textContent = 'ended: ' + stream.getTracks().map(t => t.kind + ':' + t.readyState).join(',');
+    }));
+  } catch (e) {
+    log.textContent = 'error: ' + e.name + ' ' + e.message;
+  }
+};
+document.getElementById('stop').onclick = () => {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  log.textContent = 'stopped by the page';
+};
+</script>

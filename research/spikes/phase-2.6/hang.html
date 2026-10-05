@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hang</title>
+<!-- Phase 3.4b: the hung-renderer view. "Hang" busy-loops the renderer for
+     two minutes; any input after it starts is unanswered, so the hang
+     monitor reports the page unresponsive after its delay. -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
+<h1>Hang</h1>
+<p><button id="hang" onclick="document.title = 'Hang (hung)'; const end = Date.now() + 120000; while (Date.now() < end) {}">Hang for two minutes</button></p>
+<p><input id="field" placeholder="type here after the hang"></p>
