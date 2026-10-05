@@ -1819,3 +1819,79 @@ No new raw patch/public header or network-policy change. Full bounded outcomes, 
 | Extension-origin USB request | chrome::ShowDeviceChooserDialog+992 → BrowserView::toolbar_button_provider+0, SIGSEGV6s/139 | Registered ToolbarButtonProvider and extension container; Room has neither | Patch0012 uses nullable provider lookup and existing no-container rejection. Real request now NotFoundError/No device selected,18s/0; no functional chooser claim. Baseline nav12.168s,ten-loaded-page quit0.694s,25helpers0left0crashes. |
 
 Separate web USB owner cleanup11s/0 and local/loopback permission deny/allow/reuse/revoke19s/0 pass. All network fixture targets are127.0.0.1. Full qualification, identities and Chapter3 contracts: roomcore-ui-handoff.md and roomcore-ui-compatibility-results.md.
+
+## Phase 3.5 — Chrome's history and omnibox feed the palette; the history migration; the location bar (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug, 60 Hz)
+
+Room.app on RoomCore (component build, Debug app, ad hoc), `window_main` true on every run, display 60 Hz (16.67 ms frames), load 3.4–9.3 stated per run. Every RoomCore number beside the Chapter 2 CEF one it replaces.
+
+### The migration and launch time on the 50k state (`build/3.5/s50k`, `relaunch` spike)
+
+State: `-RoomSidebarFixture 500 -RoomHistoryRows 50000` (the fixture's visits now within 85 days, deviation 2), made by one launch with `-RoomHistoryMigration NO` (27 s: the fixture's local import). Method: the 2.3/3.1a relaunch spike (process start → session running → the selected page loaded; the selected entry is `tab200.example.org`, an unresolvable host, so "loaded" is its error page) and the state open as the app logs it (B-42's line), three launches each, same state and engine directory, load 3.5–6.3.
+
+| Launch | Process start → spike (session up) | → selected page loaded | State open (B-42) | Migration line |
+|---|---|---|---|---|
+| before ×3 (`-RoomHistoryMigration NO`) | 2.22 / 2.18 / 2.14 s | 4.14 / 3.88 / 3.88 s | 156.6 / 155.9 / 158.3 ms (quick_check) | skipped |
+| **the import launch** | **6.01 s** | (16.02 s: the page finished before the spike began watching; not a number) | 158.6 ms | **50,000 local URLs → 50,000 URLs, 151,779 visits imported (0 expired) in 3.83 s** |
+| after ×3 | 2.22 / 2.17 / 2.16 s | 3.98 / 3.92 / 3.92 s | 156.7 / 158.1 / 158.2 ms | "already imported (flag set); nothing read" |
+| 3.1a B-42 (CEF, the same 50k state shape) | — | — | 151.0 / 150.3 / 153.0 ms after a clean quit | — |
+
+The import costs one launch 3.8 s (awaited before the session's spikes; the page loads meanwhile) and nothing after: launch times before and after are equal within 0.1 s, and the state open is unchanged (the local tables stay until 3.9). Chrome's history then holds 50,000 URLs (`engine_history_rows`), the store's 50,000 rows stop growing (palette2: 50,000 before and after a navigation).
+
+### Visits, ⌘Y, inline completion on Chrome's data (`palette2`, then the engine checks)
+
+| Navigation | Chrome's history (`ProfileHistory.visits`) | CEF 2.4b (the store) |
+|---|---|---|
+| ⌘T "example.com" Enter | `["typed"]`, "Example Domain" | `[typed]` |
+| `location.href` (script) | `["link"]` | `[link]` |
+| `pushState('/pushed')`, then reload | `["link", "reload"]`: Chrome keeps the reload as a visit of its own (deviation 3) | `[link]` (reloads not recorded) |
+| ⌘L DNS error page | not recorded | not recorded |
+| ⌘T "room browser palette" | the Google results page, 1 visit | 1 visit |
+| a navigation on RoomCore | in Chrome's history (`["typed"]`); the store's table 50,000 → 50,000 | the store grows |
+
+The palette then: `exa` completes `mple.com` from Chrome's history (HistoryURL provider's typed host), `room35` finds the visit just made, ⌘Y lists 8 rows from Chrome's history (most recent first; deviation 4), `gi` completes `thub.com` and switches to the open GitHub tab (`has_tab_match` resolved to the entry, capture `research/screenshots/phase-3.5/roomcore-palette-history-inline-light.png`), `yt` ⇥ `lofi` keeps only YouTube's history, `>re` lists Reload and Reload without Cache. The `palette` spike (2.4a's semantics): every check as on CEF (19/19 in the tour).
+
+### Keystroke to rows at 50k imported rows (`palettemeasure`, the 2.4b method)
+
+Queries, fixture and probes as 2.4b/2.6a (14 queries, 120 keystrokes, first key 100 ms after ⌘T). "Local results" now includes Chrome's synchronous pass (`AutocompleteController::Start` from inside the keystroke: HistoryQuick's in-memory index and the typed-URL database); Chrome's asynchronous passes arrive after the keystroke's turn and re-rank with the highlight kept.
+
+| Measure (ms) | RoomCore run 1 (load 3.5) | run 2 (4.9) | run 3 (5.8) | tour (`--groups palette`) | switch off (5.9) | CEF 2.6a | CEF 2.9 tour |
+|---|---|---|---|---|---|---|---|
+| Local results, all keys, median / **p95** | 3.16 / **10.93** | 3.12 / **14.76** | 3.03 / **12.73** | 3.09 / **12.25** | 2.99 / **10.30** | 2.57–2.58 / 6.47–6.71 | 7.9 (p95) |
+| … first key of a query, median | 10.93 | 14.76 | 12.73 | — | 10.30 | 5.14–5.25 | — |
+| **Later keys' whole turn, median / p95** | 4.90 / **11.49** | 4.96 / **12.14** | 4.60 / **10.43** | 5.34 / **9.21** | 4.85 / **9.27** | 4.90–5.13 / 9.6–10.4 | 11.5–11.6 |
+| First key's whole turn, median | 20.48 | 24.69 | 20.80 | 20.57 | 20.35 | 17.9–18.9 | 17.9–18.8 |
+| Providers phase, later / first key median | 2.12 / 9.75 | 2.12 / 12.59 | 2.08 / 9.92 | — | 1.97 / 8.59 | — | — |
+| Chrome's async updates after a key: count; key → update median / p95 | 15; 4.95 / 6.20 | 15; 4.89 / 5.31 | 15; 4.58 / 7.76 | 15; 4.92 / 8.77 | 95; 4.91 / 20.34 | — | — |
+| History rows per keystroke (mean); keystrokes completed inline | 2.8; 55 | 2.7; 55 | 2.8; 55 | — | 2.8; 72 | 4.7; 62 (2.4b) | — |
+| Palette open: our code median; to next frame median / p95 | 1.11; 6.97 / 15.24 | 1.05; 4.56 / 13.74 | 1.06; 4.11 / 14.29 | 1.91; 6.10 / 15.24 | — | 2.50–2.75; 7.1–7.6 / 13.4–13.5 | 2.5–2.7; 5.5–6.0 / 13.9–14.1 |
+
+The bound (ROADMAP 3.5 exit: keystroke to rows p95 under 16 ms at 50k imported rows) is met on both readings: local results p95 10.3–14.8 ms and the later keys' turn p95 9.2–12.1 ms (the 2.6a/2.9 reading of the turn; the first key runs on an efficiency core after idle, 2.6a). Against CEF the later keys are equal; the local results' p95 and the first key are 3–8 ms slower, all of it the first key's query (Chrome's `Start` costs 8.6–12.6 ms on a first key at E-core speed, ~2 ms on later keys). Not chased (inside the bound). With suggestions on, SearchProvider's verbatim match takes the default for query-like text and Chrome inlines on fewer keys (55 vs 72 off; B-65).
+
+### Suggestions: on and off (`suggestcheck` through the logging server; `scripts/netlog-check.sh`)
+
+`-RoomSuggestProxy 127.0.0.1:8771` now also points the engine's default search engine's suggestion URL at `research/spikes/phase-2.8/server.py`, which answers `/complete/search?q=` with three OpenSearch suggestions and logs each request.
+
+| Check | RoomCore | CEF (2.4b, 2.9) |
+|---|---|---|
+| Switch on: requests while typing 3 queries (47 keys, 60 ms apart, 1.2 s pause each) | **34** `GET /complete/search?client=room&q=…` from Chrome's network stack (SearchProvider polls every ~100 ms: B-64); every query's suggestions shown ("swift concurrency one/two/three", …) | 3 `CONNECT suggestqueries.google.com` (one per pause) |
+| Switch off: requests while typing | **0** (server log empty); the engine was asked for `historyQuick+historyURL+bookmark+shortcuts+openTab` only | 0 |
+| `netlog-check.sh` (`ROOM_NETCHECK_SUGGESTIONS_OFF=1`: launch, browse, then three queries typed in the palette with the switch off) | Room's own code: none; engine net-log: 127.0.0.1 and localhost page traffic only (6 URL requests, browse phase), **0 requests in the typing phase**, 0 hosts not page traffic | 2.8b: 0 Room requests; engine requests named |
+
+### The location bar (task 4)
+
+| Path | Result |
+|---|---|
+| `IDC_FOCUS_LOCATION` through `+[AppController sharedController]` (patch 0013: `RoomAppController`) `-commandDispatch:` | `RoomLocationBar: FocusLocation (user initiated 1) to the host` → `RoomBrowser: focus the location bar asked; active page yes` → the page's delegate → the palette in edit mode on the page's URL (`requests=1 palette_open=true mode=edit(…)`). First run: 0 requests, because `BrowserCommandController` returns before `FocusLocationBar` while `IsLocationBarVisible()` (a stub) says false: made real (true) |
+| The same command on the window's Browser (`chrome::ExecuteCommand`) | executed, 1 request, the palette open |
+| ⌘L typed in a page (`keys` spike, active layout Colemak) | reserved for the host (2 `isReservedKeyEvent` calls per layout), `⌘L addressFocus=true`; Chrome never sees it (3.2b's routing, unchanged) |
+| The chip, `https://example.com/` | host `securityState` secure; Chrome's `LocationBarModel` SECURE |
+| The chip, `http://http.badssl.com/` | host insecure; `LocationBarModel` WARNING |
+| Does Chrome code ask the model by itself? | Once per session so far, at launch, before any spike (`RoomLocationBar: GetLocationBarModel asked; security level 3` for the selected https page); the model is the Browser's own (`BrowserWindowFeatures::location_bar_model()`) |
+
+### Baseline after the last engine change (`build/baseline/3.5-final`)
+
+nav passed (16.4 s), ten-page quits **0.276 / 0.224 / 0.247 s** (load 9.7–12.7), 0 helpers left, 0 crash reports; stub hits: none (39 stubs). The first attempt in this session (`3.5-a`) stopped at run 2 on stackoverflow.com's Cloudflare challenge still loading (the external corpus); `3.5-b` passed (0.230 / 0.234 / 0.261 s) before the last engine change.
+
+### The grand tour's palette section (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups palette light`, `build/grand-tour/20261005-130538-roomcore`, 2.5 min)
+
+**78 passed, 0 failed** (3.3a's run of the same group: 62 / 7): palette 19/19, palette2 26/26 (nine new engine checks: the store does not grow, the visit in Chrome's history, the palette finds it, ⌘Y, `IDC_FOCUS_LOCATION`, the chip ×2, Chrome's pushState visit), suggeston 10/10 (Chrome's requests for each of the three queries, suggestion rows shown), suggestoff 10/10, palettemeasure 13/13 (Chrome's history ≥ 50,000 rows). The first run of the session was 69 / 2, both the checks' own faults (spike keys with spaces the tour parser does not read; an exact 50,000 where the tour's own visits add 18), fixed in the checks and the spike's key names.
