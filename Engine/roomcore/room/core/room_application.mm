@@ -34,6 +34,7 @@
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_app_controller.h"
 #import "room/core/room_profile_internal.h"
+#import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
 #include "room/core/room_network_policy.h"
 
@@ -264,6 +265,11 @@ void SetCrashKeys() {
   room::InstallAppController();
   room::InstallBrowserWindowFactory();
   room::InstallWebContentsHooks();
+  // What Chrome would draw for a Room page goes to the host (3.4a).
+  room::InstallPermissionPromptHook();
+  room::InstallContextMenuHook();
+  room::InstallDownloadTargetHook();
+  room::InstallPagePromptHooks();
 
   __weak RoomApplication* weakSelf = self;
   _willTerminateObserver = [NSNotificationCenter.defaultCenter

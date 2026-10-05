@@ -86,6 +86,11 @@ class RoomBrowserWindowClient {
   // tab, popup or window disposition (a modifier click, target=_blank,
   // window.open): false cancels it (the host's navigation policy).
   virtual bool AllowOpenFromTab(const NavigateParams& params) = 0;
+  // Chrome is closing the window (the quit) with downloads in progress,
+  // which closing cancels: the host decides (true continues).
+  virtual void ConfirmCloseWithPendingDownloads(
+      int download_count,
+      base::OnceCallback<void(bool)> callback) = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created

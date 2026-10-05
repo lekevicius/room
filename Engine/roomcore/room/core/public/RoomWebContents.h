@@ -117,6 +117,201 @@ typedef NS_ENUM(NSInteger, RoomKeyEventPhase) {
   RoomKeyEventPhaseCharacter,
 };
 
+// What a page's permission request asks for (Chrome's desktop
+// permissions::RequestType, one case each).
+typedef NS_ENUM(NSInteger, RoomPermissionKind) {
+  RoomPermissionKindCamera = 0,
+  RoomPermissionKindMicrophone,
+  RoomPermissionKindCameraPanTiltZoom,
+  RoomPermissionKindGeolocation,
+  RoomPermissionKindNotifications,
+  RoomPermissionKindClipboard,
+  RoomPermissionKindMidiSysex,
+  RoomPermissionKindStorageAccess,
+  RoomPermissionKindTopLevelStorageAccess,
+  RoomPermissionKindWindowManagement,
+  RoomPermissionKindLocalFonts,
+  RoomPermissionKindIdleDetection,
+  RoomPermissionKindKeyboardLock,
+  RoomPermissionKindPointerLock,
+  RoomPermissionKindMultipleDownloads,
+  RoomPermissionKindRegisterProtocolHandler,
+  RoomPermissionKindFileSystemAccess,
+  RoomPermissionKindLocalNetwork,
+  RoomPermissionKindLoopbackNetwork,
+  RoomPermissionKindSensors,
+  RoomPermissionKindArSession,
+  RoomPermissionKindVrSession,
+  RoomPermissionKindHandTracking,
+  RoomPermissionKindIdentityProvider,
+  RoomPermissionKindWebAppInstallation,
+  RoomPermissionKindCapturedSurfaceControl,
+  // navigator.storage.persist() (kDiskQuota).
+  RoomPermissionKindPersistentStorage,
+};
+
+// How the host answered a permission prompt (Chrome's
+// PermissionPrompt::Delegate: Accept, AcceptThisTime, Deny, Dismiss).
+typedef NS_ENUM(NSInteger, RoomPermissionResponse) {
+  RoomPermissionResponseGranted = 0,
+  RoomPermissionResponseGrantedOnce,
+  RoomPermissionResponseDenied,
+  RoomPermissionResponseDismissed,
+};
+
+// Why Chrome would show the quiet prompt (PermissionUiSelector's
+// QuietUiReason); None when it would show the normal one.
+typedef NS_ENUM(NSInteger, RoomPermissionQuietReason) {
+  RoomPermissionQuietReasonNone = 0,
+  RoomPermissionQuietReasonEnabledInSettings,
+  RoomPermissionQuietReasonCrowdDeny,
+  RoomPermissionQuietReasonAbusiveRequests,
+  RoomPermissionQuietReasonAbusiveContent,
+  RoomPermissionQuietReasonServicePredictedUnlikelyGrant,
+  RoomPermissionQuietReasonOnDevicePredictedUnlikelyGrant,
+  RoomPermissionQuietReasonDisruptiveBehavior,
+  RoomPermissionQuietReasonLackOfGesture,
+};
+
+// macOS's own authorization for what the request needs (camera,
+// microphone, location, notifications: Chrome's system_permission_settings),
+// so the host can say when macOS, not the site's setting, blocks it.
+typedef NS_ENUM(NSInteger, RoomSystemAuthorization) {
+  // The request needs no system permission.
+  RoomSystemAuthorizationNotApplicable = 0,
+  // macOS has not asked yet (it will when the page gets access).
+  RoomSystemAuthorizationNotDetermined,
+  RoomSystemAuthorizationDenied,
+  RoomSystemAuthorizationAuthorized,
+};
+
+// One permission in a prompt (permissions::PermissionRequest).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomPermissionRequest : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) RoomPermissionKind kind;
+// The requesting origin.
+@property(nonatomic, readonly, copy) NSURL* origin;
+// The page's <permission> element asked (not a script call).
+@property(nonatomic, readonly, getter=isEmbeddedPermissionElement)
+    BOOL embeddedPermissionElement;
+@property(nonatomic, readonly) RoomSystemAuthorization systemAuthorization;
+@end
+
+// One row of a context menu (ui::MenuModel's item).
+typedef NS_ENUM(NSInteger, RoomMenuItemType) {
+  RoomMenuItemTypeCommand = 0,
+  RoomMenuItemTypeCheck,
+  RoomMenuItemTypeRadio,
+  RoomMenuItemTypeSeparator,
+  RoomMenuItemTypeSubmenu,
+};
+
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomMenuItem : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+// Chrome's command id (IDC_CONTENT_CONTEXT_*, spelling suggestions,
+// extension items); -1 for a separator.
+@property(nonatomic, readonly) NSInteger commandId;
+@property(nonatomic, readonly) RoomMenuItemType type;
+@property(nonatomic, readonly, copy) NSString* title;
+@property(nonatomic, readonly, getter=isEnabled) BOOL enabled;
+@property(nonatomic, readonly, getter=isChecked) BOOL checked;
+// The radio group (RoomMenuItemTypeRadio).
+@property(nonatomic, readonly) NSInteger groupId;
+// The key equivalent shown beside the title, as NSMenuItem takes it.
+@property(nonatomic, readonly, copy) NSString* keyEquivalent;
+@property(nonatomic, readonly) NSEventModifierFlags keyEquivalentModifierMask;
+@property(nonatomic, readonly, copy, nullable) NSArray<RoomMenuItem*>* submenu;
+@end
+
+// What was under the pointer (content::ContextMenuParams).
+typedef NS_ENUM(NSInteger, RoomContextMenuMediaType) {
+  RoomContextMenuMediaTypeNone = 0,
+  RoomContextMenuMediaTypeImage,
+  RoomContextMenuMediaTypeVideo,
+  RoomContextMenuMediaTypeAudio,
+  RoomContextMenuMediaTypeCanvas,
+  RoomContextMenuMediaTypeFile,
+  RoomContextMenuMediaTypePlugin,
+};
+
+// A page's context menu as Chrome built it (RenderViewContextMenu): the
+// host shows `items` and answers once, -selectCommand: or -cancel. Answers
+// after the first, or after the page is gone, are ignored.
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomContextMenu : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly, copy) NSArray<RoomMenuItem*>* items;
+// In the page view's coordinates (top-left origin, points).
+@property(nonatomic, readonly) NSPoint location;
+@property(nonatomic, readonly, copy, nullable) NSURL* pageURL;
+@property(nonatomic, readonly, copy, nullable) NSURL* frameURL;
+@property(nonatomic, readonly, copy, nullable) NSURL* linkURL;
+@property(nonatomic, readonly, copy, nullable) NSString* linkText;
+@property(nonatomic, readonly, copy, nullable) NSURL* sourceURL;
+@property(nonatomic, readonly) RoomContextMenuMediaType mediaType;
+@property(nonatomic, readonly, copy, nullable) NSString* selectionText;
+@property(nonatomic, readonly, getter=isEditable) BOOL editable;
+@property(nonatomic, readonly, copy, nullable) NSString* misspelledWord;
+@property(nonatomic, readonly, copy) NSArray<NSString*>* dictionarySuggestions;
+// Runs Chrome's command (RenderViewContextMenu::ExecuteCommand) and closes
+// the menu.
+- (void)selectCommand:(NSInteger)commandId;
+// Closes the menu without a command.
+- (void)cancel;
+@end
+
+// An HTTP or proxy authentication challenge (net::AuthChallengeInfo).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomAuthChallenge : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+// Scheme, host and port asking (the proxy's for a proxy).
+@property(nonatomic, readonly, copy) NSURL* origin;
+@property(nonatomic, readonly, copy, nullable) NSString* realm;
+// "basic", "digest", "ntlm", "negotiate".
+@property(nonatomic, readonly, copy) NSString* scheme;
+// A proxy asks (named so as not to shadow NSObject's -isProxy).
+@property(nonatomic, readonly, getter=isProxyChallenge) BOOL proxyChallenge;
+@end
+
+// A certificate error on a main-frame navigation (net::SSLInfo).
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomCertificateError : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly, copy) NSURL* URL;
+// The net::Error code, e.g. -202 ERR_CERT_AUTHORITY_INVALID.
+@property(nonatomic, readonly) NSInteger errorCode;
+// Chromium's name for it ("ERR_CERT_AUTHORITY_INVALID").
+@property(nonatomic, readonly, copy) NSString* errorName;
+// DER, leaf first.
+@property(nonatomic, readonly, copy) NSArray<NSData*>* certificateChain;
+// The host has HSTS or pinning (SSLInfo::is_fatal_cert_error): no bypass.
+@property(nonatomic, readonly, getter=isStrictEnforcement) BOOL strictEnforcement;
+// Chrome's verdict (CalculateSSLErrorOptionsMask): the person may proceed.
+@property(nonatomic, readonly, getter=isOverridable) BOOL overridable;
+@end
+
+// What a file chooser asks for (blink::mojom::FileChooserParams).
+typedef NS_ENUM(NSInteger, RoomFileChooserMode) {
+  RoomFileChooserModeOpen = 0,
+  RoomFileChooserModeOpenMultiple,
+  // <input webkitdirectory>: the page gets the folder's files.
+  RoomFileChooserModeUploadFolder,
+  RoomFileChooserModeOpenDirectory,
+  RoomFileChooserModeSave,
+};
+
+ROOM_EXPORT NS_SWIFT_UI_ACTOR
+@interface RoomFileChooserRequest : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property(nonatomic, readonly) RoomFileChooserMode mode;
+@property(nonatomic, readonly, copy, nullable) NSString* title;
+@property(nonatomic, readonly, copy, nullable) NSURL* defaultPath;
+// MIME types ("image/*") and extensions (".pdf") from the accept attribute.
+@property(nonatomic, readonly, copy) NSArray<NSString*>* acceptTypes;
+@end
+
 // What a page asks of the UI around it. Called on the main thread.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomWebContentsDelegate <NSObject>
@@ -187,6 +382,44 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                         selectionRect:(NSRect)selectionRect
                           finalUpdate:(BOOL)finalUpdate
     NS_SWIFT_NAME(webContents(_:didUpdateFindResultWithMatchCount:activeMatch:selectionRect:finalUpdate:));
+// A permission prompt for the page (Chrome's PermissionRequestManager): one
+// origin, one or more permissions (camera with microphone). Call
+// `completion` once; a navigation or the page closing withdraws the prompt
+// first (-webContentsDidDismissPermissionPrompt:), after which it is
+// ignored. Not implemented: Chrome's own bubble.
+- (void)webContents:(RoomWebContents*)webContents
+    willAskForPermissions:(NSArray<RoomPermissionRequest*>*)requests
+              quietReason:(RoomPermissionQuietReason)quietReason
+               completion:(void (^)(RoomPermissionResponse response))completion
+    NS_SWIFT_NAME(webContents(_:willAskForPermissions:quietReason:completion:));
+// Chrome withdrew the pending prompt before the host answered.
+- (void)webContentsDidDismissPermissionPrompt:(RoomWebContents*)webContents;
+// The page's context menu. Return YES to show it (and later answer
+// `menu`); NO lets Chrome show its own.
+- (BOOL)webContents:(RoomWebContents*)webContents
+    willShowContextMenu:(RoomContextMenu*)menu
+    NS_SWIFT_NAME(webContents(_:willShowContextMenu:));
+// HTTP or proxy authentication; `completion(nil, nil)` cancels. Not
+// implemented: Chrome's own dialog.
+- (void)webContents:(RoomWebContents*)webContents
+    didReceiveAuthChallenge:(RoomAuthChallenge*)challenge
+                 completion:(void (^)(NSString* _Nullable user,
+                                      NSString* _Nullable password))completion
+    NS_SWIFT_NAME(webContents(_:didReceiveAuthChallenge:completion:));
+// A certificate error on the page's navigation, which waits for the answer:
+// YES visits the site (Chrome remembers the decision for the host), NO stops
+// the navigation (the page stays on what it showed). Not implemented:
+// Chrome's own interstitial.
+- (void)webContents:(RoomWebContents*)webContents
+    didFailCertificateCheck:(RoomCertificateError*)error
+                 completion:(void (^)(BOOL proceed))completion
+    NS_SWIFT_NAME(webContents(_:didFailCertificateCheck:completion:));
+// <input type=file>: `completion(nil)` cancels. Not implemented: Chrome's
+// own panel.
+- (void)webContents:(RoomWebContents*)webContents
+     runFileChooser:(RoomFileChooserRequest*)request
+         completion:(void (^)(NSArray<NSURL*>* _Nullable files))completion
+    NS_SWIFT_NAME(webContents(_:runFileChooser:completion:));
 @end
 
 // One page (content::WebContents). Properties are KVO-observable and change on

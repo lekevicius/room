@@ -11,6 +11,8 @@ class Profile;
 // The wrapper for `profile`, created on first use and kept for the profile's
 // lifetime.
 + (RoomProfile*)room_profileFor:(Profile*)profile;
+// The wrapper if one was created; nil otherwise (never creates one).
++ (RoomProfile*)room_existingProfileFor:(Profile*)profile;
 // nullptr once the profile is destroyed.
 @property(nonatomic, readonly) Profile* room_profile;
 @end

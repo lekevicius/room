@@ -20,6 +20,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // window.close()). The host should close its NSWindow; the RoomBrowser is
 // gone once -browserDidClose: arrives.
 - (void)browserWillClose:(RoomBrowser*)browser;
+// Chrome is about to close the browser (the quit) with `count` downloads in
+// progress, which closing cancels: YES continues, NO keeps the browser.
+// Not implemented: closing continues.
+- (void)browser:(RoomBrowser*)browser
+    shouldCloseWithPendingDownloads:(NSInteger)count
+                         completion:(void (^)(BOOL proceed))completion
+    NS_SWIFT_NAME(browser(_:shouldCloseWithPendingDownloads:completion:));
 - (void)browserDidClose:(RoomBrowser*)browser;
 @end
 

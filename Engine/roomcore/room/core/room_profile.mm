@@ -23,6 +23,7 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/gfx/image/image.h"
+#import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
 
 namespace {
@@ -72,6 +73,8 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   BOOL _lastExitWasClean;
   // Pending FaviconService requests; destroying it cancels them.
   std::unique_ptr<base::CancelableTaskTracker> _faviconTasks;
+  // The DownloadManager observer and the host's downloads delegate.
+  std::unique_ptr<room::ProfileDownloads> _downloads;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -87,6 +90,13 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
     profile->SetUserData(kRoomProfileKey, std::move(owned));
   }
   return data->wrapper();
+}
+
++ (RoomProfile*)room_existingProfileFor:(Profile*)profile {
+  auto* data = profile ? static_cast<ProfileWrapper*>(
+                             profile->GetUserData(kRoomProfileKey))
+                       : nullptr;
+  return data ? data->wrapper() : nil;
 }
 
 - (instancetype)initWithProfile:(Profile*)profile {
@@ -145,6 +155,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 }
 
 - (void)room_profileWillBeDestroyed {
+  _downloads.reset();
   _faviconTasks.reset();
   _profile = nullptr;
 }
@@ -185,6 +196,67 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
         callback(result.image.IsEmpty() ? nil : result.image.ToNSImage());
       }),
       _faviconTasks.get());
+}
+
+// MARK: Downloads (Phase 3.4a)
+
+- (room::ProfileDownloads*)room_downloads {
+  if (!_downloads && _profile) {
+    _downloads = room::ProfileDownloads::Create(_profile, self);
+  }
+  return _downloads.get();
+}
+
+- (id<RoomProfileDownloadsDelegate>)downloadsDelegate {
+  return _downloads ? _downloads->delegate() : nil;
+}
+
+- (void)setDownloadsDelegate:(id<RoomProfileDownloadsDelegate>)delegate {
+  if (room::ProfileDownloads* downloads = [self room_downloads]) {
+    downloads->SetDelegate(delegate);
+  }
+}
+
+- (NSArray<RoomDownloadItem*>*)downloads {
+  room::ProfileDownloads* downloads = [self room_downloads];
+  return downloads ? downloads->AllDownloads() : @[];
+}
+
+- (void)pauseDownload:(NSString*)identifier {
+  if (room::ProfileDownloads* downloads = [self room_downloads]) {
+    downloads->Pause(identifier);
+  }
+}
+
+- (void)resumeDownload:(NSString*)identifier {
+  if (room::ProfileDownloads* downloads = [self room_downloads]) {
+    downloads->Resume(identifier);
+  }
+}
+
+- (void)cancelDownload:(NSString*)identifier {
+  if (room::ProfileDownloads* downloads = [self room_downloads]) {
+    downloads->Cancel(identifier);
+  }
+}
+
+// MARK: Site settings (Phase 3.4a)
+
+- (RoomContentSetting)contentSettingForType:(RoomContentSettingType)type
+                                     origin:(NSURL*)origin {
+  return room::GetContentSetting(_profile, type, origin);
+}
+
+- (void)setContentSetting:(RoomContentSetting)setting
+                  forType:(RoomContentSettingType)type
+                   origin:(NSURL*)origin {
+  room::SetContentSetting(_profile, setting, type, origin);
+}
+
+- (void)clearSiteData:(RoomSiteDataTypes)types
+            forOrigin:(NSURL*)origin
+           completion:(void (^)(void))completion {
+  room::ClearSiteData(_profile, types, origin, completion);
 }
 
 @end

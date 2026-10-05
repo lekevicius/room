@@ -722,9 +722,15 @@ void RoomBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
     int download_count,
     UnloadController::DownloadCloseType dialog_type,
     base::OnceCallback<void(bool)> callback) {
-  // No UI to ask with yet (3.4a routes it to the host): closing proceeds, as
-  // if the user confirmed.
-  std::move(callback).Run(true);
+  // The host decides (Phase 3.4a); a window without a client closes.
+  if (!client_) {
+    std::move(callback).Run(true);
+    return;
+  }
+  LOG(INFO) << "RoomCore: closing with " << download_count
+            << " downloads in progress asks the host";
+  client_->ConfirmCloseWithPendingDownloads(download_count,
+                                            std::move(callback));
 }
 
 gfx::Size RoomBrowserWindow::GetContentsSize() const {

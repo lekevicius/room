@@ -6,12 +6,26 @@
 # Keep in step with public/*.h.
 _OBJC_CLASS_$_RoomApplication
 _OBJC_METACLASS_$_RoomApplication
+_OBJC_CLASS_$_RoomAuthChallenge
+_OBJC_METACLASS_$_RoomAuthChallenge
 _OBJC_CLASS_$_RoomBrowser
 _OBJC_METACLASS_$_RoomBrowser
+_OBJC_CLASS_$_RoomCertificateError
+_OBJC_METACLASS_$_RoomCertificateError
+_OBJC_CLASS_$_RoomContextMenu
+_OBJC_METACLASS_$_RoomContextMenu
 _OBJC_CLASS_$_RoomCrApplication
 _OBJC_METACLASS_$_RoomCrApplication
+_OBJC_CLASS_$_RoomDownloadItem
+_OBJC_METACLASS_$_RoomDownloadItem
+_OBJC_CLASS_$_RoomFileChooserRequest
+_OBJC_METACLASS_$_RoomFileChooserRequest
+_OBJC_CLASS_$_RoomMenuItem
+_OBJC_METACLASS_$_RoomMenuItem
 _OBJC_CLASS_$_RoomNavigationAction
 _OBJC_METACLASS_$_RoomNavigationAction
+_OBJC_CLASS_$_RoomPermissionRequest
+_OBJC_METACLASS_$_RoomPermissionRequest
 _OBJC_CLASS_$_RoomProfile
 _OBJC_METACLASS_$_RoomProfile
 _OBJC_CLASS_$_RoomWebContents

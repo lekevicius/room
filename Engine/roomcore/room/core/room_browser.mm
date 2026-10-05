@@ -114,6 +114,26 @@ class Client : public room::RoomBrowserWindowClient {
   bool AllowOpenFromTab(const NavigateParams& params) override {
     return room::AllowOpenFromRoomPage(params);
   }
+  void ConfirmCloseWithPendingDownloads(
+      int download_count,
+      base::OnceCallback<void(bool)> callback) override {
+    RoomBrowser* browser = browser_;
+    id<RoomBrowserDelegate> delegate = browser.delegate;
+    if (![delegate respondsToSelector:@selector
+                   (browser:shouldCloseWithPendingDownloads:completion:)]) {
+      std::move(callback).Run(true);
+      return;
+    }
+    auto pending =
+        std::make_shared<base::OnceCallback<void(bool)>>(std::move(callback));
+    [delegate browser:browser
+        shouldCloseWithPendingDownloads:download_count
+                             completion:^(BOOL proceed) {
+                               if (*pending) {
+                                 std::move(*pending).Run(proceed);
+                               }
+                             }];
+  }
 
  private:
   RoomBrowser* __weak browser_;
