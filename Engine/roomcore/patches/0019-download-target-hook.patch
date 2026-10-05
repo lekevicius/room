@@ -1,0 +1,50 @@
+Room: the host picks where a Room profile's download goes.
+
+The host's downloads list chooses every download's file: the folder from
+Room's Settings and Chrome's "name (1).ext" numbering (the Engine protocol's
+willBeginDownload, Phase 2.6b), and Room carries no danger verdicts (Safe
+Browsing is off in Chapter 3). Chrome decides the target in
+DownloadTargetDeterminer (its own folder, a Save As panel when asked, Safe
+Browsing and file-type verdicts).
+
+No existing hook: the target decision is
+DownloadManagerDelegate::DetermineDownloadTarget, and the delegate is
+ChromeDownloadManagerDelegate, created and owned per profile by
+DownloadCoreServiceImpl (its replacement setter is test-only); the
+determiner's own delegate is the same object. //room answers only for new
+downloads (no target yet) of profiles whose host set a downloads delegate;
+resumed downloads, transient ones and every other profile keep Chrome's
+determiner.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_downloads.mm.
+diff --git a/chrome/browser/download/chrome_download_manager_delegate.cc b/chrome/browser/download/chrome_download_manager_delegate.cc
+index d0b653e5eaaf2..f145392402f4e 100644
+--- a/chrome/browser/download/chrome_download_manager_delegate.cc
++++ b/chrome/browser/download/chrome_download_manager_delegate.cc
+@@ -182,6 +182,15 @@
+ #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+ #endif  // BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
+ 
++namespace room {
++// Room: set by //room/core at startup. Takes the target decision of a
++// download in a Room profile (the host picks the file) and returns true;
++// false otherwise.
++bool (*g_determine_download_target_hook)(download::DownloadItem*,
++                                         download::DownloadTargetCallback*) =
++    nullptr;
++}  // namespace room
++
+ using content::BrowserThread;
+ using content::DownloadManager;
+ using download::DownloadItem;
+@@ -829,6 +838,10 @@ void ChromeDownloadManagerDelegate::ReturnNextId(
+ bool ChromeDownloadManagerDelegate::DetermineDownloadTarget(
+     DownloadItem* download,
+     download::DownloadTargetCallback* callback) {
++  if (room::g_determine_download_target_hook &&
++      room::g_determine_download_target_hook(download, callback)) {
++    return true;
++  }
+   if (download->GetTargetFilePath().empty() &&
+       download->GetMimeType() == pdf::kPDFMimeType &&
+       !download->HasUserGesture()) {

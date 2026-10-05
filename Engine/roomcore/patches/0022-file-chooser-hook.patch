@@ -1,0 +1,45 @@
+Room: the file chooser of a Room page goes to the host.
+
+Chrome runs <input type=file> through FileSelectHelper, which opens its own
+ui::SelectFileDialog panel. Room shows its open panel as a sheet on the
+page's window with the page's accept types (the Engine protocol's
+runFileChooser, Phase 2.6a) and hands the chosen files to the page's
+FileSelectListener.
+
+No existing hook: RunFileChooser is a WebContentsDelegate member, and the
+tab's delegate is Chrome's BrowserWebContentsDelegate (patch 0015's file); a
+delegate wrapping it would have to forward ~150 members; FileSelectHelper's
+dialog factory is process-wide. //room takes the chooser only for pages it
+wraps whose delegate runs choosers; every other page keeps
+FileSelectHelper. Directory enumeration for a dropped folder
+(EnumerateDirectory) stays Chrome's.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_page_prompts.mm.
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index c29af590a7f1b..24ffad6641b45 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -126,6 +126,12 @@ namespace room {
+ // Room: set by //room/core at startup. Takes the hovered link of pages in a
+ // Room window (the host's status pill) and returns true; false otherwise.
+ bool (*g_update_target_url_hook)(content::WebContents*, const GURL&) = nullptr;
++// Room: set by //room/core at startup. Takes the file chooser of a page in a
++// Room window (the host's open panel) and returns true; false otherwise.
++bool (*g_run_file_chooser_hook)(content::RenderFrameHost*,
++                                scoped_refptr<content::FileSelectListener>&,
++                                const blink::mojom::FileChooserParams&) =
++    nullptr;
+ }  // namespace room
+ 
+ namespace {
+@@ -1134,6 +1140,10 @@ void BrowserWebContentsDelegate::RunFileChooser(
+     content::RenderFrameHost* render_frame_host,
+     scoped_refptr<content::FileSelectListener> listener,
+     const blink::mojom::FileChooserParams& params) {
++  if (room::g_run_file_chooser_hook &&
++      room::g_run_file_chooser_hook(render_frame_host, listener, params)) {
++    return;
++  }
+   FileSelectHelper::RunFileChooser(render_frame_host, std::move(listener),
+                                    params);
+ }

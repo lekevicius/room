@@ -16,3 +16,9 @@
 0014-navigator-browser-for-disposition-hook.patch
 0015-target-url-hook.patch
 0016-navigation-throttle-hook.patch
+0017-permission-prompt-factory-hook.patch
+0018-context-menu-hook.patch
+0019-download-target-hook.patch
+0020-login-handler-hook.patch
+0021-ssl-error-hook.patch
+0022-file-chooser-hook.patch

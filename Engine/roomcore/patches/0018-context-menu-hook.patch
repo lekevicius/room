@@ -1,0 +1,51 @@
+Room: the context menu of a Room page goes to the host.
+
+Chrome builds a page's context menu as a RenderViewContextMenu (every
+IDC_CONTENT_CONTEXT_* command: link, image, media, editing, spellcheck
+suggestions, Add to dictionary, Look Up) and shows it with its Cocoa runner
+(RenderViewContextMenuMacCocoa). Room shows its own NSMenu with Room's items
+first and then the engine's (the Engine protocol's willShowContextMenu, Phase
+2.6a), so the host needs the built model and a way to execute one of its
+commands.
+
+No existing hook: the menu is built and shown inside
+ChromeWebContentsViewDelegateViewsMac, the WebContentsViewDelegate Chrome's
+ContentBrowserClient creates for every WebContents at creation (before
+RoomCore wraps it); WebContentsDelegate::HandleContextMenu belongs to
+Chrome's BrowserWebContentsDelegate. //room takes the built menu (it keeps it
+alive until the host selects or cancels) only for pages it wraps whose
+delegate presents menus; every other page keeps Chrome's.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_context_menu.mm.
+diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
+index 564c8c000c5be..fa64f93a698f3 100644
+--- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
++++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
+@@ -31,6 +31,15 @@
+ #include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
+ #include "ui/views/widget/widget.h"
+ 
++namespace room {
++// Room: set by //room/core at startup. Takes the built context menu of a page
++// in a Room window (the host shows its own menu) and returns true; false
++// otherwise.
++bool (*g_show_context_menu_hook)(content::WebContents*,
++                                 std::unique_ptr<RenderViewContextMenuBase>&) =
++    nullptr;
++}  // namespace room
++
+ ChromeWebContentsViewDelegateViewsMac::ChromeWebContentsViewDelegateViewsMac(
+     content::WebContents* web_contents)
+     : ContextMenuDelegate(web_contents),
+@@ -210,6 +219,11 @@
+     return;
+   }
+ 
++  if (room::g_show_context_menu_hook &&
++      room::g_show_context_menu_hook(web_contents_, context_menu_)) {
++    return;
++  }
++
+   context_menu_->Show();
+ }
+ 

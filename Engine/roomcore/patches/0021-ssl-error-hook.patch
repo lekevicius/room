@@ -1,0 +1,52 @@
+Room: certificate errors of Room pages go to the host's interstitial.
+
+Chrome answers a main-frame certificate error with its own interstitial
+(SSLErrorNavigationThrottle defers the navigation, SSLErrorHandler builds an
+SSLBlockingPage and the throttle commits its HTML as the error page). Room
+shows its own interstitial (the Engine protocol's didFailCertificateCheck,
+Phase 2.6a) and needs Chrome's verdict on whether the error may be bypassed:
+SSLInfo::is_fatal_cert_error carries the host's HSTS and pinning state
+(strict enforcement), which CEF never passed (backlog B-24).
+
+No existing hook: the throttle and its error callback are created inside
+CreateAndAddChromeThrottlesForNavigation (patch 0016's file) with this
+wrapper bound in; ContentBrowserClient::AllowCertificateError only denies
+the main frame in M154 and is ChromeContentBrowserClient's. //room takes the
+error only for pages it wraps whose delegate answers certificate errors:
+"Visit anyway" stores Chrome's decision (SSLHostStateDelegate::AllowCert)
+and loads the URL again, "Go back" stops the deferred navigation; every
+other page keeps Chrome's interstitial.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_page_prompts.mm.
+diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+index 0536a06a7d443..2ad68093a206a 100644
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -195,6 +195,14 @@ namespace room {
+ // navigations of Room pages (the host's navigation policy, Peek).
+ void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&) =
+     nullptr;
++// Room: set by //room/core at startup. Takes a certificate error of a Room
++// page's navigation (the host's interstitial decides; the navigation stays
++// deferred until it does) and returns true; false otherwise.
++bool (*g_ssl_error_hook)(content::WebContents*,
++                         net::Error,
++                         const net::SSLInfo&,
++                         const GURL&,
++                         bool user_can_proceed) = nullptr;
+ }  // namespace room
+ 
+ namespace {
+@@ -225,6 +233,12 @@ void HandleSSLErrorWrapper(
+                                   prefs::kSSLErrorOverrideAllowedForOrigins,
+                                   prefs::kSSLErrorOverrideAllowed);
+ 
++  if (room::g_ssl_error_hook &&
++      room::g_ssl_error_hook(web_contents, cert_error, ssl_info, request_url,
++                             is_ssl_error_override_allowed_for_origin)) {
++    return;
++  }
++
+   SSLErrorHandler::HandleSSLError(
+       web_contents, cert_error, ssl_info, request_url,
+       std::move(blocking_page_ready_callback),

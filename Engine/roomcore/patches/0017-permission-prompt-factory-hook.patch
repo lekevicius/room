@@ -1,0 +1,48 @@
+Room: permission prompts of Room pages go to the host.
+
+Chrome draws a permission request as a Views bubble anchored on its location
+bar (PermissionPromptBubbleBaseView, or the quiet chip). A Room page's
+requests belong to the host's permission popover on the header's site button
+(the Engine protocol's willAskForPermission, Phase 2.6a), which answers with
+Accept, AcceptThisTime, Deny or Dismiss on the same PermissionRequestManager.
+
+No existing hook: PermissionRequestManager creates its prompt through
+PermissionsClient::CreatePrompt, which ChromePermissionsClient implements by
+calling this Views factory; the manager's view factory is a test-only setter
+(set_view_factory_for_testing) and the PermissionsClient is a process-wide
+singleton Chrome owns. //room returns its prompt only for pages it wraps
+whose delegate answers prompts; everything else keeps Chrome's bubble.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_permissions.mm
+(RoomPermissionPrompt).
+diff --git a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
+index 0c03be841cac2..e7a12872467b7 100644
+--- a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
++++ b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
+@@ -42,6 +42,14 @@
+ #include "chrome/browser/web_applications/os_integration/mac/web_app_shortcut_mac.h"
+ #endif
+ 
++namespace room {
++// Room: set by //room/core at startup. Returns the host's prompt for a page
++// in a Room window (the host's permission popover), nullptr otherwise.
++std::unique_ptr<permissions::PermissionPrompt> (*g_create_permission_prompt_hook)(
++    content::WebContents*,
++    permissions::PermissionPrompt::Delegate*) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ BrowserWindowInterface* GetBrowser(content::WebContents* web_contents) {
+@@ -284,6 +292,11 @@ bool ShouldShowPermissionPromptEvenIfOmniboxEditedOrEmpty(
+ std::unique_ptr<permissions::PermissionPrompt> CreatePermissionPrompt(
+     content::WebContents* web_contents,
+     permissions::PermissionPrompt::Delegate* delegate) {
++  if (room::g_create_permission_prompt_hook) {
++    if (auto prompt = room::g_create_permission_prompt_hook(web_contents, delegate)) {
++      return prompt;
++    }
++  }
+   if (delegate->ShouldDropCurrentRequestIfCannotShowQuietly() &&
+       IsFullScreenMode(web_contents)) {
+     return nullptr;

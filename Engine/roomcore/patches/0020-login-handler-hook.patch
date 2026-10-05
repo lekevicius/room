@@ -1,0 +1,53 @@
+Room: HTTP and proxy authentication of Room pages goes to the host.
+
+Chrome asks for credentials in a Views dialog (LoginHandlerViews, tab-modal
+over its BrowserView). A Room page's challenge belongs to the host's sign-in
+sheet (the Engine protocol's didReceiveAuthChallenge, Phase 2.6a). Chrome's
+own flow around it stays: HttpAuthCoordinator, the extensions'
+onAuthRequired, LoginTabHelper's committed error page, the password
+manager's HTTP auth observer and "another handler supplied the same
+credentials".
+
+No existing hook: LoginHandler::Create is the platform factory, defined once
+per UI toolkit (this file on desktop) and called by HttpAuthCoordinator and
+LoginTabHelper; ContentBrowserClient::CreateLoginDelegate belongs to
+ChromeContentBrowserClient. //room returns a LoginHandler subclass only for
+pages it wraps whose delegate answers challenges; everything else keeps
+Chrome's dialog.
+
+Phase 3.4a, 2026-10-05. //room: room/core/room_page_prompts.mm
+(RoomLoginHandler).
+diff --git a/chrome/browser/ui/views/login_handler_views.cc b/chrome/browser/ui/views/login_handler_views.cc
+index 14a99f40f3109..9edcfaca38181 100644
+--- a/chrome/browser/ui/views/login_handler_views.cc
++++ b/chrome/browser/ui/views/login_handler_views.cc
+@@ -22,6 +22,16 @@
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/window/dialog_delegate.h"
+ 
++namespace room {
++// Room: set by //room/core at startup. Returns the host's handler for an
++// authentication challenge of a page in a Room window (the host's sign-in
++// sheet), nullptr otherwise (the callback is then untouched).
++std::unique_ptr<LoginHandler> (*g_create_login_handler_hook)(
++    const net::AuthChallengeInfo&,
++    content::WebContents*,
++    content::LoginDelegate::LoginAuthRequiredCallback&) = nullptr;
++}  // namespace room
++
+ class LoginHandlerViewsDialog;
+ 
+ namespace {
+@@ -231,6 +241,12 @@ std::unique_ptr<LoginHandler> LoginHandler::Create(
+     const net::AuthChallengeInfo& auth_info,
+     content::WebContents* web_contents,
+     content::LoginDelegate::LoginAuthRequiredCallback auth_required_callback) {
++  if (room::g_create_login_handler_hook) {
++    if (auto handler = room::g_create_login_handler_hook(
++            auth_info, web_contents, auth_required_callback)) {
++      return handler;
++    }
++  }
+   return std::make_unique<LoginHandlerViews>(auth_info, web_contents,
+                                              std::move(auth_required_callback));
+ }
