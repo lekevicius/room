@@ -278,6 +278,31 @@ public final class History: Sendable {
         }
     }
 
+    /// A batch of `profile`'s URLs with every visit, in row order after
+    /// `afterID` (the Phase 3.5 import into the engine's history reads the
+    /// whole table this way). `nextID` is the last row's id; `nil` at the end.
+    public func exportBatch(profile: UUID, afterID: Int64 = 0, limit: Int) throws -> (rows: [HistoryImport], nextID: Int64?) {
+        try pool.read { db in
+            let urls = try Row.fetchAll(db, sql: "SELECT id, url, title FROM history_url WHERE profileID = ? AND id > ? ORDER BY id LIMIT ?",
+                                        arguments: [profile, afterID, limit])
+            guard let first: Int64 = urls.first?["id"], let last: Int64 = urls.last?["id"] else { return ([], nil) }
+            var visits: [Int64: [(at: Date, transition: HistoryTransition)]] = [:]
+            let rows = try Row.fetchCursor(db, sql: "SELECT v.urlID, v.visitedAt, v.transition FROM history_visit v "
+                                               + "JOIN history_url u ON u.id = v.urlID "
+                                               + "WHERE u.profileID = ? AND v.urlID BETWEEN ? AND ? ORDER BY v.visitedAt",
+                                           arguments: [profile, first, last])
+            while let row = try rows.next() {
+                let time: Timestamp = row["visitedAt"]
+                visits[row["urlID"], default: []].append((time.date, HistoryTransition(rawValue: row["transition"]) ?? .other))
+            }
+            let batch = urls.map { row -> HistoryImport in
+                let id: Int64 = row["id"]
+                return HistoryImport(url: row["url"], title: row["title"], visits: visits[id] ?? [])
+            }
+            return (batch, urls.count < limit ? nil : last)
+        }
+    }
+
     // MARK: Reading
 
     /// URLs in `profile`'s history; every profile's when `nil`.

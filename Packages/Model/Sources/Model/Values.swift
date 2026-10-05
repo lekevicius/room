@@ -340,12 +340,16 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Sparkle's scheduled update checks: off unless the user turns them on;
     /// while off the updater is not started at launch (ROADMAP 2.8 task 5).
     public var automaticUpdateChecks: Bool = false
+    /// Profiles whose Chapter 2 history was imported into the engine's
+    /// history (Phase 3.5, once per profile; the local tables go in 3.9).
+    public var historyImportedProfiles: [UUID] = []
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
+        case historyImportedProfiles
     }
 
     public init(from decoder: any Decoder) throws {
@@ -369,6 +373,8 @@ public struct Settings: Hashable, Sendable, Codable {
         crashReports = (try? container.decodeIfPresent(Bool.self, forKey: .crashReports)).flatMap { $0 } ?? defaults.crashReports
         automaticUpdateChecks = (try? container.decodeIfPresent(Bool.self, forKey: .automaticUpdateChecks)).flatMap { $0 }
             ?? defaults.automaticUpdateChecks
+        historyImportedProfiles = (try? container.decodeIfPresent([UUID].self, forKey: .historyImportedProfiles)).flatMap { $0 }
+            ?? defaults.historyImportedProfiles
     }
 }
 

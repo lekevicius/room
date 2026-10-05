@@ -21,17 +21,29 @@ extension TabController: NavigationDelegate {
     public func webContents(_ webContents: any WebContents, didCommitNavigation url: URL, transition: PageTransition) {
         // Peek pages are history too, in the opener's profile.
         if let page = peekOpener(of: webContents).flatMap({ peeks[$0] }) {
+            guard recordsLocalHistory(profile: page.profileID) else { return }
             store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
             page.historyTitle = nil
             refreshHistoryTitle(page)
             return
         }
-        guard let id = entryID(for: webContents), let page = pages[id] else { return }
+        guard let id = entryID(for: webContents), let page = pages[id], recordsLocalHistory(profile: page.profileID) else { return }
         // Tagged with the profile the page lives in (history follows the profile, ROADMAP 2.5).
         store.history.recordVisit(url: url.absoluteString, title: nil, transition: HistoryTransition(transition), profile: page.profileID)
         // The title is written again after this visit (same-document commits keep the page's title).
         pages[id]?.historyTitle = nil
         if let page = pages[id] { refreshHistoryTitle(page) }
+    }
+}
+
+extension TabController {
+    /// Whether committed navigations go to the store's history table: only
+    /// while the engine keeps no history of its own (CEF). On RoomCore
+    /// Chromium's tab helpers record every visit in its `HistoryService` and
+    /// the palette reads it there (Phase 3.5); the local tables stay until
+    /// 3.9 drops them.
+    public func recordsLocalHistory(profile: UUID) -> Bool {
+        engineProfiles[profile]?.history == nil
     }
 }
 
