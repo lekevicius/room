@@ -175,6 +175,11 @@ private struct SettingsSectionView: View {
                 Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
             }
         }
+        Section {
+            Text("Passwords, addresses and cards Room saves stay on this Mac, in Room's profile: no account, no sync, no upload.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: Appearance
