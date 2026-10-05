@@ -476,3 +476,7 @@ Series 22 → 24 (0024 `views/extensions/extension_install_dialog_view.cc`, 0025
 ## 2026-10-05 — Phase 3.6b (Mac mini M4, `out/dev`, 6 jobs)
 
 Series unchanged at 24 (no patch): `scripts/roomcore-apply.sh` "0 applied, 24 already" at every build and at the end. `//room` builds (`scripts/roomcore-build.sh`; new `room_extension_popups.mm`, the browser window's `IsToolbarVisible`, stubs regenerated 39 → 38): 81 s (first, compiled clean), 47 s (popup focus), 46 s (the side panel guard), 47 s (auto-resize on the primary main frame). `scripts/roomcore-package.sh`: two full runs (host 7.9 s, app 13.7–13.9 s), six `--app-only` (app 13.9–14 s; one failed on a spike's `type(of:)` shadowing). Disk: 50 GB free on the internal drive; nothing deleted.
+
+## 2026-10-05 — Phase 3.7a (Mac mini M4, `out/dev`, 6 jobs)
+
+Series unchanged at 24 (no patch): `scripts/roomcore-apply.sh` "0 applied, 24 already" at every build. `//room` builds (`scripts/roomcore-build.sh`; `RoomToolbarButtonProvider` and the bubble anchor, the delegate member, then the leak-check default and the popup close on window move, then the `ui-passwords` probe): 63 s, 76 s, one failed compile (a `WeakPtr` assigned to `auto*`), 52 s. `scripts/roomcore-package.sh`: four full runs (framework staged ~6 s, host 6.7 s, app 13.7–17.9 s; one failed on a spike's `type(of:)` shadowing), three `--app-only` (13.7 s). Disk: 46 GB free on the internal drive; nothing deleted.

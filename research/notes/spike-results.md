@@ -2006,3 +2006,56 @@ The header showed the three buttons in the pinned order with uBO Lite's badge; e
 ### Baseline after the last engine change (`build/baseline/3.6b-final`, embryo host)
 
 nav passed 11.4 s; ten-page quits **0.335 / 0.296 / 0.305 s** (load 10–17), 0 helpers left, 0 crash reports. Stub hits: none of the 38 `RoomBrowserWindow` stubs, none of the container's three logged members; `RoomAppController`: `tryToTerminateApplication`, `didEndMainMessageLoop` (implemented). After the first engine change (`3.6b-1`): nav 17.4 s, quits 0.284 / 0.249 / 0.244 s. Series 24, "0 applied, 24 already".
+
+## Phase 3.7a — passwords and autofill through Chrome's Views bubbles anchored on Room's chrome (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug, mock keychain)
+
+Room.app on RoomCore (component build `out/dev`, series 24, Debug Swift app, ad hoc, `--use-mock-keychain` decided by `RoomApplication`) through `scripts/passwords-autofill.sh` (`App/Sources/Debug/PasswordSpikes.swift`: `-RoomSpike passwords -RoomPasswordsPhase save`, the relaunch `… fill`, then `-RoomSpike autofill`, all on one throwaway state and engine directory; window 1200 × 800 pt centred, 60 Hz; fixtures `research/spikes/phase-3.7` on `http://127.0.0.1:8772` and `http://localhost:8772` (two sites) and `https://127.0.0.1:8773` (self-signed, its SPKI hash passed as `--ignore-certificate-errors-spki-list`: the card form and the sign-up page)); the embryo host through `scripts/roomcore-features.sh <drive>`. Evidence: `build/evidence-3.7a/` (`pa-1` before the leak-check fix, `pa-3` the complete run with Room's window key, `pa-final`/`pa-final2` the final build with another application frontmost). Captures: `research/screenshots/phase-3.7a/` (screen captures; the stale "Room quit unexpectedly" dialogs are the user's and sit over the page area in several).
+
+Input is real events only: typing and clicks on the page's view (`PageDriver`), Return to Chrome's bubble (its default button: Save, Update; the bubble made key first; the click fallback was never needed), Down and Return on the page for the suggestion popups.
+
+### Bubbles and popups
+
+| Bubble | Chrome source | Anchor | Run (`pa-3`; times from the submit click) |
+|---|---|---|---|
+| Save password, site A (127.0.0.1) | `PasswordSaveUpdateView` via `ManagePasswordsUIController` → `PasswordBubbleViewBase::ShowBubble` → `ToolbarButtonProvider::GetBubbleAnchor` | site button (16 × 28 pt at 157,42); bubble 320 × 386 at 62,70: its top edge at the button's bottom (gap 0), spanning the button | shown **609 ms** after the submit (the navigation commits first; final build 555–679 ms), Return → saved, the page "Signed in as alice" (`phase-3.7a-save-bubble-a.png`) |
+| Save password, site B (localhost) | same | same | **469 ms** (455–466), Return → saved (`…-save-bubble-b.png`) |
+| Update password (site A, new password) | `PasswordSaveUpdateView` (pending update) | same; 320 × 394 | **552 ms** (457–460), Return → updated (`…-update-bubble-a.png`) |
+| Save password, sign-up page (`autocomplete=new-password`) | same | same | **48 ms** (51–53: no navigation wait), Return → saved |
+| Password suggestions, both sites after the relaunch | `PopupViewViews` (`ChromeAutofillClient::ShowAutofillSuggestions`) | the username field: 1 pt below its bottom edge, 95 pt right of its left edge (CEF's 1.4 popup sat at the same 95 pt); 225 × 119 | shown **42 / 24 ms** after the click; Down + Return: username and password filled (read from the DOM: `alice`/matches, `bob`/matches), popup closed; the sign-in completes ("Signed in as alice", "… bob"); no second save offer (`…-fill-popup-a/b.png`) |
+| Password generation | `PasswordGenerationPopupViewViews` | — | **not offered**: none within 4 s on the new-password field (an origin with no saved logins); M154 offers generation only with password Sync (`PasswordFeatureManagerImpl::IsGenerationEnabled`); B-72 |
+| Save address | `SaveAddressProfileView` (`AddressBubblesController`, `AutofillBubbleHandlerImpl`) | site button; 320 × 367 at 157,70 (left edge at the button, top at its bottom) | **23 ms** (25–30), Return → saved (`…-address-save-bubble.png`) |
+| Update address (the same address with a phone) | `UpdateAddressProfileView` | same; 320 × 180 | **26 ms** (27–28), Return → the profile gains the phone (`…-address-update-bubble.png`) |
+| Address suggestions | `PopupViewViews` | the name field, 1 pt below, 95 pt right; 223 × 119 | **24 ms**; Down + Return filled every field: `Room Fixture`, `1600 Amphitheatre Parkway`, `Mountain View`, `CA`, `94043`, country `US`, phone `16502530000`, `room.fixture@example.com` (`…-address-popup.png`) |
+| — Esc | | | the popup closed, nothing filled (name empty) |
+| — a window move (+60, −40 pt) | | | first run (`pa-2`): the popup **stayed** at 461,173 while the field moved to 426,178 (Chrome closes it on its browser widget's bounds change; a Room window has none); after the fix (`RoomBrowserWindow::HideAutofillSuggestions` on move/resize): **closed** (`pa-3`) |
+| Save card (local) | `SaveCardBubbleViews` (`SaveCardBubbleControllerImpl::OfferLocalSave`) | site button; 320 × 338 at 157,70 | **25 ms** (24–34), Return → saved (`…-card-save-bubble.png`); page security `secure` with the SPKI flag |
+| Card suggestions | `PopupViewViews` | the number field, 1 pt below, 95 pt right; 237 × 119 | Down + Return filled name, `4111111111111111`, `12`, `2030` and the stored CVC `123`; no CVC or re-authentication prompt, no other Chrome window (`…-card-popup.png`) |
+
+Every bubble asked the host once for the anchor (`anchor_queries=1`). With another application frontmost (`pa-final`, `pa-final2`: Dia and a UserNotificationCenter dialog in front, Room inactive, no key window) the bubbles still showed at the same place and Return still accepted them; the suggestion popups did not open (Chrome shows them only for a focused page), so their results are `pa-3`'s, where Room's window was key. Provider members beyond the anchor: no first hit in any run; the one window stub the bubbles hit is `GetNativeTheme` (returns null; the bubbles draw with their own theme).
+
+The stores after the run (sqlite3 on copies of the profile's files): `Login Data` `logins`: `http://127.0.0.1:8772/login.html` alice, `http://localhost:8772/login.html` bob, `https://127.0.0.1:8773/signup.html` carol (each password 19 bytes encrypted with the mock-keychain key); `Web Data`: one address (name, street, city, state, ZIP, country, email, and the phone from the update), one card (Room Fixture, 12/2030, number 35 bytes encrypted). `chrome://password-manager/passwords` loads in a Room tab ("Password Manager") and lists both sites (127.0.0.1 and localhost found in its text; `phase-3.7a-password-manager.png`).
+
+Host while a bubble is up: the update bubble left Room's window key (`key_window=room`) and the page's view first responder. A synthetic ⌘T did not open the palette, but it did not open it after the bubble closed either (the engine logged ⌘T as reserved; the 3.2b keys runs found menu dispatch of synthetic ⌘-keys depends on the active layout, which on this Mac is not ABC): inconclusive, by hand.
+
+### Network (`--log-net-log`, default capture mode, `scripts/lib/netlog-summary.py`, page hosts 127.0.0.1 and localhost)
+
+| Run | Engine requests beyond the fixtures |
+|---|---|
+| `pa-1` (before the fix), each passwords launch | **1**: `POST passwordsleakcheck-pa.googleapis.com/v1/leaks:lookupSingle` (`lookup_single_password_leak`, no account needed) |
+| `pa-3`, `pa-final`, `pa-final2`, every launch (passwords save 15 page requests, fill 9–11, autofill 16–20) | **0**; nothing to `autofill` or `clients*.google.com` hosts |
+
+The fix: `kPasswordLeakDetectionEnabled` defaults to false for Room profiles (`room_network_policy.cc`).
+
+### The embryo drives (`build/evidence-3.7a/feature-*`), beside PR #1
+
+| Drive | PR #1 (`roomcore-ui-compatibility-results.md`) | 3.7a |
+|---|---|---|
+| `ui-passwords` | presentation returned at the missing `ToolbarButtonProvider`, no bubble (17 s, exit 0) | first run: the forced presentation now reached `CreateBubble` and hit Chrome's `NOTREACHED` for the inactive model state (exit 134: the drive shows a bubble without a submitted form, which Chrome never does). The probe now reads the provider and the model state: **provider present, model inactive, no bubble**, 7 s, exit 0. The save/update flow is the `passwords` spike above |
+| `autofill-save` | real `SaveAddressProfileView`, decisions through callbacks, then **hung after the last tab closed** (100 s, exit 143) | the same decisions (cancel, accept: one callback each; owner close), **exit 0 in 10 s**, no hang |
+| `autofill-update` | real `UpdateAddressProfileView`, decisions, 11 s exit 0 | the same, 9 s exit 0 |
+| `ui-address-suggestions` | 3 rows, **no fill** (CDP `keyDown` is `kKeyDown`; the popup listens for `kRawKeyDown`) | 3 rows, still no fill with CDP `rawKeyDown` (11 s, exit 1): CDP's key events do not reach the popup's handlers either way; real `NSEvent`s fill (the `autofill` spike) |
+| `ui-card-save` | cancel and accept with one callback each; the third (owner-close) bubble never visible | the same (10 s, exit 1): the drive's third local-save offer of the same card in one tab shows no bubble; the card save itself passes in the `autofill` spike |
+
+### The baseline after the last engine change (`build/baseline/3.7a-final`, embryo host)
+
+nav passed 19.7 s; ten-page quits **0.256 / 0.251 / 0.299 s** (load 7.9 / 10.3 / 11.1), 0 helpers left, 0 crash reports; stub hits none (38 window stubs, the provider's members unhit). The two baselines before it (`3.7a-1` after the provider, `3.7a-2` after the leak/popup fixes): nav 18.6 / 19.2 s, quits 0.318 / 0.481 / 0.252 and 0.282 / 0.250 / 0.254 s, 0 helpers, 0 crash reports.
