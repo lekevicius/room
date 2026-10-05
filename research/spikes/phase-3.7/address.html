@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room shipping address</title>
+<link rel="stylesheet" href="style.css">
+<h1>Shipping address</h1>
+<form id="form" method="post" action="/address">
+  <label for="name">Full name</label>
+  <input id="name" name="name" autocomplete="name">
+  <label for="street">Street address</label>
+  <input id="street" name="street" autocomplete="address-line1">
+  <label for="city">City</label>
+  <input id="city" name="city" autocomplete="address-level2">
+  <label for="state">State</label>
+  <input id="state" name="state" autocomplete="address-level1">
+  <label for="zip">ZIP code</label>
+  <input id="zip" name="zip" autocomplete="postal-code">
+  <label for="country">Country</label>
+  <select id="country" name="country" autocomplete="country">
+    <option value="">Choose…</option>
+    <option value="US">United States</option>
+    <option value="LT">Lithuania</option>
+  </select>
+  <label for="phone">Phone</label>
+  <input id="phone" name="phone" type="tel" autocomplete="tel">
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" autocomplete="email">
+  <button id="submit" type="submit">Ship here</button>
+</form>

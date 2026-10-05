@@ -86,6 +86,8 @@ enum SpikeRunner {
         case "webstore": await context.webstoreChecks()
         case "extupdate": await context.extensionUpdateCheck()
         case "extpopup": await context.extensionPopupChecks()
+        case "passwords": await context.passwordsChecks()
+        case "autofill": await context.autofillChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

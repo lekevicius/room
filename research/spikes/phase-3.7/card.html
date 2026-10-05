@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room checkout</title>
+<link rel="stylesheet" href="style.css">
+<h1>Pay by card</h1>
+<p>Test numbers only (4111 1111 1111 1111).</p>
+<form id="form" method="post" action="/card">
+  <label for="cc-name">Name on card</label>
+  <input id="cc-name" name="cc-name" autocomplete="cc-name">
+  <label for="cc-number">Card number</label>
+  <input id="cc-number" name="cc-number" autocomplete="cc-number" inputmode="numeric">
+  <label for="cc-exp-month">Expiry month</label>
+  <input id="cc-exp-month" name="cc-exp-month" autocomplete="cc-exp-month">
+  <label for="cc-exp-year">Expiry year</label>
+  <input id="cc-exp-year" name="cc-exp-year" autocomplete="cc-exp-year">
+  <label for="cc-csc">Security code</label>
+  <input id="cc-csc" name="cc-csc" autocomplete="cc-csc">
+  <button id="submit" type="submit">Pay</button>
+</form>

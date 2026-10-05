@@ -1,0 +1,4 @@
+body { font: 16px -apple-system, sans-serif; margin: 24px; }
+label { display: block; margin: 10px 0 2px; }
+input, select { font-size: 18px; width: 320px; padding: 4px; }
+button { font-size: 18px; margin-top: 16px; }
