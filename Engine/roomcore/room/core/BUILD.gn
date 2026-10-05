@@ -107,6 +107,7 @@ source_set("core") {
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/extensions",
     "//chrome/browser/ui/extensions:extension_popup_types",
+    "//chrome/browser/ui/views/extensions:extension_popup",
     "//ui/content_accelerators",
     "//chrome/browser/ui/toolbar",
     "//skia",

@@ -27,6 +27,7 @@ source_set("browser") {
     "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//chrome/browser/ui/views/frame:toolbar_button_provider",
     "//chrome/browser/ui/views/interaction:impl",
+    "//chrome/browser/ui/views/autofill:autofill_bubble_handler_impl",
     "//chrome/browser/translate",
     "//chrome/browser/ui/views/translate",
     "//components/translate/core/browser",

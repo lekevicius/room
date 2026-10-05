@@ -24,7 +24,7 @@ namespace {
 
 FullscreenController* GetFullscreenController(BrowserWindowInterface* browser) {
   ExclusiveAccessManager* manager =
-      browser->GetFeatures().exclusive_access_manager();
+      ExclusiveAccessManager::From(browser);
   return manager ? manager->fullscreen_controller() : nullptr;
 }
 
