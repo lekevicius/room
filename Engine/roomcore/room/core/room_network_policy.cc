@@ -15,6 +15,8 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_paths_internal.h"
 #include "components/component_updater/update_scheduler.h"
+#include "components/password_manager/core/common/password_manager_pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/keyed_service/core/keyed_service.h"
 
@@ -118,6 +120,15 @@ base::CallbackListSubscription InstallNetworkPolicy() {
             if (profile->IsOffTheRecord()) {
               return;
             }
+            // Chrome checks every password it saves or fills against
+            // Google's leak database (lookup_single_password_leak to
+            // passwordsleakcheck-pa.googleapis.com; 3.7a net-log: one POST
+            // per saved login, no account needed). Room asks nothing the
+            // user did not ask for: off by default (the pref stays
+            // Chrome's, so a later setting can turn it on).
+            profile->GetPrefs()->SetDefaultPrefValue(
+                password_manager::prefs::kPasswordLeakDetectionEnabled,
+                base::Value(false));
             ChromeSigninClientFactory::GetInstance()->SetTestingFactory(
                 context, base::BindRepeating(
                     [](content::BrowserContext* context) -> std::unique_ptr<KeyedService> {

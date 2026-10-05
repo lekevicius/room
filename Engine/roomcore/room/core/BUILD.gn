@@ -92,6 +92,7 @@ source_set("core") {
     "//components/renderer_context_menu",
     "//components/security_interstitials/core",
     "//ui/menus",
+    "//components/password_manager/core/common",
     "//components/prefs",
     "//components/tabs:public",
     "//components/viz/common",
