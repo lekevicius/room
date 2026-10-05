@@ -80,7 +80,7 @@ fi
 start=$(date +%s)
 "$APP/Contents/MacOS/Room" -RoomSpike "$FEATURE" -RoomSpikeOutput "$DEST/spike.txt" \
   -RoomSpikeBaseURL "$http" -RoomSpikeSecureURL "$https" -RoomSpikeCDPPort "$port" \
-  -RoomUserDataDir "$DEST/profile" --use-mock-keychain \
+  -RoomUserDataDir "$DEST/profile" --use-mock-keychain -ApplePersistenceIgnoreState YES \
   --remote-debugging-port="$port" --remote-debugging-address=127.0.0.1 \
   ${extra[@]+"${extra[@]}"} > "$DEST/host.log" 2>&1 &
 pid=$!

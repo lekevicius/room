@@ -102,6 +102,9 @@ targets:
         NSMicrophoneUsageDescription: Websites you allow can use the microphone.
         NSLocationUsageDescription: Websites you allow can use your location.
         NSLocationWhenInUseUsageDescription: Websites you allow can use your location.
+        # Web Bluetooth and Web Serial (Bluetooth serial ports) touch Bluetooth: without
+        # the key macOS ends the app (TCC; found by 3.4b's ui-serial drive).
+        NSBluetoothAlwaysUsageDescription: Websites you allow can ask to use Bluetooth devices.
         # A web browser (ROADMAP 2.8 task 3, macos-ui-stack.md §7.4): http and https links,
         # and HTML documents and URL files from Finder's Open With.
         CFBundleURLTypes:
