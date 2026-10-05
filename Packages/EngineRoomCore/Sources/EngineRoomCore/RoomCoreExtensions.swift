@@ -11,6 +11,8 @@ public final class RoomCoreExtensions: NSObject, ProfileExtensions, RoomProfileE
     public weak var delegate: (any ProfileExtensionsDelegate)?
     let extensions: RoomProfileExtensions
     private weak var profile: RoomCoreProfile?
+    /// The open popups' pages, by RoomCore's page (3.6b).
+    private var popups: [ObjectIdentifier: RoomCoreWebContents] = [:]
 
     init(extensions: RoomProfileExtensions, profile: RoomCoreProfile) {
         self.extensions = extensions
@@ -68,6 +70,19 @@ public final class RoomCoreExtensions: NSObject, ProfileExtensions, RoomProfileE
         return extensions.action(forExtension: id, webContents: page).map(ExtensionActionState.init)
     }
 
+    /// `ExtensionActionRunner::RunAction` (tab permissions), then the popup's
+    /// `ExtensionViewHost` when the action has one (3.6b).
+    public func openPopup(extensionID id: InstalledExtension.ID, in page: any WebContents) -> Bool {
+        guard let page = (page as? RoomCoreWebContents)?.page else { return false }
+        return extensions.openPopup(forExtension: id, webContents: page)
+    }
+
+    /// The host's popover closed: RoomCore destroys the `ExtensionViewHost`.
+    public func closePopup(_ popup: any WebContents) {
+        guard let page = (popup as? RoomCoreWebContents)?.page else { return }
+        extensions.closePopup(page)
+    }
+
     /// `ExtensionUpdater::CheckNow` inside RoomCore's update gate (patch 0025).
     public func checkForUpdates() async -> ExtensionUpdateCheck {
         await withCheckedContinuation { continuation in
@@ -87,6 +102,26 @@ public final class RoomCoreExtensions: NSObject, ProfileExtensions, RoomProfileE
     public func profileExtensions(_ extensions: RoomProfileExtensions, didUpdateActionOfExtension identifier: String,
                                   webContents: RoomWebContents?) {
         delegate?.extensions(self, didUpdateActionOf: identifier, in: webContents.flatMap { profile?.contents(for: $0) })
+    }
+
+    public func profileExtensions(_ extensions: RoomProfileExtensions, didOpenPopup popup: RoomWebContents,
+                                  forExtension identifier: String, webContents: RoomWebContents?, preferredSize size: NSSize) {
+        // The popup's page is Chrome's (an ExtensionViewHost's), adopted
+        // like the DevTools front-end (3.3b): no profile list, no tab strip.
+        let contents = RoomCoreWebContents(page: popup, configuration: WebContentsConfiguration(), profile: nil)
+        popups[ObjectIdentifier(popup)] = contents
+        delegate?.extensions(self, didOpenPopup: contents, for: identifier, in: webContents.flatMap { profile?.contents(for: $0) },
+                             preferredSize: size)
+    }
+
+    public func profileExtensions(_ extensions: RoomProfileExtensions, popup: RoomWebContents, didResizeTo size: NSSize) {
+        guard let contents = popups[ObjectIdentifier(popup)] else { return }
+        delegate?.extensions(self, popup: contents, didResizeTo: size)
+    }
+
+    public func profileExtensions(_ extensions: RoomProfileExtensions, popupDidClose popup: RoomWebContents) {
+        guard let contents = popups.removeValue(forKey: ObjectIdentifier(popup)) else { return }
+        delegate?.extensions(self, popupDidClose: contents)
     }
 
     public func profileExtensions(_ extensions: RoomProfileExtensions, willUninstall item: RoomExtension,

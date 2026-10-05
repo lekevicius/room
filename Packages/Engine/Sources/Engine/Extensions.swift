@@ -5,9 +5,10 @@ import AppKit
 /// (uninstall asks the delegate first; installs from the Chrome Web Store
 /// ask it for the permissions), unpacked loads, the options and management
 /// pages the host opens as tabs, the pinned order, and update checks that
-/// run only when the host asks. RoomCore: `ExtensionRegistry`,
-/// `ExtensionRegistrar`, `ExtensionActionManager`, `ToolbarActionsModel`,
-/// `ExtensionUpdater`; CEF: none (`Profile.extensions` is `nil`).
+/// run only when the host asks, and (3.6b) the action popups the host shows
+/// in a popover. RoomCore: `ExtensionRegistry`, `ExtensionRegistrar`,
+/// `ExtensionActionManager`, `ToolbarActionsModel`, `ExtensionUpdater`,
+/// `ExtensionViewHost`; CEF: none (`Profile.extensions` is `nil`).
 @MainActor public protocol ProfileExtensions: AnyObject {
     /// Hears list changes, action changes and the consent questions. Held weakly.
     var delegate: (any ProfileExtensionsDelegate)? { get set }
@@ -33,6 +34,17 @@ import AppKit
     func setPinned(_ pinned: Bool, extension id: InstalledExtension.ID)
     /// The action as `webContents` shows it (badges are per page), or its defaults.
     func action(for id: InstalledExtension.ID, in webContents: (any WebContents)?) -> ExtensionActionState?
+    /// A click on the action's button for `page` (3.6b; RoomCore: Chrome's
+    /// `ExtensionActionRunner::RunAction` with tab permissions, then
+    /// `ExtensionViewHostFactory::CreatePopupHost`): `true` when the
+    /// action's popup is opening, and `didOpenPopup` follows once its page
+    /// loaded; an action without a popup gets `action.onClicked`. A click
+    /// while that action's popup shows closes it. Side panels are not
+    /// supported (an action set to open one does nothing).
+    func openPopup(extensionID id: InstalledExtension.ID, in page: any WebContents) -> Bool
+    /// The host's popover closed (focus loss, Esc): the engine destroys the
+    /// popup's page; `popupDidClose` follows.
+    func closePopup(_ popup: any WebContents)
     /// One update check for every installed extension: the only way an
     /// extension update check reaches the network (the engine's own
     /// schedule is off). Updates found install when the extension is idle.
@@ -52,6 +64,18 @@ import AppKit
     /// the user's consent: the host shows the permissions; `false` cancels.
     func extensions(_ extensions: any ProfileExtensions, willInstall request: ExtensionInstallRequest,
                     completion: @escaping (Bool) -> Void)
+    /// An action popup opened (3.6b): `popup` is its page, loaded, at the
+    /// size its own layout asked for (`ExtensionPopupBounds`); `page` is the
+    /// page the action ran for, whose window shows the popup in a popover on
+    /// the action's button. After `openPopup`, the action's keyboard
+    /// shortcut, or the extension's own `action.openPopup()`.
+    func extensions(_ extensions: any ProfileExtensions, didOpenPopup popup: any WebContents,
+                    for id: InstalledExtension.ID, in page: (any WebContents)?, preferredSize: CGSize)
+    /// The popup's page changed its size (clamped to `ExtensionPopupBounds`).
+    func extensions(_ extensions: any ProfileExtensions, popup: any WebContents, didResizeTo size: CGSize)
+    /// The popup is gone (`closePopup`, `window.close()` or Esc in it, the
+    /// window's page changed, the extension unloaded): close the popover.
+    func extensions(_ extensions: any ProfileExtensions, popupDidClose popup: any WebContents)
 }
 
 public extension ProfileExtensionsDelegate {
@@ -63,6 +87,22 @@ public extension ProfileExtensionsDelegate {
                     completion: @escaping (Bool) -> Void) { completion(false) }
     func extensions(_ extensions: any ProfileExtensions, willInstall request: ExtensionInstallRequest,
                     completion: @escaping (Bool) -> Void) { completion(false) }
+    func extensions(_ extensions: any ProfileExtensions, didOpenPopup popup: any WebContents,
+                    for id: InstalledExtension.ID, in page: (any WebContents)?, preferredSize: CGSize) {}
+    func extensions(_ extensions: any ProfileExtensions, popup: any WebContents, didResizeTo size: CGSize) {}
+    func extensions(_ extensions: any ProfileExtensions, popupDidClose popup: any WebContents) {}
+}
+
+/// An action popup's size bounds (Chrome's `ExtensionPopup::kMinSize`/`kMaxSize`).
+public enum ExtensionPopupBounds {
+    public static let minimum = CGSize(width: 25, height: 25)
+    public static let maximum = CGSize(width: 800, height: 600)
+
+    /// `size` within the bounds.
+    public static func clamp(_ size: CGSize) -> CGSize {
+        CGSize(width: min(max(size.width, minimum.width), maximum.width),
+               height: min(max(size.height, minimum.height), maximum.height))
+    }
 }
 
 /// One installed extension, as the engine last reported it.

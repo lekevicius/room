@@ -186,6 +186,8 @@ public final class FakeProfile: Profile {
     // MARK: Extensions (Phase 3.6a), opt-in
 
     /// `extensions` when set (CEF has none; a test that wants them sets one).
-    public var fakeExtensions: FakeProfileExtensions?
+    public var fakeExtensions: FakeProfileExtensions? {
+        didSet { fakeExtensions?.profile = self }
+    }
     public var extensions: (any ProfileExtensions)? { fakeExtensions }
 }

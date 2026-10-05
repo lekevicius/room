@@ -22,6 +22,17 @@ public final class FakeProfileExtensions: ProfileExtensions {
     /// Actions per extension and page (`ObjectIdentifier` of the page; `nil` key: defaults).
     public var actions: [InstalledExtension.ID: ExtensionActionState] = [:]
 
+    /// The profile popups' pages belong to (set by `FakeProfile.fakeExtensions`).
+    weak var profile: FakeProfile?
+    /// Every `openPopup` call: the extension and the page it was for.
+    public private(set) var popupRequests: [(id: InstalledExtension.ID, page: ObjectIdentifier)] = []
+    /// The popup the engine shows now (its extension and page), as RoomCore keeps one per window.
+    public private(set) var openPopup: (id: InstalledExtension.ID, popup: FakeWebContents)?
+    /// Popups the host closed through `closePopup`, in order.
+    public private(set) var closedByHost: [ObjectIdentifier] = []
+    /// The size the next popup's page asks for.
+    public var popupSize = CGSize(width: 240, height: 80)
+
     public init(installed: [InstalledExtension] = []) {
         self.installed = installed
     }
@@ -68,6 +79,42 @@ public final class FakeProfileExtensions: ProfileExtensions {
 
     public func action(for id: InstalledExtension.ID, in webContents: (any WebContents)?) -> ExtensionActionState? {
         actions[id] ?? installed.first { $0.id == id }?.action
+    }
+
+    /// RoomCore's rules: only an action with a popup opens one (the page is
+    /// "loaded" at once: `didOpenPopup` before this returns); a click while
+    /// that action's popup shows closes it.
+    public func openPopup(extensionID id: InstalledExtension.ID, in page: any WebContents) -> Bool {
+        popupRequests.append((id, ObjectIdentifier(page)))
+        if let current = openPopup, current.id == id {
+            simulatePopupClose()
+            return false
+        }
+        guard action(for: id, in: page)?.hasPopup == true, let profile else { return false }
+        if openPopup != nil { simulatePopupClose() }
+        let popup = FakeWebContents(profile: profile, configuration: WebContentsConfiguration())
+        openPopup = (id, popup)
+        delegate?.extensions(self, didOpenPopup: popup, for: id, in: page, preferredSize: ExtensionPopupBounds.clamp(popupSize))
+        return true
+    }
+
+    public func closePopup(_ popup: any WebContents) {
+        guard let current = openPopup, current.popup === popup else { return }
+        closedByHost.append(ObjectIdentifier(popup))
+        simulatePopupClose()
+    }
+
+    /// The popup's page resized itself.
+    public func simulatePopupResize(_ size: CGSize) {
+        guard let current = openPopup else { return }
+        delegate?.extensions(self, popup: current.popup, didResizeTo: ExtensionPopupBounds.clamp(size))
+    }
+
+    /// The engine closed the popup (`window.close()`, Esc, a tab switch).
+    public func simulatePopupClose() {
+        guard let current = openPopup else { return }
+        openPopup = nil
+        delegate?.extensions(self, popupDidClose: current.popup)
     }
 
     public func checkForUpdates() async -> ExtensionUpdateCheck {
