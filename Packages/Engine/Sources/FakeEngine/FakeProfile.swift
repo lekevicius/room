@@ -182,5 +182,10 @@ public final class FakeProfile: Profile {
     // MARK: Capabilities the fake does not provide
 
     public var bookmarks: (any ProfileBookmarks)? { nil }
-    public var extensions: (any ProfileExtensions)? { nil }
+
+    // MARK: Extensions (Phase 3.6a), opt-in
+
+    /// `extensions` when set (CEF has none; a test that wants them sets one).
+    public var fakeExtensions: FakeProfileExtensions?
+    public var extensions: (any ProfileExtensions)? { fakeExtensions }
 }

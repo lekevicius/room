@@ -10,9 +10,9 @@ import RoomCore
 /// downloads delegate (3.4a: the host picks the file; Chrome's
 /// `DownloadHistory` replays earlier sessions' downloads), and reads and
 /// writes the site panel's settings (`HostContentSettingsMap`); since 3.5
-/// it gives Chromium's history and omnibox (`RoomCoreOmnibox.swift`);
-/// bookmarks and extensions are `nil` until their phases (docs/engine-api.md,
-/// RoomCore column).
+/// it gives Chromium's history and omnibox (`RoomCoreOmnibox.swift`), since
+/// 3.6a its extensions (`RoomCoreExtensions.swift`); bookmarks are `nil`
+/// until 4.3 (docs/engine-api.md, RoomCore column).
 public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, RoomProfileDownloadsDelegate {
     public let name: String
     /// Set: RoomCore asks it for every new download's file and replays the
@@ -187,7 +187,18 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     }
 
     public var bookmarks: (any ProfileBookmarks)? { nil }
-    public var extensions: (any ProfileExtensions)? { nil }
+
+    // MARK: Extensions (3.6a)
+
+    private lazy var roomExtensions: RoomCoreExtensions? = profile.extensions.map { RoomCoreExtensions(extensions: $0, profile: self) }
+
+    /// Chromium's extension system for this profile (`RoomCoreExtensions.swift`).
+    public var extensions: (any ProfileExtensions)? { roomExtensions }
+
+    /// The host's object for one of this profile's pages.
+    func contents(for page: RoomWebContents) -> RoomCoreWebContents? {
+        liveContents.allObjects.first { $0.page === page }
+    }
 }
 
 /// A weak reference in a collection.

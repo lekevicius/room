@@ -143,8 +143,6 @@ nonisolated public struct HistoryImportResult: Hashable, Sendable {
 /// Chromium bookmark model. Members arrive in Phase 4.3.
 @MainActor public protocol ProfileBookmarks: AnyObject {}
 
-/// Chromium extension system. Members arrive in Phase 3.6.
-@MainActor public protocol ProfileExtensions: AnyObject {}
 
 /// Chromium's omnibox autocomplete for one address field (Phase 3.5):
 /// Chrome's history providers (and, only when the host's suggestions switch
