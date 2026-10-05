@@ -82,6 +82,9 @@ enum SpikeRunner {
         case "closeunload": await context.closeUnload()
         case "pageservices": await context.pageServices()
         case "quitflags": await context.quitFlags()
+        case "extensions": await context.extensionsChecks()
+        case "webstore": await context.webstoreChecks()
+        case "extupdate": await context.extensionUpdateCheck()
         default: record("error", "unknown spike")
         }
         record("end", name)

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Room 3.6 fixture",
+  "version": "1.0",
+  "description": "Phase 3.6a: an action with a badge and an icon, a content script, a service worker that reads chrome.tabs, an options page.",
+  "icons": { "16": "icon16.png", "32": "icon32.png", "48": "icon48.png", "128": "icon128.png" },
+  "action": {
+    "default_title": "Room fixture",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "action16.png", "32": "action32.png" }
+  },
+  "background": { "service_worker": "worker.js" },
+  "options_page": "options.html",
+  "permissions": ["tabs", "storage"],
+  "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_end" }]
+}
