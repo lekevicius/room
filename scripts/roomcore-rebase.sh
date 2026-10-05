@@ -49,7 +49,8 @@
 # build/roomcore-rebase/<tag>/record.md. Re-running after a finished step is
 # safe: a present tag is not fetched, a matching branch is not moved, apply is
 # a no-op. Env: ROOM_OUT_DIR (default out/dev), ROOM_BUILD_JOBS (default 6),
-# ROOM_REBASE_TOUR_GROUPS (default layout,sidebar,tabs,chrome).
+# ROOM_REBASE_TOUR_GROUPS (default layout,sidebar,tabs,chrome),
+# ROOM_REBASE_TOUR_APPEARANCES (default light; "light dark" for both).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -254,6 +255,7 @@ if [[ $mode == verify ]]; then
     echo "the build did not finish: $log" >&2; tail -20 "$log" >&2; exit 1
   fi
   build_s="$( [[ -n "$log" ]] && sed -n 's/^build done in \([0-9]*\) s.*/\1/p' "$log" | tail -1)"
+  verify_from=$(( $(wc -l < "$RECORD") + 1 ))
   record "- build: ${build_s:-?} s ($log)"
   cd "$REPO"
   t=$(now); "$REPO/scripts/roomcore-package.sh" > "$STATE/package.log" 2>&1; step_done package "$t"
@@ -262,18 +264,22 @@ if [[ $mode == verify ]]; then
   record "  - nav: $(head -1 "$dir/nav-receipt.json" 2>/dev/null)"
   record "  - quits: $(grep -Eo '[0-9.]+ s' "$dir/quit.txt" | tr '\n' ' ' || true)"
   t=$(now)
-  ROOM_TOUR_ENGINE=roomcore "$REPO/scripts/grand-tour.sh" --groups "${ROOM_REBASE_TOUR_GROUPS:-layout,sidebar,tabs,chrome}" light \
-    > "$STATE/tour.log" 2>&1 || true
+  # shellcheck disable=SC2086  # appearances: words
+  ROOM_TOUR_ENGINE=roomcore "$REPO/scripts/grand-tour.sh" --groups "${ROOM_REBASE_TOUR_GROUPS:-layout,sidebar,tabs,chrome}" \
+    ${ROOM_REBASE_TOUR_APPEARANCES:-light} > "$STATE/tour.log" 2>&1 || true
   # shellcheck disable=SC2012  # stamped directory names, newest first
   tour="$(ls -dt "$REPO"/build/grand-tour/*-roomcore | head -1)"
   step_done tour "$t" "$tour"
   record "  - $(grep -m1 '^Totals:' "$tour/summary.md" 2>/dev/null || echo 'no tour summary')"
-  {
-    echo
-    echo "## Rebase $OLD_RECORDED → $TAG ($(scutil --get ComputerName 2>/dev/null || hostname -s), $(date +%F))"
-    echo
-    cat "$RECORD"
-  } >> "$REPO/research/notes/build-log.md"
+  machine="$(scutil --get ComputerName 2>/dev/null || hostname -s)"
+  if grep -qF "## Rebase $OLD_RECORDED → $TAG" "$REPO/research/notes/build-log.md"; then
+    # The rebase itself is written up already: add the verification only.
+    { echo; echo "### Rebase $OLD_RECORDED → $TAG: verify ($machine, $(date +%F))"; echo
+      tail -n "+$verify_from" "$RECORD"; } >> "$REPO/research/notes/build-log.md"
+  else
+    { echo; echo "## Rebase $OLD_RECORDED → $TAG ($machine, $(date +%F))"; echo
+      cat "$RECORD"; } >> "$REPO/research/notes/build-log.md"
+  fi
   say "appended to research/notes/build-log.md"
   exit 0
 fi
