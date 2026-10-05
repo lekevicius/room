@@ -137,7 +137,7 @@ step() {
   [[ -n "$only" && "$only" != *",$name,"* ]] && return 0
   [[ -n "$groups" && "$groups" != *",$group,"* ]] && return 0
   local log="$STEPS/$name.out" err="$STEPS/$name.err"
-  local crashes_before helpers_before dumps_before t0 t1 status=0 left dumps dump
+  local crashes_before helpers_before dumps_before t0 t1 status=0 left dumps dump fatal
   crashes_before=$(crash_count)
   helpers_before=$(helper_crash_count)
   dumps_before=$(crashpad_dumps)
@@ -158,8 +158,9 @@ step() {
   : > "$STEPS/$name.crashpad"
   for dump in $(comm -13 <(printf '%s\n' "$dumps_before") <(crashpad_dumps)); do
     dumps=$((dumps + 1))
-    printf '%s\t%s\n' "$(basename "$dump")" \
-      "$(strings -n 8 "$dump" | grep -m1 -oE 'FATAL:[^]]*\] .{0,160}' || echo 'no FATAL line (killed, or a crash without a check)')" >> "$STEPS/$name.crashpad"
+    # (`|| true`: grep -m1 closes the pipe early, and pipefail would count that as a failure.)
+    fatal=$(strings -n 8 "$dump" | grep -m1 -oE 'FATAL:[^]]*\] .{0,160}' || true)
+    printf '%s\t%s\n' "$(basename "$dump")" "${fatal:-no FATAL line (killed, or a crash without a check)}" >> "$STEPS/$name.crashpad"
   done
   printf '%s\t%s\t%s\t%.1f\t%s\t%s\t%s\n' "$name" "$group" "$status" "$(perl -e "print $t1 - $t0")" \
     "$(( $(crash_count) - crashes_before ))" "$left" "$(( $(helper_crash_count) - helpers_before + dumps ))" >> "$RUN/steps.tsv"
