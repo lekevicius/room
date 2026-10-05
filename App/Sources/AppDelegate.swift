@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil on CEF.
     private(set) var extensions: ExtensionsCenter?
     private var extensionConsent: ExtensionConsentSheets?
+    /// The header's action buttons and popups (3.6b), once the center and the window exist.
+    private(set) var extensionPopups: ExtensionPopups?
     private(set) var switcher: TabSwitcher?
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
@@ -517,6 +519,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         self.sidebar = sidebar
         self.tabs = tabs
         self.pageDelegate = pageDelegate
+        installExtensionPopups()
         toastCenter = toasts
         installFirstRun(sidebar: sidebar, settings: store.settings)
         tabs.startLifecycle()
@@ -822,7 +825,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             setLastUpdateCheck: { [weak self] date in self?.store?.settings.update { $0.extensionsLastUpdateCheck = date } })
         extensionConsent = sheets
         extensions = center
+        installExtensionPopups()
         return center
+    }
+
+    /// The header's action buttons and their popovers (3.6b): made once both the
+    /// extensions center (the first profile with extensions) and the window exist.
+    private func installExtensionPopups() {
+        guard extensionPopups == nil, let extensions, let sidebar, let tabs, let rootView = windowController?.rootView else { return }
+        extensionPopups = ExtensionPopups(center: extensions, sidebar: sidebar, tabs: tabs, rootView: rootView)
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open

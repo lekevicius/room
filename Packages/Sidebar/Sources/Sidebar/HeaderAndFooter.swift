@@ -13,6 +13,10 @@ public final class AddressFieldView: NSView {
     public var onSiteButton: (() -> Void)?
 
     private let siteButton = NSButton()
+    /// The pinned extensions' action buttons, after the site button (3.6b).
+    private var actionButtons: [ExtensionActionButton] = []
+    /// A click on an extension's action button (its id).
+    public var onExtensionAction: ((String) -> Void)?
     private let domainField = NSTextField(labelWithString: "")
     private let copyButton = NSButton()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
@@ -55,6 +59,32 @@ public final class AddressFieldView: NSView {
 
     /// The site button: the permission popover and the site panel point at it (ROADMAP 2.6).
     public var siteButtonView: NSView { siteButton }
+
+    /// The pinned extensions' buttons (3.6b), in order; reuses buttons by id.
+    public func setExtensionActions(_ actions: [HeaderExtensionAction]) {
+        guard actions != actionButtons.map(\.model) else { return }
+        var reusable = Dictionary(actionButtons.map { ($0.model.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var buttons: [ExtensionActionButton] = []
+        for action in actions {
+            let button = reusable.removeValue(forKey: action.id) ?? ExtensionActionButton()
+            button.model = action
+            button.target = self
+            button.action = #selector(extensionClicked(_:))
+            if button.superview !== self { addSubview(button) }
+            buttons.append(button)
+        }
+        reusable.values.forEach { $0.removeFromSuperview() }
+        actionButtons = buttons
+        needsLayout = true
+    }
+
+    /// The button of extension `id` (the popup's anchor), if the header shows it.
+    public func extensionButton(for id: String) -> NSView? {
+        actionButtons.first { $0.model.id == id }
+    }
+
+    /// The extensions the header shows, in order (spikes read it).
+    public var extensionActionIDs: [String] { actionButtons.map(\.model.id) }
 
     public override var isFlipped: Bool { true }
     public override var wantsUpdateLayer: Bool { true }
@@ -101,7 +131,12 @@ public final class AddressFieldView: NSView {
         siteButton.frame = NSRect(x: padding, y: 0, width: icon, height: side)
         let copyWidth: CGFloat = copyButton.isHidden ? 0 : side
         copyButton.frame = NSRect(x: bounds.width - side, y: 0, width: side, height: side)
-        let x = siteButton.frame.maxX + padding
+        var x = siteButton.frame.maxX + padding
+        for button in actionButtons {
+            button.frame = NSRect(x: x, y: 0, width: SidebarMetrics.extensionActionWidth, height: side)
+            x = button.frame.maxX
+        }
+        if !actionButtons.isEmpty { x += padding }
         let height = ceil(domainField.cell?.cellSize.height ?? 16)
         domainField.frame = NSRect(x: x, y: ((bounds.height - height) / 2).rounded(),
                                    width: max(0, bounds.width - x - max(copyWidth, padding)), height: height)
@@ -130,7 +165,59 @@ public final class AddressFieldView: NSView {
     }
 
     @objc private func copyClicked() { onCopy?() }
+    @objc private func extensionClicked(_ sender: ExtensionActionButton) { onExtensionAction?(sender.model.id) }
     @objc private func siteClicked() { onSiteButton?() }
+}
+
+/// An extension's action button in the header (3.6b): its icon, its badge
+/// drawn from the action's badge text and colours, the action's title as
+/// the tooltip; greyed when the extension disabled its action on the page.
+/// A plain button (no polish until Chapter 5).
+final class ExtensionActionButton: NSButton {
+    var model = HeaderExtensionAction(id: "", name: "", title: "") {
+        didSet { update() }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        isBordered = false
+        imagePosition = .imageOnly
+        imageScaling = .scaleProportionallyDown
+        title = ""
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    private func update() {
+        image = model.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: model.name)
+        image?.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
+        toolTip = model.title
+        setAccessibilityLabel(model.title)
+        setAccessibilityIdentifier("extension-action-\(model.id)")
+        alphaValue = model.isEnabled ? 1 : 0.4
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !model.badgeText.isEmpty else { return }
+        let font = NSFont.systemFont(ofSize: 8, weight: .semibold)
+        let text = NSAttributedString(string: model.badgeText, attributes: [
+            .font: font, .foregroundColor: model.badgeTextColor ?? NSColor.white,
+        ])
+        let height = SidebarMetrics.extensionBadgeHeight
+        let width = max(height, ceil(text.size().width) + 4)
+        let flipped = isFlipped
+        let y = flipped ? bounds.height - height - 2 : 2
+        let rect = NSRect(x: bounds.width - width, y: y, width: width, height: height)
+        (model.badgeBackgroundColor ?? NSColor.systemBlue).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
+        let size = text.size()
+        text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+    }
 }
 
 /// Drops on the footer's space icons (spec §B, §I.7): an entry dropped on a

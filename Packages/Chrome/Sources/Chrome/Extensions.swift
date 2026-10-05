@@ -5,9 +5,10 @@ import Observation
 /// The host's side of Chrome extensions (Phase 3.6a): every profile's
 /// installed list for Settings ▸ Extensions, the consent sheets RoomCore asks
 /// for (installing from the Web Store with the permission list, and every
-/// uninstall), the options and management pages opened as tabs, and the
-/// daily update check on the host's timer, which runs only while an extension
-/// is installed (AGENTS.md: no request the user did not ask for; an installed
+/// uninstall), the options and management pages opened as tabs, the
+/// header's action buttons and their popups (3.6b), and the daily update
+/// check on the host's timer, which runs only while an extension is
+/// installed (AGENTS.md: no request the user did not ask for; an installed
 /// extension's updates are one they did).
 @Observable
 public final class ExtensionsCenter: ProfileExtensionsDelegate {
@@ -30,6 +31,18 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
     public private(set) var actionRevision = 0
     /// The last action change: the extension and whether it was for one page.
     @ObservationIgnored public private(set) var lastActionUpdate: (id: InstalledExtension.ID, perPage: Bool)?
+
+    /// The action popup the host shows now (3.6b): one at a time, as Chrome's toolbar.
+    public private(set) var shownPopup: ShownPopup?
+    /// Shows the popups (App: a popover on the header's action button).
+    @ObservationIgnored public weak var popupPresenter: (any ExtensionPopupPresenting)?
+
+    /// An open action popup: its extension, its page, and whose extension system it belongs to.
+    public struct ShownPopup {
+        public let id: InstalledExtension.ID
+        public let popup: any WebContents
+        public let extensions: any ProfileExtensions
+    }
 
     @ObservationIgnored private let consent: any ExtensionConsentPresenting
     @ObservationIgnored private let openTab: (URL) -> Void
@@ -95,6 +108,45 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
         section.extensions.setPinned(pinned, extension: item.id)
     }
 
+    // MARK: The header's action buttons and their popups (3.6b)
+
+    /// The section of the profile `profile` (the active space's).
+    public func section(profile: UUID?) -> ProfileSection? {
+        sections.first { $0.id == profile }
+    }
+
+    /// The header's buttons for `profile`'s extensions as `page` shows them:
+    /// pinned extensions with an action, in the pinned order (the installed
+    /// list's own order); unpinned ones are reachable from Settings ▸
+    /// Extensions' Pin (the overflow menu is Chapter 4.5).
+    public func headerActions(profile: UUID?, page: (any WebContents)?) -> [HeaderExtensionAction] {
+        guard let section = section(profile: profile) else { return [] }
+        return section.installed.compactMap { item in
+            guard item.isPinned, item.isEnabled, let defaults = item.action else { return nil }
+            let state = page.flatMap { section.extensions.action(for: item.id, in: $0) } ?? defaults
+            return HeaderExtensionAction(id: item.id, name: item.name, title: state.title.isEmpty ? item.name : state.title,
+                                         icon: state.icon ?? defaults.icon ?? item.icon16, badgeText: state.badgeText,
+                                         badgeBackgroundColor: state.badgeBackgroundColor, badgeTextColor: state.badgeTextColor,
+                                         isEnabled: state.isEnabled)
+        }
+    }
+
+    /// A click on an action's button: the engine runs the action for `page`
+    /// (its popup arrives through `didOpenPopup`); `true` when a popup is opening.
+    @discardableResult
+    public func runAction(_ id: InstalledExtension.ID, profile: UUID?, page: any WebContents) -> Bool {
+        guard let section = section(profile: profile) else { return false }
+        return section.extensions.openPopup(extensionID: id, in: page)
+    }
+
+    /// The popover closed on its own (focus loss, Esc, a click elsewhere):
+    /// the engine is told, which destroys the popup's page.
+    public func popoverDidClose(_ popup: any WebContents) {
+        guard let shown = shownPopup, shown.popup === popup else { return }
+        shownPopup = nil
+        shown.extensions.closePopup(popup)
+    }
+
     /// Every profile with an installed extension checks once; the time is kept.
     @discardableResult
     public func checkForUpdatesNow() async -> Bool {
@@ -123,6 +175,27 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
         actionRevision += 1
     }
 
+    public func extensions(_ extensions: any ProfileExtensions, didOpenPopup popup: any WebContents,
+                           for id: InstalledExtension.ID, in page: (any WebContents)?, preferredSize: CGSize) {
+        if let previous = shownPopup, previous.popup !== popup {
+            shownPopup = nil
+            popupPresenter?.closePopup(previous.popup)
+        }
+        shownPopup = ShownPopup(id: id, popup: popup, extensions: extensions)
+        popupPresenter?.showPopup(popup, for: id, page: page, size: ExtensionPopupBounds.clamp(preferredSize))
+    }
+
+    public func extensions(_ extensions: any ProfileExtensions, popup: any WebContents, didResizeTo size: CGSize) {
+        guard shownPopup?.popup === popup else { return }
+        popupPresenter?.resizePopup(popup, to: ExtensionPopupBounds.clamp(size))
+    }
+
+    public func extensions(_ extensions: any ProfileExtensions, popupDidClose popup: any WebContents) {
+        guard shownPopup?.popup === popup else { return }
+        shownPopup = nil
+        popupPresenter?.closePopup(popup)
+    }
+
     public func extensions(_ extensions: any ProfileExtensions, willUninstall installed: InstalledExtension,
                            completion: @escaping (Bool) -> Void) {
         consent.confirmUninstall(installed, completion: completion)
@@ -137,6 +210,43 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
     /// The update timer's next fire (spikes log it).
     public var debugNextUpdateCheck: Date? { updates.nextFire }
     #endif
+}
+
+/// A pinned extension's button in the header (3.6b), as the page shows its action.
+public struct HeaderExtensionAction: Identifiable, Equatable {
+    public var id: InstalledExtension.ID
+    public var name: String
+    /// The action's title (the tooltip); the extension's name when it set none.
+    public var title: String
+    public var icon: NSImage?
+    /// "" for none.
+    public var badgeText: String
+    /// `nil`: the host's default badge colours.
+    public var badgeBackgroundColor: NSColor?
+    public var badgeTextColor: NSColor?
+    /// `action.disable()` greys the button.
+    public var isEnabled: Bool
+
+    public init(id: InstalledExtension.ID, name: String, title: String, icon: NSImage? = nil, badgeText: String = "",
+                badgeBackgroundColor: NSColor? = nil, badgeTextColor: NSColor? = nil, isEnabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.title = title
+        self.icon = icon
+        self.badgeText = badgeText
+        self.badgeBackgroundColor = badgeBackgroundColor
+        self.badgeTextColor = badgeTextColor
+        self.isEnabled = isEnabled
+    }
+}
+
+/// Shows the action popups (App: an `NSPopover` on the header's action button).
+public protocol ExtensionPopupPresenting: AnyObject {
+    /// `popup`'s page at `size`, anchored on `id`'s button in the window that shows `page`.
+    func showPopup(_ popup: any WebContents, for id: InstalledExtension.ID, page: (any WebContents)?, size: CGSize)
+    func resizePopup(_ popup: any WebContents, to size: CGSize)
+    /// The engine closed it: the popover goes without telling the engine again.
+    func closePopup(_ popup: any WebContents)
 }
 
 /// The sheets that ask the user (App: `NSAlert` sheets on the key window).

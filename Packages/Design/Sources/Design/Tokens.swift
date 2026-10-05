@@ -92,6 +92,10 @@ public enum SidebarMetrics {
     /// Horizontal padding inside the address field, around the site icon and
     /// the domain (2.2a review: trimmed from 8 to `Spacing.xs`).
     public static let addressFieldPadding: CGFloat = Spacing.xs
+    /// An extension's action button beside the site button (3.6b, chosen;
+    /// no polish until Chapter 5): its width and the badge's height.
+    public static let extensionActionWidth: CGFloat = 22
+    public static let extensionBadgeHeight: CGFloat = 10
     /// Bottom bar (spec §F).
     public static let footerHeight: CGFloat = 40
     /// Drag insertion line, drop-onto ring and keyboard focus ring (spec §A.9, §I.13).

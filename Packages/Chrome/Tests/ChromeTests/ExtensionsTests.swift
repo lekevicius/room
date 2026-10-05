@@ -55,6 +55,21 @@ private func makeCenter(_ time: ManualTime, lastCheck: Date? = nil, consent: Con
     return (center, { stored })
 }
 
+/// The popover side the host would show (3.6b).
+@MainActor
+private final class Popovers: ExtensionPopupPresenting {
+    var shown: [(id: String, popup: ObjectIdentifier, size: CGSize)] = []
+    var resized: [CGSize] = []
+    var closed: [ObjectIdentifier] = []
+
+    func showPopup(_ popup: any WebContents, for id: InstalledExtension.ID, page: (any WebContents)?, size: CGSize) {
+        shown.append((id, ObjectIdentifier(popup), size))
+    }
+
+    func resizePopup(_ popup: any WebContents, to size: CGSize) { resized.append(size) }
+    func closePopup(_ popup: any WebContents) { closed.append(ObjectIdentifier(popup)) }
+}
+
 @Suite("Extensions: consent and the daily update check (ROADMAP 3.6a tasks 1–3)")
 struct ExtensionsTests {
     @Test("Nothing installed: no timer, no check, no time written")
@@ -182,5 +197,85 @@ struct ExtensionsTests {
         center.openOptions(section.installed[0], in: section)
         center.openManagementPage(in: section)
         #expect(opened == [options, URL(string: "chrome://extensions/")!])
+    }
+
+    // MARK: 3.6b: the header's buttons and the popups
+
+    /// A center with one fake profile whose page `page` the popups are for.
+    @MainActor private func popupSetup(engine: FakeApplication, _ installed: [InstalledExtension]) throws
+        -> (ExtensionsCenter, FakeProfileExtensions, Popovers, UUID, any WebContents) {
+        try engine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+        let profile = try engine.profile(named: "Personal")
+        let extensions = FakeProfileExtensions(installed: installed)
+        profile.fakeExtensions = extensions
+        let (center, _) = makeCenter(ManualTime())
+        let popovers = Popovers()
+        center.popupPresenter = popovers
+        let id = UUID()
+        center.add(profile: id, name: "Personal", extensions: extensions)
+        let page = try profile.createWebContents(WebContentsConfiguration())
+        return (center, extensions, popovers, id, page)
+    }
+
+    @Test("The header shows pinned, enabled extensions with an action, in the pinned order; badges are the page's")
+    @MainActor func headerFollowsPinnedOrder() throws {
+        let application = FakeApplication()
+        let popup = ExtensionActionState(title: "Popup", hasPopup: true)
+        let (center, engine, _, profile, page) = try popupSetup(engine: application, [
+            InstalledExtension(id: "b", name: "B", action: popup, isPinned: true),
+            InstalledExtension(id: "a", name: "A", action: ExtensionActionState(title: ""), isPinned: true),
+            InstalledExtension(id: "c", name: "C", action: popup, isPinned: false),
+            InstalledExtension(id: "d", name: "D", isPinned: true),
+            InstalledExtension(id: "e", name: "E", isEnabled: false, action: popup, isPinned: true),
+        ])
+        #expect(center.headerActions(profile: profile, page: page).map(\.id) == ["b", "a"])
+        #expect(center.headerActions(profile: profile, page: page).map(\.title) == ["Popup", "A"])
+        // Reordered or unpinned in the engine: the next refresh follows it.
+        engine.installed = [engine.installed[1], engine.installed[0]]
+        engine.setPinned(false, extension: "b")
+        #expect(center.headerActions(profile: profile, page: page).map(\.id) == ["a"])
+        engine.actions["a"] = ExtensionActionState(title: "A", badgeText: "3")
+        #expect(center.headerActions(profile: profile, page: page).first?.badgeText == "3")
+        #expect(center.headerActions(profile: UUID(), page: page).isEmpty)
+    }
+
+    @Test("A popover that loses focus tells the engine, which closes the popup; the presenter is not asked again")
+    @MainActor func popoverFocusLossTellsEngine() throws {
+        let application = FakeApplication()
+        let (center, engine, popovers, profile, page) = try popupSetup(engine: application, [
+            InstalledExtension(id: "x", name: "X", action: ExtensionActionState(title: "X", hasPopup: true), isPinned: true),
+        ])
+        engine.popupSize = CGSize(width: 2000, height: 10)
+        #expect(center.runAction("x", profile: profile, page: page))
+        #expect(popovers.shown.count == 1)
+        #expect(popovers.shown.first?.size == CGSize(width: 800, height: 25))
+        let popup = try #require(center.shownPopup?.popup)
+        engine.simulatePopupResize(CGSize(width: 374, height: 266))
+        #expect(popovers.resized == [CGSize(width: 374, height: 266)])
+        center.popoverDidClose(popup)
+        #expect(engine.closedByHost == [ObjectIdentifier(popup)])
+        #expect(engine.openPopup == nil)
+        #expect(center.shownPopup == nil)
+        #expect(popovers.closed.isEmpty)
+    }
+
+    @Test("The engine closing a popup (window.close, Esc, a tab switch) closes the popover; a second click closes it too")
+    @MainActor func engineCloseClosesPopover() throws {
+        let application = FakeApplication()
+        let (center, engine, popovers, profile, page) = try popupSetup(engine: application, [
+            InstalledExtension(id: "x", name: "X", action: ExtensionActionState(title: "X", hasPopup: true), isPinned: true),
+            InstalledExtension(id: "n", name: "N", action: ExtensionActionState(title: "N"), isPinned: true),
+        ])
+        #expect(center.runAction("x", profile: profile, page: page))
+        let first = try #require(center.shownPopup?.popup)
+        engine.simulatePopupClose()
+        #expect(popovers.closed == [ObjectIdentifier(first)])
+        #expect(center.shownPopup == nil)
+        #expect(center.runAction("x", profile: profile, page: page))
+        #expect(!center.runAction("x", profile: profile, page: page))
+        #expect(popovers.closed.count == 2)
+        // An action without a popup opens none (the engine sends onClicked).
+        #expect(!center.runAction("n", profile: profile, page: page))
+        #expect(popovers.shown.count == 2)
     }
 }

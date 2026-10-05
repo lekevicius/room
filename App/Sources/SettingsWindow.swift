@@ -255,7 +255,8 @@ private struct SettingsSectionView: View {
 /// Settings ▸ Extensions (ROADMAP 3.6a task 1): each profile's installed
 /// extensions with enable, options, reload (unpacked), pin and remove (the
 /// consent sheet), Load Unpacked… and Chrome's management page as a tab.
-/// Usable, not polished (Chapter 5); the header's action buttons are 3.6b.
+/// Usable, not polished (Chapter 5). Pinned extensions show their action
+/// buttons in the sidebar's header (3.6b); side panels are not supported in v1.
 struct ExtensionsSettingsView: View {
     let center: ExtensionsCenter?
     @State private var loadError: String?
@@ -285,6 +286,8 @@ struct ExtensionsSettingsView: View {
                         Text("Room checks installed extensions for updates once a day, and never while none is installed.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
+                    Text("Pinned extensions show in the sidebar's header. Side panels are not supported.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
             }
         } else {
