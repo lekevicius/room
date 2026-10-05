@@ -34,6 +34,14 @@ extension TabController: NavigationDelegate {
         pages[id]?.historyTitle = nil
         if let page = pages[id] { refreshHistoryTitle(page) }
     }
+
+    /// The page's back/forward list changed: its entry keeps the new one
+    /// (written with the store's next debounced transaction, 2.1), so a
+    /// relaunch or a crash finds it (3.7b). Peek pages keep none.
+    public func webContentsDidChangeNavigationState(_ webContents: any WebContents) {
+        guard let id = entryID(for: webContents) else { return }
+        saveNavigationState(of: webContents, entry: id)
+    }
 }
 
 extension TabController {

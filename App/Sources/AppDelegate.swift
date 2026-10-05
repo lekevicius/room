@@ -103,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         self.engine = engine
         super.init()
         Self.current = self
+        engine.delegate = self
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -522,7 +523,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         installExtensionPopups()
         toastCenter = toasts
         installFirstRun(sidebar: sidebar, settings: store.settings)
-        tabs.startLifecycle()
+        // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
+        // on CEF the tab controller listens to macOS's events.
+        #if ROOM_ENGINE_ROOMCORE
+        tabs.startLifecycle(systemMemoryPressure: false)
+        #else
+        tabs.startLifecycle(systemMemoryPressure: true)
+        #endif
         // Only the selected entry loads at launch (spec §H); it waits for the profile.
         tabs.showSelection()
         // The other spaces' lists are built after the first frame, one per turn,
@@ -1176,7 +1183,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // Debug menu: the lifecycle checks on CEF (spec §H), results in the log.
 
     @objc func simulateMemoryPressure(_ sender: Any?) {
-        let ids = tabs?.handleMemoryPressure(critical: false) ?? []
+        let ids = tabs?.handleMemoryPressure(.moderate) ?? []
+        tabs?.handleMemoryPressure(.none)
         NSLog("Room: simulated memory pressure discarded \(ids.count) page(s)")
     }
 
@@ -1385,5 +1393,16 @@ extension SpaceTint {
         let range = Double(Materials.tintOpacityRange.lowerBound)...Double(Materials.tintOpacityRange.upperBound)
         self.init(light: colors(theme.colors), dark: colors(ThemePalette.darkVariant(theme.colors)),
                   alpha: CGFloat(ThemePalette.tintAlpha(opacity: theme.opacity, range: range)))
+    }
+}
+
+// MARK: - Engine events
+
+extension AppDelegate: EngineApplicationDelegate {
+    /// Chromium's memory pressure (RoomCore): the window's discard policy
+    /// decides what goes (spec §H; RoomCore discards no Room page itself).
+    func engineApplication(_ application: any EngineApplication, didChangeMemoryPressure level: MemoryPressureLevel) {
+        NSLog("Room: engine memory pressure \(level)")
+        tabs?.handleMemoryPressure(level)
     }
 }

@@ -201,6 +201,18 @@ public final class TabController: SidebarHost {
     @ObservationIgnored private var faviconImages: [Int64: NSImage] = [:]
     @ObservationIgnored var sweepTimer: Timer?
     @ObservationIgnored var memoryPressureSource: (any DispatchSourceMemoryPressure)?
+    /// Takes the next page while the pressure stays critical.
+    @ObservationIgnored var pressureTimer: Timer?
+    @ObservationIgnored var lifecycleStarted = false
+    /// The last memory-pressure level reported (engine or system).
+    @ObservationIgnored public internal(set) var memoryPressure = MemoryPressureLevel.none
+    /// Spikes only: `false` leaves memory pressure to the engine alone (the
+    /// check that RoomCore never discards a Room page by itself).
+    @ObservationIgnored public var respondsToMemoryPressure = true
+    /// Pages the last idle sweep left alone because the engine keeps them, with why.
+    @ObservationIgnored public internal(set) var keptByEngine: [UUID: DiscardBlockers] = [:]
+    /// Spikes only: every discard the policy made, with its reason.
+    @ObservationIgnored public var debugDidDiscard: ((UUID, String) -> Void)?
 
     public init(store: RoomStore) {
         self.store = store
@@ -229,6 +241,7 @@ public final class TabController: SidebarHost {
 
     isolated deinit {
         sweepTimer?.invalidate()
+        pressureTimer?.invalidate()
         memoryPressureSource?.cancel()
     }
 
@@ -374,6 +387,9 @@ public final class TabController: SidebarHost {
             display?.showSplit(shownSplit)
         }
         guard page.contents.state != .closed else { return }
+        // Its history as it is now (a change in this turn has not been
+        // reported yet): an unloaded entry goes Back where it was (spec §A.3).
+        saveNavigationState(of: page.contents, entry: entry)
         closing[ObjectIdentifier(page.contents)] = (page.contents, entry)
         page.contents.close()
     }
@@ -400,6 +416,7 @@ public final class TabController: SidebarHost {
         pages[newEntry.id] = page
         if currentEntryID == entry { currentEntryID = newEntry.id }
         observe(page, entry: newEntry.id)
+        saveNavigationState(of: page.contents, entry: newEntry.id)
     }
 
     public func reload(_ entry: UUID) { pages[entry]?.contents.reload() }
@@ -513,7 +530,10 @@ public final class TabController: SidebarHost {
         }
         let contents: any WebContents
         do {
-            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden, hostWindow: window))
+            // The entry's saved back/forward list (3.7b): a relaunch, a crash
+            // recovery, ⌘W's unload and ⇧⌘T bring the page back with it.
+            contents = try profile.createWebContents(WebContentsConfiguration(initiallyHidden: hidden, hostWindow: window,
+                                                                              restoredNavigationState: entry.navigationState))
         } catch {
             NSLog("Room: no page for entry \(entry.id): \(error)")
             return nil
@@ -524,9 +544,26 @@ public final class TabController: SidebarHost {
         let restored: PageTransition = entry.kind.isPermanent && entry.liveURL == nil ? .bookmark : .reload
         let transition = pendingTransitions.removeValue(forKey: entry.id) ?? restored
         if let url = entry.currentURL.flatMap(URL.init(string:)) {
-            contents.load(url, transition: transition, fromAddressBar: false)
+            switch NavigationRestore.firstLoad(entryURL: url, restoredURL: contents.url, hadState: entry.navigationState != nil) {
+            case .loadRestored:
+                // The restored current entry is the entry's page: load it with its history behind it.
+                contents.reload()
+            case .navigate(let unreadable):
+                // A new page, a page reset to its stored URL (the old history
+                // stays behind it), or a state this engine could not read.
+                if unreadable { NSLog("Room: the saved history of \(url.host() ?? "an entry") was not restored; loading its URL") }
+                contents.load(url, transition: transition, fromAddressBar: false)
+            }
         }
         return page
+    }
+
+    /// Writes the page's current back/forward list into its entry (the store
+    /// persists it with the next debounced write). Engines without one (CEF)
+    /// leave the entry's as it was.
+    func saveNavigationState(of contents: any WebContents, entry: UUID) {
+        guard let state = contents.navigationState else { return }
+        try? store.sidebar.setNavigationState(entry, state)
     }
 
     /// Makes `contents` the page of `entry`.

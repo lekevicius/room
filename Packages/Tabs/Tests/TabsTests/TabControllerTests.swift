@@ -42,8 +42,14 @@ final class TabsFixture {
     let space: Space
     var clock = Date(timeIntervalSince1970: 1_000_000)
 
-    init(withProfile: Bool = true, populate: (RoomStore, Space) throws -> Void = { _, _ in }) throws {
-        directory = FileManager.default.temporaryDirectory.appending(path: "RoomTabsTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    /// Removes the directory when it goes (a relaunch's fixture leaves it to the first).
+    private let ownsDirectory: Bool
+
+    init(withProfile: Bool = true, relaunching earlier: URL? = nil,
+         populate: (RoomStore, Space) throws -> Void = { _, _ in }) throws {
+        ownsDirectory = earlier == nil
+        directory = earlier
+            ?? FileManager.default.temporaryDirectory.appending(path: "RoomTabsTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try engine.initialize(EngineConfiguration(userDataDirectory: directory))
         profile = try engine.profile(named: "Default")
         store = try RoomStore.open(directory: directory)
@@ -63,8 +69,12 @@ final class TabsFixture {
     /// flight logged "disk I/O error" (2.5 carry-over).
     isolated deinit {
         store.close()
-        try? FileManager.default.removeItem(at: directory)
+        if ownsDirectory { try? FileManager.default.removeItem(at: directory) }
     }
+
+    /// The next launch on the same state: a new engine, store, sidebar and
+    /// tab controller (after `store.close()` a clean one, without it as after a crash).
+    func relaunch() throws -> TabsFixture { try TabsFixture(relaunching: directory) }
 
     var sidebarStore: SidebarStore { store.sidebar }
 
@@ -508,16 +518,142 @@ struct DiscardTests {
         #expect(f.profile.openWebContents.count == 2)
     }
 
-    @Test("Memory pressure discards the least recently seen first; critical discards every background page")
+    @Test("Memory pressure: moderate discards the older half, least recently seen first; critical the oldest, then the next")
     func pressure() {
         let now = Date()
-        func page(_ minutesAgo: Double, selected: Bool = false, audible: Bool = false) -> DiscardPolicy.Page {
+        func page(_ minutesAgo: Double, selected: Bool = false, audible: Bool = false, blockers: DiscardBlockers = []) -> DiscardPolicy.Page {
             DiscardPolicy.Page(id: UUID(), kind: .today, isSelected: selected, isAudible: audible, isAlive: true,
-                               lastVisible: now - minutesAgo * 60)
+                               lastVisible: now - minutesAgo * 60, blockers: blockers)
         }
-        let pages = [page(1), page(30), page(10), page(5), page(0, selected: true), page(90, audible: true)]
-        #expect(DiscardPolicy.underPressure(pages, critical: false) == [pages[1].id, pages[2].id])
-        #expect(Set(DiscardPolicy.underPressure(pages, critical: true)) == Set(pages[0..<4].map(\.id)))
+        let pages = [page(1), page(30), page(10), page(5), page(0, selected: true), page(90, audible: true),
+                     page(120, blockers: .formInteractions)]
+        #expect(DiscardPolicy.underPressure(pages, level: .moderate) == [pages[1].id, pages[2].id])
+        #expect(DiscardPolicy.underPressure(pages, level: .critical) == [pages[1].id])
+        #expect(DiscardPolicy.underPressure(pages, level: .none).isEmpty)
+    }
+
+    @Test("A page with a dirty form or in Picture-in-Picture is not discarded when idle; it goes once the engine lets it")
+    func blockedPagesStay() throws {
+        let f = try TabsFixture()
+        let form = try f.today("https://form.example"), pip = try f.today("https://video.example")
+        let plain = try f.today("https://plain.example"), selected = try f.today("https://s.example")
+        for entry in [form, pip, plain, selected] { f.sidebar.select(entry.id) }
+        f.page(form.id)?.simulatedDiscardBlockers = .formInteractions
+        f.page(pip.id)?.simulatedDiscardBlockers = .pictureInPicture
+        f.advance(minutes: 61)
+        #expect(f.tabs.discardIdlePages() == [plain.id])
+        #expect(f.page(form.id)?.state == .alive && f.page(pip.id)?.state == .alive)
+        #expect(f.tabs.keptByEngine == [form.id: .formInteractions, pip.id: .pictureInPicture])
+        // The form is submitted: the next sweep discards it.
+        f.page(form.id)?.simulatedDiscardBlockers = []
+        #expect(f.tabs.discardIdlePages() == [form.id])
+        #expect(f.page(pip.id)?.state == .alive)
+    }
+
+    @Test("Critical pressure from the engine discards the oldest hidden page first, never the selection or a blocked page")
+    func criticalPressure() throws {
+        let f = try TabsFixture()
+        let old = try f.today("https://old.example"), blocked = try f.today("https://blocked.example")
+        let newer = try f.today("https://newer.example"), selected = try f.today("https://s.example")
+        f.sidebar.select(blocked.id)
+        f.advance(minutes: 1)
+        f.sidebar.select(old.id)
+        f.advance(minutes: 1)
+        f.sidebar.select(newer.id)
+        f.advance(minutes: 1)
+        f.sidebar.select(selected.id)
+        f.page(blocked.id)?.simulatedDiscardBlockers = .audible
+        let relay = PressureRelay(f.tabs)
+        f.engine.delegate = relay
+        f.engine.simulateMemoryPressure(.critical)
+        #expect(f.page(old.id)?.state == .discarded && f.page(newer.id)?.state == .alive)
+        f.engine.simulateMemoryPressure(.critical)
+        #expect(f.page(newer.id)?.state == .discarded)
+        f.engine.simulateMemoryPressure(.critical)
+        #expect(f.page(blocked.id)?.state == .alive && f.page(selected.id)?.state == .alive)
+        #expect(f.tabs.memoryPressure == .critical)
+        _ = relay
+    }
+}
+
+/// The app's role: the engine's memory pressure to the window's tab controller.
+final class PressureRelay: EngineApplicationDelegate {
+    let tabs: TabController
+    init(_ tabs: TabController) { self.tabs = tabs }
+    func engineApplication(_ application: any EngineApplication, didChangeMemoryPressure level: MemoryPressureLevel) {
+        tabs.handleMemoryPressure(level)
+    }
+}
+
+@Suite("Tab controller: session history (3.7b)")
+struct SessionHistoryTests {
+    @Test("A page made from an entry's stored history reports canGoBack and loads the restored page; a fresh one does not")
+    func restoredPageGoesBack() async throws {
+        let f = try TabsFixture()
+        let a = try f.today("https://a.example/1"), fresh = try f.today("https://fresh.example")
+        f.sidebar.select(a.id)
+        f.page(a.id)?.load(URL(string: "https://a.example/2")!)
+        await f.settle()
+        let stored = try #require(f.sidebarStore.entry(a.id)?.navigationState)
+        f.sidebar.select(fresh.id)
+        f.tabs.unload(a.id)
+        f.sidebar.select(a.id)
+        let revived = try #require(f.page(a.id))
+        #expect(revived.wasRestored && revived.canGoBack && revived.url?.absoluteString == "https://a.example/2")
+        #expect(!revived.isLoading && revived.title != nil, "the restored entry loaded")
+        revived.goBack()
+        #expect(revived.url?.absoluteString == "https://a.example/1")
+        #expect(f.page(fresh.id)?.canGoBack == false)
+        #expect(f.sidebarStore.entry(fresh.id)?.navigationState != stored)
+    }
+
+    @Test("After a relaunch, clean or not, every entry with history goes Back to its previous page")
+    func relaunchKeepsHistory() async throws {
+        let f = try TabsFixture()
+        let entries = try (0..<3).map { try f.today("https://site\($0).example/first") }
+        for (index, entry) in entries.enumerated() {
+            f.sidebar.select(entry.id)
+            f.page(entry.id)?.load(URL(string: "https://site\(index).example/second")!)
+        }
+        await f.settle()
+        // No close(): an unclean exit (the store's debounced write is flushed as a kill would leave the last one).
+        f.store.flush()
+        let next = try f.relaunch()
+        #expect(next.store.uncleanExit)
+        for (index, entry) in entries.enumerated() {
+            next.sidebar.select(entry.id)
+            let page = try #require(next.page(entry.id))
+            #expect(page.canGoBack, "entry \(index)")
+            page.goBack()
+            #expect(page.url?.absoluteString == "https://site\(index).example/first")
+        }
+    }
+
+    @Test("⌘W on a changed pinned entry unloads and resets it; its next page starts at the stored URL with the old page behind it")
+    func resetKeepsHistoryBehind() async throws {
+        let f = try TabsFixture()
+        let pinned = try f.pinned("https://p.example/")
+        let other = try f.today("https://o.example")
+        f.sidebar.select(pinned.id)
+        f.page(pinned.id)?.load(URL(string: "https://p.example/deeper")!)
+        await f.settle()
+        f.sidebar.close(pinned.id, behavior: .resetUnloadSwitch)
+        #expect(f.page(pinned.id) == nil && f.sidebar.selectedEntryID == other.id)
+        f.sidebar.select(pinned.id)
+        let page = try #require(f.page(pinned.id))
+        #expect(page.url?.absoluteString == "https://p.example/" && page.canGoBack)
+        page.goBack()
+        #expect(page.url?.absoluteString == "https://p.example/deeper")
+    }
+
+    @Test("The first load of a restored page: the restored entry, onward navigation, or the URL alone when the state did not read")
+    func firstLoadRule() {
+        let url = URL(string: "https://a.example/2")!
+        #expect(NavigationRestore.firstLoad(entryURL: url, restoredURL: url, hadState: true) == .loadRestored)
+        #expect(NavigationRestore.firstLoad(entryURL: url, restoredURL: URL(string: "https://a.example/1"), hadState: true)
+            == .navigate(unreadable: false))
+        #expect(NavigationRestore.firstLoad(entryURL: url, restoredURL: nil, hadState: true) == .navigate(unreadable: true))
+        #expect(NavigationRestore.firstLoad(entryURL: url, restoredURL: nil, hadState: false) == .navigate(unreadable: false))
     }
 }
 

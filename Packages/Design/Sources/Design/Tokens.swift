@@ -227,6 +227,9 @@ public enum Timing {
     public static let discardIdlePermanent: TimeInterval = 3 * 60 * 60
     /// How often the idle-discard sweep runs (chosen).
     public static let discardSweepInterval: TimeInterval = 60
+    /// Under critical memory pressure, one more background page is discarded
+    /// this often until the pressure drops (chosen, 3.7b).
+    public static let criticalPressureStep: TimeInterval = 1
     /// ⌃Tab held this long before the switcher shows; a quicker tap
     /// switches without it (chosen).
     public static let tabSwitcherDelay: TimeInterval = 0.12
