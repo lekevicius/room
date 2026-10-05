@@ -62,3 +62,14 @@ Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/P
 5. **Audio.** Play a YouTube video: the row's speaker appears; pause it: the speaker goes about two seconds later; ⇧⌘M mutes it.
 6. **Discard keeps history.** Navigate a Today tab two links deep, Debug ▸ Discard Background Pages (with another tab selected), then select it again: it reloads, and Back goes to the page before.
 7. **Closing a page that asks to stay.** On `research/spikes/phase-2.6/dialogs.html` (as a `file://` URL) click "Arm beforeunload", then ⌘W: Chrome's "Leave site?" dialog (Views until 3.4b). Note: "Stay" keeps the page alive in the engine but the sidebar entry is already gone (the host learns the answer only through 3.4b's dialog delegate); "Leave" closes it.
+
+## Phase 3.3b
+
+Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/Products/Debug/Room.app/Contents/MacOS/Room -RoomStateDirectory /tmp/room-3.3b/hand -RoomEngineDirectory /tmp/room-3.3b/hand/engine -RoomSidebarFixture demo`.
+
+0. **Stale system dialogs.** Four "Room quit unexpectedly" dialogs are on the Mac mini's screen (05:24 ×2 from 3.3a's runs; 06:59 ×2 from this session launching today's app over the 3.1b-2 release framework, which lacks 3.2b's API). Sessions do not answer system dialogs: please click Ignore on each.
+1. **Find while typing.** On a long page, ⌘F and type a word slowly: the first three letters highlight their first match after about 0.4 s (Chromium's short-query delay, Chrome behaves the same), from the fourth letter on it follows each key at once; ⌘G / ⇧⌘G step, Esc puts the keyboard back in the page.
+2. **Print preview.** ⌘P on a page: Chrome's print preview appears over the card (Views, B-29). Change the destination to "Save as PDF", save, check the PDF; Cancel and Esc close it; the window stays usable behind it. On a site that changes its URL by script (developer.apple.com), Chrome closes the preview by itself: expected.
+3. **DevTools pane.** ⌥⌘I opens DevTools in the pane under the page (not a window): drag the divider, pick Elements, Console, type `1+1` in the console (keys reach the front-end), ⌥⌘I again closes it with the keyboard back in the page. ⌥⌘C turns on the picker: click an element on the page and Elements selects it. Right-click ▸ Inspect is Chrome's menu until 3.4a.
+4. **A Views dialog over the window.** With the modal anchor now above Room's window: open `research/spikes/phase-2.6/permissions.html` or any page that shows a Chrome bubble (autofill on a sign-in form); check the bubble shows over the card and that clicks on the page itself are not swallowed by an invisible layer (the anchor is transparent and ignores the mouse).
+5. **Release build, no port.** On the next release build (3.8): `lsof -nP -iTCP -sTCP:LISTEN -a -p $(pgrep -n -f Room.app/Contents/MacOS/Room)` lists no debugging port.
