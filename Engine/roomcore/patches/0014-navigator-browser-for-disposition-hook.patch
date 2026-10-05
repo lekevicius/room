@@ -24,10 +24,10 @@ Browser (features, session entries) for every window.open.
 Phase 3.2a, 2026-10-05. //room: room/browser/room_browser_window.mm
 (BrowserForDisposition).
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index 258f996c80e24..cbbb2f0706949 100644
+index 5029e2640598d..a5cdd2cdea131 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
-@@ -104,6 +104,14 @@ using content::NavigationController;
+@@ -108,6 +108,14 @@ using content::NavigationController;
  using content::WebContents;
  using WebExposedIsolationLevel = content::WebExposedIsolationLevel;
  
@@ -42,9 +42,9 @@ index 258f996c80e24..cbbb2f0706949 100644
  namespace {
  
  struct AdditionalParams {
-@@ -247,6 +255,12 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
-     const AdditionalParams& additional_params) {
-   Profile* profile = params.initiating_profile;
+@@ -257,6 +265,12 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
+   const bool should_trigger_session_restore =
+       params.should_trigger_session_restore;
  
 +  BrowserWindowInterface* room_browser = nullptr;
 +  if (room::g_browser_for_disposition_hook &&

@@ -19,10 +19,10 @@ other page keeps Chrome's interstitial.
 
 Phase 3.4a, 2026-10-05. //room: room/core/room_page_prompts.mm.
 diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-index 0536a06a7d443..2ad68093a206a 100644
+index 59740c5dcf50a..dbe492da4da0e 100644
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -195,6 +195,14 @@ namespace room {
+@@ -196,6 +196,14 @@ namespace room {
  // navigations of Room pages (the host's navigation policy, Peek).
  void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&) =
      nullptr;
@@ -37,7 +37,7 @@ index 0536a06a7d443..2ad68093a206a 100644
  }  // namespace room
  
  namespace {
-@@ -225,6 +233,12 @@ void HandleSSLErrorWrapper(
+@@ -226,6 +234,12 @@ void HandleSSLErrorWrapper(
                                    prefs::kSSLErrorOverrideAllowedForOrigins,
                                    prefs::kSSLErrorOverrideAllowed);
  

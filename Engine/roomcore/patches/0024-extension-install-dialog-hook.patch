@@ -16,10 +16,10 @@ delegate answers installs; everything else keeps Chrome's dialog.
 
 Phase 3.6a, 2026-10-05. //room: room/core/room_extensions.mm.
 diff --git a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
-index 54678ae0bd029..ac8bf93675592 100644
+index 83ce5b59c1e6b..29aec161474dc 100644
 --- a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
 +++ b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
-@@ -62,6 +62,16 @@ using content::OpenURLParams;
+@@ -64,6 +64,16 @@ using content::OpenURLParams;
  using content::Referrer;
  using extensions::InstallPromptData;
  
@@ -36,7 +36,7 @@ index 54678ae0bd029..ac8bf93675592 100644
  namespace {
  
  // Time delay before the install button is enabled after initial display.
-@@ -85,6 +95,11 @@ void ShowExtensionInstallDialogImpl(
+@@ -87,6 +97,11 @@ void ShowExtensionInstallDialogImpl(
      ExtensionInstallPrompt::DoneCallback done_callback,
      std::unique_ptr<InstallPromptData> prompt) {
    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);

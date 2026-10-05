@@ -16,10 +16,10 @@ whose delegate answers prompts; everything else keeps Chrome's bubble.
 Phase 3.4a, 2026-10-05. //room: room/core/room_permissions.mm
 (RoomPermissionPrompt).
 diff --git a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
-index 0c03be841cac2..e7a12872467b7 100644
+index b74e0bc888fcf..51abf5df15122 100644
 --- a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
 +++ b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
-@@ -42,6 +42,14 @@
+@@ -44,6 +44,14 @@
  #include "chrome/browser/web_applications/os_integration/mac/web_app_shortcut_mac.h"
  #endif
  
@@ -34,7 +34,7 @@ index 0c03be841cac2..e7a12872467b7 100644
  namespace {
  
  BrowserWindowInterface* GetBrowser(content::WebContents* web_contents) {
-@@ -284,6 +292,11 @@ bool ShouldShowPermissionPromptEvenIfOmniboxEditedOrEmpty(
+@@ -290,6 +298,11 @@ bool ShouldShowPermissionPromptEvenIfOmniboxEditedOrEmpty(
  std::unique_ptr<permissions::PermissionPrompt> CreatePermissionPrompt(
      content::WebContents* web_contents,
      permissions::PermissionPrompt::Delegate* delegate) {

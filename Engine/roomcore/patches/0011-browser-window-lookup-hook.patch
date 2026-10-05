@@ -1,7 +1,29 @@
+diff --git a/chrome/browser/ui/autofill/address_bubbles_controller.cc b/chrome/browser/ui/autofill/address_bubbles_controller.cc
+index af32d3bd996d2..2ffe6ef9d5b50 100644
+--- a/chrome/browser/ui/autofill/address_bubbles_controller.cc
++++ b/chrome/browser/ui/autofill/address_bubbles_controller.cc
+@@ -311,10 +311,12 @@ void AddressBubblesController::SetUpBubble(
+ }
+ 
+ void AddressBubblesController::MaybeShowIOSDektopAddressPromo() {
+-  BrowserWindowInterface* browser =
+-      BrowserWindow::FindBrowserWindowWithWebContents(web_contents())
+-          ->AsBrowserView()
+-          ->browser();
++  auto* window = BrowserWindow::FindBrowserWindowWithWebContents(web_contents());
++  // Non-Chrome window hosts have no Chrome toolbar for this optional promo.
++  if (!window || !window->AsBrowserView()) {
++    return;
++  }
++  BrowserWindowInterface* browser = window->AsBrowserView()->browser();
+ 
+   // Verify if user is eligible for iOS promo, and attempt showing if they are.
+   ios_promos_utils::VerifyIOSPromoEligibility(
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 63c3090b4c75b..ec314932908c4 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -1152,9 +1152,19 @@
+@@ -1160,9 +1160,19 @@ BrowserView::~BrowserView() {
    RemoveAllChildViews();
  }
  
@@ -21,23 +43,3 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
    // Check first to see if the we can find a top level widget for the
    // `web_contents`. This covers the case of searching for the browser window
    // associated with a non-tab contents and the active tab contents. Fall back
-diff --git a/chrome/browser/ui/autofill/address_bubbles_controller.cc b/chrome/browser/ui/autofill/address_bubbles_controller.cc
---- a/chrome/browser/ui/autofill/address_bubbles_controller.cc
-+++ b/chrome/browser/ui/autofill/address_bubbles_controller.cc
-@@ -311,10 +311,12 @@
- }
- 
- void AddressBubblesController::MaybeShowIOSDektopAddressPromo() {
--  BrowserWindowInterface* browser =
--      BrowserWindow::FindBrowserWindowWithWebContents(web_contents())
--          ->AsBrowserView()
--          ->browser();
-+  auto* window = BrowserWindow::FindBrowserWindowWithWebContents(web_contents());
-+  // Non-Chrome window hosts have no Chrome toolbar for this optional promo.
-+  if (!window || !window->AsBrowserView()) {
-+    return;
-+  }
-+  BrowserWindowInterface* browser = window->AsBrowserView()->browser();
- 
-   // Verify if user is eligible for iOS promo, and attempt showing if they are.
-   ios_promos_utils::VerifyIOSPromoEligibility(

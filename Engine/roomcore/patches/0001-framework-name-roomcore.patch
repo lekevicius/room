@@ -16,7 +16,7 @@ where @executable_path/../../../../Libraries/libaperitif.dylib is expected.
 The component build is unaffected (@rpath install name).
 
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index ce7ebbe4f6b68..790bbb541e410 100644
+index 8a60d7061bbfb..80052a531011d 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -28,6 +28,7 @@ import("//services/shape_detection/features.gni")
@@ -79,7 +79,7 @@ index 1a6b899b4bc3a..5a5382d69e86a 100644
  #endif  // BUILDFLAG(IS_MAC)
  
 diff --git a/content/public/app/BUILD.gn b/content/public/app/BUILD.gn
-index 0a7825672de16..b08f7203cf612 100644
+index 02d8aacfe00ba..6a1df20132974 100644
 --- a/content/public/app/BUILD.gn
 +++ b/content/public/app/BUILD.gn
 @@ -100,6 +100,7 @@ if (is_component_build) {
@@ -87,10 +87,10 @@ index 0a7825672de16..b08f7203cf612 100644
    import("//build/util/branding.gni")
    import("//chrome/version.gni")
 +  import("//room/build/config.gni")  # Room: room_framework_name
+ 
    shared_library("aperitif") {
      sources = [ "aperitif_mac.h" ]
- 
-@@ -122,7 +123,8 @@ if (is_mac) {
+@@ -123,7 +124,8 @@ if (is_mac) {
          "-Wl,-rpath,@loader_path/../../../../../../..",
        ]
      } else {

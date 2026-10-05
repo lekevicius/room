@@ -17,10 +17,10 @@ answers it; every other page keeps Chrome's dialog.
 
 Phase 3.4b, 2026-10-05. //room: room/core/room_page_dialogs.mm.
 diff --git a/chrome/browser/ui/views/external_protocol_dialog.cc b/chrome/browser/ui/views/external_protocol_dialog.cc
-index 952d7ad1435fd..017ed5fbda6d2 100644
+index d648a9fec7efe..10e5cf2f5eca7 100644
 --- a/chrome/browser/ui/views/external_protocol_dialog.cc
 +++ b/chrome/browser/ui/views/external_protocol_dialog.cc
-@@ -35,6 +35,19 @@
+@@ -36,6 +36,19 @@
  #include "ui/views/widget/widget.h"
  #include "ui/views/window/dialog_client_view.h"
  
@@ -40,7 +40,7 @@ index 952d7ad1435fd..017ed5fbda6d2 100644
  using content::WebContents;
  
  namespace {
-@@ -107,6 +120,13 @@ void ExternalProtocolHandler::RunExternalProtocolDialog(
+@@ -108,6 +121,13 @@ void ExternalProtocolHandler::RunExternalProtocolDialog(
      return;
    }
  

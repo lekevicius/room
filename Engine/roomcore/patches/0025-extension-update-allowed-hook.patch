@@ -19,10 +19,10 @@ re-checks are refused.
 
 Phase 3.6a, 2026-10-05. //room: room/core/room_extensions.mm.
 diff --git a/chrome/browser/extensions/chrome_extensions_browser_client.cc b/chrome/browser/extensions/chrome_extensions_browser_client.cc
-index 0f89eff019706..a26d4dd5c3c35 100644
+index 18c8da68d3917..85625b83525fc 100644
 --- a/chrome/browser/extensions/chrome_extensions_browser_client.cc
 +++ b/chrome/browser/extensions/chrome_extensions_browser_client.cc
-@@ -164,6 +164,12 @@
+@@ -167,6 +167,12 @@
  #include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
  #endif
  

@@ -31,10 +31,10 @@ PreCreateThreads CHECKs it is Chrome's.
 
 Phase 3.2b, 2026-10-05. //room: room/core/room_app_controller.mm.
 diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
-index 608f3503bb68c..d4e70ae641b22 100644
+index cb1b5aa8bed4a..7654f7c7501b7 100644
 --- a/chrome/browser/app_controller_mac.mm
 +++ b/chrome/browser/app_controller_mac.mm
-@@ -150,6 +150,13 @@
+@@ -153,6 +153,13 @@
  #include "ui/native_theme/native_theme.h"
  #include "url/gurl.h"
  
@@ -48,7 +48,7 @@ index 608f3503bb68c..d4e70ae641b22 100644
  namespace {
  
  // True while AppController is calling chrome::NewEmptyWindow(). We need a
-@@ -790,6 +797,9 @@ @implementation AppController {
+@@ -793,6 +800,9 @@ @implementation AppController {
  @synthesize startupComplete = _startupComplete;
  
  + (AppController*)sharedController {

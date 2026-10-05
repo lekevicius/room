@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
-index ae2d77825d359..f4d10489ef490 100644
+index 2a4a67927d84b..7a5229c13c3f6 100644
 --- a/chrome/browser/chrome_browser_interface_binders.cc
 +++ b/chrome/browser/chrome_browser_interface_binders.cc
-@@ -454,9 +454,15 @@ void BindCredentialManager(
+@@ -444,9 +444,15 @@ void BindCredentialManager(
  
  }  // namespace
  
@@ -56,10 +56,10 @@ index 8db216ff5561d..51e2446e6cbfb 100644
  
  void CdmRegistryImpl::SetHardwareSecureCdmStatus(CdmInfo::Status status) {
 diff --git a/content/renderer/media/media_factory.cc b/content/renderer/media/media_factory.cc
-index 28eb77a00955f..6711fa525a366 100644
+index 40765378e96b6..7dd2a410edd78 100644
 --- a/content/renderer/media/media_factory.cc
 +++ b/content/renderer/media/media_factory.cc
-@@ -303,6 +303,14 @@ class LocalFrameDelegate
+@@ -302,6 +302,14 @@ class LocalFrameDelegate
  
  }  // namespace
  
@@ -74,7 +74,7 @@ index 28eb77a00955f..6711fa525a366 100644
  namespace content {
  
  MediaFactory::MediaFactory(
-@@ -500,11 +508,14 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
+@@ -499,11 +507,14 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
  
  blink::WebEncryptedMediaClient* MediaFactory::EncryptedMediaClient() {
    if (!web_encrypted_media_client_) {

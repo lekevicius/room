@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/frame/browser_window_factory.cc b/chrome/browser/ui/views/frame/browser_window_factory.cc
-index 6adf503895aed..65dc9802bbe1d 100644
+index ad579aa818666..d1a6d260cb07d 100644
 --- a/chrome/browser/ui/views/frame/browser_window_factory.cc
 +++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
-@@ -25,11 +25,24 @@
+@@ -27,11 +27,24 @@
  #include "chromeos/components/kiosk/kiosk_utils.h"
  #endif
  
