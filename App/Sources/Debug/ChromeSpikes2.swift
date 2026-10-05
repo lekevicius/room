@@ -6,7 +6,9 @@ import Design
 import Engine
 import Observation
 import Tabs
-#if canImport(EngineCEF)
+#if ROOM_ENGINE_ROOMCORE
+import EngineRoomCore
+#elseif canImport(EngineCEF)
 import EngineCEF
 #endif
 
@@ -69,11 +71,19 @@ extension SpikeRunner.Context {
         try? FileManager.default.removeItem(at: downloadFolder)
     }
 
-    /// A window capture for 2.6b (the script answers it; popovers are child windows and come along).
-    func captureB(_ name: String) async {
+    /// A window capture for 2.6b (the script answers it; popovers are child
+    /// windows and come along). `screen`: the window's screen rect instead, so
+    /// child windows of their own (RoomCore's print preview) show too.
+    func captureB(_ name: String, screen: Bool = false) async {
         guard UserDefaults.standard.bool(forKey: "RoomSpikeCaptures2b") else { return }
         let full = "phase-2.6b-\(name)-\(appearanceSuffix)"
-        SpikeRunner.record("capture", full)
+        if screen {
+            let frame = window.frame
+            let top = (NSScreen.screens.first?.frame.height ?? 0) - frame.maxY
+            SpikeRunner.record("capture_screen", "\(full) \(Int(frame.minX)),\(Int(top)),\(Int(frame.width)),\(Int(frame.height))")
+        } else {
+            SpikeRunner.record("capture", full)
+        }
         let output = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeOutput") ?? "")
         let ack = output.deletingLastPathComponent().appending(path: output.lastPathComponent + ".ack-" + full)
         if !(await waitUntil(20) { FileManager.default.fileExists(atPath: ack.path) }) { SpikeRunner.record("capture_timeout", full) }
@@ -143,6 +153,7 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(500))
         var firstMatch: [Double] = []
         var final: [Double] = []
+        var samples: [String] = []
         for word in ["lighthouse", "harbour", "gulls", "quay"] {
             // ⌘F through the menu: the bar opens with the keyboard in its field.
             sendKey("f", keyCode: 3, [.command])
@@ -153,7 +164,10 @@ extension SpikeRunner.Context {
                 type(String(character))
                 let gotMatch = await waitUntil(5) { timing.firstMatch != nil }
                 _ = await waitUntil(5) { timing.final != nil }
-                if gotMatch, let at = timing.firstMatch { firstMatch.append(ms(between: start, and: at)) }
+                if gotMatch, let at = timing.firstMatch {
+                    firstMatch.append(ms(between: start, and: at))
+                    samples.append(String(format: "%@:%.0f", String(word.prefix(index + 1)), ms(between: start, and: at)))
+                }
                 if let at = timing.final { final.append(ms(between: start, and: at)) }
                 if index == word.count - 1, word == "lighthouse" {
                     try? await Task.sleep(for: .milliseconds(200))
@@ -171,6 +185,7 @@ extension SpikeRunner.Context {
             try? await Task.sleep(for: .milliseconds(200))
         }
         SpikeRunner.record("find_keystroke_to_match", SpikeRunner.stats(firstMatch))
+        SpikeRunner.record("find_samples_ms", samples.joined(separator: " "))
         SpikeRunner.record("find_keystroke_to_final", SpikeRunner.stats(final))
         SpikeRunner.record("find_closed", "bar=\(find.isVisible) result=\(page.findResult.map { "\($0)" } ?? "nil") focus=\(focusName)")
     }
@@ -232,14 +247,65 @@ extension SpikeRunner.Context {
     /// CEF's print runs the system panel app-modally (nothing else of the
     /// spike runs meanwhile): a timer in the common modes finds it, records
     /// it and aborts it, so nothing prints.
+    ///
+    /// RoomCore (3.3b) opens Chrome's print preview instead: a Views dialog in
+    /// a child window over Room's window (B-29). The spike waits for that
+    /// window, has the screen rect captured, then dismisses the preview with
+    /// Esc, as a person would, and waits for the window to go.
     private func printCheck() async {
-        guard let page = session.current else { SpikeRunner.record("error", "no page for page"); return }
+        // A local page that does not change under the preview (Chrome closes
+        // its preview when the initiator navigates, pushState included).
+        guard let page = await openTest("status.html") else { SpikeRunner.record("error", "no page to print"); return }
+        let windowsBefore = Set(NSApp.windows.map { ObjectIdentifier($0) })
         let watch = ModalWatch(window: window)
         watch.start()
+        let start = ContinuousClock.now
         page.print()
-        _ = await waitUntil(16) { watch.done }
-        try? await Task.sleep(for: .milliseconds(500))
-        SpikeRunner.record("print_panel", watch.seen ?? "none in 15 s")
+        var preview: NSWindow?
+        _ = await waitUntil(16) {
+            preview = NSApp.windows.first { !windowsBefore.contains(ObjectIdentifier($0)) && $0.isVisible && $0.frame.width > 200 }
+            return watch.done || preview != nil
+        }
+        guard let preview else {
+            try? await Task.sleep(for: .milliseconds(500))
+            SpikeRunner.record("print_panel", watch.seen ?? "none in 15 s")
+            return
+        }
+        let shownAfter = ms(since: start)
+        // The preview renders its first page a moment later; its window's state meanwhile.
+        var states: [String] = []
+        for _ in 0..<40 {
+            let pageVisibility = await js(page, "document.visibilityState")
+            let state = "visible=\(preview.isVisible) parent=\(preview.parent == nil ? "none" : "set") active=\(NSApp.isActive) page=\(pageVisibility) inWindow=\(page.nativeView.window === window) key=\(window.isKeyWindow)"
+            if states.last?.hasSuffix(state) != true { states.append(String(format: "%.0fms %@", ms(since: start), state)) }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        SpikeRunner.record("print_preview_states", states.joined(separator: "; ") + " hidesOnDeactivate=\(preview.hidesOnDeactivate)")
+        // The preview's window, up its parents (the dialog's own, the modal host's widget, Room's window).
+        var chain: [String] = []
+        var ancestor = preview.parent
+        while let current = ancestor {
+            chain.append(current === window ? "Room's window" : "\(Swift.type(of: current))")
+            ancestor = current.parent
+        }
+        let parent = chain.isEmpty ? "none" : chain.joined(separator: " ← ")
+        let order = NSApp.orderedWindows.firstIndex(of: preview).map(String.init) ?? "-"
+        let roomOrder = NSApp.orderedWindows.firstIndex(of: window).map(String.init) ?? "-"
+        SpikeRunner.record("print_preview_window", "level \(preview.level.rawValue) order \(order) (Room's window \(roomOrder)) occlusion visible=\(preview.occlusionState.contains(.visible)) key=\(preview.isKeyWindow)")
+        SpikeRunner.record("print_preview", String(format: "%@ after %.0f ms, parent %@, frame %@ over the window %@", "\(Swift.type(of: preview))",
+                                                    shownAfter, parent, NSStringFromRect(preview.frame), NSStringFromRect(window.frame)))
+        await captureB("print-preview", screen: true)
+        let escStart = ContinuousClock.now
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: preview.windowNumber, context: nil, characters: "\u{1b}",
+                                            charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53) {
+                NSApp.sendEvent(event)
+            }
+        }
+        let gone = await waitUntil(5) { !preview.isVisible || !NSApp.windows.contains(preview) }
+        SpikeRunner.record("print_preview_dismissed", String(format: "%@ by Esc after %.0f ms", gone ? "closed" : "still open", ms(since: escStart)))
+        if !gone { SpikeRunner.record("error", "print: the preview did not close on Esc") }
     }
 
     // MARK: Status pill
@@ -463,11 +529,22 @@ extension SpikeRunner.Context {
             await waitLoaded(frontend, timeout: 10)
             var panel = "none"
             for _ in 0..<50 {
-                panel = await js(frontend, "(async () => { try { const UI = await import('./ui/legacy/legacy.js'); return UI.InspectorView.InspectorView.instance().tabbedPane.selectedTabId; } catch (e) { return 'error ' + e } })()")
+                panel = await js(frontend, "(async () => { try { const UI = await import('devtools://devtools/bundled/ui/legacy/legacy.js'); return UI.InspectorView.InspectorView.instance().tabbedPane.selectedTabId; } catch (e) { return 'error ' + e } })()")
                 if panel.contains("console") { break }
                 try? await Task.sleep(for: .milliseconds(200))
             }
             SpikeRunner.record("devtools_console", "opened=\(opened) panel=\(panel)")
+            // ⌥⌘C with DevTools open: the element picker on the Elements panel (open(in:tool:)).
+            app?.inspectElements(nil)
+            var picker = "none"
+            for _ in 0..<25 {
+                picker = await js(frontend, "(async () => { try { const UI = await import('devtools://devtools/bundled/ui/legacy/legacy.js'); "
+                    + "const a = UI.ActionRegistry.ActionRegistry.instance().getAction('elements.toggle-element-search'); "
+                    + "return UI.InspectorView.InspectorView.instance().tabbedPane.selectedTabId + ' picker=' + a.toggled(); } catch (e) { return 'error ' + e } })()")
+                if picker.contains("elements picker=true") { break }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            SpikeRunner.record("devtools_element_picker", "panel=\(picker)")
         }
         session.host.toggleDevTools()
         _ = await waitUntil(5) { page.devTools?.isOpen == false }
@@ -477,7 +554,7 @@ extension SpikeRunner.Context {
     }
 
     /// The front-end has a page target (it attached over the debugging port).
-    private static let frontendAttached = "(async () => { try { const SDK = await import('./core/sdk/sdk.js'); "
+    private static let frontendAttached = "(async () => { try { const SDK = await import('devtools://devtools/bundled/core/sdk/sdk.js'); "
         + "return !!SDK.TargetManager.TargetManager.instance().primaryPageTarget(); } catch (e) { return false; } })()"
 
     /// A mouse drag through the window, as a person's (the divider tracks it).
@@ -768,9 +845,12 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
     }
 }
 extension SpikeRunner.Context {
-    /// The DevTools front-end page, where the engine exposes it (CEF's docked front-end).
+    /// The DevTools front-end page, where the engine exposes it (CEF's docked
+    /// front-end, RoomCore's adopted one).
     func devToolsFrontend(_ page: any WebContents) -> (any WebContents)? {
-        #if canImport(EngineCEF)
+        #if ROOM_ENGINE_ROOMCORE
+        (page.devTools as? RoomCoreDevTools)?.frontendPage
+        #elseif canImport(EngineCEF)
         (page.devTools as? CEFDevToolsInspectable)?.frontendPage
         #else
         nil

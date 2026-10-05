@@ -426,7 +426,7 @@ extension SpikeRunner.Context {
         NSGraphicsContext.restoreGraphicsState()
         guard let png = rep.representation(using: .png, properties: [:]) else { return "encode failed" }
         do { try png.write(to: url) } catch { return "\(error)" }
-        return "\(url.lastPathComponent) \(rep.pixelsWide)x\(rep.pixelsHigh) layer render\(page == nil ? "" : ", page composited from CDP")"
+        return "\(url.lastPathComponent) \(rep.pixelsWide)x\(rep.pixelsHigh) layer render\(page == nil ? "" : ", page composited from captureViewport")"
             + (overlay == nil ? "" : ", list drawn by cacheDisplay over a flat stand-in for the glass")
     }
 

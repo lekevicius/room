@@ -604,7 +604,12 @@ def _chrome26b(c):
     c.contains("find_closed", "bar=false", "focus=RenderWidgetHostViewCocoa", label="Esc closes find, focus back in the page")
     c.contains("zoom_in", 'indicator="110%"', label="⌘= zooms to 110% with the indicator")
     c.contains("zoom_out_reset", "0.9", "after ⌘0 1.0", label="⌘- ⌘- 90%, ⌘0 100%")
-    c.contains("print_panel", "modal NSPanel", label="⌘P: CEF's print panel (B-29)")
+    if c.first("print_preview") is not None:
+        # RoomCore (3.3b): Chrome's print preview in a child window over Room's, closed by Esc (B-29).
+        c.contains("print_preview", "← Room's window", label="⌘P: Chrome's print preview over Room's window (B-29)")
+        c.contains("print_preview_dismissed", "closed by Esc", label="Esc closes the print preview")
+    else:
+        c.contains("print_panel", "modal NSPanel", label="⌘P: CEF's print panel (B-29)")
     c.contains("status_pill_dodge", "leading → trailing", label="status pill dodges the pointer")
     c.contains("site_panel_page_sees", 'geolocation\\":\\"denied', label="site panel Block reaches the page")
     c.contains("site_panel_clear", "cleared=true", 'cookie=""', label="site panel Clear empties cookies and storage")
@@ -616,9 +621,11 @@ def _chrome26b(c):
     c.contains("element_fullscreen_exit", "window back=true", "sidebar=true", label="leaving element fullscreen restores the window")
     c.contains("traffic_lights_after_fullscreen", "after close={{19, 19}", "toolbar=true", label="traffic lights back at 19,19 with the toolbar")
     c.contains("devtools_console", "opened=true", label="⌥⌘J opens DevTools on the console")
+    if c.first("devtools_element_picker") is not None:
+        c.contains("devtools_element_picker", "picker=true", label="⌥⌘C turns on the element picker")
     c.contains("audio", "audible=true", "stopped=true", label="audible on and off (a media element)")
     c.contains("copy_url", "⇧⌘C → http", "⌥⇧⌘C → [Audio]", label="Copy URL and as Markdown")
-    for key in ("find_keystroke_to_match", "find_keystroke_to_final", "devtools_open_to_frontend_loaded", "status_text_to_pill", "print_panel", "download_begin"):
+    for key in ("find_keystroke_to_match", "find_keystroke_to_final", "devtools_open_to_frontend_loaded", "status_text_to_pill", "print_panel", "print_preview", "download_begin"):
         c.number(key)
 
 

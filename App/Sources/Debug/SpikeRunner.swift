@@ -690,16 +690,13 @@ enum SpikeRunner {
             session.host.toggleDevTools(inspecting: NSPoint(x: 60, y: 160))
             let opened = await waitUntil(10) { page.devTools?.isOpen == true }
             SpikeRunner.record("devtools_open", "\(opened) after \(String(format: "%.0f", ms(since: start)))ms docked=\(session.host.isDevToolsOpen)")
-            #if canImport(EngineCEF)
-            let frontend = (page.devTools as? CEFDevToolsInspectable)?.frontendPage
-            #else
-            let frontend: (any WebContents)? = nil
-            #endif
+            let frontend = devToolsFrontend(page)
             guard let frontend else {
                 SpikeRunner.record("devtools_frontend", "none")
                 SpikeRunner.record("error", "devtools: no front-end page to read the selected node from")
                 return
             }
+            await waitLoaded(frontend, timeout: 10)
             var selected = "none"
             for _ in 0..<50 {
                 selected = await js(frontend, PageScriptsSpike.selectedNode)
@@ -777,8 +774,8 @@ enum PageScriptsSpike {
     /// Runs in the DevTools front-end: the node selected in Elements.
     static let selectedNode = """
     (async () => {
-      const UI = await import('./ui/legacy/legacy.js');
-      const SDK = await import('./core/sdk/sdk.js');
+      const UI = await import('devtools://devtools/bundled/ui/legacy/legacy.js');
+      const SDK = await import('devtools://devtools/bundled/core/sdk/sdk.js');
       const node = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
       return node ? node.nodeName() + '#' + (node.getAttribute('id') || '') : 'none';
     })()
