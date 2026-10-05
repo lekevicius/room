@@ -38,7 +38,10 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
 
     public func makeWebContents(_ configuration: WebContentsConfiguration = WebContentsConfiguration()) throws -> RoomCoreWebContents {
         if RoomCoreApplication.current?.isTerminating == true { throw EngineError.notRunning }
-        let page = profile.createWebContents()
+        // Hidden pages render nothing until their view is in a visible
+        // window (Chromium's initially_hidden; WebContentsViewCocoa then
+        // reports VISIBLE, and HIDDEN when the host takes the view out).
+        let page = profile.createWebContents(initiallyHidden: configuration.initiallyHidden)
         let contents = RoomCoreWebContents(page: page, configuration: configuration, profile: self)
         liveContents.add(contents)
         // Into the window's tab strip at once (add on create); the strip's
@@ -83,7 +86,10 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
     public func resumeDownload(id: DownloadItem.ID) {}
     public func cancelDownload(id: DownloadItem.ID) {}
 
-    public func favicon(for pageURL: URL) async -> NSImage? { nil }
+    /// Chrome's `FaviconService::GetFaviconImageForPageURL`.
+    public func favicon(for pageURL: URL) async -> NSImage? {
+        await profile.favicon(forPageURL: pageURL)
+    }
 
     public func clearSiteData(_ types: SiteDataTypes, for origin: URL?) async throws {
         throw EngineError.notSupported("RoomCoreProfile.clearSiteData")

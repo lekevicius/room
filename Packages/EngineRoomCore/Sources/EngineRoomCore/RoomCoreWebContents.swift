@@ -5,11 +5,14 @@ import RoomCore
 
 /// `WebContents` over a `RoomWebContents` (Chromium `content::WebContents`):
 /// load, history, reload/stop, title, URL, loading, the native view, close,
-/// (3.2a) the pages it opens, the hovered link and element fullscreen, and
-/// (3.2b) reserved, unhandled and consumed keys and isolated-world scripts.
-/// A page created for a host window is in that window's Chrome tab strip
-/// (`RoomBrowser`); the members that need Chrome's tab helpers wired to Room
-/// are `notSupported` or inert until their phase (docs/engine-api.md).
+/// (3.2a) the pages it opens, the hovered link and element fullscreen,
+/// (3.2b) reserved, unhandled and consumed keys and isolated-world scripts,
+/// and (3.3a) real transitions, the navigation policy and commits, favicon,
+/// progress, theme and background colours, security, audible, muted, zoom,
+/// discard and the lifecycle state. A page created for a host window is in
+/// that window's Chrome tab strip (`RoomBrowser`), which attaches Chrome's
+/// tab helpers; find, capture, print and DevTools are 3.3b's
+/// (docs/engine-api.md).
 ///
 /// `nativeView` is a view this object owns, with Chromium's
 /// `WebContentsViewCocoa` inside, so it stays valid after `close()`.
@@ -33,9 +36,15 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var isAudible = false
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
-    /// Stored only: RoomCore has no audio or zoom members yet (3.3a).
-    public var isMuted: Bool
-    public var zoomFactor = 1.0
+    /// `WebContents::SetAudioMuted`; follows `DidUpdateAudioMutingState`.
+    public var isMuted: Bool {
+        didSet { if page.isMuted != isMuted { page.isMuted = isMuted } }
+    }
+    /// Chrome's `ZoomController` (per host: the host's other pages follow);
+    /// follows `ZoomObserver::OnZoomChanged`.
+    public var zoomFactor = 1.0 {
+        didSet { if abs(page.zoomFactor - zoomFactor) > 0.0001 { page.zoomFactor = zoomFactor } }
+    }
 
     /// What the page asked for when it opened this one: the window.open
     /// rect or the picture-in-picture size (top-left screen coordinates);
@@ -59,6 +68,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         isMuted = configuration.initiallyMuted
         super.init()
         page.delegate = self
+        if configuration.initiallyMuted { page.isMuted = true }
         if let view = page.nativeView { pageView.host(view) }
         let weakSelf = WeakContents(self)
         observations = [
@@ -68,8 +78,27 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             page.observe(\.canGoBack) { _, _ in weakSelf.refresh() },
             page.observe(\.canGoForward) { _, _ in weakSelf.refresh() },
             page.observe(\.isClosed) { _, _ in weakSelf.refresh() },
+            page.observe(\.favicon) { _, _ in weakSelf.refresh() },
+            page.observe(\.loadProgress) { _, _ in weakSelf.refresh() },
+            page.observe(\.themeColor) { _, _ in weakSelf.refresh() },
+            page.observe(\.backgroundColor) { _, _ in weakSelf.refresh() },
+            page.observe(\.securityLevel) { _, _ in weakSelf.refresh() },
+            page.observe(\.hasMixedContent) { _, _ in weakSelf.refresh() },
+            page.observe(\.isAudible) { _, _ in weakSelf.refresh() },
+            page.observe(\.isMuted) { _, _ in weakSelf.refresh() },
+            page.observe(\.zoomFactor) { _, _ in weakSelf.refresh() },
+            page.observe(\.lifecycleState) { _, _ in weakSelf.refresh() },
+            // A discard replaces Chromium's WebContents, and with it the view.
+            page.observe(\.nativeView) { _, _ in weakSelf.rehostView() },
         ]
         refresh()
+    }
+
+    /// Puts the page's current Chromium view in `pageView` (after a discard).
+    fileprivate func rehostView() {
+        guard let view = page.nativeView, view.superview !== pageView else { return }
+        pageView.subviews.forEach { $0.removeFromSuperview() }
+        pageView.host(view)
     }
 
     /// Copies RoomCore's KVO state (main thread) into the observable properties.
@@ -88,28 +117,49 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         if url != page.url { url = page.url }
         let newTitle = page.title.isEmpty ? nil : page.title
         if title != newTitle { title = newTitle }
-        if isLoading != page.isLoading {
-            isLoading = page.isLoading
-            // No progress events at this depth: a start and an end.
-            loadProgress = isLoading ? 0.1 : 1
-        }
+        if isLoading != page.isLoading { isLoading = page.isLoading }
+        let progress = isLoading ? page.loadProgress : 1
+        if loadProgress != progress { loadProgress = progress }
         if canGoBack != page.canGoBack { canGoBack = page.canGoBack }
         if canGoForward != page.canGoForward { canGoForward = page.canGoForward }
+        if favicon !== page.favicon { favicon = page.favicon }
+        if themeColor != page.themeColor { themeColor = page.themeColor }
+        if rootBackgroundColor != page.backgroundColor { rootBackgroundColor = page.backgroundColor }
+        let security = SecurityState(page.securityLevel, hasMixedContent: page.hasMixedContent)
+        if securityState != security {
+            securityState = security
+            uiDelegate?.webContents(self, didChangeSecurityState: security)
+        }
+        if isAudible != page.isAudible {
+            isAudible = page.isAudible
+            uiDelegate?.webContents(self, didChangeAudible: isAudible)
+        }
+        if isMuted != page.isMuted {
+            isMuted = page.isMuted
+            uiDelegate?.webContents(self, didChangeMuted: isMuted)
+        }
+        if abs(zoomFactor - page.zoomFactor) > 0.0001 { zoomFactor = page.zoomFactor }
+        let lifecycle: WebContentsState = switch page.lifecycleState {
+        case .discarded: .discarded
+        case .frozen: .frozen
+        default: .alive
+        }
+        if state != lifecycle { state = lifecycle }
     }
 
     // MARK: Navigation
 
-    /// RoomCore loads every URL as typed from the address bar (the
-    /// transition argument arrives with 3.3a).
+    /// `NavigationController::LoadURLWithParams` with the transition's
+    /// `ui::PageTransition` (FROM_ADDRESS_BAR when `fromAddressBar`).
     public func load(_ url: URL, transition: PageTransition, fromAddressBar: Bool) {
-        page.loadURL(url)
+        page.loadURL(url, transition: RoomPageTransition(transition), fromAddressBar: fromAddressBar)
     }
 
     public func goBack() { page.goBack() }
     public func goForward() { page.goForward() }
     public func reload() { page.reload() }
-    /// A plain reload until 3.3a adds `ReloadType::BYPASSING_CACHE`.
-    public func reloadIgnoringCache() { page.reload() }
+    /// `ReloadType::BYPASSING_CACHE`.
+    public func reloadIgnoringCache() { page.reloadIgnoringCache() }
     public func stop() { page.stop() }
 
     // MARK: Find (3.3b: FindTabHelper)
@@ -119,12 +169,19 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     // MARK: Lifecycle
 
+    /// Chrome's `TabLifecycleUnit` discard: the renderer goes, the
+    /// navigation entries stay, so the page that `reload()` brings back has
+    /// its back/forward list (B-13). Chrome swaps in a new `WebContents`;
+    /// RoomCore moves this page (and its view) onto it.
     public func discard() throws {
-        throw EngineError.notSupported("RoomCoreWebContents.discard")
+        guard state != .closed else { throw EngineError.closed }
+        guard page.discard() else { throw EngineError.failed("RoomCore refused the discard (no tab strip, or already discarded)") }
+        refresh()
     }
 
-    /// Closes the page at once (RoomCore runs no beforeunload handlers yet);
-    /// `webContentsDidClose` follows from the `closed` change.
+    /// Closes the page through its tab strip, which runs its beforeunload
+    /// handler first (Chrome's own dialog until 3.4b); `webContentsDidClose`
+    /// follows from the `closed` change once it is gone.
     public func close() {
         guard state != .closed else { return }
         page.close()
@@ -236,6 +293,19 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     // MARK: RoomWebContentsDelegate
 
+    /// The policy for a navigation, from the `//room` navigation throttle
+    /// (the page's own navigations) or Navigate()'s disposition hook (pages
+    /// it opens elsewhere).
+    public func webContents(_ webContents: RoomWebContents, decidePolicyFor action: RoomNavigationAction) -> RoomWindowOpenDisposition {
+        guard let navigationDelegate else { return action.disposition }
+        return RoomWindowOpenDisposition(navigationDelegate.webContents(self, decidePolicyFor: NavigationAction(action)))
+    }
+
+    public func webContents(_ webContents: RoomWebContents, didCommitNavigation url: URL, transition: RoomPageTransition,
+                            sameDocument: Bool) {
+        navigationDelegate?.webContents(self, didCommitNavigation: url, transition: PageTransition(transition))
+    }
+
     /// A page this one opened, already in this page's `Browser` (never a
     /// window of its own): the host places it, or closes it.
     public func webContents(_ webContents: RoomWebContents, didCreate newContents: RoomWebContents, targetURL: URL?,
@@ -306,8 +376,87 @@ extension Disposition {
         case .newPictureInPicture: self = .newPictureInPicture
         case .offTheRecord: self = .offTheRecord
         case .newForegroundTab, .singletonTab, .switchToTab, .newSplitView: self = .newForegroundTab
+        case .currentTab: self = .currentTab
+        case .ignoreAction: self = .ignore
+        case .saveToDisk: self = .saveToDisk
         @unknown default: self = .newForegroundTab
         }
+    }
+}
+
+extension RoomWindowOpenDisposition {
+    init(_ disposition: Disposition) {
+        switch disposition {
+        case .ignore: self = .ignoreAction
+        case .currentTab: self = .currentTab
+        case .newForegroundTab: self = .newForegroundTab
+        case .newBackgroundTab: self = .newBackgroundTab
+        case .newWindow: self = .newWindow
+        case .newPopup: self = .newPopup
+        case .newPictureInPicture: self = .newPictureInPicture
+        case .saveToDisk: self = .saveToDisk
+        case .offTheRecord: self = .offTheRecord
+        }
+    }
+}
+
+extension RoomPageTransition {
+    init(_ transition: PageTransition) {
+        switch transition {
+        case .link: self = .link
+        case .typed: self = .typed
+        case .bookmark: self = .autoBookmark
+        case .generated: self = .generated
+        case .keyword: self = .keyword
+        case .formSubmit: self = .formSubmit
+        case .reload: self = .reload
+        case .other: self = .other
+        }
+    }
+}
+
+extension PageTransition {
+    init(_ transition: RoomPageTransition) {
+        switch transition {
+        case .link: self = .link
+        case .typed: self = .typed
+        case .autoBookmark: self = .bookmark
+        case .generated: self = .generated
+        case .keyword: self = .keyword
+        case .formSubmit: self = .formSubmit
+        case .reload: self = .reload
+        default: self = .other
+        }
+    }
+}
+
+extension NavigationAction {
+    /// RoomCore's action in the protocol's terms: `kind` is exact (a click on
+    /// a link is never a script's `window.location`, B-33).
+    init(_ action: RoomNavigationAction) {
+        let kind: Kind = switch action.kind {
+        case .linkClicked: .linkActivated
+        case .formSubmitted: .formSubmitted
+        case .backForward: .backForward
+        case .reload: .reload
+        default: .other
+        }
+        self.init(url: action.url, referrer: action.referrer, kind: kind, transition: PageTransition(action.transition),
+                  disposition: Disposition(action.disposition), isUserGesture: action.isUserGesture,
+                  isRedirect: action.isRedirect, isClientRedirect: action.isClientRedirect)
+    }
+}
+
+extension SecurityState {
+    /// Chrome's security level: WARNING is plain HTTP ("Not secure").
+    init(_ level: RoomSecurityLevel, hasMixedContent: Bool) {
+        let mapped: Level = switch level {
+        case .secure: .secure
+        case .warning: .insecure
+        case .dangerous: .dangerous
+        default: .none
+        }
+        self.init(level: mapped, hasMixedContent: hasMixedContent)
     }
 }
 
@@ -338,6 +487,10 @@ private struct WeakContents: @unchecked Sendable {
 
     nonisolated func refresh() {
         MainActor.assumeIsolated { contents?.refresh() }
+    }
+
+    nonisolated func rehostView() {
+        MainActor.assumeIsolated { contents?.rehostView() }
     }
 }
 
