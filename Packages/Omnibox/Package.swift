@@ -10,9 +10,11 @@ let package = Package(
     products: [.library(name: "Omnibox", targets: ["Omnibox"])],
     dependencies: [
         .package(path: "../Model"),
+        // The engine's autocomplete match value types (Phase 3.5's engine providers); no engine object is used here.
+        .package(path: "../Engine"),
     ],
     targets: [
-        .target(name: "Omnibox", dependencies: ["Model"]),
-        .testTarget(name: "OmniboxTests", dependencies: ["Omnibox", "Model"]),
+        .target(name: "Omnibox", dependencies: ["Model", "Engine"]),
+        .testTarget(name: "OmniboxTests", dependencies: ["Omnibox", "Model", "Engine"]),
     ]
 )

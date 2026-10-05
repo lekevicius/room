@@ -22,7 +22,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
 
     private weak var hostView: NSView?
     private let tabs: TabController
-    private let sidebar: SidebarController
+    let sidebar: SidebarController
     /// The local providers plus history over the store's database.
     public var omnibox: Omnibox
     /// The card's frame in `hostView` (the palette centres over it).
@@ -43,6 +43,17 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public var searchEngine: () -> SearchEngine = { .google }
     /// The suggestions switch (Settings ▸ Search), read on every use so it holds at once.
     public var suggestionsEnabled: () -> Bool = { false }
+    /// The engine's omnibox for a profile (Phase 3.5, RoomCore): Chrome's
+    /// history and, with the switch on, its suggestions replace the local
+    /// history provider and the suggest client. `nil` (CEF, the fakes by
+    /// default): the Chapter 2 providers run. Asked once per profile.
+    public var makeAutocomplete: (UUID) -> (any AutocompleteController)? = { _ in nil }
+    /// The engine's history for a profile (⌘Y, deleting a history row); `nil`: the store's table.
+    public var engineHistory: (UUID) -> (any ProfileHistory)? = { _ in nil }
+    /// DEBUG measurement: each asynchronous engine update (after the keystroke's own turn), with whether the engine is done.
+    public var onEngineUpdate: ((_ done: Bool) -> Void)?
+    /// The providers the last keystroke asked the engine for (the switch rule's evidence).
+    public internal(set) var lastEngineProviders: AutocompleteProviders?
     /// Search suggestions; `nil` sends nothing.
     public var suggest: SuggestClient? {
         didSet { suggest?.isEnabled = { [weak self] in self?.suggestionsEnabled() ?? false } }
@@ -73,13 +84,13 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// Built once and reused: building the glass and the hosting view cost
     /// most of the open's main-thread time (2.4a measurement).
     private var builtOverlay: PaletteOverlayView?
-    private var context = OmniboxContext()
+    var context = OmniboxContext()
     /// The snapshot is built after the open's frame, on an idle turn (or by
     /// a keystroke that comes first), not at the open (2.4a measured the open
     /// at 25.8 ms) nor on the first keystroke (3 ms of its 22 ms, 2.6a).
     private var contextIsCurrent = false
     /// The input the rows were last computed for.
-    private var input = OmniboxInput(text: "")
+    var input = OmniboxInput(text: "")
     /// The synchronous providers' matches for `input`.
     private var localMatches: [OmniboxMatch] = []
     /// The last suggestions and the query they answer.
@@ -91,6 +102,15 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     private var clipboardChangeCount: Int?
     /// Each entry's snapshot as of the last open, reused while the entry is unchanged.
     private var entryCache: [UUID: (entry: Entry, snapshot: OmniboxEntry)] = [:]
+    /// Engine path (3.5): one controller per profile, the one in use, and its matches mapped into Room's bands.
+    var autocompleteControllers: [UUID: any AutocompleteController] = [:]
+    weak var activeAutocomplete: (any AutocompleteController)?
+    var engineMatches: [OmniboxMatch] = []
+    /// ⌘Y on the engine's history: its most visited pages, once they arrive.
+    var engineRecent: [OmniboxMatch] = []
+    var engineRecentRequested = false
+    /// Inside `start`: the synchronous pass is read after it, not ranked twice.
+    var startingEngine = false
     private var memory = TypedTextMemory(lifetime: Timing.typedTextMemory)
     private weak var previousResponder: NSResponder?
     /// ⌘Enter: the field editor has no command for it, and a key equivalent
@@ -249,6 +269,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         keyMonitor = nil
         suggest?.cancel()
         suggestions = ("", [])
+        stopEngine()
         localMatches = []
         siteSearch = nil
         listsRecentHistory = false
@@ -396,12 +417,12 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     }
 
     /// ⌘L with the URL untouched shows no rows: Enter reloads (spec §C).
-    private var isUnchangedEdit: Bool {
+    var isUnchangedEdit: Bool {
         guard case .edit(_, let url) = mode else { return false }
         return typedText == url
     }
 
-    private func query(preventingInline: Bool) {
+    func query(preventingInline: Bool) {
         let start = ContinuousClock.now
         var snapshotDone: ContinuousClock.Instant?
         input = OmniboxInput(field: typedText, siteSearch: siteSearch, preventsInlineCompletion: preventingInline)
@@ -411,14 +432,19 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             // Nothing typed: no snapshot needed; Paste & Go when the clipboard
             // holds a URL; recent history after ⌘Y.
             localMatches = pasteAndGoMatch.map { [$0] } ?? []
-            if listsRecentHistory, let history = omnibox.providers.lazy.compactMap({ $0 as? HistoryProvider }).first {
+            if listsRecentHistory, let profile = sidebar.activeSpace?.profileID, let history = engineHistory(profile) {
+                requestRecentHistory(history)
+                localMatches += engineRecent
+            } else if listsRecentHistory, let history = omnibox.providers.lazy.compactMap({ $0 as? HistoryProvider }).first {
                 localMatches += history.recentMatches(in: OmniboxContext(activeProfileID: sidebar.activeSpace?.profileID, now: now()))
             }
         } else {
             ensureContext()
             snapshotDone = ContinuousClock.now
-            localMatches = omnibox.candidates(for: input, in: context)
+            // On the engine path Chrome's history replaces the local table's provider.
+            localMatches = omnibox.candidates(for: input, in: context, excluding: currentAutocomplete() == nil ? [] : [.history])
         }
+        startEngine()
         let providersDone = ContinuousClock.now
         keepSuggestions(for: input)
         rank(keepingHighlight: false)
@@ -431,10 +457,12 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
 
     /// The rows from the local matches and the suggestions that have arrived.
     /// When suggestions arrive the highlighted row stays the same row.
+    func rankKeepingHighlight() { rank(keepingHighlight: true) }
+
     private func rank(keepingHighlight: Bool) {
         let highlightedID = highlightedIndex.flatMap { result.matches.indices.contains($0) ? result.matches[$0].id : nil }
         let suggested = SuggestClient.matches(for: suggestions.items, engine: context.searchEngine)
-        result = OmniboxResult(ranking: localMatches + suggested, input: input)
+        result = OmniboxResult(ranking: localMatches + suggested + engineMatches, input: input)
         if keepingHighlight, let highlightedID, let index = result.matches.firstIndex(where: { $0.id == highlightedID }) {
             highlightedIndex = index
         } else {
@@ -457,7 +485,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     }
 
     private func requestSuggestions() {
-        guard let suggest else { return }
+        // RoomCore: the engine's SearchProvider suggests (asked per keystroke by the switch); the host's client stays on CEF.
+        guard let suggest, currentAutocomplete() == nil else { return }
         guard input.mode == .normal, !input.isEmpty, !isUnchangedEdit, suggestionsEnabled() else { return suggest.cancel() }
         let query = input.trimmed
         suggest.request(query, engine: context.searchEngine) { [weak self] items in
@@ -472,6 +501,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public func suggestionsSettingChanged() {
         guard !suggestionsEnabled() else { return }
         suggest?.cancel()
+        engineSuggestionsOff()
         guard !suggestions.items.isEmpty else { return }
         suggestions = ("", [])
         if isOpen { rank(keepingHighlight: true) }
@@ -543,7 +573,9 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         guard result.matches.indices.contains(index), result.matches[index].isDeletable else { return false }
         let match = result.matches[index]
         guard let profile = sidebar.activeSpace?.profileID else { return false }
-        do {
+        if let history = engineHistory(profile) {
+            deleteEngineHistory(match, in: history)
+        } else { do {
             if let host = HistoryProvider.deletedHost(for: match) {
                 try tabs.store.history.delete(host: host, profile: profile)
             } else if let url = match.action.url {
@@ -552,7 +584,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         } catch {
             NSLog("Room: history suggestion not removed: \(error)")
             return false
-        }
+        } }
         // The completion goes with it and does not come back on this text.
         overlay?.panel.field.stringValue = input.mode == .commands ? ">" + input.text : typedText
         query(preventingInline: true)

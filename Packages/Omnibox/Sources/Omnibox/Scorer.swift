@@ -165,14 +165,16 @@ public struct Omnibox: Sendable {
 
     /// Every provider's matches, unranked. Commands mode asks only the
     /// commands (an empty query lists them all); a site-search chip asks the
-    /// verbatim search and history (spec §C).
-    public func candidates(for input: OmniboxInput, in context: OmniboxContext) -> [OmniboxMatch] {
-        let kinds: Set<ProviderKind>
+    /// verbatim search and history (spec §C). `excluded`: kinds another
+    /// source answers (the engine's history on RoomCore, Phase 3.5).
+    public func candidates(for input: OmniboxInput, in context: OmniboxContext, excluding excluded: Set<ProviderKind> = []) -> [OmniboxMatch] {
+        var kinds: Set<ProviderKind>
         switch input.mode {
         case .commands: kinds = [.commands]
         case .siteSearch: kinds = [.verbatim, .history]
         case .normal: kinds = Set(ProviderKind.allCases)
         }
+        kinds.subtract(excluded)
         guard !input.isEmpty || input.mode == .commands else { return [] }
         return providers.filter { kinds.contains($0.kind) }.flatMap { $0.matches(for: input, in: context) }
     }

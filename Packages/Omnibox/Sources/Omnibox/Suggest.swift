@@ -46,7 +46,7 @@ public final class SuggestClient {
     public typealias Sleep = @Sendable (Duration) async throws -> Void
 
     /// At most this many suggestions are shown (`macos-ui-stack.md` §5.2).
-    public static let limit = 5
+    nonisolated public static let limit = 5
 
     private let transport: any SuggestTransport
     private let sleep: Sleep
