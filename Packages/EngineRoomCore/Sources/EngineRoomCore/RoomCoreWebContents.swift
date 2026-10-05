@@ -206,17 +206,27 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         }
     }
 
+    /// One isolated-world evaluation. A page showing a JavaScript dialog
+    /// (Chrome's own until 3.4b routes `alert` to the host's sheet) runs no
+    /// script until it closes, so an answer that has not come in 30 s is an
+    /// error, not a wait without end (found by the 3.2b tour's popups step).
     private func evaluate(_ script: String) async throws -> ScriptOutcome {
         try await withCheckedThrowingContinuation { continuation in
+            let once = ResumeOnce(continuation)
             page.evaluateJavaScript(script) { result, error in
                 if let error {
-                    continuation.resume(throwing: EngineError.failed(error.localizedDescription))
+                    once.resume(throwing: EngineError.failed(error.localizedDescription))
                 } else {
-                    continuation.resume(returning: ScriptOutcome(result))
+                    once.resume(returning: ScriptOutcome(result))
                 }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.scriptTimeout) {
+                once.resume(throwing: EngineError.failed("executeJavaScript: no answer in \(Int(Self.scriptTimeout)) s (a JavaScript dialog may be open)"))
             }
         }
     }
+
+    private static let scriptTimeout: TimeInterval = 30
 
     public func print() {}
 
@@ -298,6 +308,24 @@ extension Disposition {
         case .newForegroundTab, .singletonTab, .switchToTab, .newSplitView: self = .newForegroundTab
         @unknown default: self = .newForegroundTab
         }
+    }
+}
+
+/// Resumes a continuation once: the first of the script's answer and its
+/// timeout wins (both arrive on the main thread).
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+    private var continuation: CheckedContinuation<T, any Error>?
+
+    init(_ continuation: CheckedContinuation<T, any Error>) { self.continuation = continuation }
+
+    func resume(returning value: T) {
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+
+    func resume(throwing error: any Error) {
+        continuation?.resume(throwing: error)
+        continuation = nil
     }
 }
 
