@@ -19,6 +19,14 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, copy) NSURL* directory;
 @property(nonatomic, readonly, getter=isOffTheRecord) BOOL offTheRecord;
 
+// Whether this profile's previous session ended cleanly: Chrome's
+// ExitTypeService (the profile's exit_type pref, "Normal" after a clean quit,
+// "Crashed" after a crash or a kill). Read when RoomCore first hands out the
+// profile; it does not change during the session. RoomCore then acknowledges
+// the crash on the host's behalf (the host restores its own state), so a
+// clean quit of this session records "Normal" again.
+@property(nonatomic, readonly) BOOL lastExitWasClean;
+
 // A new page with nothing loaded. Owned by the returned object until it is
 // added to a RoomBrowser.
 - (RoomWebContents*)createWebContents;

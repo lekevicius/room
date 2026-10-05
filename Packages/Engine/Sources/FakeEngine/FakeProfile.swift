@@ -12,6 +12,8 @@ public final class FakeProfile: Profile {
     public var storedFavicons: [URL: NSImage] = [:]
     /// Every `clearSiteData` call, in order.
     public private(set) var clearedSiteData: [(types: SiteDataTypes, origin: URL?)] = []
+    /// What `lastExitWasClean` reports (a test sets it before the host reads it).
+    public var lastExitWasClean: Bool? = true
 
     private var nextDownloadID = 1
 

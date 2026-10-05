@@ -11,6 +11,9 @@
 #include "base/supports_user_data.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
+#include "chrome/browser/sessions/exit_type_service.h"
+#include "components/prefs/pref_service.h"
+#include "base/logging.h"
 #include "content/public/browser/web_contents.h"
 #import "room/core/room_web_contents_internal.h"
 
@@ -58,6 +61,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   NSString* _name;
   NSURL* _directory;
   BOOL _offTheRecord;
+  BOOL _lastExitWasClean;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -83,6 +87,29 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
     _directory = [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())
                             isDirectory:YES];
     _offTheRecord = profile->IsOffTheRecord();
+    _lastExitWasClean = YES;
+    if (ExitTypeService* exits =
+            ExitTypeService::GetInstanceForProfile(profile)) {
+      _lastExitWasClean =
+          exits->last_session_exit_type() == ExitType::kClean;
+      // Chrome waits for the user to acknowledge a crash (its restore bubble,
+      // or a tab in a Browser that session restore tracks: Room Browsers are
+      // omitted) before a clean quit may record "Normal" again. The host
+      // owns crash recovery, so a lock released at once is the
+      // acknowledgement.
+      if (exits->waiting_for_user_to_ack_crash()) {
+        exits->CreateCrashedLock().reset();
+      }
+      // The service marked this session "Crashed" in the profile's prefs;
+      // write it now, not with the pref writer's next batch (~10 s), so a
+      // crash in the first seconds is seen at the next launch too.
+      profile->GetPrefs()->CommitPendingWrite();
+      LOG(INFO) << "RoomCore: profile " << path.BaseName().value()
+                << " last exit " << (_lastExitWasClean ? "clean" : "unclean")
+                << (exits->waiting_for_user_to_ack_crash()
+                        ? " (crash not acknowledged)"
+                        : "");
+    }
   }
   return self;
 }
@@ -97,6 +124,10 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 
 - (BOOL)isOffTheRecord {
   return _offTheRecord;
+}
+
+- (BOOL)lastExitWasClean {
+  return _lastExitWasClean;
 }
 
 - (Profile*)room_profile {

@@ -5,6 +5,8 @@ import Engine
 /// `Profile` over a `CefRequestContext`: its own cookie jar, cache and site
 /// settings under `<root_cache_path>/Profiles/<name>`.
 public final class CEFProfile: Profile {
+    /// CEF does not expose Chromium's exit type.
+    public var lastExitWasClean: Bool? { nil }
     public let name: String
     public weak var downloadsDelegate: (any DownloadsDelegate)?
 

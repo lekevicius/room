@@ -41,6 +41,12 @@ public protocol Profile: AnyObject {
     var extensions: (any ProfileExtensions)? { get }
     /// A new omnibox `AutocompleteController`, one per address field.
     func makeAutocompleteController() -> (any AutocompleteController)?
+
+    /// Whether the engine saw this profile's previous session end cleanly
+    /// (Chromium's exit type: `false` after a crash or a kill), read when the
+    /// profile loaded; `nil` when the engine does not track it (CEF). The
+    /// host combines it with its own store's `uncleanExit`.
+    var lastExitWasClean: Bool? { get }
 }
 
 /// Chromium history service. Members arrive in Phase 3.5.

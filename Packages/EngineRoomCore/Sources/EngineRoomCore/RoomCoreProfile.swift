@@ -25,6 +25,10 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate {
         super.init()
     }
 
+    /// Chromium's exit type for this profile's previous session
+    /// (`ExitTypeService`, read when RoomCore first handed out the profile).
+    public var lastExitWasClean: Bool? { profile.lastExitWasClean }
+
     /// Pages of this profile that are not closed.
     public var webContents: [RoomCoreWebContents] { liveContents.allObjects.filter { $0.state != .closed } }
 
