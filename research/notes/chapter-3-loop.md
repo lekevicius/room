@@ -48,3 +48,7 @@ Outcome: accepted; the phase closed. Decisions: seams over hooks held (one patch
 
 Outcome: accepted; the phase closed. Decisions: B-66 (Chromium's 90-day history retention drops older Chapter 2 visits at the import; provisional: 3.9 archives them to JSON before the schema step; the user decides on an archive view); B-64 recorded (Chrome polls suggestions while typing: with the switch on, many more requests than Room's own client made; the switch still means zero); B-65 recorded. No patch this session, which is the pattern 3.8 wants. User's list: `chapter-3-by-hand.md` 3.5 (the palette on Chrome's history, ⌘Y, suggestions and changing the engine, inline completion on and off, the focus command, the 120 Hz panel for B-20).
 
+### 3.6a — accepted (2026-10-05 13:23 → 15:33, 130 min)
+
+Outcome: accepted. The Web Store question is answered: three real extensions install through Room's consent in the unbranded build; risk 7 keeps only Widevine's real-service half. Decisions: two more hooks accepted (24); B-68 is the user's (extensions' own requests are theirs); B-67 (extension pages in the active space's profile) waits for 4.4/4.5. Seen on the machine: DaisyDisk ran during the baseline (load 20; the user was at the Mac), and an uninstall created `~/Applications/Chromium Apps.localized` once before the suppression (left for the user). User's list: `chapter-3-by-hand.md` 3.6a (1Password with an account, the store by hand, the stray folder).
+
