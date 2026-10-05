@@ -25,6 +25,9 @@ class NSWindow;
 namespace content {
 class WebContents;
 }
+namespace input {
+struct NativeWebKeyboardEvent;
+}
 namespace views {
 class View;
 }
@@ -71,6 +74,12 @@ class RoomBrowserWindowClient {
   virtual void OnBrowserWindowWillClose() = 0;
   // The Browser and its window are destroyed.
   virtual void OnBrowserWindowDestroyed() = 0;
+  // A key-down on its way to the focused page, before the renderer sees it:
+  // true when the host reserves it (the page never gets it).
+  virtual bool IsReservedKeyEvent(const input::NativeWebKeyboardEvent& event) = 0;
+  // A key-down the page did not consume: the host's turn (its main menu).
+  virtual bool HandleUnhandledKeyEvent(
+      const input::NativeWebKeyboardEvent& event) = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created

@@ -23,6 +23,13 @@ typedef NS_ENUM(NSInteger, RoomWindowOpenDisposition) {
   RoomWindowOpenDispositionNewSplitView,
 };
 
+// Which part of a keystroke the page consumed.
+typedef NS_ENUM(NSInteger, RoomKeyEventPhase) {
+  RoomKeyEventPhaseKeyDown = 0,
+  RoomKeyEventPhaseKeyUp,
+  RoomKeyEventPhaseCharacter,
+};
+
 // What a page asks of the UI around it. Called on the main thread.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomWebContentsDelegate <NSObject>
@@ -49,6 +56,20 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                                       origin:(nullable NSURL*)origin;
 // Element fullscreen ended (the page, Esc, or -exitFullscreen).
 - (void)webContentsDidRequestExitFullscreen:(RoomWebContents*)webContents;
+// A key-down on its way to the focused page, before the renderer sees it.
+// YES keeps it from the page: the host handles it itself (its main menu).
+- (BOOL)webContents:(RoomWebContents*)webContents
+    isReservedKeyEvent:(NSEvent*)event;
+// A key-down the page did not consume; YES when the host used it.
+- (BOOL)webContents:(RoomWebContents*)webContents
+    handleUnhandledKeyEvent:(NSEvent*)event;
+// The page consumed a key event (the renderer's acknowledgement of the main
+// frame's widget): the macOS key code, modifier flags and phase.
+- (void)webContents:(RoomWebContents*)webContents
+    didConsumeKeyCode:(unsigned short)keyCode
+        modifierFlags:(NSEventModifierFlags)modifierFlags
+                phase:(RoomKeyEventPhase)phase
+    NS_SWIFT_NAME(webContents(_:didConsumeKeyCode:modifierFlags:phase:));
 @end
 
 // One page (content::WebContents). Properties are KVO-observable and change on
@@ -84,6 +105,17 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 
 // Leaves element fullscreen (the page's exitFullscreen()).
 - (void)exitFullscreen;
+
+// Runs `script` in RoomCore's isolated world of the page's main frame (the
+// page's DOM is shared; its own JavaScript globals are not visible) and
+// delivers the completion value as Foundation objects: NSString, NSNumber,
+// NSArray, NSDictionary, NSNull for null and undefined (and for an uncaught
+// exception). Promises are not awaited. `error` is set when the page is
+// closed or has no live document. Called back on the main thread.
+- (void)evaluateJavaScript:(NSString*)script
+                completion:(void (^)(id _Nullable result,
+                                     NSError* _Nullable error))completion
+    NS_SWIFT_NAME(evaluateJavaScript(_:completion:));
 
 // Closes the page (runs no beforeunload handlers).
 - (void)close;

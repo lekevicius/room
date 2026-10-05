@@ -22,8 +22,10 @@ final class PageUIDelegate {
     @ObservationIgnored var onStatusText: ((String?) -> Void)?
     /// A page closed (the find bar forgets its text).
     @ObservationIgnored var onPageClosed: ((any WebContents) -> Void)?
-    /// Every key the engine reported as reserved or unhandled, for the keyboard spike.
+    /// The last keys the engine reported as reserved, unhandled or consumed, for the keyboard spike.
     @ObservationIgnored private(set) var keyLog: [String] = []
+    /// Keys the page consumed so far (the keyboard spike counts them).
+    @ObservationIgnored private(set) var consumedKeyCount = 0
 
     init(host: PageHost) {
         self.host = host
@@ -31,7 +33,12 @@ final class PageUIDelegate {
 
     private func logKey(_ kind: String, _ event: NSEvent) {
         let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        keyLog.append("\(kind) keyCode=\(event.keyCode) chars=\(event.charactersIgnoringModifiers ?? "") flags=\(flags.rawValue)")
+        appendKeyLog("\(kind) keyCode=\(event.keyCode) chars=\(event.charactersIgnoringModifiers ?? "") flags=\(flags.rawValue)")
+    }
+
+    private func appendKeyLog(_ line: String) {
+        keyLog.append(line)
+        if keyLog.count > 200 { keyLog.removeFirst(keyLog.count - 200) }
     }
 }
 
@@ -52,6 +59,14 @@ extension PageUIDelegate: WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, handleUnhandledKeyEvent event: NSEvent) -> Bool {
         logKey("unhandled", event)
         return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+    }
+
+    /// Nothing to do with a key the page used (RoomCore reports them; CEF
+    /// cannot); logged for the keyboard spike only.
+    func webContents(_ webContents: any WebContents, didConsumeKey key: KeyEventInfo) {
+        let flags = key.modifiers.intersection([.command, .shift, .option, .control])
+        consumedKeyCount += 1
+        appendKeyLog("consumed keyCode=\(key.keyCode) phase=\(key.phase) flags=\(flags.rawValue)")
     }
 
     // The page's prompts, menus and file choosers (ROADMAP 2.6 task 2) live in `chrome`.

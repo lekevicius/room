@@ -28,6 +28,7 @@
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/web_contents.h"
 #include "room/browser/room_exclusive_access_context.h"
@@ -717,26 +718,40 @@ gfx::Size RoomBrowserWindow::GetContentsSize() const {
   return contents ? contents->GetContainerBounds().size() : gfx::Size();
 }
 
+namespace {
+
+// The events the host's key delegates see: key-downs with their NSEvent
+// (CEF's OnPreKeyEvent/OnKeyEvent take KEYEVENT_RAWKEYDOWN only, too).
+bool IsHostKeyDown(const input::NativeWebKeyboardEvent& event) {
+  NSEvent* ns_event = event.os_event.Get();
+  return event.GetType() == blink::WebInputEvent::Type::kRawKeyDown &&
+         ns_event && ns_event.type == NSEventTypeKeyDown;
+}
+
+}  // namespace
+
 content::KeyboardEventProcessingResult
 RoomBrowserWindow::PreHandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
-  // Every key goes to the page first; the host's reserved shortcuts are
-  // matched by its own menu before the event reaches the web view.
+  // The host's reserved shortcuts (⌘T, ⌘L, ⌘W …) never reach the page; the
+  // host runs them itself (its menu, once). Everything else goes to the page
+  // first.
+  if (client_ && IsHostKeyDown(event) && client_->IsReservedKeyEvent(event)) {
+    return content::KeyboardEventProcessingResult::HANDLED;
+  }
   return content::KeyboardEventProcessingResult::NOT_HANDLED;
 }
 
 bool RoomBrowserWindow::HandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
-  // A key the page did not consume: give it once to the host's main menu
-  // (what views::UnhandledKeyboardEventHandler does for BrowserView).
-  if (event.skip_if_unhandled) {
+  // A key the page did not consume: the host's delegate gives it once to its
+  // main menu (what views::UnhandledKeyboardEventHandler's redispatch does
+  // for BrowserView). Content already drops skip_if_unhandled events and
+  // keys of hidden pages; repeats arrive as key-downs with isARepeat.
+  if (!client_ || event.skip_if_unhandled || !IsHostKeyDown(event)) {
     return false;
   }
-  NSEvent* ns_event = event.os_event.Get();
-  if (!ns_event || ns_event.type != NSEventTypeKeyDown) {
-    return false;
-  }
-  return [NSApp.mainMenu performKeyEquivalent:ns_event];
+  return client_->HandleUnhandledKeyEvent(event);
 }
 
 BrowserView* RoomBrowserWindow::AsBrowserView() {

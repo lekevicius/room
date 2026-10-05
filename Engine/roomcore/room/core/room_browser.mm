@@ -61,6 +61,7 @@
 #include "chrome/browser/ui/login/login_handler.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/permissions/permission_request_manager.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -79,6 +80,7 @@
 - (void)room_tabStripChanged:(const TabStripModelChange&)change
                    selection:(const TabStripSelectionChange&)selection;
 - (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
+- (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
 @end
 
 namespace {
@@ -98,6 +100,16 @@ class Client : public room::RoomBrowserWindowClient {
   }
   void OnTabFullscreenExited(content::WebContents* contents) override {
     [browser_ room_tabFullscreenExited:contents];
+  }
+  bool IsReservedKeyEvent(const input::NativeWebKeyboardEvent& event) override {
+    NSEvent* ns_event = event.os_event.Get();
+    return [[browser_ room_keyTargetFor:ns_event] room_isReservedKeyEvent:ns_event];
+  }
+  bool HandleUnhandledKeyEvent(
+      const input::NativeWebKeyboardEvent& event) override {
+    NSEvent* ns_event = event.os_event.Get();
+    return [[browser_ room_keyTargetFor:ns_event]
+        room_handleUnhandledKeyEvent:ns_event];
   }
 
  private:
@@ -261,6 +273,29 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     wrapper.room_browser = self;
   }
   return wrapper;
+}
+
+// The page a key event belongs to: the one whose view holds the key
+// window's first responder (a split shows several pages of one strip; the
+// strip's active tab follows a click only on the next task), else the
+// strip's active tab.
+- (RoomWebContents*)room_keyTargetFor:(NSEvent*)event {
+  if (!_browser) {
+    return nil;
+  }
+  TabStripModel* strip = _browser->GetTabStripModel();
+  NSResponder* responder = (event.window ?: NSApp.keyWindow).firstResponder;
+  if ([responder isKindOfClass:NSView.class]) {
+    for (int i = 0; i < strip->count(); ++i) {
+      content::WebContents* contents = strip->GetWebContentsAt(i);
+      NSView* view = contents->GetNativeView().GetNativeNSView();
+      if (view && [(NSView*)responder isDescendantOf:view]) {
+        return [RoomWebContents room_existingWrapperFor:contents];
+      }
+    }
+  }
+  return [RoomWebContents
+      room_existingWrapperFor:strip->GetActiveWebContents()];
 }
 
 - (void)room_activateWebContents:(RoomWebContents*)webContents {

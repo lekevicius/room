@@ -8,6 +8,7 @@
 #include <memory>
 
 class GURL;
+@class NSEvent;
 
 namespace content {
 class WebContents;
@@ -45,6 +46,9 @@ void InstallWebContentsHooks();
 - (void)room_targetURLChanged:(const GURL&)url;
 - (void)room_didEnterFullscreen:(const url::Origin&)origin;
 - (void)room_didExitFullscreen;
+// Key routing from the page's RoomBrowserWindow (the delegate's answer).
+- (BOOL)room_isReservedKeyEvent:(NSEvent*)event;
+- (BOOL)room_handleUnhandledKeyEvent:(NSEvent*)event;
 - (void)room_didCreateWebContents:(RoomWebContents*)newContents
                         targetURL:(NSURL*)targetURL
                       disposition:(RoomWindowOpenDisposition)disposition

@@ -5,7 +5,8 @@ import RoomCore
 
 /// `WebContents` over a `RoomWebContents` (Chromium `content::WebContents`):
 /// load, history, reload/stop, title, URL, loading, the native view, close,
-/// and (3.2a) the pages it opens, the hovered link and element fullscreen.
+/// (3.2a) the pages it opens, the hovered link and element fullscreen, and
+/// (3.2b) reserved, unhandled and consumed keys and isolated-world scripts.
 /// A page created for a host window is in that window's Chrome tab strip
 /// (`RoomBrowser`); the members that need Chrome's tab helpers wired to Room
 /// are `notSupported` or inert until their phase (docs/engine-api.md).
@@ -49,6 +50,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     @ObservationIgnored private weak var profile: RoomCoreProfile?
     @ObservationIgnored private let pageView = RoomCorePageView()
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    @ObservationIgnored private var scriptSerial = 0
 
     init(page: RoomWebContents, configuration: WebContentsConfiguration, profile: RoomCoreProfile?) {
         self.page = page
@@ -134,8 +136,86 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         throw EngineError.notSupported("RoomCoreWebContents.captureViewport")
     }
 
+    /// Runs `script` in RoomCore's isolated world of the main frame (the
+    /// page's DOM, not its globals) and returns the completion value as JSON
+    /// text, like the CEF engine's `Runtime.evaluate` (strings quoted,
+    /// `undefined` as `null`). Chromium's isolated-world call does not wait
+    /// for promises, so the script runs through `eval` in a wrapper that
+    /// parks a promise's outcome in the isolated world, where it is polled.
     public func executeJavaScript(_ script: String) async throws -> String {
-        throw EngineError.notSupported("RoomCoreWebContents.executeJavaScript")
+        guard state != .closed else { throw EngineError.closed }
+        scriptSerial += 1
+        let id = scriptSerial
+        let source = String(decoding: try JSONSerialization.data(withJSONObject: script, options: .fragmentsAllowed), as: UTF8.self)
+        var outcome = try await evaluate(Self.wrapper(source: source, id: id))
+        if case .pending = outcome {
+            let poll = "(() => { const r = window.__roomScriptResults; if (!r || !(\(id) in r)) return null; const x = r[\(id)]; delete r[\(id)]; return x; })()"
+            let deadline = ContinuousClock.now + .seconds(120)
+            repeat {
+                guard ContinuousClock.now < deadline, state != .closed else {
+                    throw EngineError.failed("executeJavaScript: the promise did not settle")
+                }
+                try await Task.sleep(for: .milliseconds(4))
+                outcome = try await evaluate(poll)
+            } while outcome == .notSettled
+        }
+        switch outcome {
+        case .value(let json): return json
+        case .exception(let message): throw EngineError.javaScriptException(message)
+        case .pending, .notSettled: return "null"
+        }
+    }
+
+    /// Evaluates the script as global code (its completion value, like the
+    /// DevTools protocol's `Runtime.evaluate`), catching what it throws.
+    private static func wrapper(source: String, id: Int) -> String {
+        """
+        (() => { let v; try { v = (0, eval)(\(source)); } catch (e) { return { e: String(e && e.message || e) }; }
+        if (v && typeof v.then === 'function') { const r = (window.__roomScriptResults = window.__roomScriptResults || {});
+        v.then(x => { r[\(id)] = { v: x }; }, e => { r[\(id)] = { e: String(e && e.message || e) }; }); return { p: \(id) }; }
+        return { v: v }; })()
+        """
+    }
+
+    /// What one isolated-world evaluation of the wrapper or the poll returned.
+    private enum ScriptOutcome: Sendable, Equatable {
+        /// `{v}`: the value as JSON text (`null` for undefined).
+        case value(String)
+        /// `{e}`: the script threw, or its promise rejected.
+        case exception(String)
+        /// `{p}`: a promise; its outcome is polled.
+        case pending
+        /// The poll found no outcome yet.
+        case notSettled
+
+        init(_ result: Any?) {
+            guard let object = result as? [String: Any] else {
+                self = .notSettled
+                return
+            }
+            if let message = object["e"] as? String {
+                self = .exception(message)
+            } else if object["p"] != nil {
+                self = .pending
+            } else if let value = object["v"], !(value is NSNull),
+                      let data = try? JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed, .sortedKeys]) {
+                self = .value(String(decoding: data, as: UTF8.self))
+            } else {
+                self = .value("null")
+            }
+        }
+    }
+
+    private func evaluate(_ script: String) async throws -> ScriptOutcome {
+        try await withCheckedThrowingContinuation { continuation in
+            page.evaluateJavaScript(script) { result, error in
+                if let error {
+                    continuation.resume(throwing: EngineError.failed(error.localizedDescription))
+                } else {
+                    continuation.resume(returning: ScriptOutcome(result))
+                }
+            }
+        }
     }
 
     public func print() {}
@@ -176,6 +256,31 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     public func webContentsDidRequestExitFullscreen(_ webContents: RoomWebContents) {
         uiDelegate?.webContentsDidRequestExitFullscreen(self)
+    }
+
+    /// A key-down before the page sees it: a reserved one goes to the main
+    /// menu here, once (as the CEF engine does), and never to the page.
+    public func webContents(_ webContents: RoomWebContents, isReservedKeyEvent event: NSEvent) -> Bool {
+        guard uiDelegate?.webContents(self, isReservedKeyEvent: event) == true else { return false }
+        _ = NSApp.mainMenu?.performKeyEquivalent(with: event)
+        return true
+    }
+
+    /// A key-down the page did not consume: the delegate offers it to the
+    /// main menu (RoomCore does nothing else with it).
+    public func webContents(_ webContents: RoomWebContents, handleUnhandledKeyEvent event: NSEvent) -> Bool {
+        if let uiDelegate { return uiDelegate.webContents(self, handleUnhandledKeyEvent: event) }
+        return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+    }
+
+    public func webContents(_ webContents: RoomWebContents, didConsumeKeyCode keyCode: UInt16,
+                            modifierFlags: NSEvent.ModifierFlags, phase: RoomKeyEventPhase) {
+        let mapped: KeyEventInfo.Phase = switch phase {
+        case .keyUp: .keyUp
+        case .character: .character
+        default: .keyDown
+        }
+        uiDelegate?.webContents(self, didConsumeKey: KeyEventInfo(keyCode: keyCode, modifiers: modifierFlags, phase: mapped))
     }
 }
 

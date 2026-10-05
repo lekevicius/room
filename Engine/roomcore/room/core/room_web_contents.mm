@@ -5,13 +5,23 @@
 #include <memory>
 #include <utility>
 
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "base/values.h"
+#include "chrome/common/chrome_isolated_world_ids.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/page.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_widget_host.h"
+#include "content/public/browser/render_widget_host_observer.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
+#include "third_party/blink/public/common/input/web_keyboard_event.h"
+#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -40,6 +50,9 @@ extern bool (*g_update_target_url_hook)(content::WebContents*, const GURL&);
 - (void)room_refresh;
 - (void)room_webContentsDestroyed;
 - (void)room_shownOrFocused;
+- (void)room_didConsumeKeyCode:(unsigned short)keyCode
+                 modifierFlags:(NSEventModifierFlags)flags
+                         phase:(RoomKeyEventPhase)phase;
 @end
 
 namespace {
@@ -61,11 +74,116 @@ class WrapperLink : public content::WebContentsUserData<WrapperLink> {
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(WrapperLink);
 
+// RoomCore's isolated world for the host's scripts. Chrome reserves this id
+// for AppleScript's "execute javascript", the same job (an embedding app
+// scripting a page); Room ships no Chrome AppleScript tab commands, and the
+// ids above it are handed out to extensions at run time.
+constexpr int32_t kRoomIsolatedWorldId = ISOLATED_WORLD_ID_APPLESCRIPT;
+
+NSEventModifierFlags ToModifierFlags(int modifiers) {
+  NSEventModifierFlags flags = 0;
+  if (modifiers & blink::WebInputEvent::kShiftKey) {
+    flags |= NSEventModifierFlagShift;
+  }
+  if (modifiers & blink::WebInputEvent::kControlKey) {
+    flags |= NSEventModifierFlagControl;
+  }
+  if (modifiers & blink::WebInputEvent::kAltKey) {
+    flags |= NSEventModifierFlagOption;
+  }
+  if (modifiers & blink::WebInputEvent::kMetaKey) {
+    flags |= NSEventModifierFlagCommand;
+  }
+  if (modifiers & blink::WebInputEvent::kCapsLockOn) {
+    flags |= NSEventModifierFlagCapsLock;
+  }
+  return flags;
+}
+
+// The renderer's acknowledgements of key events on the page's main-frame
+// widget (the widget changes with the primary page): consumed ones go to the
+// wrapper's delegate (didConsumeKey).
+class KeyAckObserver : public content::RenderWidgetHost::InputEventObserver,
+                       public content::RenderWidgetHostObserver {
+ public:
+  explicit KeyAckObserver(RoomWebContents* wrapper) : wrapper_(wrapper) {}
+  ~KeyAckObserver() override { Detach(); }
+
+  void Attach(content::RenderWidgetHost* widget) {
+    if (widget == widget_) {
+      return;
+    }
+    Detach();
+    widget_ = widget;
+    if (widget_) {
+      widget_->AddInputEventObserver(this);
+      widget_->AddObserver(this);
+    }
+  }
+
+  void Detach() {
+    if (!widget_) {
+      return;
+    }
+    widget_->RemoveInputEventObserver(this);
+    widget_->RemoveObserver(this);
+    widget_ = nullptr;
+  }
+
+  // content::RenderWidgetHost::InputEventObserver:
+  void OnInputEventAck(const content::RenderWidgetHost&,
+                       blink::mojom::InputEventResultSource,
+                       blink::mojom::InputEventResultState state,
+                       const blink::WebInputEvent& event) override {
+    if (state != blink::mojom::InputEventResultState::kConsumed ||
+        !blink::WebInputEvent::IsKeyboardEventType(event.GetType())) {
+      return;
+    }
+    const auto& key = static_cast<const blink::WebKeyboardEvent&>(event);
+    RoomKeyEventPhase phase = RoomKeyEventPhaseKeyDown;
+    if (event.GetType() == blink::WebInputEvent::Type::kKeyUp) {
+      phase = RoomKeyEventPhaseKeyUp;
+    } else if (event.GetType() == blink::WebInputEvent::Type::kChar) {
+      phase = RoomKeyEventPhaseCharacter;
+    }
+    [wrapper_ room_didConsumeKeyCode:static_cast<unsigned short>(
+                                         key.native_key_code)
+                       modifierFlags:ToModifierFlags(key.GetModifiers())
+                               phase:phase];
+  }
+
+  // content::RenderWidgetHostObserver:
+  void RenderWidgetHostDestroyed(content::RenderWidgetHost* widget) override {
+    if (widget == widget_) {
+      Detach();
+    }
+  }
+
+ private:
+  RoomWebContents* __weak wrapper_;
+  raw_ptr<content::RenderWidgetHost> widget_ = nullptr;
+};
+
 // Turns WebContentsObserver events into KVO changes on the wrapper.
 class Observer : public content::WebContentsObserver {
  public:
   Observer(content::WebContents* contents, RoomWebContents* wrapper)
-      : content::WebContentsObserver(contents), wrapper_(wrapper) {}
+      : content::WebContentsObserver(contents),
+        wrapper_(wrapper),
+        key_acks_(wrapper) {
+    key_acks_.Attach(
+        contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
+  }
+
+  void PrimaryPageChanged(content::Page& page) override {
+    key_acks_.Attach(page.GetMainDocument().GetRenderWidgetHost());
+  }
+  void RenderFrameHostChanged(content::RenderFrameHost* old_host,
+                              content::RenderFrameHost* new_host) override {
+    if (new_host && new_host->IsInPrimaryMainFrame()) {
+      key_acks_.Attach(new_host->GetRenderWidgetHost());
+    }
+  }
 
   void DidStartLoading() override { [wrapper_ room_refresh]; }
   void DidStopLoading() override { [wrapper_ room_refresh]; }
@@ -95,12 +213,46 @@ class Observer : public content::WebContentsObserver {
     [wrapper_ room_shownOrFocused];
   }
   void WebContentsDestroyed() override {
+    key_acks_.Detach();
     [wrapper_ room_webContentsDestroyed];
   }
 
  private:
   RoomWebContents* __weak wrapper_;
+  KeyAckObserver key_acks_;
 };
+
+// base::Value (the renderer's V8 conversion) as Foundation objects.
+id ToFoundation(const base::Value& value) {
+  switch (value.type()) {
+    case base::Value::Type::NONE:
+    case base::Value::Type::BINARY:
+      return NSNull.null;
+    case base::Value::Type::BOOLEAN:
+      return @(value.GetBool());
+    case base::Value::Type::INTEGER:
+      return @(value.GetInt());
+    case base::Value::Type::DOUBLE:
+      return @(value.GetDouble());
+    case base::Value::Type::STRING:
+      return base::SysUTF8ToNSString(value.GetString());
+    case base::Value::Type::DICT: {
+      NSMutableDictionary* result = [NSMutableDictionary dictionary];
+      for (const auto [key, item] : value.GetDict()) {
+        result[base::SysUTF8ToNSString(key)] = ToFoundation(item);
+      }
+      return result;
+    }
+    case base::Value::Type::LIST: {
+      NSMutableArray* result = [NSMutableArray array];
+      for (const base::Value& item : value.GetList()) {
+        [result addObject:ToFoundation(item)];
+      }
+      return result;
+    }
+  }
+  return NSNull.null;
+}
 
 }  // namespace
 
@@ -234,6 +386,58 @@ void InstallWebContentsHooks() {
           respondsToSelector:@selector(webContentsDidRequestExitFullscreen:)]) {
     [delegate webContentsDidRequestExitFullscreen:self];
   }
+}
+
+- (BOOL)room_isReservedKeyEvent:(NSEvent*)event {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  return [delegate respondsToSelector:@selector(webContents:isReservedKeyEvent:)]
+             ? [delegate webContents:self isReservedKeyEvent:event]
+             : NO;
+}
+
+- (BOOL)room_handleUnhandledKeyEvent:(NSEvent*)event {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  return [delegate
+             respondsToSelector:@selector(webContents:handleUnhandledKeyEvent:)]
+             ? [delegate webContents:self handleUnhandledKeyEvent:event]
+             : NO;
+}
+
+- (void)room_didConsumeKeyCode:(unsigned short)keyCode
+                 modifierFlags:(NSEventModifierFlags)flags
+                         phase:(RoomKeyEventPhase)phase {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector
+                (webContents:didConsumeKeyCode:modifierFlags:phase:)]) {
+    [delegate webContents:self
+        didConsumeKeyCode:keyCode
+            modifierFlags:flags
+                    phase:phase];
+  }
+}
+
+- (void)evaluateJavaScript:(NSString*)script
+                completion:(void (^)(id, NSError*))completion {
+  content::RenderFrameHost* frame =
+      _contents ? _contents->GetPrimaryMainFrame() : nullptr;
+  if (!frame || !frame->IsRenderFrameLive()) {
+    completion(nil, [NSError
+                        errorWithDomain:@"RoomCore"
+                                   code:2
+                               userInfo:@{
+                                 NSLocalizedDescriptionKey :
+                                     _contents ? @"the page has no live document"
+                                               : @"the page is closed"
+                               }]);
+    return;
+  }
+  void (^callback)(id, NSError*) = [completion copy];
+  frame->ExecuteJavaScriptInIsolatedWorld(
+      base::SysNSStringToUTF16(script),
+      base::BindOnce(^(base::Value result) {
+        callback(ToFoundation(result), nil);
+      }),
+      kRoomIsolatedWorldId);
 }
 
 - (void)room_didCreateWebContents:(RoomWebContents*)newContents
