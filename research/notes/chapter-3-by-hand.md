@@ -144,3 +144,15 @@ Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/P
 4. **Hidden sidebar.** ⌘S to hide the sidebar, then submit a login: the bubble points at the card's top-left corner instead of the site button.
 5. **Addresses and cards.** On the address fixture fill and submit: "Save address?"; the next visit offers it under the name field. On a real checkout use a test number only (4111 1111 1111 1111, any future date): never a real card in a dev build. Card suggestions need HTTPS (Chrome shows "Automatic payment filling is disabled" on HTTP).
 6. **Generation.** Not offered (B-72: Chrome wants Sync): decide whether Room should patch it in.
+
+## Phase 3.7b
+
+Room.app on RoomCore with a throwaway state: `build/roomcore/DerivedData/Build/Products/Debug/Room.app/Contents/MacOS/Room -RoomStateDirectory /tmp/room-3.7b/hand -RoomEngineDirectory /tmp/room-3.7b/hand/engine`. Fixtures: `python3 -m http.server 8774 --bind 127.0.0.1 -d research/spikes` (pages under `http://127.0.0.1:8774/phase-3.7/`).
+
+0. **System dialogs on screen.** "Allow Room to find devices on local networks?" and two older dialogs stood over the window during the translate run (macOS's local-network prompt for an ad hoc Room build; not answered by the session). Answer or dismiss them as you prefer.
+1. **Back after a relaunch, your way.** Open a few sites, click through two links in each, quit (⌘Q), relaunch: select each tab and press ⌘[ (Back): it goes to the page before. Then the same with Activity Monitor's Force Quit instead of ⌘Q (wait a second after the last click: a click in the last ~0.3 s before the kill may be lost, by design).
+2. **Scroll and form state.** On a long page scroll halfway, type into a search field without submitting, switch tabs, ⌘W a pinned tab's page (or quit and relaunch): coming back restores the scroll position (Chrome's page state); typed text in an unsubmitted field may or may not come back (Chrome's behaviour).
+3. **A dirty form stays.** Type into a form on a page you leave in the background for over an hour (or with Debug ▸ Discard Background Pages): its row stays loaded (not dimmed) while plain pages dim; the log says "kept … past its idle limit: formInteractions".
+4. **Picture-in-Picture.** Put a video in Picture-in-Picture (`phase-3.7/pip.html`, or YouTube's PiP), switch away and discard background pages: the PiP page stays and its window keeps playing.
+5. **The translate bubble.** With a real Google API key (B-63, your decision) or the placeholder (`GOOGLE_API_KEY=room-placeholder-no-key` in the environment), open a German page: the toast offers it; Translate; Chrome's translate bubble appears (German | English). Note where it sits with the window centred on the screen (the run had the window at the screen's top-left and the bubble over the header's corner).
+6. **Spelling.** In any text area type a misspelled word: the red underline (the session proves it only through the menu), right-click: suggestions, Add to Dictionary, Look Up (the system's lookup panel should open: unverified in the session). "Use Enhanced Spell Check" asks for Google's service (B-74): decide whether Room should offer it.

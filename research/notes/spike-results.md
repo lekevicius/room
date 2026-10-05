@@ -2059,3 +2059,92 @@ The fix: `kPasswordLeakDetectionEnabled` defaults to false for Room profiles (`r
 ### The baseline after the last engine change (`build/baseline/3.7a-final`, embryo host)
 
 nav passed 19.7 s; ten-page quits **0.256 / 0.251 / 0.299 s** (load 7.9 / 10.3 / 11.1), 0 helpers left, 0 crash reports; stub hits none (38 window stubs, the provider's members unhit). The two baselines before it (`3.7a-1` after the provider, `3.7a-2` after the leak/popup fixes): nav 18.6 / 19.2 s, quits 0.318 / 0.481 / 0.252 and 0.282 / 0.250 / 0.254 s, 0 helpers, 0 crash reports.
+
+## Phase 3.7b — session history per entry, host-driven discarding with the engine's blockers, memory pressure, translate and spellcheck (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Room.app on RoomCore (component build `out/dev`, tag 154.0.8037.58, series 24 unchanged, ad hoc, mock keychain), throwaway state and engine directories per run under `build/evidence-3.7b/`; fixtures `research/spikes/phase-3.7/{step,form,tone,pip}.html` and `phase-2.6/capture.html` served by `python3 -m http.server 8774 -d research/spikes` (`scripts/session-lifecycle.sh`). The Claude desktop app was frontmost for part of the session (`window_main: false` in the session build and check runs; nothing in them depends on activation). Load 3.5–6.
+
+### How it is built (seams, no patch)
+
+| Piece | Chromium | Room |
+|---|---|---|
+| a page's history as data | `ContentSerializedNavigationBuilder::FromNavigationEntry` → `SerializedNavigationEntry::WriteToPickle` (63 KiB page state per entry at most, `gMaxPersistNavigationCount` = 6 entries each side, as Chrome's session commands) | `RoomWebContents.navigationState`: a `base::Pickle` with a header (magic, format 1, the Chromium version, the selected index, the count) |
+| restoring it | `ReadFromPickle` → `ToNavigationEntries` → `NavigationController::Restore(selected, kRestored)` before the page joins its strip (Chrome's tab-restore order), then `LoadIfNecessary` | `-restoreNavigationState:` from `RoomCoreProfile.makeWebContents`; `-reload` is `LoadIfNecessary` when the controller needs a reload |
+| changes | `NavigationEntryCommitted`, `NavigationListPruned`, `NavigationEntryChanged`, `NavigationEntriesDeleted` | `-webContentsDidChangeNavigationState:` once per run-loop turn → the tab controller stores the state in the entry (`entry.navigationState`, schema v5) through the 2.1 debounced single transaction, quietly (no sidebar observer); `unload` stores the page's state once more before it closes |
+| why not to discard | `DiscardEligibilityPolicy::CanDiscard(PROACTIVE, ignore_recent_visibility=true)` on the main thread (PM lives there in M154: `PerformanceManager::GetGraph()`), `CannotDiscardReason` | `RoomWebContents.discardBlockers` → `WebContents.discardBlockers`; the 2.3 policy asks it for every page its own rules would discard |
+| Chrome never discards a Room page | `TabLifecycleUnitExternal::SetAutoDiscardable(false)` → `kExtensionProtected` (protected); `PageDiscardingHelper::DiscardAPage(URGENT)` skips protected pages | set when a page joins a strip and on a discard's replacement |
+| memory pressure | `base::MemoryPressureListener` (registration tag `kBackgroundTabLoadingPolicy`: the enum is closed) | `-roomApplication:didChangeMemoryPressure:` → `EngineApplicationDelegate` → the tab controller (the host's own `DISPATCH_MEMORYPRESSURE` source only on CEF) |
+| the translate bubble's later steps | `TranslateBubbleController::ShowTranslateBubble` (every Browser has one, `BrowserWindowFeatures::Init`) | `RoomBrowserWindow::ShowTranslateBubble` real (stubs 38 → 37), anchored on the window's bubble anchor; the offer stays the host's toast |
+
+### Task 3: the session spike (`scripts/session-lifecycle.sh`, `build/evidence-3.7b/s1`, `c1`, `c2`)
+
+Ten Today tabs on the ten typical sites, each navigated twice (`step.html?e=<i>&s=1`, then `s=2`, as links), the last one selected; then a clean quit and a relaunch on the same directories.
+
+| | Result |
+|---|---|
+| state per entry after the real page alone | **868 – 10,904 B, median 3,508 B** (Hacker News 868, Stack Overflow 980, GitHub 1,728, Apple 2,264, NYT 3,056, YouTube 3,508, BBC 4,288, Wikipedia 5,300, Reddit 6,340, The Verge 10,904); sum 39.2 KB |
+| after the two steps (three entries) | 2,652 – 8,156 B, median 5,336 B; sum 51.4 KB (a real page's own state is rewritten by the renderer as it settles: BBC 4,288 → 3,296) |
+| stored in the entries 1 s after the last step | 10 of 10 |
+| write cost, 10 entries (`RoomStore.flush()`: diff, one transaction, JSON snapshot; 20 each) | state change **0.88 ms** median / 4.02 p95; a title change 0.72 / 1.07 ms; `Room.sqlite` 233 KB, snapshot 73 KB |
+| write cost, the 50k state with every one of its 500 entries carrying an 8.1 KB state (+ the ten) | state change **18.9 ms** median / 19.7 p95; a title change 18.6 / 19.5 ms; snapshot **5.66 MB** (the states as base64), `Room.sqlite` 46 MB. On the writer's queue for the debounced writes; on the main thread only for `flushAndWait` (quit, window close). B-73 |
+| clean relaunch: every entry selected | **10 of 10**: the restored page at `s=2` with `canGoBack` true at creation (before its load), loaded in 318–756 ms, Back → `s=1` with its title |
+| ⌘W on a Today entry with history, ⇧⌘T | removed, reopened at its page, `canGoBack` true, Back → the page before |
+| ⌘W on a changed pinned entry (reset-unload-switch), reselected | unloaded; the new page at the stored URL (`s=0`) with `canGoBack` true; Back → `s=1` (spec §A.3) |
+| a discarded background page revived (3.3a's check) | `discarded`, revived at `s=1`, `canGoBack` true, Back → github.com |
+
+`kill -9` (`-RoomSessionPhase crash`: the same build, then one more step on the selected entry, `s=3`, and the script's SIGKILL as soon as the commit was seen):
+
+| Kill after the last commit | Next launch | The last entry | The other nine |
+|---|---|---|---|
+| **59 ms** (`c1`) | `unclean_exit: true`; previous exit `clean=false (store uncleanExit=true, engine lastExitWasClean Default=false)` | restored at `s=2` (the `s=3` step lost), Back → `s=1` | 10 of 10 restored and Back |
+| **746 ms** (`c2`, `ROOM_SL_KILL_DELAY_MS=600`) | the same | restored at **`s=3`**, Back → `s=2` | 10 of 10 |
+
+The loss window: a navigation reaches the database one run-loop turn (the engine's coalescing) plus the store's 300 ms debounce plus the write (~1 ms at 10 entries, ~19 ms at 500) after its commit; a kill inside it restores the previous step, never a damaged state. The kill test (`scripts/persistence-kill-test.sh 100 300`, its writer now also setting 1–8 KB states on half the live-page changes): **100 kills, 0 failures**, 43 mid-transaction rolled back, commit 6.63 / 11.66 ms (median / p95; 2.1: 7.3 / 14.2 ms), database 424 KB.
+
+Launch on the 50k state (`build/3.5/s50k` copied; the `relaunch` spike, process start → session → the selected page loaded; the selected entry `tab200.example.org` is unresolvable, so "loaded" is its error page):
+
+| Launch | → spike | → selected loaded | state open |
+|---|---|---|---|
+| the v4 → v5 migration launch | 3.10 s | 5.05 s | 304.3 ms (quick_check) |
+| v5, no states ×2 | 2.19 / 2.25 s | 4.02 / 4.07 s | 159.7 / 159.6 ms |
+| v5, 500 entries × 8.1 KB states (4.07 MB) ×3 | 2.30 / 2.24 / 2.23 s | 4.27 / 3.98 / 3.96 s | 165.1 / 169.3 / 169.4 ms |
+| 3.5 (v4) | 2.22 / 2.17 / 2.16 s | 3.98 / 3.92 / 3.92 s | 156.7 / 158.1 / 158.2 ms |
+
+The states cost the open ~10 ms (reading 4 MB of blobs); launch to the selected page is unchanged within the runs' spread. The selected entry carried another page's state (the session run's Wikipedia list): its URL differs from the restored entry, so it loads its own URL with that list behind it (`NavigationRestore.navigate`).
+
+### Task 4: the discard policy (`discardpolicy`, `build/evidence-3.7b/d1`, `--use-fake-device-for-media-stream`)
+
+Three plain pages, a form typed into with real keys ("Room"), a Web Audio tone playing, video Picture-in-Picture (`requestPictureInPicture` on a click; the page logged "video pip"), a page capturing the fake camera and microphone (the host's prompt answered Allow), then a selected page; every one a Today tab.
+
+| Page | `discardBlockers` | Idle sweep, clock 61 min ahead |
+|---|---|---|
+| plain ×3 | none | **discarded** |
+| form (typed) | formInteractions, userEdits | kept (`keptByEngine`) |
+| tone (playing) | audible | kept by the host's own 2.3 rule (audible pages are not candidates; the engine says the same) |
+| video PiP | pictureInPicture | kept |
+| capture | capturing | kept |
+| selected | (not asked) | kept |
+
+`auto-discardable` Room pages in the window's strip: **0**. Renderers (B-56): **10 before, 10 four seconds and ten seconds after** discarding three pages (2,518 → 2,662 → 2,609 MB summed): the discarded pages' renderers outlive the discard, as in 3.3a; recorded, not chased.
+
+Memory pressure, the three plain pages revived first (oldest plain1, then plain2, plain3):
+
+| Step | Result |
+|---|---|
+| Chrome's urgent discarding asked directly (`PageDiscardingHelper::DiscardAPage(URGENT, ignore_recent_visibility)`, spike hook), host policy off | **nothing discarded**; every page alive |
+| simulated critical pressure through Chromium's notification (`MemoryPressureListener::SimulatePressureNotification`), host policy off, 6 s | the host heard `critical`; **0 discards, every page alive** (performance_manager discarded nothing by itself) |
+| the same, policy on, 6 s, then `none` | **plain1 at 0 ms, plain2 at +1.02 s, plain3 at +2.02 s** (one per `Timing.criticalPressureStep`, oldest first), then nothing left eligible; form, tone, PiP, capture and the selection alive; level `none` after |
+
+### Task 5: translate and spellcheck
+
+Translate (`scripts/chrome-surfaces.sh --session 3.4b light -- -RoomSpikeOnly translate`, `GOOGLE_API_KEY=room-placeholder-no-key` through `ROOM_SPIKE_ENV`, B-63): the offer as the host's toast ("Translate this page from German to English?", Translate); Translate → the offer withdrawn, the toast gone, `lang=en` after 8 s, the heading "Welcome to the library". **Chrome's translate bubble now shows** for the later steps (Views, `TranslateBubbleView` 312 × 86 pt: German | English tabs, "Choose Language to Translate to"), through the toolbar provider's anchor; with the window at the screen's top-left the bubble sat at the window's top-left corner over the header (its top 23 pt above the site button's bottom, the button within its width; `research/screenshots/phase-3.7b/phase-3.4b-translate-bubble-light.png`), not below the button as the 3.7a password bubbles in a centred window. Without a key Chrome offers nothing (`TranslateManager` checks `google_apis::HasAPIKeyConfigured()`): the condition of "one page translated" is the placeholder key.
+
+Spellcheck (`spelling`, `build/evidence-3.7b/sp1`; `SpellcheckService` with the macOS checker, on by default for Room profiles, no change needed): "This is misspeled " typed with real keys into `form.html`'s text area; the context menu on the word: **misspelled** | Add to Dictionary | Use Enhanced Spell Check | Look Up "misspeled" | … ; the suggestion chosen through the menu (`IDC_SPELLCHECK_SUGGESTION_0`) → the DOM reads **"This is misspelled "**. Add to Dictionary (`IDC_SPELLCHECK_ADD_TO_DICTIONARY`) on "roomzorbify": macOS `hasLearnedWord` true, then unlearned by the spike. Look Up (`IDC_CONTENT_CONTEXT_LOOK_UP`) offered on a selected word and chosen (the system's lookup panel itself: by hand). "Use Enhanced Spell Check" (Google's spelling service, opt-in with Chrome's consent) is in the menu: B-74.
+
+### The grand tour's tabs section (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups tabs light`, `build/grand-tour/20261005-185449-roomcore`, 2.4 min)
+
+**38 passed, 2 failed** (3.3a: 36 / 4). The two: Discard Background Pages' "renderers released" (pages=4, renderers 11 → 12, every state `discarded`, rows dimmed: B-56) and switching p95 23.79 ms (median 15.29: B-53). `window_main` passed this time (3.3a's three activation failures gone). ⌘W/⇧⌘T on Today and pinned entries, the discarded tab's reload on selection, related tabs, ⌃Tab, ⌘1/⇧⌘], mute, the relaunch with only the selection loaded: pass.
+
+### The baseline after the last engine change (`build/baseline/3.7b-final`, embryo host)
+
+nav passed 20.4 s; ten-page quits **0.291 / 0.236 / 0.249 s** (load 8.6 / 10.6 / 13.0), 0 helpers left, 0 crash reports; stub hits none (37 window stubs; none in the session's spike logs either). The baseline after the first engine change (`build/baseline/3.7b-1`): nav 19.0 s, quits 0.261 / 0.323 / 0.245 s. `scripts/roomcore-apply.sh`: "0 applied, 24 already".
