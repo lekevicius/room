@@ -19,7 +19,7 @@ import RoomCore
 extension SpikeRunner.Context {
     func engineChecks() async {
         guard let palette, let history = tabs.engineProfiles[historyProfile]?.history else {
-            return SpikeRunner.record("engine checks", "skipped: the engine keeps no history (CEF)")
+            return SpikeRunner.record("engine_checks", "skipped: the engine keeps no history (CEF)")
         }
         func settle(_ milliseconds: Int) async { try? await Task.sleep(for: .milliseconds(milliseconds)) }
         func loaded() async {
@@ -27,7 +27,7 @@ extension SpikeRunner.Context {
             if let page = tabs.current { await waitLoaded(page, timeout: 30) }
             await settle(800)
         }
-        SpikeRunner.record("engine autocomplete", palette.usesEngineAutocomplete)
+        SpikeRunner.record("engine_autocomplete", palette.usesEngineAutocomplete)
 
         // A visit on RoomCore: Chrome records it; the store's table stays as it was.
         let storeBefore = (try? tabs.store.history.count(profile: historyProfile)) ?? -1
@@ -38,15 +38,15 @@ extension SpikeRunner.Context {
         await loaded()
         await settle(1_000)
         let storeAfter = (try? tabs.store.history.count(profile: historyProfile)) ?? -1
-        SpikeRunner.record("store history rows around a navigation", "before=\(storeBefore) after=\(storeAfter)")
+        SpikeRunner.record("store_history_rows_around_a_navigation", "before=\(storeBefore) after=\(storeAfter)")
         let found = await history.visits(for: URL(string: marker)!)
-        SpikeRunner.record("engine visit recorded", "visits=\(found?.visits.map { HistoryTransition($0.transition).rawValue } ?? []) "
+        SpikeRunner.record("engine_visit_recorded", "visits=\(found?.visits.map { HistoryTransition($0.transition).rawValue } ?? []) "
             + "title=\(found?.entry.title ?? "nil")")
         press("⌘T")
         type("room35")
         await settle(800)
         let rows = palette.result.matches.filter { $0.provider == .history }
-        SpikeRunner.record("palette room35", "found=\(rows.contains { $0.action.url == marker }) providers=\(palette.lastEngineProviders.map(Self.describe) ?? "none") "
+        SpikeRunner.record("palette_room35", "found=\(rows.contains { $0.action.url == marker }) providers=\(palette.lastEngineProviders.map(Self.describe) ?? "none") "
             + "rows=\(rows.map(\.title))")
         press("⎋")
         await settle(300)
@@ -81,7 +81,7 @@ extension SpikeRunner.Context {
         #endif
 
         // The chip: the host's security state (what the site button shows) beside Chrome's LocationBarModel.
-        for url in ["https://example.com/", "http://http.badssl.com/"] {
+        for (name, url) in [("chip_secure", "https://example.com/"), ("chip_insecure", "http://http.badssl.com/")] {
             press("⌘L")
             type(url)
             press("↩")
@@ -94,7 +94,7 @@ extension SpikeRunner.Context {
                 chrome = Self.securityLevelName(level.intValue)
             }
             #endif
-            SpikeRunner.record("chip \(url)", "page=\(tabs.current?.url?.absoluteString ?? "nil") host=\(tabs.current.map { String(describing: $0.securityState.level) } ?? "nil") "
+            SpikeRunner.record(name, "page=\(tabs.current?.url?.absoluteString ?? "nil") host=\(tabs.current.map { String(describing: $0.securityState.level) } ?? "nil") "
                 + "location_bar_model=\(chrome)")
         }
     }

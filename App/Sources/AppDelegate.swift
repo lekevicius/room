@@ -35,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     #if DEBUG
     /// Launch lines the spikes report (the state open time, the history migration).
     static var launchLog: [String] = []
+    /// Rows `-RoomHistoryRows` added to the store this launch: on a state whose history was
+    /// already imported into the engine's (the grand tour's one state), they go there directly.
+    var fixtureHistoryAdded: (profile: UUID, rows: [HistoryImport])?
     #endif
     private(set) var overlays: OverlaySpike?
     private(set) var sidebar: SidebarController?
@@ -385,7 +388,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #if DEBUG
         if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
         if let rows = HistoryFixture.requestedRows, let profile = store.sidebar.profiles.first {
-            HistoryFixture.populate(store.history, rows: rows, profile: profile.id)
+            let added = HistoryFixture.populate(store.history, rows: rows, profile: profile.id)
+            if !added.isEmpty { fixtureHistoryAdded = (profile.id, added) }
         }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
@@ -853,6 +857,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                               report.result.urls, report.result.visits, report.result.expiredVisits, report.result.expiredURLs, report.seconds)
             } else {
                 line = "history migration: profile \(model.name) already imported (flag set); nothing read"
+                #if DEBUG
+                if let fixture = fixtureHistoryAdded, fixture.profile == model.id {
+                    let entries = fixture.rows.compactMap { row in
+                        URL(string: row.url).map { HistoryImportEntry(url: $0, title: row.title,
+                                                                      visits: row.visits.map { HistoryVisit(time: $0.at, transition: PageTransition($0.transition)) }) }
+                    }
+                    let result = await history.importEntries(entries)
+                    Self.launchLog.append("history fixture: \(result.urls) URLs, \(result.visits) visits into the engine's history directly")
+                }
+                #endif
             }
             NSLog("Room: %@", line)
             #if DEBUG

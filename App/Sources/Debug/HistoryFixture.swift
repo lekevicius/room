@@ -19,9 +19,11 @@ enum HistoryFixture {
         return rows > 0 ? rows : nil
     }
 
-    static func populate(_ history: History, rows: Int, profile: UUID, now: Date = Date()) {
+    /// The rows it added (none when the history already had `rows`).
+    @discardableResult
+    static func populate(_ history: History, rows: Int, profile: UUID, now: Date = Date()) -> [HistoryImport] {
         // Fills up to `rows`: a state directory other runs used (the grand tour, Phase 2.9) has some history already.
-        guard let existing = try? history.count(profile: profile), existing < rows else { return }
+        guard let existing = try? history.count(profile: profile), existing < rows else { return [] }
         var random = SplitMix64(seed: 2_404)
         let words = ["swift", "apple", "room", "browser", "news", "docs", "guide", "api", "design", "music", "video", "travel", "recipe",
                      "garden", "linux", "rust", "kernel", "photo", "maps", "market", "weather", "sport", "chess", "physics", "history",
@@ -72,7 +74,9 @@ enum HistoryFixture {
             NSLog("Room: history fixture: \(rows) rows, \(imports.reduce(0) { $0 + $1.visits.count }) visits in \(ContinuousClock.now - start)")
         } catch {
             NSLog("Room: history fixture failed: \(error)")
+            return []
         }
+        return imports
     }
 }
 

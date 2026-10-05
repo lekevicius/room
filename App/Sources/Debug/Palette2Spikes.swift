@@ -61,7 +61,7 @@ extension SpikeRunner.Context {
         await settle(800)
         // Phase 3.5: on RoomCore the visits are Chrome's (its tab helpers record them); the store's table no longer grows.
         let engineHistory = tabs.engineProfiles[historyProfile]?.history
-        SpikeRunner.record("history source", engineHistory == nil ? "store" : "engine")
+        SpikeRunner.record("history_source", engineHistory == nil ? "store" : "engine")
         for url in [typedURL, "https://example.org/", "https://example.org/pushed", "https://nonexistent.invalid/"] {
             if let engineHistory, let page = URL(string: url) {
                 let found = await engineHistory.visits(for: page)
@@ -77,7 +77,7 @@ extension SpikeRunner.Context {
             let search = await engineHistory.search("room browser palette", limit: 3)
             SpikeRunner.record("history search page", search.map { "\($0.url.absoluteString) visits=\($0.visitCount)" }.joined(separator: ", "))
             SpikeRunner.record("history rows total", await engineHistory.entries(from: nil, to: nil, limit: 0).count)
-            SpikeRunner.record("store history rows (unchanged on the engine path)", (try? history.count(profile: historyProfile)) ?? -1)
+            SpikeRunner.record("store_history_rows", (try? history.count(profile: historyProfile)) ?? -1)
         } else {
             let search = (try? history.search("room browser palette", profile: historyProfile, limit: 3)) ?? []
             SpikeRunner.record("history search page", search.map { "\($0.url) visits=\($0.visitCount)" }.joined(separator: ", "))
@@ -117,7 +117,7 @@ extension SpikeRunner.Context {
                 }
             }
             let result = await engineHistory.importEntries(entries)
-            SpikeRunner.record("capture history seeded", "engine urls=\(result.urls) visits=\(result.visits)")
+            SpikeRunner.record("seeded_capture_history", "engine urls=\(result.urls) visits=\(result.visits)")
             // Chrome's omnibox index learns the rows from the history service's notification.
             try? await Task.sleep(for: .seconds(1))
             return

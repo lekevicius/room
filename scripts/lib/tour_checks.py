@@ -419,21 +419,29 @@ def _palette2(c):
     c.check("typed URL recorded as typed", '"typed"' in hist.get("history https://example.com/", ""), hist.get("history https://example.com/", "missing"))
     c.check("script navigation recorded as link", '["link"]' in hist.get("history https://example.org/", ""), "")
     pushed = hist.get("history https://example.org/pushed", "")
-    if c.first("history source") == "engine":
+    if c.first("history_source") == "engine":
         # 3.5 on RoomCore: Chrome's history also keeps the reload that follows as a visit of its own (Chrome's rule, not the store's).
         c.check("same-document pushState recorded (Chrome's history)", 'visits=["link"' in pushed, pushed)
     else:
         c.check("same-document pushState recorded", '["link"]' in pushed, "")
     c.check("DNS error page not recorded", "visits=[]" in hist.get("history https://nonexistent.invalid/", "visits=[]"), "")
     c.check("a search recorded", "history search page" in hist, "missing")
-    if c.first("history source") == "engine":
+    if c.first("history_source") == "engine":
         # 3.5: on RoomCore the store's table no longer grows; Chrome's history has the visit and the palette finds it.
-        around = c.first("store history rows around a navigation") or ""
+        around = c.first("store_history_rows_around_a_navigation") or ""
         before_after = re.findall(r"\d+", around)
         c.check("the store's history does not grow on RoomCore", len(before_after) == 2 and before_after[0] == before_after[1], around or "missing")
-        c.check("a visit on RoomCore is in Chrome's history", '"typed"' in (c.first("engine visit recorded") or ""), c.first("engine visit recorded") or "missing")
-        c.check("the palette finds it from Chrome's history", "found=true" in (c.first("palette room35") or ""), c.first("palette room35") or "missing")
+        c.check("a visit on RoomCore is in Chrome's history", '"typed"' in (c.first("engine_visit_recorded") or ""), c.first("engine_visit_recorded") or "missing")
+        c.check("the palette finds it from Chrome's history", "found=true" in (c.first("palette_room35") or ""), c.first("palette_room35") or "missing")
         c.check("⌘Y lists Chrome's history", re.search(r"rows=[1-9]", c.first("cmd_y") or "") is not None, c.first("cmd_y") or "missing")
+        c.check("IDC_FOCUS_LOCATION through RoomAppController's dispatch opens the host's field",
+                "requests=1" in (c.first("idc_focus_location_dispatch") or "") and "palette_open=true" in (c.first("idc_focus_location_dispatch") or ""),
+                c.first("idc_focus_location_dispatch") or "missing")
+        c.check("the chip: secure page secure for the host and Chrome's LocationBarModel",
+                "host=secure" in (c.first("chip_secure") or "") and "location_bar_model=SECURE" in (c.first("chip_secure") or ""), c.first("chip_secure") or "missing")
+        c.check("the chip: plain HTTP insecure for the host, WARNING for Chrome's LocationBarModel",
+                "host=insecure" in (c.first("chip_insecure") or "") and "location_bar_model=WARNING" in (c.first("chip_insecure") or ""),
+                c.first("chip_insecure") or "missing")
     exa = next((l for l in c.spike if l.startswith("palette exa: ")), "")
     c.check("inline host completion from history (exa → example.com)", "inline=mple.com" in exa, exa or "missing")
     for appearance in ("light", "dark"):
@@ -481,6 +489,11 @@ def _suggestoff(c):
 def _palettemeasure(c):
     c.check("500 entries and 50,000 history rows", c.first("entries") == "500" and c.first("history_rows") == "50000",
             f"entries {c.first('entries')} history {c.first('history_rows')}")
+    if c.first("engine_autocomplete") == "true":
+        # 3.5 on RoomCore: Chrome's omnibox answers from its own history, which must hold the 50k rows.
+        c.check("Chrome's history holds the 50,000 rows the palette reads (plus the tour's own visits)", int(c.first("engine_history_rows") or 0) >= 50000,
+                f"engine history {c.first('engine_history_rows')}")
+        c.number("engine_async_done")
     q = c.first("keystroke_query_only")
     c.check("local results p95 under 16 ms at 50k rows (ROADMAP 2.4 exit)", (field(q, "p95") or 99) < 16, q or "missing")
     later = c.first("keystroke_to_rows_later_keys")
