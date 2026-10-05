@@ -28,20 +28,13 @@ let engine: any EngineApplication = cefApplication
 let engine: any EngineApplication = NoEngineApplication()
 #endif
 
-#if ROOM_ENGINE_ROOMCORE
-// RoomCore creates NSApp inside run(); until 3.2 installs RoomAppController
-// (PLAN §4 Main menu) NSApp's delegate is Chrome's AppController, so the app
-// delegate is created and started once RoomCore has launched. It is never
-// NSApp.delegate here: links from other apps and Dock reopen still go to
-// Chrome's controller (3.2).
-var roomCoreDelegate: AppDelegate?
-roomCore.didFinishLaunching = {
-    let delegate = AppDelegate(engine: roomCore)
-    roomCoreDelegate = delegate
-    delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-}
-#else
 let delegate = AppDelegate(engine: engine)
+#if ROOM_ENGINE_ROOMCORE
+// RoomCore creates NSApp inside run() and installs the delegate as soon as it
+// exists (Chrome's AppController is never installed, PLAN §4 Main menu): links
+// from other apps, Dock reopen and applicationShouldTerminate are Room's.
+roomCore.applicationDelegate = delegate
+#else
 NSApplication.shared.delegate = delegate
 #endif
 
@@ -88,12 +81,9 @@ do {
 
 engine.run()
 // CEF's terminate path leaves the run loop without applicationWillTerminate;
-// RoomCore's run() returns after Chromium shut down.
-#if ROOM_ENGINE_ROOMCORE
-roomCoreDelegate?.shutdown()
-#else
+// RoomCore's run() returns after Chromium shut down (the delegate wrote the
+// final state before it let the quit proceed; this is a no-op then).
 delegate.shutdown()
-#endif
 exit(0)
 
 private extension Int {

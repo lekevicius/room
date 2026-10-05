@@ -12,5 +12,6 @@
 0009-sad-tab-factory-hook.patch
 0011-browser-window-lookup-hook.patch
 0012-extension-chooser-toolbar-guard.patch
+0013-app-controller-hook.patch
 0014-navigator-browser-for-disposition-hook.patch
 0015-target-url-hook.patch

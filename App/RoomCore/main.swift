@@ -9,6 +9,9 @@ import RoomCore
 let host = HostController()
 let core = RoomApplication.shared
 core.delegate = host
+// NSApp's delegate as soon as RoomCore creates NSApp (3.2b: never Chrome's
+// AppController).
+core.applicationDelegate = host
 
 do {
     // Separate from the CEF build's Engine directory: different engine,

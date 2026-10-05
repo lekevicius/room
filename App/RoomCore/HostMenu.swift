@@ -15,8 +15,8 @@ enum HostMenu {
         main.add(appMenu, title: "Room")
 
         let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(withTitle: "New Page", action: #selector(RoomHostApplication.newPage(_:)), keyEquivalent: "t")
-        fileMenu.addItem(withTitle: "Open Location…", action: #selector(RoomHostApplication.openLocation(_:)), keyEquivalent: "l")
+        fileMenu.addItem(withTitle: "New Page", action: #selector(HostController.newPage(_:)), keyEquivalent: "t")
+        fileMenu.addItem(withTitle: "Open Location…", action: #selector(HostController.openLocation(_:)), keyEquivalent: "l")
         let closeWindow = fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         closeWindow.keyEquivalentModifierMask = [.command, .shift]
         main.add(fileMenu, title: "File")
@@ -35,9 +35,9 @@ enum HostMenu {
         let viewMenu = NSMenu(title: "View")
         viewMenu.addItem(withTitle: "Hide Sidebar", action: #selector(RoomWindowController.toggleSidebarVisibility(_:)), keyEquivalent: "s")
         viewMenu.addItem(.separator())
-        viewMenu.addItem(withTitle: "Reload Page", action: #selector(RoomHostApplication.reloadPage(_:)), keyEquivalent: "r")
-        viewMenu.addItem(withTitle: "Back", action: #selector(RoomHostApplication.goBack(_:)), keyEquivalent: "[")
-        viewMenu.addItem(withTitle: "Forward", action: #selector(RoomHostApplication.goForward(_:)), keyEquivalent: "]")
+        viewMenu.addItem(withTitle: "Reload Page", action: #selector(HostController.reloadPage(_:)), keyEquivalent: "r")
+        viewMenu.addItem(withTitle: "Back", action: #selector(HostController.goBack(_:)), keyEquivalent: "[")
+        viewMenu.addItem(withTitle: "Forward", action: #selector(HostController.goForward(_:)), keyEquivalent: "]")
         main.add(viewMenu, title: "View")
 
         let windowMenu = NSMenu(title: "Window")

@@ -15,8 +15,12 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/path_service.h"
+#include "base/functional/bind.h"
+#include "base/callback_list.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/chrome_switches.h"
@@ -26,6 +30,7 @@
 #import "room/browser/room_browser_window.h"
 #import "room/core/public/RoomCore.h"
 #import "room/core/public/RoomCrApplication.h"
+#import "room/core/room_app_controller.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
 #include "room/core/room_network_policy.h"
@@ -134,10 +139,15 @@ void SetCrashKeys() {
   Class _applicationClass;
   BOOL _initialized;
   BOOL _running;
+  BOOL _exiting;
   id _willTerminateObserver;
+  // Waiting for the quit's outcome (-tryToTerminateWithCompletion:).
+  NSMutableArray<void (^)(BOOL)>* _terminationCompletions;
+  base::CallbackListSubscription _closingAllBrowsersSubscription;
 }
 
 @synthesize delegate = _delegate;
+@synthesize applicationDelegate = _applicationDelegate;
 
 + (void)initialize {
   if (self != RoomApplication.class) {
@@ -231,6 +241,11 @@ void SetCrashKeys() {
   // NSApp is the host's class. Chromium's RegisterBrowserCrApp() finds it
   // already created and of the right kind.
   [_applicationClass sharedApplication];
+  // The host's delegate from the start (PLAN §4 Main menu): Chrome's
+  // AppController is replaced by //room's (patches/0013) and never becomes
+  // NSApp.delegate.
+  NSApp.delegate = _applicationDelegate;
+  room::InstallAppController();
   room::InstallBrowserWindowFactory();
   room::InstallWebContentsHooks();
 
@@ -241,6 +256,7 @@ void SetCrashKeys() {
                    queue:nil
               usingBlock:^(NSNotification*) {
                 RoomApplication* strongSelf = weakSelf;
+                [strongSelf room_finishTermination:YES];
                 id<RoomApplicationDelegate> delegate = strongSelf.delegate;
                 if ([delegate respondsToSelector:@selector
                               (roomApplicationWillTerminate:)]) {
@@ -268,6 +284,52 @@ void SetCrashKeys() {
 
 - (void)tryToTerminate {
   [NSApp terminate:nil];
+}
+
+- (void)tryToTerminateWithCompletion:(void (^)(BOOL))completion {
+  if (_exiting) {
+    if (completion) {
+      completion(YES);
+    }
+    return;
+  }
+  if (!_terminationCompletions) {
+    _terminationCompletions = [NSMutableArray array];
+  }
+  if (completion) {
+    [_terminationCompletions addObject:[completion copy]];
+  }
+  if (!_closingAllBrowsersSubscription) {
+    // UnloadController::CancelWindowClose() reports a "stay" here, after
+    // BrowserCloseManager::CancelBrowserClose() reset the quit flag.
+    __weak RoomApplication* weakSelf = self;
+    _closingAllBrowsersSubscription =
+        chrome::AddClosingAllBrowsersCallback(base::BindRepeating(^(bool closing) {
+          if (!closing && !browser_shutdown::IsTryingToQuit()) {
+            [weakSelf room_finishTermination:NO];
+          }
+        }));
+  }
+  room::TryToTerminateApplication();
+}
+
+- (BOOL)isTerminating {
+  return _exiting || browser_shutdown::IsTryingToQuit();
+}
+
+- (void)room_finishTermination:(BOOL)terminating {
+  if (terminating) {
+    _exiting = YES;
+  }
+  NSArray<void (^)(BOOL)>* completions = [_terminationCompletions copy];
+  [_terminationCompletions removeAllObjects];
+  if (completions.count) {
+    LOG(INFO) << "RoomCore: quit " << (terminating ? "proceeds" : "cancelled")
+              << " (" << completions.count << " waiting)";
+  }
+  for (void (^completion)(BOOL) in completions) {
+    completion(terminating);
+  }
 }
 
 - (NSArray<RoomProfile*>*)profiles {
@@ -315,6 +377,11 @@ void SetCrashKeys() {
 
 - (void)room_didFinishLaunching {
   SetCrashKeys();
+  LOG(INFO) << "RoomCore: NSApp.delegate is "
+            << (NSApp.delegate
+                    ? base::SysNSStringToUTF8(
+                          NSStringFromClass([(NSObject*)NSApp.delegate class]))
+                    : std::string("nil"));
   id<RoomApplicationDelegate> delegate = self.delegate;
   [delegate roomApplicationDidFinishLaunching:self];
 }

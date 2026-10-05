@@ -17,7 +17,7 @@ import UIKitCore
 import Updates
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
-    private let engine: any EngineApplication
+    let engine: any EngineApplication
     private(set) var store: RoomStore?
     private(set) var windowController: RoomWindowController?
     private var settingsWindow: SettingsWindowController?
@@ -71,9 +71,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let fakeEngine = FakeApplication()
     #endif
 
-    /// The app delegate. Not `NSApp.delegate` on RoomCore, where that is
-    /// Chrome's AppController until 3.2 (PLAN §4 Main menu).
+    /// The app delegate (also `NSApp.delegate` on both engines; RoomCore
+    /// installs it when it creates NSApp, 3.2b).
     private(set) static weak var current: AppDelegate?
+    /// Whether the previous session ended cleanly by both counts: the store's
+    /// clean-exit mark and the engine's exit type for every profile it
+    /// tracks (RoomCore; CEF has none). Set once the engine profiles exist.
+    private(set) var previousExitWasClean: Bool?
+    /// The line `logPreviousExit` wrote (the 3.2b quit spikes read it).
+    private(set) var previousExitSummary: String?
+    /// A quit is waiting for the engine (`applicationShouldTerminate`).
+    private var quitInProgress = false
+    private var finalStateWritten = false
 
     init(engine: any EngineApplication) {
         self.engine = engine
@@ -84,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The address field's full-URL tooltip appears after 600 ms (spec §C).
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
+        NSLog("Room: NSApp.delegate is %@", NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
         NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()
         if Self.quitRequested {
@@ -124,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
                 tabs.openNewTab(url: URLFixup.url(from: start) ?? URLFixup.searchURL(for: start))
             }
+            logPreviousExit(tabs.engineProfiles.values.map { $0 })
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
         }
@@ -772,9 +783,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
-    /// Final state write; called at quit (both termination paths).
+    /// The store's `uncleanExit` and the engine's exit type, combined: either
+    /// one saying the previous session did not end cleanly makes it unclean.
+    private func logPreviousExit(_ profiles: [any Engine.Profile]) {
+        let engineFlags = profiles.compactMap { profile in profile.lastExitWasClean.map { (profile.name, $0) } }
+        let storeClean = !(store?.uncleanExit ?? false)
+        let clean = storeClean && engineFlags.allSatisfy(\.1)
+        previousExitWasClean = clean
+        let summary = "clean=\(clean) (store uncleanExit=\(!storeClean), engine lastExitWasClean "
+            + (engineFlags.isEmpty ? "n/a" : engineFlags.map { "\($0.0)=\($0.1)" }.joined(separator: " ")) + ")"
+        previousExitSummary = summary
+        NSLog("Room: previous exit %@", summary)
+    }
+
+    /// Final state write (the store's single-transaction write with the
+    /// clean-exit mark); called once at quit, whichever path gets there first.
     func shutdown() {
+        guard !finalStateWritten else { return }
+        finalStateWritten = true
         store?.close()
+        NSLog("Room: final state written")
+    }
+
+    /// ⌘Q, the Dock's Quit, logout, Chrome's own quit requests (RoomCore's
+    /// NSApp asks here before Chrome's close path; CEF's NSApp quits through
+    /// its termination handler and `run()` returning). The engine closes its
+    /// pages first, beforeunload handlers included: a page answering "stay"
+    /// cancels the quit with every page and entry as it was (pages the quit
+    /// closes leave their entries alone: `isTerminating`); otherwise the
+    /// state is written, and only then does the quit proceed.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if quitInProgress { return .terminateLater }
+        quitInProgress = true
+        NSLog("Room: quit requested")
+        var answered = false
+        var synchronousAnswer: Bool?
+        engine.tryToTerminate { [weak self] proceed in
+            self?.quitInProgress = false
+            if proceed {
+                self?.shutdown()
+                NSLog("Room: quit proceeds")
+            } else {
+                NSLog("Room: quit cancelled by a page")
+            }
+            if answered {
+                sender.reply(toApplicationShouldTerminate: proceed)
+            } else {
+                synchronousAnswer = proceed
+            }
+        }
+        answered = true
+        if let synchronousAnswer { return synchronousAnswer ? .terminateNow : .terminateCancel }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {

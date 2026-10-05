@@ -1,0 +1,91 @@
+Room: //room supplies the AppController; NSApp.delegate stays the host's.
+
+Chrome's AppController (2,852 lines) installs itself as NSApp.delegate in
++sharedController, ChromeBrowserMainPartsMac::PreCreateThreads() CHECKs that
+NSApp has no delegate before and one after, then builds Chrome's main menu
+and calls -mainMenuCreated, whose menu bridges CHECK for a Bookmarks menu.
+Room's host owns NSApp.delegate and the whole menu bar (PLAN §4 "Main menu"):
+links from other apps, Dock reopen and applicationShouldTerminate are the
+host's. Chrome code still messages the controller directly
+(AppController.sharedController: -terminate: and -cancelTerminate: in
+BrowserCrApplication, -didEndMainMessageLoop, app_controller_mac::
+AllowApplicationToTerminate/RunInLastProfileSafely, AppleScript's
+lastProfile, the menu bridges), so the accessor must answer with something.
+
+The hook: +sharedController returns //room's RoomAppController when //room
+installed it, and PreCreateThreads creates that controller (it holds the
+keep-alive Chrome's controller holds, so the browser process outlives its
+last Browser) and returns before the delegate CHECKs and the menu build.
+RoomAppController is a separate NSObject, not an AppController subclass: a
+subclass would inherit -init (the keep-alive, NSMenu's key-equivalent
+pre-search block), every NSApplicationDelegate method and the menu-bridge
+state, and +sharedController's static would still create the base class, so
+the patch would be the same size with a larger surprise surface. Messages
+RoomAppController does not implement are forwarded to a first-hit log with
+AppController's method signatures (zero return), like the BrowserWindow
+stubs.
+
+No existing hook: AppController has no factory, its class is named directly
+at every call site, and NSApp.delegate cannot be the host's while
+PreCreateThreads CHECKs it is Chrome's.
+
+Phase 3.2b, 2026-10-05. //room: room/core/room_app_controller.mm.
+diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
+index 608f3503bb68c..d4e70ae641b22 100644
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -150,6 +150,13 @@
+ #include "ui/native_theme/native_theme.h"
+ #include "url/gurl.h"
+ 
++namespace room {
++// Room: set by //room at startup. Returns //room's RoomAppController, which
++// stands in for this class (the host owns NSApp.delegate and the main menu);
++// nullptr keeps Chrome's AppController.
++id (*g_app_controller_hook)() = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ // True while AppController is calling chrome::NewEmptyWindow(). We need a
+@@ -790,6 +797,9 @@ @implementation AppController {
+ @synthesize startupComplete = _startupComplete;
+ 
+ + (AppController*)sharedController {
++  if (room::g_app_controller_hook) {
++    return room::g_app_controller_hook();
++  }
+   static AppController* sharedController = [] {
+     AppController* sharedController = [[AppController alloc] init];
+     NSApp.delegate = sharedController;
+diff --git a/chrome/browser/chrome_browser_main_mac.mm b/chrome/browser/chrome_browser_main_mac.mm
+index b269f1610a55d..58c9d61ce5113 100644
+--- a/chrome/browser/chrome_browser_main_mac.mm
++++ b/chrome/browser/chrome_browser_main_mac.mm
+@@ -52,6 +52,11 @@
+ 
+ // ChromeBrowserMainPartsMac ---------------------------------------------------
+ 
++namespace room {
++// Defined in chrome/browser/app_controller_mac.mm.
++extern id (*g_app_controller_hook)();
++}  // namespace room
++
+ namespace {
+ 
+ base::FilePath GetBundlePath() {
+@@ -154,6 +159,14 @@
+     return ret;
+   }
+ 
++  // Room: the host owns NSApp.delegate and the main menu. Create //room's
++  // controller (it keeps the browser process alive without windows) and
++  // build no Chrome menu.
++  if (room::g_app_controller_hook) {
++    room::g_app_controller_hook();
++    return content::RESULT_CODE_NORMAL_EXIT;
++  }
++
+   // Create the app delegate by requesting the shared AppController.
+   CHECK_EQ(nil, NSApp.delegate);
+   AppController* app_controller = AppController.sharedController;

@@ -7,20 +7,27 @@ import RoomCore
 /// profiles under `Room Profile <name>`, pages with load and history.
 ///
 /// RoomCore creates NSApp from `RoomCoreNSApplication` inside `run()`, so the
-/// host must not touch `NSApplication.shared` before then. Until 3.2 installs
-/// `RoomAppController` (PLAN §4 Main menu), NSApp's delegate is Chrome's
-/// `AppController`: the host's launch work runs from `didFinishLaunching`.
+/// host must not touch `NSApplication.shared` before then; it hands its
+/// `NSApplicationDelegate` to `applicationDelegate` instead, which RoomCore
+/// installs as NSApp's delegate as soon as NSApp exists (Chrome's
+/// `AppController` is never installed, PLAN §4 Main menu, 3.2b).
 public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplicationDelegate {
-    /// The running instance (`RoomCoreNSApplication` reaches it at ⌘Q).
+    /// The running instance.
     public private(set) static weak var current: RoomCoreApplication?
 
-    /// Called once RoomCore has launched: NSApp exists, Chrome's own launch
-    /// is done, profiles can be created. The host builds its UI here.
-    public var didFinishLaunching: (() -> Void)?
+    /// NSApp's delegate from the moment `run()` creates NSApp (links from
+    /// other apps, Dock reopen, `applicationShouldTerminate`). Held weakly,
+    /// as AppKit does. Set before `run()`.
+    public weak var applicationDelegate: (any NSApplicationDelegate)? {
+        get { core.applicationDelegate }
+        set { core.applicationDelegate = newValue }
+    }
 
     public private(set) var features = EngineFeatures()
     public var profiles: [any Profile] { loadedProfiles }
-    public var isTerminating: Bool { terminating }
+    /// Chromium's `browser_shutdown::IsTryingToQuit()`: true while a quit
+    /// closes the pages, false again after a beforeunload "stay".
+    public var isTerminating: Bool { core.isTerminating }
 
     /// Prefix of a profile's directory under the user data root; the same
     /// layout as the CEF engine (`CEFApplication.profileDirectoryPrefix`), so
@@ -31,7 +38,6 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
     private var loadedProfiles: [RoomCoreProfile] = []
     private var pendingProfiles: [String: Task<RoomCoreProfile, any Error>] = [:]
     private var isRunning = false
-    private var terminating = false
 
     /// Must be created before anything touches `NSApplication.shared`.
     override public init() {
@@ -79,26 +85,29 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
 
     // MARK: RoomApplicationDelegate
 
+    /// Before NSApp's delegate hears `applicationDidFinishLaunching`.
     public func roomApplicationDidFinishLaunching(_ application: RoomApplication) {
         isRunning = true
-        didFinishLaunching?()
+    }
+
+    /// The quit is past its point of no return: every Browser is closed.
+    /// Pages the host created without a window (in no Browser) close now.
+    public func roomApplicationWillTerminate(_ application: RoomApplication) {
+        for profile in loadedProfiles { profile.closeAll() }
     }
 
     // MARK: Termination
 
-    /// Closes every page (no beforeunload handlers at this depth), then lets
-    /// Chromium shut down; `run()` returns when it has.
+    /// Chrome's close path (`BrowserCloseManager` through RoomCore's
+    /// `RoomAppController`): beforeunload handlers run on every window's
+    /// pages; a "stay" gives `completion(false)` with every page still open;
+    /// otherwise `completion(true)` once every Browser is closed
+    /// (`chrome::OnAppExiting`), before the run loop stops. `run()` returns
+    /// after Chromium shut down.
     public func tryToTerminate(_ completion: @escaping (Bool) -> Void) {
-        closeAllPages()
-        completion(true)
-        core.tryToTerminate()
-    }
-
-    /// Pages are not in a Chrome tab strip (3.2 adds `RoomBrowser` per
-    /// window), so Chrome's shutdown does not close them: they go first.
-    func closeAllPages() {
-        terminating = true
-        for profile in loadedProfiles { profile.closeAll() }
+        core.tryToTerminate { terminating in
+            MainActor.assumeIsolated { completion(terminating) }
+        }
     }
 
     // MARK: Profiles
@@ -134,12 +143,6 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
     }
 }
 
-/// NSApp on RoomCore: Chromium's `RoomCrApplication`, plus the page cleanup
-/// ⌘Q needs before Chrome's own orderly quit (the CEF engine's
-/// `terminationHandler` counterpart).
-public final class RoomCoreNSApplication: RoomCrApplication {
-    override public func terminate(_ sender: Any?) {
-        RoomCoreApplication.current?.closeAllPages()
-        super.terminate(sender)
-    }
-}
+/// NSApp on RoomCore: Chromium's `RoomCrApplication`, which asks NSApp's
+/// delegate `applicationShouldTerminate` at ⌘Q before Chrome's close path.
+public final class RoomCoreNSApplication: RoomCrApplication {}

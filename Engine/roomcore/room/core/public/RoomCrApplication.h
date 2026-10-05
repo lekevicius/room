@@ -14,8 +14,11 @@ NS_ASSUME_NONNULL_BEGIN
 //
 // It brings everything Chromium expects of NSApp: CrAppProtocol and
 // CrAppControlProtocol (nested event loops), event observers for input
-// latency, accessibility hooks, and an orderly -terminate: that closes all
-// browsers before the run loop exits (-[RoomApplication run] then returns).
+// latency, accessibility hooks, and an orderly -terminate: that first asks
+// NSApp's delegate (the host's: -applicationShouldTerminate:, with
+// NSTerminateLater answered by -replyToApplicationShouldTerminate:), then
+// closes all browsers before the run loop exits (-[RoomApplication run] then
+// returns). Chrome's own AppController is never NSApp's delegate.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @interface RoomCrApplication : NSApplication
 @end

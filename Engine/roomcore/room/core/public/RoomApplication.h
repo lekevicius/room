@@ -13,7 +13,8 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomApplicationDelegate <NSObject>
 // The browser process is up: profiles are loaded and RoomBrowser/RoomProfile
 // can be used. Called from -[NSApplication finishLaunching], i.e. as the
-// first thing on the main run loop.
+// first thing on the main run loop, before NSApp.delegate receives
+// applicationWillFinishLaunching: and applicationDidFinishLaunching:.
 - (void)roomApplicationDidFinishLaunching:(RoomApplication*)application;
 
 @optional
@@ -34,6 +35,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 
 @property(nonatomic, weak, nullable) id<RoomApplicationDelegate> delegate;
 
+// Installed as NSApp.delegate as soon as -run creates NSApp, before Chromium
+// starts: links from other apps, Dock reopen and applicationShouldTerminate:
+// are the host's (Chrome's AppController is never installed; //room answers
+// the messages Chrome sends it). NSApp holds it weakly: the host keeps it.
+// Set before -run.
+@property(nonatomic, weak, nullable) id<NSApplicationDelegate> applicationDelegate;
+
 // Records the process arguments and startup options; does not start anything.
 // `applicationClass` must be RoomCrApplication or a subclass. With a nil
 // `userDataDirectory` the data root is ~/Library/Application Support/Room/
@@ -51,10 +59,25 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // once Chromium has shut down, after which no RoomCore object may be used.
 - (int)run;
 
-// Starts an orderly quit: closes every browser (beforeunload handlers may
-// cancel it), then leaves the run loop so -run returns. Same as
-// -[NSApp terminate:].
+// Same as -[NSApp terminate:]: asks NSApp.delegate's
+// applicationShouldTerminate: (RoomCrApplication honours it), then Chrome's
+// close path.
 - (void)tryToTerminate;
+
+// Chrome's close path, for a delegate that answered NSTerminateLater:
+// beforeunload handlers run on every browser's tabs (Chrome's
+// BrowserCloseManager). A page answering "stay" cancels the quit and
+// `completion(NO)` follows, every page still open. Otherwise every browser
+// closes and `completion(YES)` arrives at the point of no return
+// (chrome::OnAppExiting), before the run loop stops; -run returns once
+// Chromium shut down. May call back before returning when no browser is
+// open. Calls while a quit is under way only add their completion.
+- (void)tryToTerminateWithCompletion:(nullable void (^)(BOOL terminating))completion
+    NS_SWIFT_NAME(tryToTerminate(completion:));
+
+// A quit is under way (browser_shutdown::IsTryingToQuit()): pages closing
+// now are closed by the quit. NO again after a "stay".
+@property(nonatomic, readonly, getter=isTerminating) BOOL terminating;
 
 // Loaded profiles. Chromium loads the last used profile ("Default" on first
 // launch) during startup.

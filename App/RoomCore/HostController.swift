@@ -6,8 +6,11 @@ import UIKitCore
 /// Drives the embryo: once RoomCore has launched, opens the Phase 1.3 window,
 /// binds a RoomBrowser to it and shows the active page in the card. The
 /// sidebar carries a throwaway navigation strip (address field, back,
-/// forward, reload) until Chapter 3 brings `EngineRoomCore`.
-final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelegate {
+/// forward, reload) until Chapter 3 brings `EngineRoomCore`. It is NSApp's
+/// delegate (RoomCore installs it, 3.2b) and the end of the responder chain
+/// for the host menu's actions.
+final class HostController: NSObject, NSApplicationDelegate, RoomApplicationDelegate, RoomBrowserDelegate,
+    RoomWebContentsDelegate {
     private var windowController: RoomWindowController?
     private var browser: RoomBrowser?
     // Lazy: HostController exists before RoomCore creates NSApp, and creating
@@ -19,9 +22,13 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
 
     static let startURL = URL(string: UserDefaults.standard.string(forKey: "RoomStartURL") ?? "https://en.wikipedia.org/wiki/Web_browser")!
 
-    // MARK: RoomApplicationDelegate
+    // MARK: RoomApplicationDelegate, NSApplicationDelegate
 
-    func roomApplicationDidFinishLaunching(_ application: RoomApplication) {
+    func roomApplicationDidFinishLaunching(_ application: RoomApplication) {}
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSLog("Room: NSApp.delegate is %@", NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
+        let application = RoomApplication.shared
         NSApp.mainMenu = HostMenu.make()
         guard let profile = application.defaultProfile else {
             NSLog("Room: RoomCore loaded no profile; nothing to show")
@@ -62,6 +69,21 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
         NSLog("Room: RoomCore will terminate")
     }
 
+    // MARK: Menu actions (end of the responder chain)
+
+    @objc func reloadPage(_ sender: Any?) { current?.reload() }
+    @objc func goBack(_ sender: Any?) { current?.goBack() }
+    @objc func goForward(_ sender: Any?) { current?.goForward() }
+    @objc func openLocation(_ sender: Any?) { focusAddressField() }
+    @objc func newPage(_ sender: Any?) { newPage() }
+
+    // MARK: RoomWebContentsDelegate
+
+    /// Keys the page did not use go to the host menu once (⌘L, ⌘R …).
+    func webContents(_ webContents: RoomWebContents, handleUnhandledKeyEvent event: NSEvent) -> Bool {
+        NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+    }
+
     // MARK: RoomBrowserDelegate
 
     func browser(_ browser: RoomBrowser, didActivate webContents: RoomWebContents?) {
@@ -100,6 +122,7 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
     func open(_ url: URL, in profile: RoomProfile, activate: Bool) -> RoomWebContents? {
         guard let browser else { return nil }
         let page = profile.createWebContents()
+        page.delegate = self
         browser.add(page, activate: activate)
         page.loadURL(url)
         return page
@@ -142,6 +165,7 @@ final class HostController: NSObject, RoomApplicationDelegate, RoomBrowserDelega
     private func show(_ page: RoomWebContents?) {
         guard page !== current || windowController?.cardView.contentView !== page?.nativeView else { return }
         current = page
+        if let page, page.delegate == nil { page.delegate = self }
         windowController?.cardView.contentView = page?.nativeView
         windowController?.cardView.backgroundColor = Palette.cardBackground
         observations = []
