@@ -9,6 +9,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/process/kill.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -156,6 +157,7 @@ extern void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&)
 - (void)room_didFinishNavigation:(content::NavigationHandle*)handle;
 - (void)room_webContentsDestroyed;
 - (void)room_shownOrFocused;
+- (void)room_renderProcessGone:(base::TerminationStatus)status;
 - (void)room_didConsumeKeyCode:(unsigned short)keyCode
                  modifierFlags:(NSEventModifierFlags)flags
                          phase:(RoomKeyEventPhase)phase;
@@ -366,6 +368,10 @@ class Observer : public content::WebContentsObserver,
   }
   void OnWebContentsFocused(content::RenderWidgetHost*) override {
     [wrapper_ room_shownOrFocused];
+  }
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override {
+    [wrapper_ room_renderProcessGone:status];
   }
   void WebContentsDestroyed() override {
     key_acks_.Detach();
@@ -825,6 +831,34 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 
 - (void)room_shownOrFocused {
   [_browser room_activateWebContents:self];
+}
+
+- (void)room_renderProcessGone:(base::TerminationStatus)status {
+  RoomTerminationStatus mapped = RoomTerminationStatusAbnormal;
+  switch (status) {
+    case base::TERMINATION_STATUS_NORMAL_TERMINATION:
+      mapped = RoomTerminationStatusNormal;
+      break;
+    case base::TERMINATION_STATUS_PROCESS_WAS_KILLED:
+      mapped = RoomTerminationStatusKilled;
+      break;
+    case base::TERMINATION_STATUS_PROCESS_CRASHED:
+      mapped = RoomTerminationStatusCrashed;
+      break;
+    case base::TERMINATION_STATUS_OOM:
+      mapped = RoomTerminationStatusOutOfMemory;
+      break;
+    case base::TERMINATION_STATUS_LAUNCH_FAILED:
+      mapped = RoomTerminationStatusLaunchFailed;
+      break;
+    // INTEGRITY_FAILURE exists on Windows only.
+    default:
+      break;
+  }
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector(webContents:renderProcessGone:)]) {
+    [delegate webContents:self renderProcessGone:mapped];
+  }
 }
 
 - (void)room_targetURLChanged:(const GURL&)url {

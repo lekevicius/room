@@ -268,7 +268,9 @@ Other steps this session:
 |---|---|---|
 | `scripts/roomcore-build.sh` (apply: "0 applied, 15 already") build 1: `room_web_contents_tools.mm` (find, capture, print, DevTools), main-world scripts for devtools: pages, the DevTools key forward | failed | `viz::CopyOutputBitmapWithMetadata` incomplete (header and `//components/viz/common` dep added) |
 | build 2 | **73 s** | load 4.6 → 4.9 |
-| build 3: the modal anchor ordered above the host window (the last engine change) | **55 s** | load 4.5 |
+| build 3: the modal anchor ordered above the host window | **55 s** | load 4.5 |
+| build 4: `processGone` (`PrimaryMainFrameRenderProcessGone`) | failed | `TERMINATION_STATUS_INTEGRITY_FAILURE` is Windows-only |
+| build 5 (the last engine change) | **54 s** | load 3.8 |
 | `scripts/roomcore-package.sh` | 25–40 s each (Swift: host 5 s, app 10–15 s) | first Swift failure: `devToolsWebContents` imported as `devTools` (NS_SWIFT_NAME added) |
 | `CONFIGURATION=Release scripts/roomcore-package.sh --app-only` (Release app over the dev framework) | ~90 s | the release framework (`build/roomcore-release`, 3.1b-2) cannot run today's app: `RoomCoreApplication.applicationDelegate` → unrecognized selector (3.2b API) |
 | `scripts/roomcore-package.sh --release --app-only` | 65 s Swift | built, crashes at launch for the reason above (two crash reports, 06:59) |

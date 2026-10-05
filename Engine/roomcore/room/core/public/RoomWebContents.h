@@ -99,6 +99,17 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, getter=isRendererInitiated) BOOL rendererInitiated;
 @end
 
+// Why a page's renderer process went away (base::TerminationStatus).
+typedef NS_ENUM(NSInteger, RoomTerminationStatus) {
+  RoomTerminationStatusNormal = 0,
+  RoomTerminationStatusAbnormal,
+  RoomTerminationStatusKilled,
+  RoomTerminationStatusCrashed,
+  RoomTerminationStatusOutOfMemory,
+  RoomTerminationStatusLaunchFailed,
+  RoomTerminationStatusIntegrityFailure,
+};
+
 // Which part of a keystroke the page consumed.
 typedef NS_ENUM(NSInteger, RoomKeyEventPhase) {
   RoomKeyEventPhaseKeyDown = 0,
@@ -161,6 +172,11 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                   transition:(RoomPageTransition)transition
                 sameDocument:(BOOL)sameDocument
     NS_SWIFT_NAME(webContents(_:didCommitNavigation:transition:sameDocument:));
+// The renderer process of the page's main frame went away (it crashed, was
+// killed, ran out of memory); the page shows nothing until it is reloaded.
+- (void)webContents:(RoomWebContents*)webContents
+    renderProcessGone:(RoomTerminationStatus)status
+    NS_SWIFT_NAME(webContents(_:renderProcessGone:));
 // A find-in-page result (Chrome's FindNotificationDetails, merged by its
 // FindTabHelper): the matches counted so far, the 1-based active match (0
 // when there is none), the active match's rect in the page view's

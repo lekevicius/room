@@ -389,6 +389,21 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate.webContents(self, didCreate: contents, targetURL: targetURL, disposition: mapped)
     }
 
+    /// `WebContentsObserver::PrimaryMainFrameRenderProcessGone`: the host's
+    /// crashed-page view.
+    public func webContents(_ webContents: RoomWebContents, renderProcessGone status: RoomTerminationStatus) {
+        let mapped: TerminationStatus = switch status {
+        case .normal: .normal
+        case .killed: .killed
+        case .crashed: .crashed
+        case .outOfMemory: .outOfMemory
+        case .launchFailed: .launchFailed
+        case .integrityFailure: .integrityFailure
+        default: .abnormal
+        }
+        uiDelegate?.webContents(self, processGone: mapped)
+    }
+
     public func webContents(_ webContents: RoomWebContents, didChangeStatusText text: String?) {
         uiDelegate?.webContents(self, didChangeStatusText: text)
     }
