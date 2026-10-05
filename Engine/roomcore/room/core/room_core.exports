@@ -22,6 +22,12 @@ _OBJC_CLASS_$_RoomCrApplication
 _OBJC_METACLASS_$_RoomCrApplication
 _OBJC_CLASS_$_RoomDownloadItem
 _OBJC_METACLASS_$_RoomDownloadItem
+_OBJC_CLASS_$_RoomExtension
+_OBJC_METACLASS_$_RoomExtension
+_OBJC_CLASS_$_RoomExtensionAction
+_OBJC_METACLASS_$_RoomExtensionAction
+_OBJC_CLASS_$_RoomExtensionInstallRequest
+_OBJC_METACLASS_$_RoomExtensionInstallRequest
 _OBJC_CLASS_$_RoomExternalProtocolRequest
 _OBJC_METACLASS_$_RoomExternalProtocolRequest
 _OBJC_CLASS_$_RoomFileChooserRequest
@@ -44,6 +50,8 @@ _OBJC_CLASS_$_RoomPermissionRequest
 _OBJC_METACLASS_$_RoomPermissionRequest
 _OBJC_CLASS_$_RoomProfile
 _OBJC_METACLASS_$_RoomProfile
+_OBJC_CLASS_$_RoomProfileExtensions
+_OBJC_METACLASS_$_RoomProfileExtensions
 _OBJC_CLASS_$_RoomProfileHistory
 _OBJC_METACLASS_$_RoomProfileHistory
 _OBJC_CLASS_$_RoomWebContents

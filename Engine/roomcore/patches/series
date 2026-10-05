@@ -23,3 +23,5 @@
 0021-ssl-error-hook.patch
 0022-file-chooser-hook.patch
 0023-external-protocol-dialog-hook.patch
+0024-extension-install-dialog-hook.patch
+0025-extension-update-allowed-hook.patch

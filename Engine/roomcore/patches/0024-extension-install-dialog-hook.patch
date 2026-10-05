@@ -1,0 +1,50 @@
+Room: extension install prompts of Room profiles go to the host.
+
+Chrome draws an extension's install confirmation (the Web Store's "Add to
+Chrome", a CRX opened by the user, a re-enable after new permissions) as a
+Views dialog parented to the tab or window. A Room profile's installs belong
+to the host's consent sheet (the Engine protocol's willInstall with the
+permission list), which answers ACCEPTED or USER_CANCELED on the same
+DoneCallback.
+
+No existing hook: the Web Store's webstorePrivate creates its prompt through
+ExtensionsBrowserClient::CreateInstallPrompt and ExtensionInstallPrompt shows
+it through GetDefaultShowDialogCallback(), a static that this Views file
+defines; the only override is ScopedTestDialogAutoConfirm, which answers
+without asking anyone. //room takes the prompt only for profiles whose host
+delegate answers installs; everything else keeps Chrome's dialog.
+
+Phase 3.6a, 2026-10-05. //room: room/core/room_extensions.mm.
+diff --git a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
+index 54678ae0bd029..ac8bf93675592 100644
+--- a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
++++ b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
+@@ -62,6 +62,16 @@ using content::OpenURLParams;
+ using content::Referrer;
+ using extensions::InstallPromptData;
+ 
++namespace room {
++// Room: set by //room/core at startup. Takes the install prompt of a profile
++// whose host answers extension installs (Room's consent sheet) and returns
++// true; false leaves the arguments untouched for Chrome's dialog.
++bool (*g_show_extension_install_dialog_hook)(
++    std::unique_ptr<ExtensionInstallPromptShowParams>&,
++    ExtensionInstallPrompt::DoneCallback&,
++    std::unique_ptr<InstallPromptData>&) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ // Time delay before the install button is enabled after initial display.
+@@ -85,6 +95,11 @@ void ShowExtensionInstallDialogImpl(
+     ExtensionInstallPrompt::DoneCallback done_callback,
+     std::unique_ptr<InstallPromptData> prompt) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++  if (room::g_show_extension_install_dialog_hook &&
++      room::g_show_extension_install_dialog_hook(show_params, done_callback,
++                                                 prompt)) {
++    return;
++  }
+ 
+   // If the dialog has to be parented to WebContents, force activate the
+   // contents. See crbug.com/40059470.

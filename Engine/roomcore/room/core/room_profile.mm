@@ -27,6 +27,7 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/gfx/image/image.h"
+#import "room/core/room_extensions_internal.h"
 #import "room/core/room_omnibox_internal.h"
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
@@ -89,6 +90,8 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   // let go of the profile's services when it goes away.
   RoomProfileHistory* _history;
   NSHashTable<RoomAutocompleteController*>* _autocompleteControllers;
+  // Chrome's extension system (3.6a), made when the host first asks.
+  RoomProfileExtensions* _extensions;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -173,6 +176,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 }
 
 - (void)room_profileWillBeDestroyed {
+  [_extensions room_profileWillBeDestroyed];
   [_history room_profileWillBeDestroyed];
   for (RoomAutocompleteController* controller in _autocompleteControllers) {
     [controller room_profileWillBeDestroyed];
@@ -316,6 +320,19 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
       _profile, base::SysNSStringToUTF16(name),
       base::SysNSStringToUTF16(keyword), base::SysNSStringToUTF8(searchURL),
       suggestURL ? base::SysNSStringToUTF8(suggestURL) : std::string());
+}
+
+// MARK: Extensions (Phase 3.6a)
+
+- (RoomProfileExtensions*)extensions {
+  if (!_extensions && _profile && !_offTheRecord) {
+    _extensions = [[RoomProfileExtensions alloc] initWithChromeProfile:_profile];
+  }
+  return _extensions;
+}
+
+- (RoomProfileExtensions*)room_existingExtensions {
+  return _extensions;
 }
 
 - (BOOL)searchSuggestEnabled {

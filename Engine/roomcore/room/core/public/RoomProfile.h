@@ -7,6 +7,7 @@
 @class RoomWebContents;
 @class RoomProfileHistory;
 @class RoomAutocompleteController;
+@class RoomProfileExtensions;
 
 NS_ASSUME_NONNULL_BEGIN
 @class RoomProfile;
@@ -182,6 +183,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // Chrome's search-suggest preference (prefs::kSearchSuggestEnabled); the
 // host mirrors its suggestions switch here as well as choosing providers.
 @property(nonatomic) BOOL searchSuggestEnabled;
+
+// Chrome's extension system for this profile (RoomExtensions.h); nil for an
+// off-the-record profile.
+@property(nonatomic, readonly, nullable) RoomProfileExtensions* extensions;
 
 @end
 

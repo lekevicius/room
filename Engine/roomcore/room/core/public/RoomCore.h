@@ -11,6 +11,7 @@
 #import "RoomApplication.h"
 #import "RoomBrowser.h"
 #import "RoomCrApplication.h"
+#import "RoomExtensions.h"
 #import "RoomOmnibox.h"
 #import "RoomProfile.h"
 #import "RoomWebContents.h"

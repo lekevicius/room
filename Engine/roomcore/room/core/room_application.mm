@@ -33,6 +33,7 @@
 #import "room/core/public/RoomCore.h"
 #import "room/core/public/RoomCrApplication.h"
 #import "room/core/room_app_controller.h"
+#import "room/core/room_extensions_internal.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
@@ -271,6 +272,7 @@ void SetCrashKeys() {
   room::InstallDownloadTargetHook();
   room::InstallPagePromptHooks();
   room::InstallPageDialogHooks();
+  room::InstallExtensionHooks();
 
   __weak RoomApplication* weakSelf = self;
   _willTerminateObserver = [NSNotificationCenter.defaultCenter

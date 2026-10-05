@@ -72,7 +72,10 @@ RoomDownloadItem* Snapshot(const download::DownloadItem& item) {
 // Worth telling the host about: a download whose file is decided, or one
 // that ended (a new one is announced by -willBeginDownload: first).
 bool IsReportable(const download::DownloadItem& item) {
-  if (item.IsTransient()) {
+  // The Web Store's CRX (WebstoreInstaller, a forced path under the user
+  // data directory) is an install, not a download the user keeps (3.6a).
+  if (item.IsTransient() || item.GetDownloadSource() ==
+                                download::DownloadSource::EXTENSION_INSTALLER) {
     return false;
   }
   return !item.GetTargetFilePath().empty() ||
@@ -210,7 +213,9 @@ class ProfileDownloadsImpl : public room::ProfileDownloads,
     content::DownloadManager::DownloadVector items;
     manager_->GetAllDownloads(&items);
     for (download::DownloadItem* item : items) {
-      if (!item->IsTransient()) {
+      if (!item->IsTransient() &&
+          item->GetDownloadSource() !=
+              download::DownloadSource::EXTENSION_INSTALLER) {
         [result addObject:Snapshot(*item)];
       }
     }
@@ -313,6 +318,13 @@ void InstallDownloadTargetHook() {
     // Resumed downloads keep their file; transient ones (the PDF viewer's)
     // are Chrome's.
     if (!item->GetTargetFilePath().empty() || item->IsTransient()) {
+      return false;
+    }
+    // A forced path (the Web Store's CRX, WebstoreInstaller; 3.6a) is
+    // Chrome's to honour.
+    if (!item->GetForcedFilePath().empty() ||
+        item->GetDownloadSource() ==
+            download::DownloadSource::EXTENSION_INSTALLER) {
       return false;
     }
     content::BrowserContext* context =

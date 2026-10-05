@@ -15,6 +15,8 @@ class Profile;
 + (RoomProfile*)room_existingProfileFor:(Profile*)profile;
 // nullptr once the profile is destroyed.
 @property(nonatomic, readonly) Profile* room_profile;
+// The extensions object if the host asked for it (never creates one).
+@property(nonatomic, readonly) RoomProfileExtensions* room_existingExtensions;
 @end
 
 #endif  // ROOM_CORE_ROOM_PROFILE_INTERNAL_H_

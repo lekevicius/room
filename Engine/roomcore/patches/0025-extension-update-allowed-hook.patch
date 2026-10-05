@@ -1,0 +1,47 @@
+Room: extension update checks only when the host asks.
+
+Room makes no request the user did not ask for. Once an extension is
+installed its update check is such a request, made on the host's timer
+(once a day while an extension is installed, never otherwise) through
+ExtensionUpdater::CheckNow. Room's network policy passes
+--disable-background-networking, which ChromeExtensionsBrowserClient turns
+into "no extension update checks at all", so the host's check would be
+refused too; without the switch Chrome's own schedule (a check at startup and
+every five hours) would run.
+
+No existing hook: IsBackgroundUpdateAllowed() reads the process-wide switch,
+which other services also read (variations, translate, the intranet redirect
+detector), so it cannot be dropped; the ExtensionsBrowserClient is a
+process-wide singleton Chrome owns. //room answers true only inside the
+host's CheckNow call (the checks start synchronously there); Chrome's own
+scheduled checks, an extension's runtime.requestUpdateCheck and policy
+re-checks are refused.
+
+Phase 3.6a, 2026-10-05. //room: room/core/room_extensions.mm.
+diff --git a/chrome/browser/extensions/chrome_extensions_browser_client.cc b/chrome/browser/extensions/chrome_extensions_browser_client.cc
+index 0f89eff019706..a26d4dd5c3c35 100644
+--- a/chrome/browser/extensions/chrome_extensions_browser_client.cc
++++ b/chrome/browser/extensions/chrome_extensions_browser_client.cc
+@@ -164,6 +164,12 @@
+ #include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
+ #endif
+ 
++namespace room {
++// Room: set by //room/core at startup. Extension update checks (the
++// ExtensionUpdater's and update_client's) run only while it returns true.
++bool (*g_extension_update_allowed_hook)() = nullptr;
++}  // namespace room
++
+ namespace extensions {
+ 
+ namespace {
+@@ -607,6 +613,9 @@ ExtensionCache* ChromeExtensionsBrowserClient::GetExtensionCache() {
+ }
+ 
+ bool ChromeExtensionsBrowserClient::IsBackgroundUpdateAllowed() {
++  if (::room::g_extension_update_allowed_hook) {
++    return ::room::g_extension_update_allowed_hook();
++  }
+   return !base::CommandLine::ForCurrentProcess()->HasSwitch(
+       ::switches::kDisableBackgroundNetworking);
+ }
