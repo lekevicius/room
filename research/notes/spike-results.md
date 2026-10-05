@@ -1895,3 +1895,59 @@ nav passed (16.4 s), ten-page quits **0.276 / 0.224 / 0.247 s** (load 9.7–12.7
 ### The grand tour's palette section (`ROOM_TOUR_ENGINE=roomcore scripts/grand-tour.sh --no-build --groups palette light`, `build/grand-tour/20261005-130538-roomcore`, 2.5 min)
 
 **78 passed, 0 failed** (3.3a's run of the same group: 62 / 7): palette 19/19, palette2 26/26 (nine new engine checks: the store does not grow, the visit in Chrome's history, the palette finds it, ⌘Y, `IDC_FOCUS_LOCATION`, the chip ×2, Chrome's pushState visit), suggeston 10/10 (Chrome's requests for each of the three queries, suggestion rows shown), suggestoff 10/10, palettemeasure 13/13 (Chrome's history ≥ 50,000 rows). The first run of the session was 69 / 2, both the checks' own faults (spike keys with spaces the tour parser does not read; an exact 50,000 where the tour's own visits add 18), fixed in the checks and the spike's key names.
+
+## Phase 3.6a — Chrome extensions: the installed list and management, Web Store installs through Room's consent sheet, update checks on the host's timer (2026-10-05, Mac mini M4, 24 GB, RoomCore, Debug)
+
+Room.app on RoomCore (component build `out/dev`, 24 patches, `room_enable_spikes=true`), Debug, 60 Hz, `window_main` true in every run, throwaway `-RoomStateDirectory`/`-RoomEngineDirectory` under `/tmp/room-3.6a`; load 3.7–10 except where stated. Spike outputs and net-logs in `build/evidence-3.6a`; captures in `research/screenshots/phase-3.6a`.
+
+### Task 1: the unpacked fixture through `ProfileExtensions` (`-RoomSpike extensions`, final engine)
+
+| Check | Result |
+|---|---|
+| Load unpacked (`research/spikes/phase-3.6/extension`, `UnpackedInstaller`) | id `dibedkfpfkdkkcbjmblmfdbjdhdnlgkp` in 32 ms (earlier runs 6–7 ms); developer mode turned on |
+| In `installed` | "Room 3.6 fixture" 1.0, enabled, unpacked, icon16 16×16 pt and icon32 32×32 pt, options `options.html`, action "Room fixture" with its 16 pt icon and a popup, pinned at install (Chrome's "Pin new extensions to Toolbar" is on by default), permissions "Read and change all your data on all websites", hosts `<all_urls>` |
+| Content script and `chrome.tabs` | on two Today pages (example.com, example.org) the content script ran; the worker's `chrome.tabs.query({})` saw **2 tabs** (the two Today pages' URLs) and `chrome.windows.getAll()` **1 window**; the host's Today pages 2 (Phase 1.4 on CEF: `tabs.query` `[]`, 0 windows) |
+| Badge | the worker's `setBadgeText`: defaults "2", the asking page "T2" (per tab id), colour #2f7de1; 7 action updates reached the delegate, the last per page |
+| Disable, enable, reload, pin | each reflected in `installed` within 5 s; pin toggled and back |
+| `chrome://extensions` | renders in a Today tab ("Extensions", developer mode on, the fixture's card); a real click on its switch disabled the extension in `ExtensionRegistrar` (Room's list followed), a second click enabled it (`chrome-extensions.png`) |
+| Options page | `chrome-extension://…/options.html` opened as a Today tab; its script wrote `chrome.storage.local` ("storage written") |
+| Settings ▸ Extensions | the fixture listed with Options, Reload, Unpin, Remove… and its switch (`settings-extensions.png`) |
+| Uninstall | Room's sheet "Remove “Room 3.6 fixture”?" (`fixture-uninstall-sheet.png`); Cancel kept it (`removed=false`), Remove removed it |
+
+### Task 2: three Chrome Web Store installs (`-RoomSpike webstore`, `build/evidence-3.6a/ws1.txt`)
+
+The unbranded build's user agent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36`; client-hint brands `Not A(Brand` 99, `Chromium` 154 (no "Google Chrome"; nothing spoofed). On a fresh profile from this (EU) address Google first shows its cookie consent page ("Before you continue", consent.google.com); the run clicked **Reject all** (the privacy-preserving answer) and the store page followed. The store page shows a "Switch to Chrome?" banner and "Switch to Chrome to install extensions and themes · Install Chrome" text, and the **"Add to Chrome" button is there and works**: `webstorePrivate.beginInstallWithManifest3` reaches the install prompt, which patch 0024 hands to Room's sheet.
+
+| Extension | Store page → sheet | Installed (click to `installed`) | On a page | Service worker (`chrome://serviceworker-internals`) | Uninstall |
+|---|---|---|---|---|---|
+| uBlock Origin Lite (`ddkjiahejlhfcafbddmgiahcphecmpfh`) | "Add to Chrome" → "Add "uBlock Origin Lite"?", It can: • Read and change all your data on all websites (`webstore-install-sheet.png`, the final run) | 2026.930.1227 in 7.3 s (7.1 s in the second run); options `dashboard.html`, action with popup | example.com: badge "2"; an ad script added to the page (`pagead2.googlesyndication.com/…/adsbygoogle.js`) never reached the network stack (0 net-log events for the host, `ws2`), the page got uBOL's stand-in script | ACTIVATED, RUNNING | Room's sheet, removed |
+| 1Password (`aeblfdkhhhdcdjpifhhbdiojplfjncoa`) | six lines: all your data on all websites, notifications, downloads, apps/extensions/themes, native applications, privacy-related settings | 8.12.38.34 in 7.5 s; opened its welcome tab (`chrome.tabs.create` → a Today tab) | action "1Password", enabled; no page popup set on example.com; nothing injected on a page without a form; sign-in not tried (by hand) | ACTIVATED, RUNNING | removed |
+| Dark Reader (`eimadpbcbfnmbkopoojfekhnkhdbieeh`) | one line (all websites) | 4.9.133 in 6.9 s (6.4, 6.5, 6.6 s in other runs); the store button became "Remove from Chrome" | example.com dark: 10 `style.darkreader` elements, body and html background rgb(24, 26, 27) (`dark-reader-example-com.png`) | ACTIVATED, RUNNING | removed |
+
+The final run on the final engine (`ws3`) repeated all three: installed in 7.5 / 7.4 / 6.6 s (1Password now 8.12.40.31: the store had a new version between runs), the same effects, three service workers RUNNING, three uninstalls with consent, browser requests `webstore_install_helper` 3 and navigations only (no `update_client`), and `~/Applications/Chromium Apps.localized` untouched. Every sheet answered on the prompt's `DoneCallback` (`ACCEPTED`); no Chrome install dialog and no post-install bubble appeared. Settings ▸ Extensions listed the three with their versions, enabled (`settings-extensions-webstore.png`).
+
+**Net-log of the installs by traffic annotation** (`--log-net-log`, capture mode Everything; requests made by the browser process are "browser", by a page or an extension "page"):
+
+| Annotation | Count | What |
+|---|---|---|
+| `webstore_install_helper` (browser) | 1 per install | the extension's icon from the store's data (lh3.googleusercontent.com) for the sheet |
+| `webstore_installer` (download) | 1 per install | `GET clients2.google.com/service/update2/crx?…` (redirected to clients2.googleusercontent.com), the CRX |
+| `navigation_url_loader` (browser) | the store page, consent page, example.com, welcome pages | navigations |
+| `blink_resource_loader`, `favicon_loader` (page) | 244 over three installs | the store page's own scripts, fonts, images, logging (play.google.com/log, googletagmanager), and the extensions' own requests (1Password: my.1password.com, watchtower.1password.com, client-log-forwarder.1password.com; Dark Reader: darkreader.org, count.darkreader.app, paddle) |
+| `update_client` (browser) | **1 per uninstall in the first run → 0** | Chrome's uninstall ping for Web Store extensions (`POST update.googleapis.com/service/update2/json`, event uninstall): telemetry, not asked for; turned off (update client config without a ping URL); the second run (`ws2`, install + uninstall of uBO Lite): browser requests `webstore_install_helper` 1, `webstore_installer` 1, navigations 4, no `update_client` |
+
+### Task 3: update checks only when the host asks
+
+| Run | Window | Engine requests | Notes |
+|---|---|---|---|
+| No extension (`ROOM_NETCHECK_IDLE=600 scripts/netlog-check.sh`, fresh state, first-run card shown) | launch + 600 s idle + browse + quit | **0** | Room's own code 0 (main process 0 bytes); page traffic 127.0.0.1 2, localhost 4. 3.1b-2's number holds with the extension system created |
+| Dark Reader installed, timer not due (seed state, `extupdate -RoomExtensionsIdle 600 -RoomExtensionsNoCheck YES`) | launch + 600 s idle | **0** | Chrome's own startup check (5 s after launch) was refused at the gate (1 logged); the timer's next fire 2026-10-06 11:32 (24 h after the install); Dark Reader's own service worker fetched `darkreader.org/blog/posts.json` once (initiator the extension: the extension's request, not the engine's) |
+| One host check (`extupdate`, `checkForUpdatesNow`) | 30 s idle, the check, 20 s | **1**: `update_client` `POST update.googleapis.com/service/update2/json` | 1 extension asked, 0 updates found (4.9.133 is current), 81 ms; so no CRX fetch. Web Store extensions update through update_client (the JSON protocol), the CDM's annotation; `extension_manifest_fetcher`/`extension_crx_fetcher` (the XML `ExtensionDownloader`) did not appear |
+
+How Chrome's own schedule is held: `ExtensionUpdater` keeps its five-hour schedule and its startup check, and every check it starts on its own (and an extension's `runtime.requestUpdateCheck`) reaches `IsBackgroundUpdateAllowed`, which patch 0025 answers false outside the host's call; `ScopedSkipScheduledCheckForTest` was not used. The host's timer (`ExtensionUpdateTimer`, Chrome package) fires once a day while an extension is installed, keeps the last check in Settings (`extensionsLastUpdateCheck`) so a relaunch inside the day does not check, starts the day at the first install and disarms at the last uninstall (unit tests).
+
+### Baseline after the last engine change (`build/baseline/3.6a-final2`)
+
+nav passed 11.6 s; ten-page quits **0.374 / 0.338 / 0.464 s**, 0 helpers left, 0 crash reports, exit 0 (load 20: DaisyDisk was scanning the disk, the user's); stub hits none (39 stubs); the first attempt (`3.6a-final`) stopped on stackoverflow.com's Cloudflare challenge in run 2 (external corpus; run 1 0.273 s). Earlier baseline after the first engine change (`3.6a-1`): nav 16.5 s, quits 0.310 / 0.246 / 0.262 s. Series 24, "0 applied, 24 already".
+
+Found on the way: an extension uninstall made Chrome's `AppShortcutManager` create `~/Applications/Chromium Apps.localized` with an icon (14:05, the first uninstall; macOS logged a simulated `EXC_GUARD` fault from IconServices for its icon each time, four `ExcUserFault_Room` reports, non-fatal); turned off (`SuppressShortcutsForTesting`); the final run's uninstall left the folder untouched and logged no fault. The folder stays for the user to delete.
