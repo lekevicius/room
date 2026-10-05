@@ -2148,3 +2148,19 @@ Spellcheck (`spelling`, `build/evidence-3.7b/sp1`; `SpellcheckService` with the 
 ### The baseline after the last engine change (`build/baseline/3.7b-final`, embryo host)
 
 nav passed 20.4 s; ten-page quits **0.291 / 0.236 / 0.249 s** (load 8.6 / 10.6 / 13.0), 0 helpers left, 0 crash reports; stub hits none (37 window stubs; none in the session's spike logs either). The baseline after the first engine change (`build/baseline/3.7b-1`): nav 19.0 s, quits 0.261 / 0.323 / 0.245 s. `scripts/roomcore-apply.sh`: "0 applied, 24 already".
+
+## Phase 3.8 — rebase 1 verify (2026-10-05, Mac mini M4, 24 GB, RoomCore 154.0.8037.98, Debug)
+
+`scripts/roomcore-rebase.sh --verify 154.0.8037.98` on the rebuilt `out/dev` (component, `room_enable_spikes`), packaged at 22:39 (app and embryo host, framework `Versions/154.0.8037.98`), 60 Hz, the Claude desktop app frontmost, load 7–16 during the tour. Record: `build-log.md` "Rebase 154.0.8037.58 → 154.0.8037.98: verify".
+
+| Section | 154.0.8037.98 | Before | Failures, attributed |
+|---|---|---|---|
+| layout | 154 / 1 | 3.3a layout + sidebar 165 / 15 (activation) | `popups` alert completed: the check reads `window.__alerted` from the isolated world (B-55's page-global read); the sheet appears and is answered |
+| sidebar | 25 / 0 | (with layout) | — |
+| tabs | 37 / 3 | 3.7b 38 / 2 | discard renderers 15 → 16 (B-56); switching median 16.31 ms, p95 24.50 ms (B-53; 3.7b 15.29 / 23.79) |
+| chrome | 77 / 1 | 3.4b 73 / 5 | helper crash-report count 0 for the killed renderer (the CEF-shaped count) |
+| **total** | **293 / 5** | | none new with the tag |
+
+Numbers from the tour (light): memory baseline 1,230 MB, 10 hidden 5,816 MB (19 renderers), 30 hidden 11,825 MB; ten loaded (tabsmeasure) 6,250 MB (17 renderers); switch select call 6.97 / 11.02 ms, main-thread turn 16.31 / 24.50 ms, page visible 6.11 / 13.91 ms; relaunch 2.09 s to load start, 4.51 s to the selected page loaded; quits 0.60 / 0.69 / 0.63 s with 0 helpers left and 0 crash reports; open10 all loaded in 12 s; DevTools 28 ms (docked, already warm) and 325 ms median to the front-end loaded in chrome26b; find 32 / 426 ms median / p95 (Chromium's short-query delay in the first keys); killtest 100 kills, 0 failures; sidebar500 full reload 43.8 / 50.9 ms. Stub hits: one `CreateSadTab` (the crash step).
+
+Baseline (`build/baseline/rebase-154.0.8037.98-223920`): nav passed 16.2 s; the external ten-page quits did not complete in four attempts: Stack Overflow kept loading behind Cloudflare's Turnstile challenge after the ready check (the host log carries the challenge script), so the fixture refused to quit-measure; the tour's `quittiming` above stands in for the three quits. 0 new crash reports in the session.

@@ -38,8 +38,8 @@
 #       after a conflict: edit the files under build/roomcore-rebase/<tag>/conflict/
 #       (no markers left; a file that moved upstream goes under its new path),
 #       then --continue makes them the patch (header kept) and runs again from 3
-#   scripts/roomcore-rebase.sh --verify
-#       after the build: roomcore-package.sh (app and host), roomcore-baseline.sh,
+#   scripts/roomcore-rebase.sh --verify [<tag>]
+#       after the build (<tag>: an earlier rebase's, default the current one): roomcore-package.sh (app and host), roomcore-baseline.sh,
 #       the tour's layout, sidebar, tabs and chrome sections on RoomCore, and the
 #       run's record appended to research/notes/build-log.md
 #
@@ -78,11 +78,12 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-if [[ $mode != run ]]; then
+# --verify <tag> verifies an earlier rebase while a later one is in progress.
+if [[ $mode == continue || ( $mode == verify && -z "$TAG" ) ]]; then
   [[ -f "$STATE_ROOT/current" ]] || { echo "no rebase in progress ($STATE_ROOT/current missing)" >&2; exit 1; }
   TAG="$(cat "$STATE_ROOT/current")"
 fi
-[[ -n "$TAG" ]] || { echo "usage: $0 [--dry-run] [--no-sync] [--no-build] <tag> | --continue | --verify" >&2; exit 2; }
+[[ -n "$TAG" ]] || { echo "usage: $0 [--dry-run] [--no-sync] [--no-build] <tag> | --continue | --verify [<tag>]" >&2; exit 2; }
 OLD="$(tr -d '[:space:]' < "$PIN_FILE")"
 STATE="$STATE_ROOT/$TAG"
 RECORD="$STATE/record.md"
@@ -255,13 +256,17 @@ if [[ $mode == verify ]]; then
   if [[ -n "$log" ]] && ! grep -q '^build done in' "$log"; then
     echo "the build did not finish: $log" >&2; tail -20 "$log" >&2; exit 1
   fi
-  build_s="$( [[ -n "$log" ]] && sed -n 's/^build done in \([0-9]*\) s.*/\1/p' "$log" | tail -1)"
+  build_s="$( [[ -z "$log" ]] || sed -n 's/^build done in \([0-9]*\) s.*/\1/p' "$log" | tail -1)"
   verify_from=$(( $(wc -l < "$RECORD") + 1 ))
   record "- build: ${build_s:-?} s ($log)"
   cd "$REPO"
   t=$(now); "$REPO/scripts/roomcore-package.sh" > "$STATE/package.log" 2>&1; step_done package "$t"
   dir="$REPO/build/baseline/rebase-$TAG-$(date +%H%M%S)"
-  t=$(now); "$REPO/scripts/roomcore-baseline.sh" "$dir" | tee "$STATE/baseline.log"; step_done baseline "$t" "$dir"
+  # A failed baseline is recorded and the tour still runs (a skipped section is a failure, not a pass).
+  t=$(now); baseline_ok=1
+  "$REPO/scripts/roomcore-baseline.sh" "$dir" 2>&1 | tee "$STATE/baseline.log" || baseline_ok=0
+  step_done baseline "$t" "$dir"
+  (( baseline_ok )) || record "  - BASELINE FAILED: $(grep -m1 -E 'Error|error' "$STATE/baseline.log" | cut -c1-300)"
   record "  - nav: $(head -1 "$dir/nav-receipt.json" 2>/dev/null)"
   record "  - quits: $(grep -Eo '[0-9.]+ s' "$dir/quit.txt" | tr '\n' ' ' || true)"
   t=$(now)
