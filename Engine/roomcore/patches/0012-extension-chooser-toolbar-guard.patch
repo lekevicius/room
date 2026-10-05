@@ -1,16 +1,30 @@
+Room: an extension-origin device chooser looks up the toolbar through the
+registered ToolbarButtonProvider (null-safe) instead of the BrowserView, so a
+Room Browser (no BrowserView; RoomToolbarButtonProvider returns no extensions
+container) rejects the chooser safely instead of dereferencing a missing view.
+
+Rebased 3.8 (154.0.8037.58 -> 154.0.8037.98): upstream's fullscreen-drop
+hardening (92300d69b6811, "Harden the device chooser dialog against fullscreen
+drops") moved the lookup after a new DropFullscreenForChooserDialog() and added
+its own `if (!browser_view) return base::DoNothing();`. The hook moved with the
+call site: the provider lookup replaces both the BrowserView lookup and that
+null check (the provider is null-checked in its place). With upstream's check a
+Room Browser is already rejected without this patch; whether 0012 can be
+dropped is the planner's call (B-61).
+
 diff --git a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
-index bbfbf51354797..02afe21584420 100644
+index 31ff36d2552ac..4a94875cffb39 100644
 --- a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
 +++ b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
-@@ -23,6 +23,7 @@
- #include "components/permissions/chooser_controller.h"
+@@ -24,6 +24,7 @@
  #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/weak_document_ptr.h"
  #include "extensions/buildflags/buildflags.h"
 +#include "ui/base/base_window.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/base/mojom/dialog_button.mojom.h"
  #include "ui/display/types/display_constants.h"
-@@ -36,7 +37,6 @@
+@@ -37,7 +38,6 @@
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
  #include "chrome/browser/ui/views/extensions/chooser_dialog_view.h"
  #include "chrome/browser/ui/views/extensions/extensions_container_views.h"
@@ -18,15 +32,20 @@ index bbfbf51354797..02afe21584420 100644
  #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
  #include "extensions/browser/app_window/app_window_registry.h"
  #include "extensions/browser/extension_registry.h"
-@@ -245,9 +245,9 @@ base::OnceClosure ShowDeviceChooserDialogForExtension(
+@@ -293,15 +293,11 @@ base::OnceClosure ShowDeviceChooserDialogForExtension(
+     return base::DoNothing();
+   }
  
+-  auto* browser_view = BrowserView::GetBrowserViewForBrowser(host->browser);
+-  if (!browser_view) {
+-    return base::DoNothing();
+-  }
+-
    // `GetExtensionsContainerViews` may return `nullptr`, for instance in
    // extension popup windows.
--  auto* extensions_toolbar = BrowserView::GetBrowserViewForBrowser(browser)
--                                 ->toolbar_button_provider()
--                                 ->GetExtensionsContainerViews();
-+  auto* button_provider = ToolbarButtonProvider::From(browser);
-+  auto* extensions_toolbar =
++  auto* button_provider = ToolbarButtonProvider::From(host->browser);
+   auto* extensions_toolbar =
+-      browser_view->toolbar_button_provider()->GetExtensionsContainerViews();
 +      button_provider ? button_provider->GetExtensionsContainerViews() : nullptr;
    if (!extensions_toolbar) {
      return base::DoNothing();
