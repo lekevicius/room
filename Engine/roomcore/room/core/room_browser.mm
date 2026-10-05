@@ -23,6 +23,10 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/functional/bind.h"
 #include "base/memory/memory_pressure_listener.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
+#include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+#include "components/performance_manager/public/performance_manager.h"
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
 #include "third_party/blink/public/mojom/webid/federated_request.mojom.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -576,6 +580,36 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     LocationBarModel* model =
         location_bar ? location_bar->GetLocationBarModel() : nullptr;
     return @(model ? static_cast<int>(model->GetSecurityLevel()) : -1);
+  }
+  if ([action isEqualToString:@"pm-urgent-discard"]) {
+    // 3.7b: what performance_manager's urgent discarding does under memory
+    // pressure (UrgentPageDiscardingPolicy -> DiscardAPage(URGENT)), asked
+    // directly and without the recent-visibility window: Room pages are not
+    // auto-discardable (protected), so it must find none.
+    using performance_manager::PerformanceManager;
+    auto* helper = performance_manager::policies::PageDiscardingHelper::GetFromGraph(
+        PerformanceManager::GetGraph());
+    if (!helper) {
+      return @(-1);
+    }
+    const auto result = helper->DiscardAPage(
+        performance_manager::policies::DiscardEligibilityPolicy::DiscardReason::URGENT,
+        /*ignore_recent_visibility=*/true);
+    LOG(WARNING) << "RoomCore spike: performance_manager urgent discard: "
+                 << (result.first_discard_time ? "discarded a page" : "nothing discarded");
+    return @(result.first_discard_time ? 1 : 0);
+  }
+  if ([action isEqualToString:@"auto-discardable-count"]) {
+    TabStripModel* strip = _browser->GetTabStripModel();
+    int count = 0;
+    for (int i = 0; i < strip->count(); ++i) {
+      auto* unit = resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+          strip->GetWebContentsAt(i));
+      if (unit && unit->IsAutoDiscardable()) {
+        ++count;
+      }
+    }
+    return @(count);
   }
   if ([action hasPrefix:@"memory-pressure-"]) {
     // 3.7b: Chromium's own notification path, as a pressure event from the

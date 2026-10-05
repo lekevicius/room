@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tone</title>
+<!-- Phase 3.7b: a quiet Web Audio tone that plays until stopped (audible,
+     then "recently audible" for a minute after #stop). -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
+<h1>Tone</h1>
+<button id="play">Play</button> <button id="stop">Stop</button>
+<p id="log">idle</p>
+<script>
+let ctx = null, osc = null;
+document.getElementById('play').onclick = () => {
+  ctx = ctx || new AudioContext();
+  osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.02;
+  osc.frequency.value = 440;
+  osc.connect(gain).connect(ctx.destination);
+  osc.start();
+  document.getElementById('log').textContent = 'playing';
+};
+document.getElementById('stop').onclick = () => {
+  if (osc) osc.stop();
+  osc = null;
+  document.getElementById('log').textContent = 'stopped';
+};
+</script>

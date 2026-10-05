@@ -88,6 +88,9 @@ enum SpikeRunner {
         case "extpopup": await context.extensionPopupChecks()
         case "passwords": await context.passwordsChecks()
         case "autofill": await context.autofillChecks()
+        case "session": await context.sessionChecks()
+        case "discardpolicy": await context.discardPolicyChecks()
+        case "spelling": await context.spellingChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

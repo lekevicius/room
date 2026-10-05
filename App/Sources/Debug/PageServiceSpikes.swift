@@ -164,8 +164,25 @@ extension SpikeRunner.Context {
             + "toast=\(toast?.message ?? "nil") button=\(toast?.action?.title ?? "nil")")
         guard let offer, toast?.id == PageChrome.noticeToastID(offer) else { return }
         let removedBefore = DelegateRecorder.shared.count("didRemoveInfoBar")
+        let windowsBefore = Set(NSApp.windows.map(ObjectIdentifier.init))
         toast?.action?.handler()
         let removed = await waitUntil(5) { DelegateRecorder.shared.count("didRemoveInfoBar") > removedBefore }
+        // 3.7b: Chrome's translate bubble (Views) takes the steps after the
+        // offer, anchored on the site button through the toolbar provider.
+        var bubble: NSWindow?
+        _ = await waitUntil(8) {
+            bubble = NSApp.windows.first { !windowsBefore.contains(ObjectIdentifier($0)) && $0.isVisible
+                && NSStringFromClass(Swift.type(of: $0)).contains("NativeWidget") && !$0.ignoresMouseEvents && $0.frame.width > 40 }
+            return bubble != nil
+        }
+        let site = session.sidebar.addressField.siteButtonView
+        let siteFrame = site.window.map { $0.convertToScreen(site.convert(site.bounds, to: nil)) } ?? .zero
+        try? await Task.sleep(for: .milliseconds(400))
+        await capture3b("translate-bubble", screen: true)
+        SpikeRunner.record("translate_bubble", bubble.map { b in
+            "shown \(Int(b.frame.width))×\(Int(b.frame.height)) top=\(Int(b.frame.maxY)) left=\(Int(b.frame.minX)); site button bottom=\(Int(siteFrame.minY)) "
+                + "x=\(Int(siteFrame.minX))…\(Int(siteFrame.maxX)); gap=\(Int(siteFrame.minY - b.frame.maxY)) pt"
+        } ?? "not shown in 8 s")
         let heading = await js(page, "document.querySelector('h1').textContent")
         // The translation itself fetches Google's translate script (the
         // user asked for it); the heading changes when it arrives.

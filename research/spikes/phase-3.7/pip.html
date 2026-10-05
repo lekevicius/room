@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Picture-in-Picture</title>
+<!-- Phase 3.7b: a video drawn from a canvas, put in Picture-in-Picture by a
+     click (#video-pip), or a document Picture-in-Picture window (#doc-pip).
+     The page mirrors its state into #log (host scripts run in an isolated
+     world, B-55). -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; margin-right: 8px; } video, canvas { width: 320px; height: 180px; background: #222; display: block; margin-top: 16px; }</style>
+<h1>Picture-in-Picture</h1>
+<button id="video-pip">Video PiP</button>
+<button id="doc-pip">Document PiP</button>
+<p id="log">idle</p>
+<canvas id="c" width="320" height="180"></canvas>
+<video id="v" muted playsinline></video>
+<script>
+const c = document.getElementById('c'), g = c.getContext('2d'), v = document.getElementById('v'), log = document.getElementById('log');
+let t = 0;
+(function draw() { g.fillStyle = '#204060'; g.fillRect(0, 0, 320, 180); g.fillStyle = '#fff'; g.font = '24px sans-serif'; g.fillText('Room ' + (t++), 20, 100); requestAnimationFrame(draw); })();
+v.srcObject = c.captureStream(30);
+v.play().catch(e => { log.textContent = 'play: ' + e.name; });
+v.addEventListener('enterpictureinpicture', () => { log.textContent = 'video pip'; });
+v.addEventListener('leavepictureinpicture', () => { log.textContent = 'video pip left'; });
+document.getElementById('video-pip').onclick = () => {
+  v.requestPictureInPicture().catch(e => { log.textContent = 'video pip error: ' + e.name + ' ' + e.message; });
+};
+document.getElementById('doc-pip').onclick = () => {
+  if (!window.documentPictureInPicture) { log.textContent = 'no documentPictureInPicture'; return; }
+  documentPictureInPicture.requestWindow({ width: 320, height: 180 }).then(w => {
+    w.document.title = 'Room PiP'; w.document.body.textContent = 'Room document picture-in-picture'; window.__pip = w; log.textContent = 'document pip';
+  }, e => { log.textContent = 'document pip error: ' + e.name; });
+};
+</script>

@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Form</title>
+<!-- Phase 3.7b: a form the user types into (performance_manager's
+     HadFormInteraction / HadUserEdits keep it from discards), and a text area
+     with a misspelled word for the spellcheck run. -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } input, textarea { font: 18px -apple-system, sans-serif; width: 420px; margin: 8px 0; display: block; } textarea { height: 120px; }</style>
+<h1>Form</h1>
+<form action="/" method="get" onsubmit="return false">
+  <label>Name <input id="name" name="name" autocomplete="off"></label>
+  <label>Notes <textarea id="notes" name="notes" spellcheck="true"></textarea></label>
+</form>

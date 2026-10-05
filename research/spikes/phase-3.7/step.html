@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Step</title>
+<!-- Phase 3.7b session spike: one page per (entry, step), titled from the
+     query (`?e=3&s=2` → "Entry 3 step 2"), long enough to scroll. -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } p { height: 400px; }</style>
+<h1 id="h">Step</h1>
+<p>Room 3.7b session fixture.</p><p>More.</p><p>End.</p>
+<script>
+const q = new URLSearchParams(location.search);
+document.title = 'Entry ' + (q.get('e') || '?') + ' step ' + (q.get('s') || '?');
+document.getElementById('h').textContent = document.title;
+</script>
