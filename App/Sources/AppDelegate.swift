@@ -1341,7 +1341,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if sitePanel.isShown { return sitePanel.close() }
         guard let tabs, let page = tabs.current, let origin = SitePanelRules.origin(of: page.url),
               let profile = tabs.engineProfile(for: page), let rootView = windowController?.rootView else { return }
-        let model = SitePanelModel(origin: origin, security: page.securityState, profile: profile) { [weak page] in page?.reload() }
+        // 4.5 (B-30): the profile's extensions that want this site.
+        let extensionsSection = extensions.flatMap { center -> SitePanelExtensions? in
+            guard let profileID = sidebar?.activeSpace?.profileID, let host = origin.host() else { return nil }
+            return SitePanelExtensions(center: center, profile: profileID, page: page, host: host) { [weak self] in
+                self?.sitePanel.close()
+                self?.showSettings(section: .extensions)
+            }
+        }
+        let model = SitePanelModel(origin: origin, security: page.securityState, profile: profile, extensions: extensionsSection) {
+            [weak page] in page?.reload()
+        }
         if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {
             sitePanel.show(model, relativeTo: button.bounds, of: button, preferredEdge: .maxY)
         } else {

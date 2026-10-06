@@ -120,11 +120,15 @@ public final class SitePanelModel {
     public private(set) var needsReload = false
     public private(set) var siteDataCleared = false
     public private(set) var isClearing = false
+    /// The Extensions section (4.5); `nil` without an extension system.
+    public let extensions: SitePanelExtensions?
 
-    public init(origin: URL, security: SecurityState, profile: any Profile, reload: @escaping () -> Void) {
+    public init(origin: URL, security: SecurityState, profile: any Profile, extensions: SitePanelExtensions? = nil,
+                reload: @escaping () -> Void) {
         self.origin = origin
         self.security = security
         self.profile = profile
+        self.extensions = extensions
         reloadPage = reload
         refresh()
     }
@@ -190,6 +194,78 @@ public final class SitePanelModel {
         }
         stored = values
     }
+}
+
+/// The site panel's Extensions section (B-30, ROADMAP 4.5): the profile's
+/// extensions that want this page's site, each with its site access (On
+/// click, On this site, On all sites, as the extension can take them), Run
+/// for one that waits on this page, and a menu (Pin/Unpin, Options,
+/// Manage…). After Run the row offers to keep the extension on this site.
+@Observable
+public final class SitePanelExtensions {
+    public struct Row: Identifiable, Equatable {
+        public let id: InstalledExtension.ID
+        public let name: String
+        public let icon: NSImage?
+        public let access: ExtensionSiteAccess
+        public let isPinned: Bool
+        public let hasAction: Bool
+        public let hasOptions: Bool
+    }
+
+    @ObservationIgnored private let center: ExtensionsCenter
+    @ObservationIgnored private let profile: UUID
+    @ObservationIgnored private weak var page: (any WebContents)?
+    @ObservationIgnored private let manage: () -> Void
+    public let host: String
+    public private(set) var rows: [Row] = []
+    /// Extensions Run let run on this page (the row then offers "Always on this site").
+    public private(set) var ranHere: Set<InstalledExtension.ID> = []
+
+    public init(center: ExtensionsCenter, profile: UUID, page: any WebContents, host: String, manage: @escaping () -> Void) {
+        self.center = center
+        self.profile = profile
+        self.page = page
+        self.host = host
+        self.manage = manage
+        refresh()
+    }
+
+    public func refresh() {
+        guard let page else { return rows = [] }
+        let section = center.section(profile: profile)
+        rows = center.extensionsWantingSite(profile: profile, page: page).map { item, access in
+            let current = section?.installed.first { $0.id == item.id } ?? item
+            return Row(id: item.id, name: item.name, icon: item.icon16, access: access, isPinned: current.isPinned,
+                       hasAction: item.action != nil, hasOptions: item.optionsPageURL != nil)
+        }
+    }
+
+    public func setAccess(_ level: ExtensionSiteAccess.Level, for id: InstalledExtension.ID) {
+        center.setSiteAccess(level, id, profile: profile, host: host)
+        if level != .onClick { ranHere.remove(id) }
+        refresh()
+    }
+
+    /// Run: what the extension waits for runs on this page (activeTab).
+    public func run(_ id: InstalledExtension.ID) {
+        guard let page, center.runBlocked(id, profile: profile, page: page) else { return refresh() }
+        ranHere.insert(id)
+        refresh()
+    }
+
+    public func togglePin(_ id: InstalledExtension.ID) {
+        guard let section = center.section(profile: profile), let item = section.installed.first(where: { $0.id == id }) else { return }
+        center.setPinned(!item.isPinned, item, in: section)
+        refresh()
+    }
+
+    public func openOptions(_ id: InstalledExtension.ID) {
+        guard let section = center.section(profile: profile), let item = section.installed.first(where: { $0.id == id }) else { return }
+        center.openOptions(item, in: section)
+    }
+
+    public func openManagement() { manage() }
 }
 
 /// The site panel in a popover on the header's site button (the card's
@@ -271,6 +347,10 @@ struct SitePanelView: View {
                     .buttonStyle(.link)
                     .accessibilityIdentifier("site-reset-permissions")
             }
+            if let extensions = model.extensions, !extensions.rows.isEmpty {
+                Divider()
+                SitePanelExtensionsView(model: extensions)
+            }
             Divider()
             HStack {
                 Text(model.siteDataCleared ? "Cookies and site data cleared" : "Cookies and site data")
@@ -297,6 +377,63 @@ struct SitePanelView: View {
         }
         .padding(16)
         .frame(width: SitePanelMetrics.width)
+    }
+}
+
+struct SitePanelExtensionsView: View {
+    let model: SitePanelExtensions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Extensions").font(Font(Typography.secondary)).foregroundStyle(.secondary)
+            ForEach(model.rows) { row in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Group {
+                            if let icon = row.icon { Image(nsImage: icon).resizable() } else { Image(systemName: Symbol.extensions.name) }
+                        }
+                        .frame(width: 16, height: 16)
+                        Text(row.name).lineLimit(1).truncationMode(.tail)
+                        Spacer()
+                        if row.access.wantsToRun {
+                            Button("Run") { model.run(row.id) }
+                                .accessibilityIdentifier("site-extension-run-\(row.id)")
+                        }
+                        Picker(row.name, selection: Binding(get: { row.access.level }, set: { model.setAccess($0, for: row.id) })) {
+                            ForEach(ExtensionSiteAccess.Level.allCases, id: \.self) { level in
+                                Text(ExtensionSiteAccess.title(level)).tag(level)
+                                    .selectionDisabled(!row.access.selectable.contains(level))
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
+                        .disabled(!row.access.canAffect)
+                        .accessibilityIdentifier("site-extension-access-\(row.id)")
+                        Menu {
+                            if row.hasAction { Button(row.isPinned ? "Unpin" : "Pin") { model.togglePin(row.id) } }
+                            if row.hasOptions { Button("Options") { model.openOptions(row.id) } }
+                            Button("Manage Extensions…") { model.openManagement() }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                    }
+                    if model.ranHere.contains(row.id), row.access.level == .onClick {
+                        HStack {
+                            Text("Ran on this page.").font(Font(Typography.secondary)).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Always on \(model.host)") { model.setAccess(.onSite, for: row.id) }
+                                .buttonStyle(.link)
+                                .disabled(!row.access.selectable.contains(.onSite))
+                                .accessibilityIdentifier("site-extension-keep-\(row.id)")
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
