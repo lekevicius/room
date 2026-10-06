@@ -2266,3 +2266,92 @@ v6 (`Schema.createV6`) writes `history-archive.json` beside `Room.sqlite` (`Hist
 | never imported, next launch | 1 | 2.29 s | 5.32 s | 11.5 ms | — | "already imported (flag set)" |
 
 The database file: 41.8 MB before; after v6 10,163 of 10,215 pages were free (the first build, without the vacuum), and with the vacuum 52 pages, 213 KB. The launch to the selected page is ~1.4 s slower than 3.5's on this run's load (18–22 vs 3.5–6.3), not by the state (the open is 146 ms faster). Kill test on v6 (`scripts/persistence-kill-test.sh 100 300 2101`): 100 kills in 67.6 s, 0 failures, 50 mid-transaction rolled back, commit 7.2 / 16.2 ms. `palettemeasure` with the history fixture now writing straight into Chrome's history (the tour's `--only` rerun, light / dark): `engine_history_rows` 50,000, first key 21.56 / 21.94 ms, later keys p95 11.12 / 10.67 ms, query only p95 12.94 / 13.05 ms (3.5: 20.5–24.7 / 9.2–12.1 ms).
+
+## Phase 3.9 — grand tour on RoomCore 155.0.8059.36 (the exit) (2026-10-06, Mac mini M4, 24 GB, RoomCore, Debug)
+
+The full tour (34 steps, one state and one engine directory per appearance, the four test servers once) on the packaged component build of rebase 2 (`build/roomcore`, framework `Versions/155.0.8059.36`, staged by `roomcore-rebase.sh --verify`, ad hoc, mock keychain), run as `scripts/grand-tour.sh --no-build light dark` at `fa44470` (`build/grand-tour/20261006-041307-roomcore`, binary sha256 `19d7ec6f5e0f`). Conditions: **no build beside it** (the machine quiet but for the tour: load1 7–13 at the quit steps), 60 Hz external display, the Claude desktop app frontmost, console unlocked. Patch series 24 (0012 still in; dropped after this run). The harness is 3.9-1's fixed one (the engine's Crashpad minidumps counted per step, B-76; the popups DOM mark, B-75), so each appearance has **511 checks** (the preview's 505 plus the crash checks the new count adds to steps that had none).
+
+| Run | Wall time | Checks | Failed |
+|---|---|---|---|
+| CEF, Phase 2.9 run 3 (bd98bf9) | 36.3 min (18.6 + 17.6) | light 490 / 1, dark 489 / 2 of 491 | B-41 (switching p95) ×2, one 29 ms reveal frame |
+| RoomCore 154.0.8037.98, 3.9-1 preview (43720a4), under the 155 build | 48.3 min (24.1 + 24.2) | light 498 / 7, dark 499 / 6 of 505 | the old harness; attributed in "Phase 3.9 — grand tour on RoomCore 154.0.8037.98" |
+| **RoomCore 155.0.8059.36, 3.9-2 (fa44470)** | **41.4 min (20.8 + 20.6)** | **light 505 / 6, dark 505 / 6 of 511** | below: B-76 ×4 steps, B-56, B-53 |
+
+Per step (light / dark; time in seconds):
+
+| Step | Group | Time | Light | Dark |
+|---|---|---|---|---|
+| smoke | layout | 6 / 6 | 6/6 | 6/6 |
+| window | layout | 24 / 24 | 10/10 | 10/10 |
+| cdp | layout | 15 / 15 | 12/12 | 12/12 |
+| scroll | layout | 18 / 18 | 12/12 | 12/12 |
+| resize | layout | 12 / 12 | 9/9 | 9/9 |
+| memory | layout | 195 / 183 | 16/17 | 16/17 |
+| audio | layout | 18 / 18 | 13/13 | 13/13 |
+| popups | layout | 14 / 14 | 12/12 | 12/12 |
+| hidden | layout | 14 / 14 | 11/11 | 11/11 |
+| open10 | layout | 16 / 16 | 9/10 | 9/10 |
+| diaframe | layout | 9 / 8 | 7/7 | 7/7 |
+| keys | layout | 14 / 13 | 19/19 | 19/19 |
+| devtools | layout | 20 / 20 | 10/10 | 10/10 |
+| quittiming | layout | 56 / 55 | 9/10 | 9/10 |
+| killtest | sidebar | 69 / 69 | 7/7 | 7/7 |
+| sidebardemo | sidebar | 26 / 26 | 7/7 | 7/7 |
+| sidebar500 | sidebar | 34 / 34 | 11/11 | 11/11 |
+| spaces | spaces | 77 / 77 | 14/14 | 14/14 |
+| spacecaptures | spaces | 33 / 34 | 7/7 | 7/7 |
+| cookies | spaces | 12 / 13 | 14/14 | 14/14 |
+| palette | palette | 23 / 23 | 19/20 | 19/20 |
+| palette2 | palette | 40 / 40 | 26/26 | 26/26 |
+| suggeston | palette | 18 / 18 | 10/10 | 10/10 |
+| suggestoff | palette | 18 / 18 | 10/10 | 10/10 |
+| palettemeasure | palette | 21 / 21 | 14/14 | 14/14 |
+| tabs | tabs | 30 / 30 | 18/19 | 18/19 |
+| tabsmeasure | tabs | 90 / 90 | 11/12 | 11/12 |
+| tabcapture | tabs | 17 / 17 | 9/9 | 9/9 |
+| chrome26a | chrome | 43 / 43 | 25/25 | 25/25 |
+| chrome26b | chrome | 103 / 103 | 54/54 | 54/54 |
+| layoutmodes | layoutmodes | 73 / 73 | 30/30 | 30/30 |
+| app28a | appintegration | 34 / 33 | 29/29 | 29/29 |
+| app28b | appintegration | 22 / 22 | 25/25 | 25/25 |
+| netlog | netlog | 32 / 33 | 10/10 | 10/10 |
+
+Every failure, attributed (no `--only` rerun was needed: no harness fault, no condition failure):
+
+| Failure | Light / dark | Kind | Attribution |
+|---|---|---|---|
+| memory: "no helper crash report" | 4 / 5 dumps | dev-build condition (B-76, the planner's decision) | light 4 × `layout_object.h:518 DCHECK failed: !NeedsLayout() \|\| ChildLayoutBlockedByDisplayLock()` (renderers on live sites); dark 4 × the same plus **1 × `net/http/http_cache_transaction.cc:4112 DCHECK failed: cache_entry_status_ == ENTRY_UNDEFINED \|\| new_cache_entry_status == ENTRY_OTHER (6, 3)`** in the network service (`ptype=utility`, `network.mojom.NetworkService`; new: the first `//net` DCHECK the tour has seen; Chromium restarts the service, the step's 16 other checks pass); B-76 annotated |
+| open10: "no helper crash report" | 1 / 1 | dev-build condition (B-76) | `layout_object.h:518` (a live site of the ten) |
+| quittiming: "no helper crash report" | 3 / 3 | dev-build condition (B-76) | `layout_object.h:518` ×3; the three quits themselves 0.30–0.37 s, 0 helpers left |
+| palette: "no helper crash report" | 1 / 1 | dev-build condition (B-76) | `inline_node.cc:2297 DCHECK failed: (*max_size_out)->Round() == content_size.Round()` (1181 vs 1166 / 1193 vs 1177; the same DCHECK as 154's `:2330`, moved) |
+| tabs: "Discard Background Pages: … renderers released" | 15 → 16 / 15 → 16 | known row | B-56 |
+| tabsmeasure: switching p95 under 16 ms | 22.97 / 23.79 ms | known row | B-53 (the median passes both: 15.38 / 15.98 ms) |
+
+Versus the preview: the conditions failures are gone without the build beside it (audio's first audible edge 1,558 / 1,588 ms under the 2 s bound; the element picker passes; quits 0.29–0.37 s against 0.78–1.47 s); B-76's renderer DCHECKs are unchanged by the milestone (the same two Blink DCHECKs on the same four steps, 9 per appearance as on 154); the switching median passes again. No `window_main` failure, no Stack Overflow quit in the tour. Stub hits in the surviving engine logs: none (the logs keep each appearance's last launch; the verify run on this build saw `CreateSadTab` only, no `GetAcceleratorProvider`). Product findings: none new (the `//net` DCHECK is B-76's class, a dev-build DCHECK on live sites). Nothing fixed in the product.
+
+**Green for what 3.9 owns**: every failure carries a row (B-53, B-56) or the planner's stated dev-build condition (B-76: DCHECK minidumps on live-site steps of the component build; the release framework's crash count is "Phase 3.9 — crashes on the release framework" below).
+
+Numbers from the run (light / dark; no build beside it):
+
+| Measure | Light | Dark |
+|---|---|---|
+| Memory baseline; 1 / 10 / 30 hidden pages | 1,241 MB; 1,625 / 4,962 / 11,720 MB (30 loaded, 38 renderers) | 1,246 MB; 1,630 / 4,584 / 9,888 MB (36 renderers) |
+| 10 loaded of 50 entries (tabsmeasure) | 5,565 MB, 17 renderers | 5,429 MB |
+| 50 loaded over 5 spaces | 9,723 MB, 52 renderers | 9,727 MB |
+| Tab switch: select call; click → committed (median / p95); page visible | 6.63 / 10.80; 15.38 / 22.97; 5.74 ms | 7.10 / 10.74; 15.98 / 23.79; 4.63 ms |
+| Relaunch: load start; selected loaded | 2.08 s; 4.17 s | 2.21 s; 4.75 s |
+| Quit with ten pages (3 runs) | 0.33 / 0.30 / 0.37 s, 0 helpers left (load1 7.8–11.1) | 0.29 / 0.36 / 0.31 s (load1 7.1–13.3) |
+| Smoke quit | 0.11 s | 0.08 s |
+| Palette at 50k rows (engine): first key median; later keys p95; query only p95 | 21.75; 9.79; 15.60 ms | 21.73; 10.00; 14.61 ms |
+| Palette open: call; to next frame median | 2.23; 3.74 ms | 2.71; 4.90 ms |
+| Space switch, ⌃digit → first slide frame median / p95 | 14.90 / 20.49 ms | 15.74 / 20.50 ms |
+| Find keystroke → match median / p95 | 19.45 / 426 ms | 30.93 / 427 ms |
+| DevTools ⌥⌘I → front-end loaded, median | 331 ms | 334 ms |
+| Peek decision → overlay frame; → first contentful paint median / p95 | 22.4; 110 / 525 ms | 21.1; 469 / 494 ms (B-57) |
+| Split created → laid out; → next frame | 4.76; 11.45 ms | 4.57; 12.68 ms |
+| Audio: first audible edge; later edges | 1,558; 126–157 ms | 1,588 ms |
+| Kill test, 100 kills | 0 failures, 44 rolled back, commit 8.31 / 13.77 ms | 0 failures, 41 rolled back, 7.92 / 13.29 ms |
+| 500-entry sidebar: full reload; select | 44.1; 3.53 ms | 41.6; 3.54 ms |
+| Script round trip median / p95 | 0.15 / 0.55 ms | 0.25 / 0.56 ms |
+| Cold launch by a link: event → requested; running link (open / AppleScript / NSWorkspace) | 287 ms; 24.4 / 17.9 / 18.6 ms | 273 ms; 25.5 / 13.6 / 21.1 ms |
+| Suggestions on: requests through the proxy; net-log engine hosts | 34 (B-64); 0 | 34; 0 |
