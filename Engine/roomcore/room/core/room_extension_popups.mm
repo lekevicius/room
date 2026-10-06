@@ -297,6 +297,15 @@ class KeybindingRegistry : public extensions::ExtensionKeybindingRegistry {
     return executed;
   }
 
+  // A named command without its key (4.5, B-70): commands.onCommand with the
+  // window's active tab, as NotifyEventTargets sends it for the key.
+  void RunNamedCommand(const extensions::ExtensionId& extension_id,
+                       const std::string& command_name) {
+    LOG(INFO) << "RoomCore: extension command " << command_name << " of "
+              << extension_id << " from the host";
+    CommandExecuted(extension_id, command_name);
+  }
+
  private:
   // extensions::ExtensionKeybindingRegistry:
   bool PopulateCommands(const extensions::Extension* extension,
@@ -427,6 +436,44 @@ class Container : public RoomBrowserExtensions,
         ui::GetAcceleratorFromNativeWebKeyboardEvent(event));
   }
 
+  bool RunCommand(const std::string& extension_id,
+                  const std::string& command_name,
+                  content::WebContents* contents) override {
+    if (!EnabledExtension(extension_id)) {
+      return false;
+    }
+    auto* service = extensions::CommandService::Get(profile_);
+    extensions::Command action_command;
+    if (extensions::Command::IsActionRelatedCommand(command_name)) {
+      // The action's command clicks the action for the page (the window's
+      // active one when the host names none), as its key does.
+      if (!service->GetExtensionActionCommand(
+              extension_id, extensions::ActionInfo::Type::kAction,
+              extensions::CommandService::ACTIVE, &action_command,
+              /*active=*/nullptr)) {
+        return false;
+      }
+      LOG(INFO) << "RoomCore: _execute_action of " << extension_id
+                << " from the host";
+      RunActionFromHost(extension_id,
+                        contents ? contents
+                                 : browser_->GetTabStripModel()
+                                       ->GetActiveWebContents());
+      return true;
+    }
+    ui::CommandMap named;
+    service->GetNamedCommands(extension_id,
+                              extensions::CommandService::ACTIVE,
+                              extensions::CommandService::ANY_SCOPE, &named);
+    if (!named.contains(command_name)) {
+      return false;
+    }
+    keybindings_->RunNamedCommand(extension_id, command_name);
+    return true;
+  }
+
+  Profile* profile() const { return profile_; }
+
   // ExtensionsContainer:
   ToolbarActionViewModel* GetActionForId(const std::string& action_id) override {
     // Chrome's view models are Views-side; Room's buttons are the host's.
@@ -554,6 +601,15 @@ class Container : public RoomBrowserExtensions,
 };
 
 }  // namespace
+
+RoomBrowserExtensions* BrowserExtensionsForProfile(Profile* profile) {
+  for (Container* container : Containers()) {
+    if (container->profile() == profile) {
+      return container;
+    }
+  }
+  return nullptr;
+}
 
 std::unique_ptr<RoomBrowserExtensions> RoomBrowserExtensions::Create(
     BrowserWindowInterface* browser) {

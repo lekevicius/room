@@ -49,6 +49,39 @@ import AppKit
     /// extension update check reaches the network (the engine's own
     /// schedule is off). Updates found install when the extension is idle.
     func checkForUpdates() async -> ExtensionUpdateCheck
+
+    // MARK: Site access and commands (Phase 4.5)
+
+    /// What the extension may do on `page`'s site (RoomCore:
+    /// `PermissionsManager::GetUserSiteAccess`, `GetSiteAccess`,
+    /// `CanAffectExtension`, `CanUserSelectSiteAccess`, and
+    /// `ExtensionActionRunner::WantsToRun` for the page); `nil` for an
+    /// unknown extension or a page without a URL.
+    func siteAccess(for page: any WebContents, extension id: InstalledExtension.ID) -> ExtensionSiteAccess?
+    /// The user's site access for the extension on `host` (every scheme and
+    /// port of it), as Chrome's site-access menu sets it (RoomCore:
+    /// `ScriptingPermissionsModifier` as `SitePermissionsHelper::UpdateSiteAccess`
+    /// does; pages of that host run what was blocked, or lose activeTab on
+    /// "on click"). `false` when the extension cannot take `access` there.
+    @discardableResult
+    func setSiteAccess(_ access: ExtensionSiteAccess.Level, for id: InstalledExtension.ID, host: String) -> Bool
+    /// The site panel's Run for an extension that `wantsToRun` on `page`
+    /// (RoomCore: `ExtensionActionRunner::RunAction(extension, true)`: the
+    /// activeTab grant runs the blocked scripts, no popup); `false` when it
+    /// had nothing waiting.
+    @discardableResult
+    func runAction(for id: InstalledExtension.ID, in page: any WebContents) -> Bool
+    /// The extension's keyboard commands with their current keys (RoomCore:
+    /// `CommandService::GetNamedCommands` and `GetExtensionActionCommand`,
+    /// active, any scope), the action's first.
+    func commands(for id: InstalledExtension.ID) -> [ExtensionCommand]
+    /// Runs a command as its key would (B-70: the host's key router asks this
+    /// while the keyboard is in the sidebar or the palette): `_execute_action`
+    /// clicks the action for `page`, a named command sends `commands.onCommand`
+    /// with `page` as the tab (RoomCore: the window's keybinding registry);
+    /// `false` when the extension has no such command.
+    @discardableResult
+    func performCommand(_ name: String, for id: InstalledExtension.ID, in page: (any WebContents)?) -> Bool
 }
 
 /// Receives a profile's extension changes and answers its consent questions.
@@ -127,11 +160,14 @@ public struct InstalledExtension: Identifiable, Equatable {
     public var permissionMessages: [String]
     /// The sites it can read and change, as match patterns (`<all_urls>`: every site).
     public var hostPermissions: [String]
+    /// Where its files are (4.5: Settings ▸ Extensions shows the size on disk);
+    /// `nil` when the engine does not say.
+    public var directory: URL?
 
     public init(id: ID, name: String, version: String = "1.0", summary: String = "", icon16: NSImage? = nil,
                 icon32: NSImage? = nil, isEnabled: Bool = true, isUnpacked: Bool = false, isFromWebStore: Bool = false,
                 action: ExtensionActionState? = nil, isPinned: Bool = false, optionsPageURL: URL? = nil,
-                permissionMessages: [String] = [], hostPermissions: [String] = []) {
+                permissionMessages: [String] = [], hostPermissions: [String] = [], directory: URL? = nil) {
         self.id = id
         self.name = name
         self.version = version
@@ -146,6 +182,7 @@ public struct InstalledExtension: Identifiable, Equatable {
         self.optionsPageURL = optionsPageURL
         self.permissionMessages = permissionMessages
         self.hostPermissions = hostPermissions
+        self.directory = directory
     }
 }
 
@@ -231,4 +268,106 @@ nonisolated public struct ExtensionLoadError: Error, Hashable, Sendable, CustomS
     public var message: String
     public init(_ message: String) { self.message = message }
     public var description: String { message }
+}
+
+/// An extension's access to one site (Phase 4.5), as Chrome's site-access
+/// menu shows it.
+public struct ExtensionSiteAccess: Equatable, Sendable {
+    /// Chrome's `PermissionsManager::UserSiteAccess`.
+    public enum Level: Int, CaseIterable, Hashable, Sendable {
+        /// Runs on the site only when the user clicks it (or Run).
+        case onClick
+        /// Always runs on this site.
+        case onSite
+        /// Runs on every site it asks for.
+        case onAllSites
+    }
+
+    public var level: Level
+    /// The levels the user can choose here (`CanUserSelectSiteAccess`).
+    public var selectable: Set<Level>
+    /// The extension asks for this site (its host permissions or content
+    /// scripts match it, or it has activeTab): the site panel lists it.
+    public var wantsSite: Bool
+    /// Its site access can be changed (not policy-installed, asks for hosts).
+    public var canAffect: Bool
+    /// Something of it is blocked on the page (a content script, a request):
+    /// Run would run it.
+    public var wantsToRun: Bool
+
+    public init(level: Level, selectable: Set<Level> = Set(Level.allCases), wantsSite: Bool = true, canAffect: Bool = true,
+                wantsToRun: Bool = false) {
+        self.level = level
+        self.selectable = selectable
+        self.wantsSite = wantsSite
+        self.canAffect = canAffect
+        self.wantsToRun = wantsToRun
+    }
+
+    /// What Settings and the site panel call each level.
+    public static func title(_ level: Level) -> String {
+        switch level {
+        case .onClick: "On click"
+        case .onSite: "On this site"
+        case .onAllSites: "On all sites"
+        }
+    }
+}
+
+/// One keyboard command of an extension (Phase 4.5), with its current key.
+public struct ExtensionCommand: Identifiable, Equatable, Sendable {
+    /// The action's command: a press clicks the action.
+    public static let executeAction = "_execute_action"
+
+    /// The manifest's name (`_execute_action` for the action's).
+    public var name: String
+    public var description: String
+    /// The key in Room's notation ("⇧⌘U"; `ShortcutTable`'s strings), or ""
+    /// when the user cleared it or Room cannot name the key.
+    public var shortcut: String
+    /// `_execute_action` (or a Manifest V2 browser/page action's).
+    public var isAction: Bool
+    public var id: String { name }
+
+    public init(name: String, description: String = "", shortcut: String = "", isAction: Bool? = nil) {
+        self.name = name
+        self.description = description
+        self.shortcut = shortcut
+        self.isAction = isAction ?? (name == Self.executeAction)
+    }
+
+    /// Chrome's accelerator text ("Command+Shift+U", "Ctrl+Alt+Comma",
+    /// `Command::AcceleratorToString` on macOS: Ctrl is ⌃, Command ⌘) in
+    /// Room's notation ("⇧⌘U"); "" for a key Room's table cannot name (media
+    /// keys, Home, Insert …) or no key.
+    public static func shortcut(fromChrome text: String) -> String {
+        let parts = text.split(separator: "+").map(String.init)
+        guard parts.count >= 2, let key = parts.last else { return "" }
+        var control = false, option = false, shift = false, command = false
+        for modifier in parts.dropLast() {
+            switch modifier {
+            case "Ctrl", "MacCtrl": control = true
+            case "Alt": option = true
+            case "Shift": shift = true
+            case "Command", "Search": command = true
+            default: return ""
+            }
+        }
+        let name: String
+        switch key {
+        case "Comma": name = ","
+        case "Period": name = "."
+        case "Up": name = "↑"
+        case "Down": name = "↓"
+        case "Left": name = "←"
+        case "Right": name = "→"
+        case "Space": name = "Space"
+        case "Tab": name = "Tab"
+        default:
+            guard key.count == 1, let scalar = key.unicodeScalars.first, scalar.isASCII,
+                  CharacterSet.alphanumerics.contains(scalar) else { return "" }
+            name = key.uppercased()
+        }
+        return (control ? "⌃" : "") + (option ? "⌥" : "") + (shift ? "⇧" : "") + (command ? "⌘" : "") + name
+    }
 }

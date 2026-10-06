@@ -93,6 +93,49 @@ public final class RoomCoreExtensions: NSObject, ProfileExtensions, RoomProfileE
         }
     }
 
+    // MARK: Site access and commands (4.5)
+
+    /// `PermissionsManager` (`GetUserSiteAccess`, `GetSiteAccess`,
+    /// `CanUserSelectSiteAccess`, `CanAffectExtension`) and
+    /// `ExtensionActionRunner::WantsToRun` for the page.
+    public func siteAccess(for page: any WebContents, extension id: InstalledExtension.ID) -> ExtensionSiteAccess? {
+        guard let page = (page as? RoomCoreWebContents)?.page,
+              let answer = extensions.siteAccess(forExtension: id, webContents: page) else { return nil }
+        let level = (answer["level"] as? NSNumber).flatMap { ExtensionSiteAccess.Level(rawValue: $0.intValue) } ?? .onClick
+        let selectable = Set(((answer["selectable"] as? [NSNumber]) ?? []).compactMap { ExtensionSiteAccess.Level(rawValue: $0.intValue) })
+        return ExtensionSiteAccess(level: level, selectable: selectable,
+                                   wantsSite: (answer["wantsSite"] as? NSNumber)?.boolValue ?? false,
+                                   canAffect: (answer["canAffect"] as? NSNumber)?.boolValue ?? false,
+                                   wantsToRun: (answer["wantsToRun"] as? NSNumber)?.boolValue ?? false)
+    }
+
+    /// `ScriptingPermissionsModifier` for "*://host/*", as Chrome's
+    /// `SitePermissionsHelper::UpdateSiteAccess`.
+    public func setSiteAccess(_ access: ExtensionSiteAccess.Level, for id: InstalledExtension.ID, host: String) -> Bool {
+        guard let level = RoomExtensionSiteAccessLevel(rawValue: access.rawValue) else { return false }
+        return extensions.setSiteAccess(level, forExtension: id, host: host)
+    }
+
+    /// `ExtensionActionRunner::RunAction(extension, true)` when it wants to run.
+    public func runAction(for id: InstalledExtension.ID, in page: any WebContents) -> Bool {
+        guard let page = (page as? RoomCoreWebContents)?.page else { return false }
+        return extensions.runAction(forExtension: id, webContents: page)
+    }
+
+    /// `CommandService::GetExtensionActionCommand` and `GetNamedCommands`.
+    public func commands(for id: InstalledExtension.ID) -> [ExtensionCommand] {
+        extensions.commands(forExtension: id).map { command in
+            ExtensionCommand(name: command["name"] as? String ?? "", description: command["description"] as? String ?? "",
+                             shortcut: ExtensionCommand.shortcut(fromChrome: command["shortcut"] as? String ?? ""),
+                             isAction: (command["isAction"] as? NSNumber)?.boolValue ?? false)
+        }
+    }
+
+    /// The window's keybinding registry, as the command's key (B-70).
+    public func performCommand(_ name: String, for id: InstalledExtension.ID, in page: (any WebContents)?) -> Bool {
+        extensions.performCommand(name, forExtension: id, webContents: (page as? RoomCoreWebContents)?.page)
+    }
+
     // MARK: RoomProfileExtensionsDelegate
 
     public func profileExtensionsDidChange(_ extensions: RoomProfileExtensions) {
@@ -149,7 +192,8 @@ extension InstalledExtension {
                   icon16: item.icon16, icon32: item.icon32, isEnabled: item.isEnabled, isUnpacked: item.isUnpacked,
                   isFromWebStore: item.fromWebStore, action: item.action.map(ExtensionActionState.init),
                   isPinned: item.isPinned, optionsPageURL: item.optionsPageURL,
-                  permissionMessages: item.permissionMessages, hostPermissions: item.hostPermissions)
+                  permissionMessages: item.permissionMessages, hostPermissions: item.hostPermissions,
+                  directory: item.directory)
     }
 }
 

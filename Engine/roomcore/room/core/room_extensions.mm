@@ -25,14 +25,19 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/apps/platform_apps/shortcut_manager.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
+#include "chrome/browser/extensions/commands/command_service.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
+#include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/updater/chrome_update_client_config.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/extensions/extension_install_ui.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/common/extensions/api/side_panel.h"
 #include "chrome/common/pref_names.h"
@@ -47,7 +52,12 @@
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/image_loader.h"
 #include "extensions/browser/install_prompt_data.h"
+#include "extensions/browser/blocked_action_type.h"
 #include "extensions/browser/install_prompt_permissions.h"
+#include "extensions/browser/permissions/active_tab_permission_granter.h"
+#include "extensions/browser/permissions/scripting_permissions_modifier.h"
+#include "extensions/browser/permissions/site_permissions_helper.h"
+#include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/ui_util.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/unpacked_installer.h"
@@ -59,6 +69,9 @@
 #include "extensions/common/manifest_handlers/options_page_info.h"
 #include "extensions/common/permissions/permission_message.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/url_pattern.h"
+#include "extensions/common/user_script.h"
+#include "ui/base/accelerators/command.h"
 #include "net/base/apple/url_conversions.h"
 #include "skia/ext/skia_utils_mac.h"
 #include "ui/gfx/image/image.h"
@@ -106,6 +119,53 @@ NSColor* ToNSColor(SkColor color) {
 
 bool IsListed(const extensions::Extension& extension) {
   return extensions::ui_util::ShouldDisplayInExtensionSettings(extension);
+}
+
+using UserSiteAccess = extensions::PermissionsManager::UserSiteAccess;
+
+RoomExtensionSiteAccessLevel ToLevel(UserSiteAccess access) {
+  switch (access) {
+    case UserSiteAccess::kOnClick:
+      return RoomExtensionSiteAccessLevelOnClick;
+    case UserSiteAccess::kOnSite:
+      return RoomExtensionSiteAccessLevelOnSite;
+    case UserSiteAccess::kOnAllSites:
+      return RoomExtensionSiteAccessLevelOnAllSites;
+  }
+}
+
+UserSiteAccess FromLevel(RoomExtensionSiteAccessLevel level) {
+  switch (level) {
+    case RoomExtensionSiteAccessLevelOnSite:
+      return UserSiteAccess::kOnSite;
+    case RoomExtensionSiteAccessLevelOnAllSites:
+      return UserSiteAccess::kOnAllSites;
+    default:
+      return UserSiteAccess::kOnClick;
+  }
+}
+
+// Every open page of `profile` (the Room Browsers' tabs) whose host is `host`.
+std::vector<content::WebContents*> PagesOfHost(Profile* profile,
+                                               const std::string& host) {
+  std::vector<content::WebContents*> pages;
+  ProfileBrowserCollection* collection =
+      ProfileBrowserCollection::GetForProfile(profile);
+  if (!collection) {
+    return pages;
+  }
+  collection->ForEach([&](BrowserWindowInterface* browser) {
+    if (TabStripModel* model = browser->GetTabStripModel()) {
+      for (int i = 0; i < model->count(); ++i) {
+        content::WebContents* contents = model->GetWebContentsAt(i);
+        if (contents && contents->GetLastCommittedURL().host() == host) {
+          pages.push_back(contents);
+        }
+      }
+    }
+    return true;
+  });
+  return pages;
 }
 
 }  // namespace
@@ -189,6 +249,7 @@ bool IsListed(const extensions::Extension& extension) {
 @property(nonatomic, readwrite, copy, nullable) NSURL* optionsPageURL;
 @property(nonatomic, readwrite, copy) NSArray<NSString*>* permissionMessages;
 @property(nonatomic, readwrite, copy) NSArray<NSString*>* hostPermissions;
+@property(nonatomic, readwrite, copy, nullable) NSURL* directory;
 - (instancetype)initPrivate;
 @end
 
@@ -207,6 +268,7 @@ bool IsListed(const extensions::Extension& extension) {
 @synthesize optionsPageURL = _optionsPageURL;
 @synthesize permissionMessages = _permissionMessages;
 @synthesize hostPermissions = _hostPermissions;
+@synthesize directory = _directory;
 - (instancetype)initPrivate {
   return [super init];
 }
@@ -657,6 +719,11 @@ class SidePanelGuard : public extensions::SidePanelService::Observer,
     }
   }
   item.hostPermissions = hosts;
+  if (!extension->path().empty()) {
+    item.directory = [NSURL
+        fileURLWithPath:base::SysUTF8ToNSString(extension->path().value())
+            isDirectory:YES];
+  }
   return item;
 }
 
@@ -902,6 +969,241 @@ class SidePanelGuard : public extensions::SidePanelService::Observer,
   if ([delegate respondsToSelector:@selector(profileExtensions:popupDidClose:)]) {
     [delegate profileExtensions:self popupDidClose:popup];
   }
+}
+
+// MARK: Site access and commands (4.5)
+
+- (const extensions::Extension*)room_enabledExtension:(NSString*)identifier {
+  if (!_profile || !identifier) {
+    return nullptr;
+  }
+  return extensions::ExtensionRegistry::Get(_profile)
+      ->enabled_extensions()
+      .GetByID(base::SysNSStringToUTF8(identifier));
+}
+
+- (NSDictionary<NSString*, id>*)siteAccessForExtension:(NSString*)identifier
+                                           webContents:
+                                               (RoomWebContents*)webContents {
+  const extensions::Extension* extension =
+      [self room_enabledExtension:identifier];
+  content::WebContents* contents = webContents.room_webContents;
+  if (!extension || !contents) {
+    return nil;
+  }
+  const GURL url = contents->GetLastCommittedURL();
+  if (!url.is_valid() || url.is_empty()) {
+    return nil;
+  }
+  auto* manager = extensions::PermissionsManager::Get(_profile);
+  const bool restricted =
+      extension->permissions_data()->IsRestrictedUrl(url, /*error=*/nullptr);
+  const extensions::PermissionsManager::ExtensionSiteAccess site =
+      restricted ? extensions::PermissionsManager::ExtensionSiteAccess()
+                 : manager->GetSiteAccess(*extension, url);
+  const bool wants_site =
+      !restricted && (site.has_site_access || site.withheld_site_access ||
+                      manager->HasActiveTabAndCanAccess(*extension, url));
+  NSMutableArray<NSNumber*>* selectable = [NSMutableArray array];
+  if (!restricted) {
+    for (UserSiteAccess access :
+         {UserSiteAccess::kOnClick, UserSiteAccess::kOnSite,
+          UserSiteAccess::kOnAllSites}) {
+      if (manager->CanUserSelectSiteAccess(*extension, url, access)) {
+        [selectable addObject:@(ToLevel(access))];
+      }
+    }
+  }
+  const UserSiteAccess level = restricted
+                                   ? UserSiteAccess::kOnClick
+                                   : manager->GetUserSiteAccess(*extension, url);
+  extensions::ExtensionActionRunner* runner =
+      extensions::ExtensionActionRunner::GetForWebContents(contents);
+  return @{
+    @"level" : @(ToLevel(level)),
+    @"selectable" : selectable,
+    @"wantsSite" : @(wants_site),
+    @"canAffect" : @(!restricted && manager->CanAffectExtension(*extension)),
+    @"wantsToRun" : @(runner && runner->WantsToRun(extension)),
+  };
+}
+
+- (BOOL)setSiteAccess:(RoomExtensionSiteAccessLevel)level
+         forExtension:(NSString*)identifier
+                 host:(NSString*)host {
+  const extensions::Extension* extension =
+      [self room_enabledExtension:identifier];
+  const std::string host_name = base::SysNSStringToUTF8(host ?: @"");
+  if (!extension || host_name.empty()) {
+    return NO;
+  }
+  auto* manager = extensions::PermissionsManager::Get(_profile);
+  const UserSiteAccess access = FromLevel(level);
+  // The host's pages may be http or https: the first scheme on which the
+  // extension can take `access` answers for the host (the grant below covers
+  // both, as "*://host/*").
+  GURL url;
+  for (const char* scheme : {"https", "http"}) {
+    GURL candidate(std::string(scheme) + "://" + host_name + "/");
+    if (candidate.is_valid() &&
+        manager->CanUserSelectSiteAccess(*extension, candidate, access)) {
+      url = candidate;
+      break;
+    }
+  }
+  if (url.is_empty()) {
+    LOG(INFO) << "RoomCore: site access " << static_cast<int>(access)
+              << " not selectable for " << extension->id() << " on "
+              << host_name;
+    return NO;
+  }
+  const UserSiteAccess current = manager->GetUserSiteAccess(*extension, url);
+  if (current == access) {
+    return YES;
+  }
+  // UpdateSiteAccess CHECKs this ("on click" is selectable for an activeTab
+  // extension that runtime host permissions do not affect).
+  if (!manager->CanAffectExtension(*extension)) {
+    return NO;
+  }
+  // As SitePermissionsHelper::UpdateSiteAccess (Chrome's site-access menu),
+  // with the host's pattern in place of one page's origin.
+  if (current == UserSiteAccess::kOnAllSites) {
+    manager->AddExtensionToPreviousBroadSiteAccessSet(extension->id());
+  } else {
+    manager->RemoveExtensionFromPreviousBroadSiteAccessSet(extension->id());
+  }
+  extensions::ScriptingPermissionsModifier modifier(_profile, extension);
+  const GURL urls[] = {GURL("https://" + host_name + "/"),
+                       GURL("http://" + host_name + "/")};
+  switch (access) {
+    case UserSiteAccess::kOnClick:
+    case UserSiteAccess::kOnSite: {
+      if (manager->HasBroadGrantedHostPermissions(*extension)) {
+        modifier.RemoveBroadGrantedHostPermissions();
+      }
+      modifier.SetWithholdHostPermissions(true);
+      if (access == UserSiteAccess::kOnClick) {
+        for (const GURL& each : urls) {
+          if (manager->HasGrantedHostPermission(*extension, each)) {
+            modifier.RemoveGrantedHostPermission(each);
+          }
+        }
+      } else if (!manager->HasGrantedHostPermission(*extension, url)) {
+        URLPattern pattern(extensions::UserScript::ValidUserScriptSchemes());
+        if (pattern.Parse("*://" + host_name + "/*") !=
+            URLPattern::ParseResult::kSuccess) {
+          return NO;
+        }
+        modifier.GrantHostPermission(pattern, base::DoNothing());
+      }
+      break;
+    }
+    case UserSiteAccess::kOnAllSites:
+      modifier.SetWithholdHostPermissions(false);
+      break;
+  }
+  // The host's open pages: "on click" takes the tab grant back (Chrome then
+  // asks for a reload, here the page keeps what already ran); a grant runs
+  // what was blocked when it needs no reload (ChromeExtensionsBrowserClient::
+  // RunBlockActionsIfNeeded).
+  extensions::SitePermissionsHelper helper(_profile);
+  for (content::WebContents* contents : PagesOfHost(_profile, host_name)) {
+    if (access == UserSiteAccess::kOnClick) {
+      if (auto* granter =
+              extensions::ActiveTabPermissionGranter::FromWebContents(
+                  contents)) {
+        granter->ClearActiveExtensionAndNotify(extension->id());
+      }
+      continue;
+    }
+    auto* runner = extensions::ExtensionActionRunner::GetForWebContents(contents);
+    const int blocked = runner ? runner->GetBlockedActions(extension->id())
+                               : extensions::BLOCKED_ACTION_NONE;
+    if (blocked != extensions::BLOCKED_ACTION_NONE &&
+        !helper.PageNeedsRefreshToRun(blocked)) {
+      runner->RunBlockedActions(extension);
+    }
+  }
+  LOG(INFO) << "RoomCore: site access of " << extension->id() << " on "
+            << host_name << ": " << static_cast<int>(current) << " -> "
+            << static_cast<int>(access);
+  return YES;
+}
+
+- (BOOL)runActionForExtension:(NSString*)identifier
+                  webContents:(RoomWebContents*)webContents {
+  const extensions::Extension* extension =
+      [self room_enabledExtension:identifier];
+  content::WebContents* contents = webContents.room_webContents;
+  extensions::ExtensionActionRunner* runner =
+      contents ? extensions::ExtensionActionRunner::GetForWebContents(contents)
+               : nullptr;
+  if (!extension || !runner || !runner->WantsToRun(extension)) {
+    return NO;
+  }
+  // With blocked actions RunAction grants the tab and runs them, and shows
+  // no popup (ExtensionActionRunner::RunAction's first branch).
+  runner->RunAction(extension, /*grant_tab_permissions=*/true);
+  LOG(INFO) << "RoomCore: Run for " << extension->id() << " from the host";
+  return YES;
+}
+
+- (NSArray<NSDictionary<NSString*, id>*>*)commandsForExtension:
+    (NSString*)identifier {
+  const extensions::Extension* extension = [self room_extension:identifier];
+  if (!extension) {
+    return @[];
+  }
+  auto* service = extensions::CommandService::Get(_profile);
+  NSMutableArray<NSDictionary<NSString*, id>*>* commands =
+      [NSMutableArray array];
+  auto add = [&](const ui::Command& command, bool is_action) {
+    [commands addObject:@{
+      @"name" : ToNS(command.command_name()),
+      @"description" : ToNS(command.description()),
+      @"shortcut" :
+          ToNS(ui::Command::AcceleratorToString(command.accelerator())),
+      @"isAction" : @(is_action),
+    }];
+  };
+  extensions::Command action;
+  if (service->GetExtensionActionCommand(
+          extension->id(), extensions::ActionInfo::Type::kAction,
+          extensions::CommandService::ACTIVE, &action, /*active=*/nullptr)) {
+    add(action, true);
+  }
+  ui::CommandMap named;
+  service->GetNamedCommands(extension->id(),
+                            extensions::CommandService::ACTIVE,
+                            extensions::CommandService::ANY_SCOPE, &named);
+  for (const auto& [name, command] : named) {
+    add(command, false);
+  }
+  return commands;
+}
+
+- (BOOL)performCommand:(NSString*)name
+          forExtension:(NSString*)identifier
+           webContents:(RoomWebContents*)webContents {
+  if (!_profile || !name || !identifier) {
+    return NO;
+  }
+  content::WebContents* contents =
+      webContents ? webContents.room_webContents : nullptr;
+  room::RoomBrowserExtensions* window =
+      webContents ? webContents.room_browser.room_extensions : nullptr;
+  if (!window) {
+    window = room::BrowserExtensionsForProfile(_profile);
+    contents = nullptr;
+  }
+  if (!window) {
+    LOG(WARNING) << "RoomCore: no window for the command "
+                 << base::SysNSStringToUTF8(name);
+    return NO;
+  }
+  return window->RunCommand(base::SysNSStringToUTF8(identifier),
+                            base::SysNSStringToUTF8(name), contents);
 }
 
 // MARK: Updates

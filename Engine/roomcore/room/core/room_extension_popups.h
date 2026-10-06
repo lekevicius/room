@@ -7,6 +7,7 @@
 #include <string>
 
 class BrowserWindowInterface;
+class Profile;
 
 namespace content {
 class WebContents;
@@ -43,10 +44,19 @@ class RoomBrowserExtensions {
   // A key-down on its way to a page of this window: true when an extension
   // command took it (a named command's onCommand, `_execute_action`).
   virtual bool HandleKeyEvent(const input::NativeWebKeyboardEvent& event) = 0;
+  // A command by name, as its key would run it (Phase 4.5, B-70: the host
+  // asks with the keyboard outside the page): the action's command clicks
+  // the action for `contents`, a named one goes to commands.onCommand.
+  virtual bool RunCommand(const std::string& extension_id,
+                          const std::string& command_name,
+                          content::WebContents* contents) = 0;
 };
 
 // The RoomBrowserExtensions whose popup shows `popup`, if any.
 RoomBrowserExtensions* BrowserExtensionsForPopup(content::WebContents* popup);
+
+// A RoomBrowserExtensions of a window of `profile` (the newest), if any.
+RoomBrowserExtensions* BrowserExtensionsForProfile(Profile* profile);
 
 }  // namespace room
 

@@ -65,7 +65,18 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // The hosts it can read and change (effective host permissions), as match
 // patterns; "<all_urls>" for every site.
 @property(nonatomic, readonly, copy) NSArray<NSString*>* hostPermissions;
+// Its files (Extension::path(): the install directory, or an unpacked
+// extension's folder) (Phase 4.5: the size on disk in Settings).
+@property(nonatomic, readonly, copy, nullable) NSURL* directory;
 @end
+
+// An extension's site access as the user chose it
+// (extensions::PermissionsManager::UserSiteAccess) (Phase 4.5).
+typedef NS_ENUM(NSInteger, RoomExtensionSiteAccessLevel) {
+  RoomExtensionSiteAccessLevelOnClick = 0,
+  RoomExtensionSiteAccessLevelOnSite,
+  RoomExtensionSiteAccessLevelOnAllSites,
+};
 
 // What an install asks the user to allow (extensions::InstallPromptData).
 typedef NS_ENUM(NSInteger, RoomExtensionInstallKind) {
@@ -224,6 +235,52 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 - (void)checkForUpdatesWithCompletion:
     (void (^)(RoomExtensionUpdateCheckResult result))completion
     NS_SWIFT_NAME(checkForUpdates(completion:));
+
+// Site access and commands (Phase 4.5). Answers are Foundation values with
+// the literal keys below (no new class: B-77).
+
+// The extension's access to `webContents`' site, or nil (an unknown or
+// disabled extension, a page without a URL). Keys: "level" (NSNumber,
+// RoomExtensionSiteAccessLevel: PermissionsManager::GetUserSiteAccess),
+// "selectable" (NSArray of NSNumber levels: CanUserSelectSiteAccess),
+// "wantsSite" (NSNumber BOOL: GetSiteAccess has or withholds the site, or
+// HasActiveTabAndCanAccess), "canAffect" (CanAffectExtension and the URL not
+// restricted), "wantsToRun" (ExtensionActionRunner::WantsToRun on the page).
+- (nullable NSDictionary<NSString*, id>*)siteAccessForExtension:
+                                             (NSString*)identifier
+                                                    webContents:
+                                                        (RoomWebContents*)webContents
+    NS_SWIFT_NAME(siteAccess(forExtension:webContents:));
+// The user's site access for `host` (every scheme and port: the pattern
+// "*://host/*"), as SitePermissionsHelper::UpdateSiteAccess sets it through
+// ScriptingPermissionsModifier; open pages of the host then run what was
+// blocked (granted) or lose their activeTab grant (on click). NO when the
+// extension cannot take `level` there.
+- (BOOL)setSiteAccess:(RoomExtensionSiteAccessLevel)level
+         forExtension:(NSString*)identifier
+                 host:(NSString*)host
+    NS_SWIFT_NAME(setSiteAccess(_:forExtension:host:));
+// The Run button: ExtensionActionRunner::RunAction(extension, true) for an
+// extension that WantsToRun on the page (the activeTab grant runs its
+// blocked scripts; no popup). NO when nothing was waiting.
+- (BOOL)runActionForExtension:(NSString*)identifier
+                  webContents:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(runAction(forExtension:webContents:));
+// The extension's commands with a key or without (CommandService, active,
+// any scope; the action's command first): dictionaries with "name",
+// "description", "shortcut" (Command::AcceleratorToString, "" for none) and
+// "isAction" (NSNumber BOOL).
+- (NSArray<NSDictionary<NSString*, id>*>*)commandsForExtension:
+    (NSString*)identifier NS_SWIFT_NAME(commands(forExtension:));
+// Runs `name` as its key would in `webContents`' window: the action's
+// command clicks the action for the page, a named command sends
+// commands.onCommand with the page as the tab (the window's keybinding
+// registry). nil `webContents`: a window of the profile. NO when the
+// extension has no such command or no window.
+- (BOOL)performCommand:(NSString*)name
+          forExtension:(NSString*)identifier
+           webContents:(nullable RoomWebContents*)webContents
+    NS_SWIFT_NAME(performCommand(_:forExtension:webContents:));
 @end
 
 NS_ASSUME_NONNULL_END

@@ -124,6 +124,83 @@ public final class FakeProfileExtensions: ProfileExtensions {
         return ExtensionUpdateCheck(checked: true, extensions: asked, updatesFound: updatesFound)
     }
 
+    // MARK: Site access and commands (4.5)
+
+    /// The user's site access per extension and host (`setSiteAccess`); a
+    /// host without an entry has `defaultSiteAccess` (`.onAllSites`, as an
+    /// extension is installed in Chrome).
+    public private(set) var siteAccessByHost: [InstalledExtension.ID: [String: ExtensionSiteAccess.Level]] = [:]
+    public var defaultSiteAccess: [InstalledExtension.ID: ExtensionSiteAccess.Level] = [:]
+    /// The levels each extension can take (all three when unset).
+    public var selectableSiteAccess: [InstalledExtension.ID: Set<ExtensionSiteAccess.Level>] = [:]
+    /// Hosts each extension asks for (every host when unset).
+    public var requestedHosts: [InstalledExtension.ID: Set<String>] = [:]
+    /// What is blocked on a page (its content script waiting for Run), by extension.
+    public private(set) var blocked: [InstalledExtension.ID: Set<ObjectIdentifier>] = [:]
+    /// Pages the extension ran on after Run (`runAction`) or with access, in order.
+    public private(set) var ranOn: [(id: InstalledExtension.ID, page: ObjectIdentifier)] = []
+    /// Commands per extension (`commands(for:)`).
+    public var commandsByExtension: [InstalledExtension.ID: [ExtensionCommand]] = [:]
+    /// Every `performCommand` that reached a command: its name, extension and page.
+    public private(set) var performedCommands: [(name: String, id: InstalledExtension.ID, page: ObjectIdentifier?)] = []
+
+    private func host(of page: any WebContents) -> String? { page.url?.host() }
+
+    public func siteAccess(for page: any WebContents, extension id: InstalledExtension.ID) -> ExtensionSiteAccess? {
+        guard index(id) != nil, let host = host(of: page) else { return nil }
+        let wants = requestedHosts[id].map { $0.contains(host) } ?? true
+        return ExtensionSiteAccess(level: level(id, host: host), selectable: wants ? (selectableSiteAccess[id] ?? Set(ExtensionSiteAccess.Level.allCases)) : [],
+                                   wantsSite: wants, canAffect: wants,
+                                   wantsToRun: blocked[id]?.contains(ObjectIdentifier(page)) == true)
+    }
+
+    private func level(_ id: InstalledExtension.ID, host: String) -> ExtensionSiteAccess.Level {
+        siteAccessByHost[id]?[host] ?? defaultSiteAccess[id] ?? .onAllSites
+    }
+
+    /// RoomCore's rule: only a level the extension can take; "on all sites"
+    /// drops the per-host choices (the extension runs everywhere again).
+    public func setSiteAccess(_ access: ExtensionSiteAccess.Level, for id: InstalledExtension.ID, host: String) -> Bool {
+        guard index(id) != nil, requestedHosts[id].map({ $0.contains(host) }) ?? true,
+              (selectableSiteAccess[id] ?? Set(ExtensionSiteAccess.Level.allCases)).contains(access) else { return false }
+        if access == .onAllSites {
+            siteAccessByHost[id] = nil
+            defaultSiteAccess[id] = .onAllSites
+        } else {
+            siteAccessByHost[id, default: [:]][host] = access
+        }
+        return true
+    }
+
+    /// A page of `host` loaded: the extension's content script runs when it
+    /// has access there, and waits for Run when it is "on click".
+    public func simulatePageLoad(_ page: any WebContents, extension id: InstalledExtension.ID) {
+        guard let host = host(of: page), requestedHosts[id].map({ $0.contains(host) }) ?? true else { return }
+        if level(id, host: host) == .onClick {
+            blocked[id, default: []].insert(ObjectIdentifier(page))
+        } else {
+            ranOn.append((id, ObjectIdentifier(page)))
+        }
+    }
+
+    public func runAction(for id: InstalledExtension.ID, in page: any WebContents) -> Bool {
+        guard blocked[id]?.remove(ObjectIdentifier(page)) != nil else { return false }
+        ranOn.append((id, ObjectIdentifier(page)))
+        return true
+    }
+
+    public func commands(for id: InstalledExtension.ID) -> [ExtensionCommand] {
+        commandsByExtension[id] ?? []
+    }
+
+    /// `_execute_action` clicks the action (`openPopup`); a named command is recorded.
+    public func performCommand(_ name: String, for id: InstalledExtension.ID, in page: (any WebContents)?) -> Bool {
+        guard commands(for: id).contains(where: { $0.name == name }) else { return false }
+        performedCommands.append((name, id, page.map(ObjectIdentifier.init)))
+        if name == ExtensionCommand.executeAction, let page { _ = openPopup(extensionID: id, in: page) }
+        return true
+    }
+
     /// An install asking for consent, as the Web Store's "Add to Chrome"
     /// does: the delegate answers; accepted, the extension is installed.
     @discardableResult
