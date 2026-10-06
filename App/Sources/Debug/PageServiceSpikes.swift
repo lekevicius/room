@@ -40,6 +40,10 @@ extension SpikeRunner.Context {
         if runs("capture") { await captureStateCheck() }
         if runs("media") { await mediaSessionCheck() }
         if runs("chooser") { await chooserCheck() }
+        // B-62 (only when asked: a Bluetooth prompt is the user's): Web
+        // Serial and Web Bluetooth's choosers, with Room launched by `open`.
+        if only.contains("serial") { await chooserCheck(button: "#serial", name: "serial") }
+        if only.contains("bluetooth") { await chooserCheck(button: "#bluetooth", name: "bluetooth") }
         SpikeRunner.record("delegate_calls", recorder.summary)
     }
 
@@ -262,15 +266,16 @@ extension SpikeRunner.Context {
 
     // MARK: A device chooser (Views, over the window)
 
-    private func chooserCheck() async {
+    private func chooserCheck(button: String = "#usb", name: String = "usb") async {
         guard let page = await openTest("chooser.html") else { return }
         let windowsBefore = Set(NSApp.windows.map(ObjectIdentifier.init))
-        await click(page, "#usb")
+        await click(page, button)
         let opened = await waitUntil(6) { NSApp.windows.contains { !windowsBefore.contains(ObjectIdentifier($0)) && $0.isVisible && $0.className.contains("NativeWidget") } }
         try? await Task.sleep(for: .milliseconds(600))
         let bubble = NSApp.windows.first { !windowsBefore.contains(ObjectIdentifier($0)) && $0.isVisible && $0.className.contains("NativeWidget") }
-        await capture3b("usb-chooser", screen: true)
-        SpikeRunner.record("chooser_open", "opened=\(opened) window=\(bubble.map { "\($0.className) \(Int($0.frame.width))x\(Int($0.frame.height)) over room=\($0.frame.intersects(window.frame))" } ?? "none") page=\(await pageLog(page))")
+        await capture3b("\(name)-chooser", screen: true)
+        let key = name == "usb" ? "chooser" : "chooser_\(name)"
+        SpikeRunner.record("\(key)_open", "opened=\(opened) window=\(bubble.map { "\($0.className) \(Int($0.frame.width))x\(Int($0.frame.height)) over room=\($0.frame.intersects(window.frame))" } ?? "none") page=\(await pageLog(page))")
         // Esc to the bubble cancels it (the page hears NotFoundError).
         bubble?.makeKeyAndOrderFront(nil)
         if let bubble, let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -280,7 +285,7 @@ extension SpikeRunner.Context {
         }
         let cancelled = await waitUntil(5) { !(bubble?.isVisible ?? false) }
         try? await Task.sleep(for: .milliseconds(400))
-        SpikeRunner.record("chooser_cancel", "closed=\(cancelled) page=\(await pageLog(page))")
+        SpikeRunner.record("\(key)_cancel", "closed=\(cancelled) page=\(await pageLog(page))")
         window.makeKeyAndOrderFront(nil)
     }
 }

@@ -2,10 +2,13 @@
 <meta charset="utf-8">
 <title>Device chooser</title>
 <!-- Phase 3.4b: Chrome's USB chooser (a Views bubble that stays, PLAN §4)
-     over Room's window. -->
+     over Room's window. Serial and Bluetooth (B-62, the laptop's checks):
+     the same kind of bubble; Web Serial also enumerates Bluetooth ports. -->
 <style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
 <h1>Device chooser</h1>
 <button id="usb">Connect a USB device</button>
+<button id="serial">Connect a serial port</button>
+<button id="bluetooth">Connect a Bluetooth device</button>
 <p id="log">idle</p>
 <script>
 document.getElementById('usb').onclick = async () => {
@@ -17,4 +20,17 @@ document.getElementById('usb').onclick = async () => {
     document.getElementById('log').textContent = 'error: ' + e.name;
   }
 };
+function ask(id, request) {
+  document.getElementById(id).onclick = async () => {
+    document.getElementById('log').textContent = 'asking';
+    try {
+      const device = await request();
+      document.getElementById('log').textContent = 'device: ' + (device.name || 'a port');
+    } catch (e) {
+      document.getElementById('log').textContent = 'error: ' + e.name;
+    }
+  };
+}
+ask('serial', () => navigator.serial.requestPort());
+ask('bluetooth', () => navigator.bluetooth.requestDevice({ acceptAllDevices: true }));
 </script>
