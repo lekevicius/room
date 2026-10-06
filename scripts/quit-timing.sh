@@ -19,6 +19,7 @@ RUNS="${1:-3}"
 APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 # Quit goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
+room_scope "$APP"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 
 for run in $(seq 1 "$RUNS"); do
@@ -30,7 +31,7 @@ for run in $(seq 1 "$RUNS"); do
   pid=$(pgrep -nf "$APP/Contents/MacOS/Room" || true)
   for _ in $(seq 1 120); do grep -q '^ready:' "$out" 2>/dev/null && break; sleep 1; done
   pages=$(grep '^pages:' "$out" | cut -d' ' -f2)
-  helpers=$( (pgrep -f "Room Helper" || true) | wc -l | tr -d ' ')
+  helpers=$( (pgrep -f "$ROOM_HELPER_PATTERN" || true) | wc -l | tr -d ' ')
   load=$(sysctl -n vm.loadavg | awk '{print $2}')
   t0=$(now)
   room_quit "$pid"

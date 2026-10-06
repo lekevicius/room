@@ -14,6 +14,7 @@ rm -rf "$STATE"
 echo "load average: $(sysctl -n vm.loadavg)"
 ROOM_SPIKE_OUT="$OUT/switch.txt" scripts/run-spike.sh switch -RoomSidebarFixture 50 -RoomStateDirectory "$STATE" >/dev/null
 # Wait for the helpers of the first run to be gone before relaunching.
-while pgrep -f "Room Helper" >/dev/null; do sleep 0.5; done
+source "$(dirname "$0")/lib/room-process.sh"
+while pgrep -f "$ROOM_HELPER_PATTERN" >/dev/null; do sleep 0.5; done
 ROOM_SPIKE_OUT="$OUT/relaunch.txt" scripts/run-spike.sh relaunch -RoomStateDirectory "$STATE" >/dev/null
 cat "$OUT/switch.txt" "$OUT/relaunch.txt"

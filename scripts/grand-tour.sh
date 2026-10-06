@@ -68,7 +68,8 @@ crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room
 helper_crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room Helper' || true; }
 # The engine's minidumps (pending and completed) under the run's engine directory.
 crashpad_dumps() { ls "$ENGINE"/Crashpad/pending/*.dmp "$ENGINE"/Crashpad/completed/*.dmp 2>/dev/null | sort || true; }
-room_pids() { pgrep -f "Room.app/Contents/MacOS/Room" || true; }
+# This tour's app only: a Room run from elsewhere is not the tour's to stop.
+room_pids() { pgrep -f "${APP#./}/Contents/MacOS/Room" || true; }
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 TOUR="$ROOT/build/grand-tour/$STAMP-$ENGINE_NAME"
@@ -154,7 +155,7 @@ step() {
   for _ in $(seq 1 40); do [[ -z "$(room_pids)" ]] && break; sleep 0.5; done
   left=$(room_pids | wc -l | tr -d ' ')
   for pid in $(room_pids); do kill -TERM "$pid" 2>/dev/null || true; done
-  while pgrep -f "Room Helper" >/dev/null; do sleep 0.5; done
+  while pgrep -f "${APP#./}/Contents/.*Room Helper" >/dev/null; do sleep 0.5; done
   # New engine minidumps: one line each, with the check that failed (a dev-build DCHECK) or none (a kill).
   dumps=0
   : > "$STEPS/$name.crashpad"

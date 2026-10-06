@@ -12,10 +12,11 @@ APP="${1:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 WAIT="${2:-5}"
 # Quit goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
+room_scope "$APP"
 now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
-if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then
+if pgrep -f "$ROOM_MAIN_PATTERN" >/dev/null; then
   echo "Room is already running" >&2; exit 1
 fi
 reports_before=$(ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room' || true)
@@ -26,7 +27,7 @@ t_launch=$(now)
 pid=$!
 sleep "$WAIT"
 kill -0 "$pid" 2>/dev/null || { echo "FAIL: Room exited during launch" >&2; exit 1; }
-helpers=$( (pgrep -f "Room Helper" || true) | wc -l | tr -d ' ')
+helpers=$( (pgrep -f "$ROOM_HELPER_PATTERN" || true) | wc -l | tr -d ' ')
 
 t0=$(now)
 room_quit "$pid"

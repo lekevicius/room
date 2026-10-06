@@ -19,9 +19,10 @@ APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 OUT="${ROOM_SPIKE_OUT:-$(mktemp -d)/spike-$SPIKE.txt}"
 # Activate and quit go to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
+room_scope "$APP"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
-if pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; then echo "Room is already running" >&2; exit 1; fi
+if pgrep -f "$ROOM_MAIN_PATTERN" >/dev/null; then echo "Room is already running" >&2; exit 1; fi
 rm -f "$OUT"
 if [[ -n "${ROOM_SPIKE_OPEN_URL:-}" ]]; then
   # Launched by a link (Phase 2.8b): the URL reaches the app before it finishes launching.
@@ -47,10 +48,10 @@ done
 # B-47) should not happen any more; stop one if it does, by its pid.
 if [[ "$*" != *KeepRunning* ]]; then
   sleep 2
-  for stray in $(pgrep -f "Room.app/Contents/MacOS/Room$" || true); do
+  for stray in $(pgrep -f "$ROOM_MAIN_PATTERN$" || true); do
     echo "stopping stray relaunch $stray" >&2
     room_quit "$stray" || kill -TERM "$stray"
   done
-  while pgrep -f "Room.app/Contents/MacOS/Room" >/dev/null; do sleep 0.5; done
+  while pgrep -f "$ROOM_MAIN_PATTERN" >/dev/null; do sleep 0.5; done
 fi
 cat "$OUT"

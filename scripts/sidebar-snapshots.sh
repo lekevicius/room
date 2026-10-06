@@ -15,11 +15,12 @@ OUT="$(cd "$(dirname "$OUT_ARG")" && pwd)/$(basename "$OUT_ARG")"
 APP="${3:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 # Activate goes to our process by pid, never by bundle id (B-47).
 source "$(dirname "$0")/lib/room-process.sh"
+room_scope "$APP"
 
 [[ -x "$APP/Contents/MacOS/Room" ]] || { echo "no app at $APP" >&2; exit 1; }
 mkdir -p "$OUT"
 # Room instances without arguments that were already running (the user's own).
-before=$(pgrep -f "Room.app/Contents/MacOS/Room$" || true)
+before=$(pgrep -f "$ROOM_MAIN_PATTERN$" || true)
 rm -f "$OUT/states.txt"
 # shellcheck disable=SC2086
 open -n "$APP" --args -RoomSnapshotDirectory "$OUT" -RoomSidebarFixture "$FIXTURE" ${ROOM_TOUR_ARGS:-}
@@ -36,7 +37,7 @@ while [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; do sleep 0.5; done
 # An activate that lands just after the quit relaunches Room without
 # arguments (on the real state directory); stop any such stray.
 sleep 2
-for stray in $(pgrep -f "Room.app/Contents/MacOS/Room$" || true); do
+for stray in $(pgrep -f "$ROOM_MAIN_PATTERN$" || true); do
   grep -qx "$stray" <<<"$before" || { echo "stopping stray relaunch $stray" >&2; kill -TERM "$stray"; }
 done
 cat "$OUT/states.txt"

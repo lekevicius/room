@@ -14,6 +14,17 @@ if [[ ! -x "$ROOM_AE" || "$_room_repo/scripts/lib/room-ae.swift" -nt "$ROOM_AE" 
 fi
 unset _room_repo
 
+# room_scope <app>: the pgrep patterns for that app's own processes (its main
+# executable, ROOM_MAIN_PATTERN, and its helpers, ROOM_HELPER_PATTERN), so a
+# Room run from elsewhere (the laptop's week build in /Applications, 2026-10-06)
+# is neither waited for, counted, nor stopped by a wrapper. The path may be
+# relative: it is matched as a substring of the command line.
+room_scope() {
+  ROOM_MAIN_PATTERN="${1#./}/Contents/MacOS/Room"
+  ROOM_HELPER_PATTERN="${1#./}/Contents/.*Room Helper"
+}
+room_scope "${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+
 # room_activate <pid>: bring that process frontmost (the AppleEvent `activate`,
 # as `osascript … activate` did; macOS refuses a script-launched app's own
 # activation while the user works elsewhere).
@@ -38,11 +49,11 @@ room_quit() {
 room_helpers_left() {
   local timeout="${1:-5}" t0 clone=0 others cleanup
   t0=$(perl -MTime::HiRes=time -e 'printf "%.2f", time')
-  others=$( (pgrep -f "Room Helper" | while read -r p; do
+  others=$( (pgrep -f "$ROOM_HELPER_PATTERN" | while read -r p; do
               ps -o command= -p "$p" 2>/dev/null | grep -q -- '--type=code-sign-clone-cleanup' || echo "$p"; done) | wc -l | tr -d ' ')
-  cleanup=$( (pgrep -f -- "Room Helper.*--type=code-sign-clone-cleanup" || true) | wc -l | tr -d ' ')
+  cleanup=$( (pgrep -f -- "$ROOM_HELPER_PATTERN.*--type=code-sign-clone-cleanup" || true) | wc -l | tr -d ' ')
   if [[ $cleanup -gt 0 ]]; then
-    while pgrep -f -- "Room Helper.*--type=code-sign-clone-cleanup" >/dev/null; do
+    while pgrep -f -- "$ROOM_HELPER_PATTERN.*--type=code-sign-clone-cleanup" >/dev/null; do
       if perl -e "exit !($(perl -MTime::HiRes=time -e 'printf "%.2f", time') - $t0 > $timeout)"; then
         clone=timeout; break
       fi
