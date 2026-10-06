@@ -59,6 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var spaceRouter: SpaceRouter?
     var routingSheet: NSWindow?
     var routingModel: RoutingRulesModel?
+    /// The import sheet while it shows (`ImportUI.swift`, 4.3a).
+    var importSheet: NSWindow?
+    var importModel: ImportSheetModel?
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
@@ -1001,6 +1004,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Crash recovery (spec §H, 4.1b): an engine profile whose last exit was
     /// not clean keeps the launch's selection unloaded (set before the
     /// profile is delivered, which would load it).
+    /// `model`'s engine profile, made now when it has none yet (a profile an
+    /// import just created, whose history goes in before any page loads; 4.3a).
+    func engineProfile(for model: Model.Profile) async -> (any Engine.Profile)? {
+        guard let tabs else { return nil }
+        if let profile = tabs.engineProfiles[model.id] { return profile }
+        do {
+            let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
+            if tabs.engineProfiles[model.id] == nil {
+                prepare(profile, for: model)
+                holdSelectionAfterCrash(profile, tabs: tabs)
+                tabs.setEngineProfile(profile, for: model.id)
+            }
+            return tabs.engineProfiles[model.id]
+        } catch {
+            NSLog("Room: no engine profile for \(model.name): \(error)")
+            return nil
+        }
+    }
+
     private func holdSelectionAfterCrash(_ profile: any Engine.Profile, tabs: TabController) {
         guard !crashRecovered, profile.lastExitWasClean == false else { return }
         tabs.holdsSelectionUnloaded = true

@@ -38,6 +38,9 @@ public enum CommandRegistry {
     public static let copyMarkdown = OmniboxCommand(id: "copy-url-markdown", title: "Copy URL as Markdown", keywords: ["link"])
     public static let duplicateTab = OmniboxCommand(id: "duplicate-tab", title: "Duplicate Tab", keywords: ["copy"])
     public static let findInPage = OmniboxCommand(id: "find-in-page", title: "Find in Page", keywords: ["search"])
+    /// The import sheet (4.3a): bookmarks, history and Arc's sidebar from another browser.
+    public static let importFromBrowser = OmniboxCommand(id: "import-from-browser", title: "Import from another browser…",
+                                                         keywords: ["bookmarks", "history", "chrome", "safari", "arc", "brave", "edge", "firefox"])
     public static let newFolder = OmniboxCommand(id: "new-folder", title: "New Folder")
     public static let newSpace = OmniboxCommand(id: "new-space", title: "New Space")
     public static let newSplitView = OmniboxCommand(id: "new-split-view", title: "New Split View")
@@ -62,7 +65,7 @@ public enum CommandRegistry {
 
     /// Every fixed command, A–Z by title.
     public static let all: [OmniboxCommand] = [
-        addToEssentials, captureScreenshot, clearArchive, closeTab, copyURL, copyMarkdown, duplicateTab, findInPage, newFolder, newSpace,
+        addToEssentials, captureScreenshot, clearArchive, closeTab, copyURL, copyMarkdown, duplicateTab, findInPage, importFromBrowser, newFolder, newSpace,
         newSplitView, nextSpace, previousSpace, openPrivateWindow, pinTab, print, reload, reloadWithoutCache, reopenClosedTab,
         resetPinnedTab, settings, spaceRouting, lightAppearance, darkAppearance, autoAppearance, toggleSidebar, viewArchive, unsplit,
         unloadTab,

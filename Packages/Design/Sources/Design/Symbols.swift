@@ -51,6 +51,8 @@ public enum Symbol: CaseIterable, Sendable {
     case profile
     case routing
     case deleteSpace
+    /// Import from another browser (4.3a): the palette command and the summary toast.
+    case importData
 
     // Footer, downloads, library (§F, §H)
     case downloads
@@ -162,6 +164,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .profile: "person.crop.circle"
         case .routing: "arrow.triangle.branch"
         case .deleteSpace: "trash"
+        case .importData: "square.and.arrow.down.on.square"
         case .downloads: "arrow.down.circle"
         case .downloadInProgress: "arrow.down.circle.dotted"
         case .library: "books.vertical"

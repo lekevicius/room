@@ -20,6 +20,7 @@ extension AppDelegate {
         add(CommandRegistry.copyMarkdown, .copyMarkdown, when: sidebar.selectedHasURL)
         add(CommandRegistry.duplicateTab, .duplicate, when: sidebar.selectedHasURL)
         add(CommandRegistry.findInPage, .find, when: tabs.current != nil)
+        add(CommandRegistry.importFromBrowser, .importData)
         add(CommandRegistry.print, .print, when: tabs.current != nil)
         add(CommandRegistry.newFolder, .newFolder)
         add(CommandRegistry.newSplitView, .newSplit, when: sidebar.selectedEntryID != nil)
@@ -59,6 +60,8 @@ extension AppDelegate {
         case CommandRegistry.copyMarkdown.id: sidebar.copySelectedURL(markdown: true)
         case CommandRegistry.duplicateTab.id: sidebar.duplicateSelected()
         case CommandRegistry.findInPage.id: find?.showFindBar()
+        // After the palette has closed: the sheet attaches to the window.
+        case CommandRegistry.importFromBrowser.id: DispatchQueue.main.async { self.showImportSheet(nil) }
         case CommandRegistry.print.id: tabs.current?.print()
         case CommandRegistry.newFolder.id: sidebar.newFolderCommand()
         // After the palette has closed: the new pane opens it again on itself.
