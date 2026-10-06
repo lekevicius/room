@@ -51,3 +51,7 @@ Apple's notarization of the 4.6 release app never returned (the background comma
 ### 4.7a — accepted (2026-10-07 00:41 → 01:29, 48 min; the DMG from 01:45 in the background)
 
 Outcome: accepted. `savePage` and the DevTools command (`//room` +324 lines, no patch), B-90, the PDFs-download default through `EngineConfiguration.features`, Save Page…, View Source, ⇧⌘2 with the crop overlay and Full Page (2068 × 8000 in 168 ms), the PDF viewer verified without a fix; the official incremental **8 min 48 s**; `documents` 42 / 42 on both builds; CI not run (B-93), the CI spec green locally. Decisions: B-91 to 5.6, B-92 to 4.9; build 8 for 4.7a. User's list: Phase 4.7a steps 55–59. No "3.9 week" rows yet.
+
+### 4.7b — accepted; Phase 4.7 closed; the DMGs (2026-10-07 01:47 → 02:32, 45 min; build 8 landed 02:12, build 9 from 02:35)
+
+Outcome: accepted; the phase closed with every exit item behind a measured line (the PDF toolbar save's landing is the user's: macOS 26's out-of-process save panel). Reader mode as a second page from a `file://` template with the token CSS (163 / 107 ms to the reader page), the distiller in the isolated world even under a strict CSP, no translate item (B-63), Page Setup with the finding that Chrome's preview overrides it, `reader` 34 / 34 on both builds; the CI spec green locally (GitHub still on the billing hold). Decisions: B-94 to 5.6, B-95 to 5.7; the Phase 4.7a DMG is build 8 (Apple's queue recovered), the Phase 4.7 DMG build 9 app-only. User's list: Phase 4.7 at 10 of 10 (steps 55–64). No "3.9 week" rows yet.
