@@ -6,7 +6,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
-#include "chrome/browser/profiles/nuke_profile_directory_utils.h"
+#include "chrome/common/chrome_paths_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
@@ -42,6 +42,50 @@
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_passwords.h"
 #import "room/core/room_web_contents_internal.h"
+
+namespace room {
+
+// Deletes a destroyed profile's directory and its cache directory on a
+// blocking task, again every 250 ms while either remains (up to 40 times),
+// then answers on `reply_runner` whether the directory is gone (4.4b).
+void DeleteProfileDirectory(
+    const base::FilePath& path,
+    scoped_refptr<base::SequencedTaskRunner> reply_runner,
+    base::OnceCallback<void(bool)> reply,
+    int attempt = 0) {
+  constexpr int kAttempts = 40;
+  base::ThreadPool::PostDelayedTask(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(
+          [](const base::FilePath& path,
+             scoped_refptr<base::SequencedTaskRunner> reply_runner,
+             base::OnceCallback<void(bool)> reply, int attempt) {
+            base::FilePath cache_path;
+            chrome::GetUserCacheDirectory(path, &cache_path);
+            base::DeletePathRecursively(path);
+            if (cache_path != path) {
+              base::DeletePathRecursively(cache_path);
+            }
+            const bool gone = !base::PathExists(path) &&
+                              !base::PathExists(cache_path);
+            if (!gone && attempt + 1 < kAttempts) {
+              DeleteProfileDirectory(path, std::move(reply_runner),
+                                     std::move(reply), attempt + 1);
+              return;
+            }
+            LOG(INFO) << "RoomCore: profile " << path.BaseName().value()
+                      << " directory " << (gone ? "deleted" : "left")
+                      << " after " << attempt + 1 << " attempt(s)";
+            reply_runner->PostTask(FROM_HERE,
+                                   base::BindOnce(std::move(reply), gone));
+          },
+          path, std::move(reply_runner), std::move(reply), attempt),
+      attempt == 0 ? base::TimeDelta() : base::Milliseconds(250));
+}
+
+}  // namespace room
 
 namespace {
 
@@ -210,26 +254,17 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   _profile = nullptr;
   if (void (^deletion)(BOOL, BOOL) = _deletion) {
     _deletion = nil;
-    // Chrome's unload has posted its own deletion of the marked directory;
-    // this one reports back. NukeProfileFromDisk retries while files are
-    // still locked by the profile's last writers.
-    const base::FilePath path = _path;
-    void (^reply)(void) = ^{
-          base::ThreadPool::PostTaskAndReplyWithResult(
-              FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-              base::BindOnce(&base::PathExists, path),
-              base::BindOnce(^(bool exists) {
-                LOG(INFO) << "RoomCore: profile " << path.BaseName().value()
-                          << " deleted, directory "
-                          << (exists ? "left" : "gone");
-                deletion(YES, !exists);
-              }));
-    };
-    base::ThreadPool::PostTask(
-        FROM_HERE,
-        {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-         base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-        base::BindOnce(&NukeProfileFromDisk, path, base::BindOnce(reply)));
+    // Chrome's unload posted its own NukeProfileFromDisk, but at best-effort
+    // priority, and its retries too: Chrome holds best-effort tasks until
+    // its startup is complete, which a Room window never signals before
+    // Chrome's 3-minute fallback (measured: the directory went 177 s after
+    // the deletion). RoomCore deletes it itself, retrying while the
+    // profile's last writers still put files in it.
+    room::DeleteProfileDirectory(
+        _path, base::SequencedTaskRunner::GetCurrentDefault(),
+        base::BindOnce(^(bool gone) {
+          deletion(YES, gone);
+        }));
   }
 }
 
