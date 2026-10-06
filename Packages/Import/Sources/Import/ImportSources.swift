@@ -9,7 +9,7 @@ public enum BrowserKind: String, Hashable, Sendable, CaseIterable {
     case arc
     /// `<root>/Bookmarks.plist`, `<root>/History.db`.
     case safari
-    /// `places.sqlite` is not read (4.3b's call): bookmarks through an exported HTML file.
+    /// `<root>/Profiles/<profile>/places.sqlite` (bookmarks and history, 4.3b).
     case firefox
     /// A Netscape bookmark file (any browser's HTML export).
     case bookmarksFile
@@ -53,7 +53,7 @@ public struct ImportSource: Hashable, Sendable, Identifiable {
     /// The install's directory (a Chrome-family root or profile directory,
     /// Arc's directory, Safari's), or the bookmark file.
     public var location: URL
-    /// A line the sheet shows under the source (Firefox's "bookmarks via an exported HTML file").
+    /// A line the sheet shows under the source.
     public var note: String?
 
     public var id: String { kind.rawValue + ":" + location.path }
@@ -65,8 +65,8 @@ public struct ImportSource: Hashable, Sendable, Identifiable {
         self.note = note
     }
 
-    /// Firefox is listed but not read (4.3b decides on `places.sqlite`).
-    public var isReadable: Bool { kind != .firefox }
+    /// Every kind is read since 4.3b's `places.sqlite` reader.
+    public var isReadable: Bool { true }
 }
 
 /// A Chromium profile of a source (`Local State`'s name, its directory).
@@ -82,8 +82,6 @@ public struct ImportProfileChoice: Hashable, Sendable, Identifiable {
 }
 
 public enum ImportSources {
-    public static let firefoxNote = "Bookmarks via an exported HTML file (Firefox ▸ Bookmarks ▸ Manage Bookmarks ▸ Export)."
-
     /// Installs found by their directories' existence under `home` (nothing is read).
     public static func detectInstalls(home: URL, fileManager: FileManager = .default) -> [ImportSource] {
         BrowserKind.allCases.compactMap { kind in
@@ -91,7 +89,7 @@ public enum ImportSources {
             let directory = home.appending(path: kind.installPath, directoryHint: .isDirectory)
             var isDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else { return nil }
-            return ImportSource(kind: kind, name: kind.displayName, location: directory, note: kind == .firefox ? firefoxNote : nil)
+            return ImportSource(kind: kind, name: kind.displayName, location: directory)
         }
     }
 
@@ -105,6 +103,7 @@ public enum ImportSources {
             switch url.lastPathComponent {
             case "Bookmarks.plist", "History.db": return ImportSource(kind: .safari, name: name ?? "Safari", location: url.deletingLastPathComponent())
             case "StorableSidebar.json": return ImportSource(kind: .arc, name: name ?? "Arc", location: url.deletingLastPathComponent())
+            case "places.sqlite": return ImportSource(kind: .firefox, name: name ?? "Firefox", location: url.deletingLastPathComponent())
             case "Bookmarks", "History", "Preferences", "Secure Preferences":
                 return ImportSource(kind: .chrome, name: name ?? url.deletingLastPathComponent().lastPathComponent,
                                     location: url.deletingLastPathComponent())
@@ -116,6 +115,7 @@ public enum ImportSources {
         func has(_ path: String) -> Bool { fileManager.fileExists(atPath: url.appending(path: path).path) }
         if has("StorableSidebar.json") { return ImportSource(kind: .arc, name: label, location: url) }
         if has("Bookmarks.plist") || has("History.db") { return ImportSource(kind: .safari, name: label, location: url) }
+        if has("places.sqlite") || has("profiles.ini") { return ImportSource(kind: .firefox, name: label, location: url) }
         if has("Local State") || has("Default/Bookmarks") || has("Default/History") || has("Bookmarks") || has("History") {
             return ImportSource(kind: .chrome, name: label, location: url)
         }
@@ -141,6 +141,7 @@ public enum ImportSources {
     /// before. A profile directory picked on its own, Safari, Arc (whose
     /// profiles come with its sidebar) and a bookmark file have none.
     public static func profiles(of source: ImportSource, fileManager: FileManager = .default) -> [ImportProfileChoice] {
+        if source.kind == .firefox { return firefoxProfiles(in: source.location, fileManager: fileManager) }
         guard source.kind.isChromeFamily else { return [] }
         let localState = source.location.appending(path: "Local State")
         guard let data = fileManager.contents(atPath: localState.path),
@@ -149,5 +150,19 @@ public enum ImportSources {
         }
         return listed.filter { fileManager.fileExists(atPath: source.location.appending(path: $0.directory).path) }
             .map { ImportProfileChoice(directory: $0.directory, name: $0.name) }
+    }
+
+    /// Firefox's profiles: the directories under `Profiles` that hold a
+    /// `places.sqlite`, named by the part after the random prefix
+    /// ("x1y2z3.default-release" → "default-release"); `profiles.ini` is
+    /// not read. Sorted by name.
+    public static func firefoxProfiles(in root: URL, fileManager: FileManager = .default) -> [ImportProfileChoice] {
+        let profiles = root.appending(path: "Profiles", directoryHint: .isDirectory)
+        let children = ((try? fileManager.contentsOfDirectory(atPath: profiles.path)) ?? []).sorted()
+        return children.compactMap { child in
+            guard fileManager.fileExists(atPath: profiles.appending(path: child).appending(path: "places.sqlite").path) else { return nil }
+            let name = child.firstIndex(of: ".").map { String(child[child.index(after: $0)...]) }.flatMap { $0.isEmpty ? nil : $0 } ?? child
+            return ImportProfileChoice(directory: "Profiles/\(child)", name: name)
+        }
     }
 }

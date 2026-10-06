@@ -22,7 +22,7 @@ struct SourcesTests {
         #expect(ImportURL.refusedScheme("https://a.example/") == nil && ImportURL.refusedScheme("file:///tmp/a.html") == nil)
     }
 
-    @Test("Installs are detected by their directories alone; Firefox is listed with its note")
+    @Test("Installs are detected by their directories alone; Firefox's profiles by their directories")
     func detection() throws {
         let home = try Fixtures.scratch()
         defer { try? FileManager.default.removeItem(at: home) }
@@ -36,15 +36,49 @@ struct SourcesTests {
         let sources = ImportSources.detectInstalls(home: home)
         #expect(sources.map(\.kind) == [.chrome, .arc, .safari, .firefox])
         #expect(sources.map(\.name) == ["Google Chrome", "Arc", "Safari", "Firefox"])
-        #expect(sources.last?.note == ImportSources.firefoxNote && sources.last?.isReadable == false)
+        #expect(sources.allSatisfy { $0.isReadable })
+        // Firefox: a profile is a directory under Profiles that holds places.sqlite.
+        let profiles = home.appending(path: "Library/Application Support/Firefox/Profiles")
+        for (directory, file) in [("x1y2.default-release", true), ("z9.empty", false)] {
+            try FileManager.default.createDirectory(at: profiles.appending(path: directory), withIntermediateDirectories: true)
+            if file { try FileManager.default.copyItem(at: Fixtures.url("firefox/places.sqlite"), to: profiles.appending(path: "\(directory)/places.sqlite")) }
+        }
+        let firefox = try #require(sources.last)
+        #expect(ImportSources.profiles(of: firefox) == [ImportProfileChoice(directory: "Profiles/x1y2.default-release", name: "default-release")])
+        let scan = ImportScanner.scan(firefox, profile: nil)
+        #expect(scan.bookmarks?.value?.links == 10 && scan.history?.value?.urls.count == 4 && scan.errors.isEmpty)
+    }
+
+    @Test("A file macOS keeps Room out of is a permission error; Safari's folder showing nothing asks for the open panel")
+    func fileAccess() throws {
+        let directory = try Fixtures.scratch()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: directory.appending(path: "Bookmarks.plist").path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let plist = directory.appending(path: "Bookmarks.plist")
+        try FileManager.default.copyItem(at: Fixtures.url("safari/Bookmarks.plist"), to: plist)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: plist.path)
+        let source = ImportSource(kind: .safari, name: "Safari", location: directory)
+        let refused = ImportScanner.scan(source, profile: nil)
+        #expect(refused.bookmarks?.failure?.kind == .permissionDenied)
+        #expect(refused.needsFileAccess)
+        // TCC hides the files of ~/Library/Safari from a process without Full Disk Access: an empty folder.
+        let empty = try Fixtures.scratch()
+        defer { try? FileManager.default.removeItem(at: empty) }
+        let hidden = ImportScanner.scan(ImportSource(kind: .safari, name: "Safari", location: empty), profile: nil)
+        #expect(hidden.isEmpty && hidden.needsFileAccess)
+        let chrome = ImportScanner.scan(ImportSource(kind: .chrome, name: "Chrome", location: empty), profile: nil)
+        #expect(!chrome.needsFileAccess)
     }
 
     @Test("A fixture directory lists one source per subdirectory; chosen files are identified by name")
     func identify() throws {
         let sources = ImportSources.sources(inDirectory: Fixtures.directory)
-        #expect(sources.map(\.kind) == [.arc, .chrome, .bookmarksFile, .safari])
-        #expect(sources.map(\.name) == ["arc (fixture)", "chrome (fixture)", "netscape (fixture)", "safari (fixture)"])
-        #expect(sources[2].location.lastPathComponent == "bookmarks.html")
+        #expect(sources.map(\.kind) == [.arc, .chrome, .firefox, .bookmarksFile, .safari])
+        #expect(sources.map(\.name) == ["arc (fixture)", "chrome (fixture)", "firefox (fixture)", "netscape (fixture)", "safari (fixture)"])
+        #expect(sources[3].location.lastPathComponent == "bookmarks.html")
+        #expect(ImportSources.identify(Fixtures.url("firefox/places.sqlite"))?.kind == .firefox)
         #expect(ImportSources.identify(Fixtures.url("safari/Bookmarks.plist"))?.kind == .safari)
         #expect(ImportSources.identify(Fixtures.url("chrome/Default/Bookmarks"))?.location.lastPathComponent == "Default")
         #expect(ImportSources.identify(Fixtures.url("netscape/bookmarks.html"))?.kind == .bookmarksFile)

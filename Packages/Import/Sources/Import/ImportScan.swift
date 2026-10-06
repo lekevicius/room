@@ -22,6 +22,17 @@ public struct ImportScan: Sendable {
     public var errors: [ImportError] {
         [bookmarks.flatMap(\.failure), history.flatMap(\.failure), extensions.flatMap(\.failure), sidebar.flatMap(\.failure)].compactMap { $0 }
     }
+
+    /// Nothing at all was read.
+    public var isEmpty: Bool { bookmarks == nil && history == nil && sidebar == nil && extensions == nil }
+
+    /// macOS kept Room out of the source's files (no Full Disk Access): a
+    /// read refused with permission denied, or Safari's folder showing none
+    /// of its files (TCC hides them from a process without access). The
+    /// sheet then offers the open panel, whose grant opens the folder.
+    public var needsFileAccess: Bool {
+        errors.contains { $0.kind == .permissionDenied } || (source.kind == .safari && isEmpty)
+    }
 }
 
 extension Result {
@@ -81,7 +92,17 @@ public enum ImportScanner {
             files.bookmarks = existing(source.location)
             files.bookmarksFormat = .netscapeBookmarks
         case .firefox:
-            break
+            // The install's `Profiles/<dir>` (the picked profile, else the first), or a profile folder chosen on its own.
+            let directory: URL? = if let profile { source.location.appending(path: profile.directory, directoryHint: .isDirectory) }
+                else if existing(source.location.appending(path: "places.sqlite")) != nil { source.location }
+                else { ImportSources.firefoxProfiles(in: source.location, fileManager: fileManager).first
+                    .map { source.location.appending(path: $0.directory, directoryHint: .isDirectory) } }
+            if let places = directory.flatMap({ existing($0.appending(path: "places.sqlite")) }) {
+                files.bookmarks = places
+                files.bookmarksFormat = .firefoxPlaces
+                files.history = places
+                files.historyFormat = .firefoxPlaces
+            }
         }
         return files
     }
@@ -105,14 +126,15 @@ public enum ImportScanner {
         }
         func data(_ url: URL, _ format: ImportFormat) throws(ImportError) -> Data {
             guard let data = fileManager.contents(atPath: url.path) else {
-                throw ImportError(.unreadable, format, fileManager.fileExists(atPath: url.path) ? "no permission (\(url.lastPathComponent))"
-                                                                                                    : "no file at \(url.path)")
+                throw fileManager.fileExists(atPath: url.path) ? ImportError(.permissionDenied, format, url.lastPathComponent)
+                    : ImportError(.unreadable, format, "no file at \(url.path)")
             }
             return data
         }
         if let url = files.bookmarks {
             let format = files.bookmarksFormat
             scan.bookmarks = step("bookmarks") { () throws(ImportError) -> ImportedBookmarks in
+                if format == .firefoxPlaces { return try FirefoxPlacesReader.bookmarks(at: url) }
                 let bytes = try data(url, format)
                 switch format {
                 case .safariBookmarks: return try SafariBookmarksReader.read(bytes)
@@ -131,7 +153,11 @@ public enum ImportScanner {
         if let url = files.history {
             let format = files.historyFormat
             scan.history = step("history") { () throws(ImportError) -> ImportedHistory in
-                format == .safariHistory ? try SafariHistoryReader.read(at: url) : try ChromeHistoryReader.read(at: url)
+                switch format {
+                case .safariHistory: try SafariHistoryReader.read(at: url)
+                case .firefoxPlaces: try FirefoxPlacesReader.history(at: url)
+                default: try ChromeHistoryReader.read(at: url)
+                }
             }
         }
         if !files.preferences.isEmpty {

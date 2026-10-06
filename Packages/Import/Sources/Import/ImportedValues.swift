@@ -234,6 +234,7 @@ public enum ImportFormat: String, Hashable, Sendable {
     case chromePreferences = "Preferences"
     case chromeLocalState = "Local State"
     case arcSidebar = "StorableSidebar.json"
+    case firefoxPlaces = "places.sqlite"
 }
 
 /// A file a reader could not use. `message` is the sheet's line.
@@ -241,6 +242,9 @@ public struct ImportError: Error, Hashable, Sendable {
     public enum Kind: Hashable, Sendable {
         /// The file is missing or cannot be read (permissions: Safari's files need the open panel).
         case unreadable
+        /// The file is there but the system refused to open it (no Full
+        /// Disk Access: Safari's folder); the open panel's grant is the cure.
+        case permissionDenied
         /// The file is not in the format, or its structure is not the one expected.
         case malformed
     }
@@ -258,6 +262,7 @@ public struct ImportError: Error, Hashable, Sendable {
     public var message: String {
         switch kind {
         case .unreadable: "\(format.rawValue) could not be read: \(detail)"
+        case .permissionDenied: "\(format.rawValue) could not be read: macOS refused access (\(detail))"
         case .malformed: "\(format.rawValue) is not in the expected format: \(detail)"
         }
     }
@@ -277,6 +282,12 @@ public enum ImportTime {
     /// The same as a decimal string (Chrome's `Bookmarks` writes them so).
     public static func webKit(_ string: String?) -> Date? {
         string.flatMap { Int64($0) }.flatMap(webKit)
+    }
+
+    /// Firefox (`PRTime`): microseconds since 1970; `nil` for 0.
+    public static func unixMicroseconds(_ microseconds: Int64) -> Date? {
+        guard microseconds > 0 else { return nil }
+        return Date(timeIntervalSince1970: Double(microseconds) / 1_000_000)
     }
 
     /// Safari: seconds since 2001-01-01 (Core Foundation's reference date).

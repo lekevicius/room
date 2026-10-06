@@ -12,8 +12,8 @@ enum SQLiteCopy {
     static func read<T>(_ url: URL, format: ImportFormat, _ body: (Database) throws -> T) throws(ImportError) -> T {
         let fileManager = FileManager.default
         guard fileManager.isReadableFile(atPath: url.path) else {
-            throw ImportError(.unreadable, format, fileManager.fileExists(atPath: url.path) ? "no permission (\(url.lastPathComponent))"
-                                                                                                : "no file at \(url.path)")
+            throw fileManager.fileExists(atPath: url.path) ? ImportError(.permissionDenied, format, url.lastPathComponent)
+                : ImportError(.unreadable, format, "no file at \(url.path)")
         }
         let directory = fileManager.temporaryDirectory.appending(path: "room-import-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? fileManager.removeItem(at: directory) }
