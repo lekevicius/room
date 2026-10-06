@@ -94,6 +94,14 @@ public final class TabController: SidebarHost {
     /// A tab opened behind the current one (⌥Enter, Open Link in New Tab, a
     /// background `target=_blank`): a toast says so while the sidebar is hidden (spec §E).
     @ObservationIgnored public var onBackgroundTabOpened: ((UUID) -> Void)?
+    /// Routing between spaces (spec §B, 4.2): for a link a page in a space
+    /// opens as a new tab (⌘-click, a popup, `target=_blank`, Open Link in New
+    /// Tab), the space it belongs in (the app evaluates the rules and the
+    /// "Route links between spaces" setting; the source space or `nil` keeps
+    /// it). Peek and in-place navigations never ask.
+    @ObservationIgnored public var routeLink: ((_ url: String, _ sourceSpace: UUID) -> UUID?)?
+    /// A link went to another space than its page's (the app's toast).
+    @ObservationIgnored public var onLinkRouted: ((_ entry: UUID, _ space: UUID) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.
     @ObservationIgnored public weak var engine: (any EngineApplication)?
     /// The idle clock (tests inject one).
@@ -460,6 +468,22 @@ public final class TabController: SidebarHost {
         return entry.id
     }
 
+    /// A new Today tab in `space` (a link from another app routed there,
+    /// spec §B): in the shown space it is `openNewTab`; in another one it is
+    /// added at the end of that space's Today list, loads behind the card and
+    /// becomes that space's remembered selection, so the space shows it when
+    /// it is switched to.
+    @discardableResult
+    public func openNewTab(url: String, inSpace space: UUID, transition: PageTransition = .typed) -> UUID? {
+        guard let sidebar else { return nil }
+        guard space != sidebar.activeSpaceID else { return openNewTab(url: url, transition: transition) }
+        guard let entry = try? store.sidebar.addEntry(.today, url: url, space: space) else { return nil }
+        pendingTransitions[entry.id] = transition
+        sidebar.selectInBackground(entry.id, space: space)
+        loadInBackground(store.sidebar.entry(entry.id) ?? entry)
+        return entry.id
+    }
+
     /// A new Today tab at the end of the active space's Today list, loading
     /// behind the current one (the palette's ⌥Enter, spec §C).
     @discardableResult
@@ -481,6 +505,9 @@ public final class TabController: SidebarHost {
             return openBackgroundTab(url: url.absoluteString, transition: .link)
         }
         let space = opener.spaceID ?? sidebar.activeSpaceID
+        if let routed = routedSpace(for: url.absoluteString, from: space) {
+            return openRouted(url: url.absoluteString, contents: nil, profileID: opener.profileID, in: routed)
+        }
         let lastRelated = relatedChain?.opener == openerID ? relatedChain?.last : nil
         let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space))
         guard let entry = try? store.sidebar.addEntry(.today, url: url.absoluteString, space: space, at: index) else { return nil }
@@ -602,8 +629,14 @@ public final class TabController: SidebarHost {
 
     /// A page `opener` opened (link with a new-tab disposition, `window.open`):
     /// a new Today tab placed per §A.7, selected unless it opened in the background.
-    func adoptOpenedPage(_ contents: any WebContents, url: URL?, openedBy openerID: UUID, select: Bool) {
-        guard let sidebar, let entry = insertRelatedToday(url: (url ?? contents.url)?.absoluteString, openedBy: openerID) else {
+    func adoptOpenedPage(_ contents: any WebContents, url: URL?, openedBy openerID: UUID, select: Bool, routable: Bool = true) {
+        let target = (url ?? contents.url)?.absoluteString
+        if routable, let target, let opener = store.sidebar.entry(openerID), let sidebar,
+           let routed = routedSpace(for: target, from: opener.spaceID ?? sidebar.activeSpaceID) {
+            openRouted(url: target, contents: contents, profileID: pages[openerID]?.profileID ?? opener.profileID, in: routed)
+            return
+        }
+        guard let sidebar, let entry = insertRelatedToday(url: target, openedBy: openerID) else {
             contents.close()
             return
         }
@@ -615,6 +648,40 @@ public final class TabController: SidebarHost {
             onBackgroundTabOpened?(entry.id)
         }
         relatedChain = (openerID, entry.id)
+    }
+
+    // MARK: Routing links between spaces (spec §B, 4.2)
+
+    /// The space a rule sends a link from a page in `space` to, when it is
+    /// another one (the app's `routeLink` decides: rules, the setting).
+    private func routedSpace(for url: String, from space: UUID) -> UUID? {
+        guard let routed = routeLink?(url, space), routed != space, store.sidebar.space(routed) != nil else { return nil }
+        return routed
+    }
+
+    /// A link a page opened, moved to `space` by a rule: a Today tab at the
+    /// end of that space's list, its remembered selection. The engine's new
+    /// page is kept when the space uses the opener's profile; another
+    /// profile's space gets the URL loaded in its own (the page cannot change
+    /// cookie jars), and the engine's page is closed.
+    @discardableResult
+    private func openRouted(url: String, contents: (any WebContents)?, profileID: UUID, in space: UUID) -> UUID? {
+        guard let sidebar, let target = store.sidebar.space(space),
+              let entry = try? store.sidebar.addEntry(.today, url: url, space: space) else {
+            contents?.close()
+            return nil
+        }
+        pendingTransitions[entry.id] = .link
+        if let contents, target.profileID == profileID {
+            adopt(contents, entry: entry.id)
+        } else {
+            contents?.close()
+            loadInBackground(store.sidebar.entry(entry.id) ?? entry)
+        }
+        sidebar.selectInBackground(entry.id, space: space)
+        sidebar.pageStateDidChange([entry.id])
+        onLinkRouted?(entry.id, space)
+        return entry.id
     }
 
     // MARK: Page state into the store

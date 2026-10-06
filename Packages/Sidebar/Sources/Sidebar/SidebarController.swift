@@ -51,6 +51,9 @@ public final class SidebarController: NSObject {
     public var onFooterSpaceSelected: (() -> Void)?
     /// A drag of sidebar entries began (`true`) or ended: the card shows its split drop zones meanwhile (spec §D).
     public var onEntryDrag: ((Bool) -> Void)?
+    /// The routing sheet (spec §B, 4.2): "Space Routing Settings…" (`nil`), or
+    /// "Add Route for Domain…" with a new rule prefilled for `host` targeting `space`.
+    public var onRoutingSettings: ((_ newRule: (host: String, space: UUID)?) -> Void)?
     /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
     var swipe = SpaceSwipe()
     var wheel = SpaceWheel()
@@ -494,6 +497,20 @@ public final class SidebarController: NSObject {
             host?.deactivate()
         }
         selectionDidChange(from: previous)
+    }
+
+    /// Makes `id` the remembered selection of `spaceID` in this window
+    /// without showing that space (a link routed to a space that is not
+    /// shown, spec §B): the space brings it into the card when it is next
+    /// shown. In the shown space it is `select(_:)`.
+    public func selectInBackground(_ id: UUID, space spaceID: UUID) {
+        guard spaceID != tree.spaceID else { return select(id) }
+        store.windows.select(id, space: spaceID, window: windowID)
+        try? sidebar.markActive(id)
+        if let target = panes[spaceID], target.isLoaded {
+            perform(target.tree.selectionChanged(to: id), in: target, animated: false)
+            updatePill(in: target, animated: false)
+        }
     }
 
     private func selectionDidChange(from previous: UUID?) {

@@ -508,6 +508,85 @@ struct RelatedTabTests {
     }
 }
 
+@Suite("Tab controller: links routed between spaces (spec §B, 4.2)")
+struct RoutedLinkTests {
+    /// A second space; links containing "github" route there (the app's rules and setting, reduced to a closure).
+    private func route(_ f: TabsFixture, profile: UUID? = nil) throws -> Space {
+        let other = try f.sidebarStore.createSpace(name: "Code", profile: profile ?? f.space.profileID)
+        f.tabs.routeLink = { url, _ in url.contains("github") ? other.id : nil }
+        return other
+    }
+
+    @Test("A ⌘-click a rule sends to another space opens there as its remembered selection; this space and its card stay")
+    func clickRouted() throws {
+        let f = try TabsFixture()
+        let other = try route(f)
+        var routed: [(UUID, UUID)] = []
+        f.tabs.onLinkRouted = { routed.append(($0, $1)) }
+        let a = try f.today("https://a.example")
+        f.sidebar.select(a.id)
+        let shown = f.display.shown
+        f.page(a.id)?.simulateLinkClick(to: URL(string: "https://github.com/room")!, disposition: .newForegroundTab)
+        #expect(f.todayIDs == [a.id], "nothing added under the opener")
+        let moved = try #require(f.sidebarStore.today(space: other.id).first)
+        #expect(moved.liveURL == "https://github.com/room")
+        #expect(f.sidebar.activeSpaceID == f.space.id && f.sidebar.selectedEntryID == a.id && f.display.shown === shown)
+        #expect(f.store.windows.selectedEntry(space: other.id, window: f.store.windows.windows[0].id) == moved.id)
+        #expect(f.page(moved.id)?.url?.absoluteString == "https://github.com/room", "the engine's new page is kept")
+        #expect(routed.count == 1 && routed.first?.0 == moved.id && routed.first?.1 == other.id)
+        // A link no rule names stays under its opener.
+        f.page(a.id)?.simulateLinkClick(to: URL(string: "https://a.example/child")!, disposition: .newBackgroundTab)
+        #expect(f.todayIDs.count == 2 && routed.count == 1)
+    }
+
+    @Test("Open Link in New Tab is routed the same way; without a decision the link stays")
+    func contextMenuRouted() throws {
+        let f = try TabsFixture()
+        let other = try route(f)
+        let a = try f.today("https://a.example")
+        f.sidebar.select(a.id)
+        let page = try #require(f.page(a.id))
+        let id = try #require(f.tabs.openLink(URL(string: "https://github.com/x")!, from: page))
+        #expect(f.sidebarStore.entry(id)?.spaceID == other.id && f.todayIDs == [a.id])
+        f.tabs.routeLink = nil
+        let kept = try #require(f.tabs.openLink(URL(string: "https://github.com/y")!, from: page))
+        #expect(f.sidebarStore.entry(kept)?.spaceID == f.space.id)
+    }
+
+    @Test("A space of another profile gets the URL in its own profile; the engine's page is closed")
+    func otherProfile() throws {
+        let f = try TabsFixture()
+        let work = f.sidebarStore.createProfile(name: "Work")
+        let engine = try f.engine.profile(named: "Work")
+        f.tabs.setEngineProfile(engine, for: work.id)
+        let other = try route(f, profile: work.id)
+        let a = try f.today("https://a.example")
+        f.sidebar.select(a.id)
+        f.page(a.id)?.simulateLinkClick(to: URL(string: "https://github.com/room")!, disposition: .newBackgroundTab)
+        let moved = try #require(f.sidebarStore.today(space: other.id).first)
+        #expect(moved.profileID == work.id)
+        #expect(f.tabs.engineProfile(for: try #require(f.tabs.contents(for: moved.id))) === engine)
+    }
+
+    @Test("An external link for a space not shown is that space's selection, loaded behind the card")
+    func externalToOtherSpace() throws {
+        let f = try TabsFixture()
+        let other = try f.sidebarStore.createSpace(name: "Other", profile: f.space.profileID)
+        let a = try f.today("https://a.example")
+        f.sidebar.select(a.id)
+        let id = try #require(f.tabs.openNewTab(url: "https://b.example/", inSpace: other.id, transition: .link))
+        #expect(f.sidebar.activeSpaceID == f.space.id && f.sidebar.selectedEntryID == a.id)
+        #expect(f.store.windows.selectedEntry(space: other.id, window: f.store.windows.windows[0].id) == id)
+        #expect(f.page(id)?.url?.absoluteString == "https://b.example/")
+        // Switching shows it.
+        f.sidebar.showSpace(other.id, animated: false)
+        #expect(f.display.shown === f.tabs.contents(for: id))
+        // The shown space: a selected tab as before.
+        let here = try #require(f.tabs.openNewTab(url: "https://c.example/", inSpace: other.id))
+        #expect(f.sidebar.selectedEntryID == here)
+    }
+}
+
 @Suite("Tab controller: the archive sweep (spec §A.7)")
 struct ArchiveSweepTests {
     @Test("Old Today tabs go to the Archive with their pages unloaded; the selection and pages the engine keeps (sound, capture, a dirty form) stay")

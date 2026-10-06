@@ -30,12 +30,13 @@ extension TabController: NavigationDelegate {
 extension TabController: WebContentsUIDelegate {
     public func webContents(_ webContents: any WebContents, didCreate newContents: any WebContents, targetURL: URL?,
                             disposition: Disposition) {
-        // A Peek's popups open under the entry the Peek is over.
-        guard let opener = entryID(for: webContents) ?? peekOpener(of: webContents) else {
+        // A Peek's popups open under the entry the Peek is over (never routed: Peek is untouched by routing, 4.2).
+        let fromEntry = entryID(for: webContents)
+        guard let opener = fromEntry ?? peekOpener(of: webContents) else {
             newContents.close()
             return
         }
-        adoptOpenedPage(newContents, url: targetURL, openedBy: opener, select: disposition != .newBackgroundTab)
+        adoptOpenedPage(newContents, url: targetURL, openedBy: opener, select: disposition != .newBackgroundTab, routable: fromEntry != nil)
     }
 
     public func webContentsDidClose(_ webContents: any WebContents) {
