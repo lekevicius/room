@@ -48,6 +48,20 @@ section; **chosen** = our call, no reference measurement.
 | `SidebarMetrics.edgeInset` | 16 | chosen |
 | `SidebarMetrics.inactiveSaturation` / `inactiveContentAlpha` | 0.8 / 0.6 | spec §I.12 (desaturate 20%) |
 
+## Reader page (4.7b)
+
+The reader page (`App/Resources/Reader/reader.html`) takes its CSS variables from `ReaderStyle` (Chrome package), generated from these and the colours below; never literals in the template.
+
+| Token | Value | Provenance |
+|---|---|---|
+| `ReaderMetrics.textSizes` | 16 / 19 / 23 px (Settings ▸ Appearance ▸ Reader text size: small, medium, large) | chosen |
+| `ReaderMetrics.titleScale` / `headingScale` / `secondaryScale` | 1.6 / 1.25 / 0.8 em | chosen |
+| `ReaderMetrics.lineHeight` | 1.55 | chosen |
+| `ReaderMetrics.measure` | 34 em | chosen |
+| `ReaderMetrics.pagePadding` / `blockGap` / `imageRadius` | 48 (`Spacing.l` × 3) / 12 (`Spacing.m`) / 6 (`Radius.small`) | chosen |
+| `ReaderMetrics.minimumArticleCharacters` | 400 (below it: "No article found on this page") | chosen |
+| Colours | `--room-background` = `Palette.cardBackground`; `--room-text`, `--room-secondary`, `--room-link`, `--room-separator` = `labelColor`, `secondaryLabelColor`, `linkColor`, `separatorColor`; each resolved in Aqua and Dark Aqua | tokens |
+
 ## Typography
 
 | Token | Value | Provenance |

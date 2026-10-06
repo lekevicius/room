@@ -3226,3 +3226,47 @@ Chrome's save panels are out of process on macOS 26 (ViewBridge): `-[NSSavePanel
 ### Unit tier (`CI=1 swift test`)
 
 Engine 75 (+3: `SavePageFormat`'s names, the fake's three formats and a closed page, the DevTools handler or `notSupported`), Chrome 64 (+6: the drag's rectangle, a click, the cut at 1× and 2× with outward rounding and the edge, the file names and their uniqueness, the full page's clip, Save Page's names), Model 109 (+1: `storedSettings` without opening the store), UIKitCore 56 (the menu against `docs/shortcuts.md`: the new row, ⇧⌘S unique), Omnibox 51, Design 9; the engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (90 s).
+
+## Phase 4.7b — reader mode, translate, print (2026-10-07, Mac mini M4, 24 GB, display 1920 × 1080 @ 60 Hz, RoomCore 155.0.8059.36, no engine change)
+
+Tour step `reader` (`scripts/reader-check.sh`, spike `reader`, own state and engine directories, `research/spikes` on :8777; the window 1280 × 800, the card's page 1034 × 788 pt):
+
+| Run | Checks | Conditions |
+|---|---|---|
+| dev `20261007-022020` (`build/roomcore`, Debug app) | **34 / 34** | load1 9.5, 0 minidumps, 42 s |
+| release framework `20261007-022102` (`ROOM_TOUR_APP`, Debug app over `RoomCoreCommit 02de228`) | **34 / 34** | load1 7.3, 0 minidumps, 24 s |
+
+Result lines (dev / release):
+
+| Check | Dev | Release |
+|---|---|---|
+| ⌥⇧⌘R typed (key event through `NSApp`, page first, then View ▸ Reader Mode) to the reader page in the card | 163 ms | **107 ms** |
+| — the distiller (`executeJavaScript` in the isolated world, 112 KB script + `applyWithOptions`), article1 (3,673 characters, 655 words, 2 images) | 23 ms (distiller's own `total_time` 12.9 ms) | **13 ms** (7.3 ms) |
+| — the reader page's load (`file://<state>/Reader/<entry>.html`, until `isLoading` false) | 82 ms | **58 ms** |
+| article2 (1,069 characters, 1 image): distilled / loaded | 33 / 66 ms | 23 / 38 ms |
+| notarticle (the dashboard): distiller → 0 characters (threshold 400) → toast "No article found on this page", no reader page | 32 ms | 23 ms |
+| articlecsp (article1 under `<meta>` CSP `script-src 'self'`) | distilled, 3,673 characters in 23 ms | 24 ms |
+| Reader page DOM (article1) | title, host `127.0.0.1`, the original link, Exit; 4 headings, 10 paragraphs, 2 figures; 0 sidebar links, 0 scripts; `file:` | same |
+| Images (DOM `complete`, natural size, absolute `src`) | swatch 240 × 120, field 320 × 180 | same |
+| Text size (`getComputedStyle(main p).fontSize` after Settings ▸ Appearance ▸ Reader text size) | small 16 px, medium 19 px, large 23 px | same |
+| Appearance (`NSApp.appearance` → `data-appearance` → `getComputedStyle(html).backgroundColor`) | light `rgb(255, 255, 255)` (text `rgba(0, 0, 0, 0.847)`); dark `rgb(24, 24, 25)` (text `rgba(255, 255, 255, 0.847)`) = `Palette.cardBackground` resolved | same |
+| Captures (`captureViewport`, `research/screenshots/phase-4.7b/`) | light 2068 × 1576 px 7.8 % not white; dark 100 % not white | same |
+| Row glyph (`row-reader` image view in the entry's cell) | shown at {{208, 4}, {22, 28}} while reading, hidden after | same |
+| Back while reading | the article's page unchanged (the reader page has no history) | same |
+| Esc typed into the reader page | back to the page in 29 ms; scroll 420 → 420; `canGoBack` true → true; reader page closed; `<state>/Reader/<id>.html` removed | 35 ms |
+| History after Exit (`ProfileHistory.search("Lighthouse Keepers")`) | `[article1.html]`, no `file:` row | same |
+| Back after Exit | the entry's page goes back to `page.html` | same |
+| View ▸ Exit Reader Mode (article2) | back to the page | same |
+| A link in the reader page (article2's link to article1) | reader mode left and the link loaded in the entry's page in 52 ms (`canGoBack` true) | 48 ms |
+| Translate on a German page (`phase-2.6/translate.html`, `lang=de`, 3 s) | no main-menu item, no context-menu item (Chrome's `CanManuallyTranslate` is false without a key), no offer toast | same |
+| The page's context menu | "… Search with Image Search \| Open in Reader Mode \| Cast… …" (Chrome's Open in Reading Mode is Room's reader; Listen to This Page dropped) | same |
+| ⌘P (`printPage:`) | Chrome's preview (`NativeWidgetMacNSWindow` 1000 × 660, a child of Room's window) after 24 ms; key window = the preview, first responder its `RenderWidgetHostViewCocoa` | 26 ms |
+| Return in the preview (destination Save as PDF, the default) | Chrome's save panel for "Why Sourdough Starters Smell Like Apples — Room Reader fixture.pdf" after 3,497 ms (the preview's first render on the dev build); cancelled by the spike | **427 ms** |
+| After the panel's Cancel | key window = Room's window, not the preview (`makeKeyAndOrderFront` on the preview, then Esc closed it) | same |
+| File ▸ Page Setup… | `NSPageLayout`'s sheet (`NSPanel`) on the window; portrait, iso-a4; cancelled | same |
+
+Findings: (1) Chrome's `domdistiller_wrapped.js` way (the module on `Object.create(window)`) throws "Illegal invocation" at `window.document`'s getter in the isolated world; Chrome's current wrapper (timers stubbed on `window`, the isolated world's own global) works, so `ReaderRules.distillerScript` follows it. (2) A meta CSP `script-src 'self'` did not stop the isolated-world evaluation (`executeJavaScript`'s `(0, eval)`); a header CSP on a live site is by-hand step 60. (3) The distiller's title is the document's `<title>` ("… — Room Reader fixture"); the article's own `<h1>` stays in the content, so the title shows twice on the fixture (B-94). (4) Chrome's print preview starts each job from a copy of `NSPrintInfo.sharedPrintInfo` (`PrintingContextMac::UseDefaultSettings`/`UpdatePrinterSettings`) and then sets orientation and paper from its own Layout and paper controls: Page Setup sets the macOS shared print info, which the preview's own choices override.
+
+### Unit tier (`CI=1 swift test`)
+
+Chrome 72 (+8: the distiller's dictionary, the markup-text fallback, `null`/malformed answers, the article threshold, the script's options, the template's one-pass fill with escaping, the CSS variables from the tokens; the context menu's reading-mode items), Tabs 79 (+4: the swap and Exit with the page and its history untouched, Esc / the original link / another link, unload, `ReaderNavigation`), Model 109 (the sample state carries `readerTextSize`), Design 9, Sidebar 39, UIKitCore 56, Omnibox 51, all passing.
