@@ -31,6 +31,9 @@ extension AppDelegate {
         add(CommandRegistry.reopenClosedTab, .restore, when: sidebar.canReopenClosedTab)
         add(CommandRegistry.resetPinnedTab, .resetPinned, when: sidebar.canResetSelected)
         add(CommandRegistry.settings, .settings)
+        for (index, section) in SettingsWindowController.Section.allCases.enumerated() {
+            add(CommandRegistry.settingsSection(index, title: section.title), .settings)
+        }
         let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         add(CommandRegistry.lightAppearance, .appearance, when: NSApp.appearance == nil || dark)
         add(CommandRegistry.darkAppearance, .appearance, when: NSApp.appearance == nil || !dark)
@@ -49,6 +52,12 @@ extension AppDelegate {
 
     func runPaletteCommand(_ id: String) {
         guard let sidebar, let tabs else { return }
+        if let index = CommandRegistry.settingsSection(in: id) {
+            let sections = SettingsWindowController.Section.allCases
+            // After the palette has closed: the window comes to the front.
+            if sections.indices.contains(index) { DispatchQueue.main.async { self.showSettings(section: sections[index]) } }
+            return
+        }
         if let target = CommandRegistry.space(in: id) {
             if target.focus { sidebar.showSpace(target.space) } else { sidebar.moveSelected(toSpace: target.space) }
             return

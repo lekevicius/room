@@ -75,6 +75,16 @@ public enum CommandRegistry {
         unloadTab,
     ].sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
+    /// "Settings ▸ Privacy" (4.4b): opens Settings at one section.
+    public static func settingsSection(_ index: Int, title: String) -> OmniboxCommand {
+        OmniboxCommand(id: "settings-section:\(index)", title: "Settings ▸ \(title)", keywords: ["preferences", "settings"])
+    }
+
+    /// The section index a "Settings ▸ …" command opens (`nil` for others).
+    public static func settingsSection(in id: String) -> Int? {
+        id.hasPrefix("settings-section:") ? Int(id.dropFirst("settings-section:".count)) : nil
+    }
+
     public static func focus(space id: UUID, name: String) -> OmniboxCommand {
         OmniboxCommand(id: "focus-space:\(id.uuidString)", title: "Focus on \(name)", keywords: ["space", "switch"])
     }

@@ -1155,6 +1155,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         settingsWindow?.window?.makeKeyAndOrderFront(nil)
     }
 
+    /// Settings at one section (4.4b: the palette's "Settings ▸ …" and the
+    /// app menu's Settings Section items).
+    func showSettings(section: SettingsWindowController.Section) {
+        showSettings(nil)
+        settingsWindow?.select(section)
+    }
+
+    /// Room ▸ Settings Section ▸ …: the item's tag is the section's place + 1.
+    @objc func showSettingsSection(_ sender: Any?) {
+        let tag = (sender as? NSMenuItem)?.tag ?? 1
+        let sections = SettingsWindowController.Section.allCases
+        showSettings(section: sections.indices.contains(tag - 1) ? sections[tag - 1] : .general)
+    }
+
     #if DEBUG
     /// The Settings window (spikes capture each section).
     var debugSettingsWindow: SettingsWindowController? { settingsWindow }

@@ -56,6 +56,18 @@ struct CommandsTests {
         #expect(CommandRegistry.space(in: CommandRegistry.move(toSpace: id, name: "Work").id)?.focus == false)
         #expect(CommandRegistry.space(in: CommandRegistry.reload.id) == nil)
     }
+
+    @Test("A Settings section command carries its section and is found by \"privacy\" (4.4b)")
+    func settingsSections() {
+        let privacy = CommandRegistry.settingsSection(7, title: "Privacy")
+        #expect(privacy.title == "Settings ▸ Privacy")
+        #expect(CommandRegistry.settingsSection(in: privacy.id) == 7)
+        #expect(CommandRegistry.settingsSection(in: CommandRegistry.settings.id) == nil)
+        let omnibox = Omnibox(providers: Omnibox.localProviders)
+        let context = OmniboxContext(commands: [CommandRegistry.settings, privacy])
+        let titles = omnibox.result(for: OmniboxInput(field: ">privacy"), in: context).matches.map(\.title)
+        #expect(titles == ["Settings ▸ Privacy"])
+    }
 }
 
 @Suite("Site search keywords (spec §C)")

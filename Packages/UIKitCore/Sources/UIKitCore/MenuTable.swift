@@ -100,6 +100,10 @@ public enum MainMenuTable {
 
     public static var allItems: [MenuItemSpec] { menus(debug: []).flatMap(\.items) }
 
+    /// Settings' sections in their toolbar order (the app's
+    /// `SettingsWindowController.Section`); tag `i + 1` opens section `i`.
+    public static let settingsSections = ["General", "Appearance", "Search", "Downloads", "Shortcuts", "Spaces", "Extensions", "Privacy"]
+
     // MARK: Menus
 
     private static func app(_ name: String) -> MenuSpec {
@@ -109,6 +113,10 @@ public enum MainMenuTable {
             item("Check for Updates…", "checkForAppUpdates:"),
             .separator,
             item("Settings…", "showSettings:", key: k(",", .command), row: "Settings"),
+            // One item per Settings section (4.4b), without keys: the palette's "Settings ▸ …" commands.
+            .submenu("Settings Section", settingsSections.enumerated().map { index, title in
+                item(title, "showSettingsSection:", tag: index + 1)
+            }),
             // The system's confirmation dialog (ROADMAP 2.8 task 3).
             item("Set as Default Browser…", "makeDefaultBrowser:"),
             .separator,

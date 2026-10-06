@@ -30,7 +30,9 @@ extension AppDelegate {
         CommandRegistry.newSpace.id: "newSpace:",
         CommandRegistry.nextSpace.id: "selectAdjacentSpace:#1",
         CommandRegistry.previousSpace.id: "selectAdjacentSpace:#-1",
-    ]
+    ].merging(SettingsWindowController.Section.allCases.indices.map { index in
+        (CommandRegistry.settingsSection(index, title: "").id, "showSettingsSection:#\(index + 1)")
+    }, uniquingKeysWith: { first, _ in first })
 
     /// A palette command's key as the menu shows it, or nil.
     func paletteShortcut(for commandID: String) -> String? {
