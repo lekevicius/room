@@ -51,7 +51,28 @@ struct MenuTableTests {
         return found
     }
 
-    let items = MainMenuTable.allItems
+    /// The default table (4.4a: the menu is built from `ShortcutTable`; with no
+    /// overrides it is `MainMenuTable`, which these rows check against the doc).
+    let items = ShortcutTable().menus(debug: []).flatMap(\.items)
+
+    @Test("The shortcut table's defaults are the frozen menu table, and every keyed or Room item is a row")
+    func tableDefaults() {
+        let frozen = MainMenuTable.allItems
+        #expect(items.map(\.id) == frozen.map(\.id))
+        #expect(items.map(\.key) == frozen.map(\.key))
+        let ids = Set(ShortcutTable.actions.map(\.id))
+        #expect(ids.count == ShortcutTable.actions.count)
+        for item in frozen where item.target == .app || item.key != nil {
+            #expect(ids.contains(item.id), "\(item.title) is not in the table")
+            #expect(ShortcutTable.action(item.id)?.defaultKey == item.key, "\(item.title)")
+        }
+        // Items sharing an id are the same action (New Space in File and Spaces).
+        let byID = Dictionary(grouping: frozen, by: \.id)
+        for (id, group) in byID where group.count > 1 {
+            #expect(Set(group.map(\.title)).count == 1 && Set(group.map { $0.action ?? "" }).count == 1, "\(id)")
+        }
+        #expect(Set(ShortcutTable().reservedKeys) == Set(ReservedShortcuts.all))
+    }
 
     @Test("The shortcuts table is read")
     func tableRead() {

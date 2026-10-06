@@ -26,9 +26,18 @@ public struct MenuItemSpec: Sendable {
     public var hint: String?
     /// A second key for an item above it: hidden, its key equivalent still works.
     public var isAlias = false
+    /// Names the action in Settings ▸ Shortcuts and `Settings.shortcutOverrides`
+    /// (4.4a): the selector, the tag when it is not 0, "~alias" for an alias;
+    /// given where two items share selector and tag (Next Tab in Sidebar).
+    public var id: String {
+        if let explicitID { return explicitID }
+        return (action ?? "planned:\(title)") + (tag == 0 ? "" : "#\(tag)") + (isAlias ? "~alias" : "")
+    }
+    private var explicitID: String?
 
     public init(_ title: String, _ action: String?, key: ReservedShortcuts.Shortcut? = nil, tag: Int = 0, target: Target = .app,
-                row: String? = nil, chapter: String? = nil, hint: String? = nil, isAlias: Bool = false) {
+                row: String? = nil, chapter: String? = nil, hint: String? = nil, isAlias: Bool = false, id: String? = nil) {
+        self.explicitID = id
         self.title = title
         self.action = action
         self.key = key
@@ -192,9 +201,9 @@ public enum MainMenuTable {
         item("Select Next Tab", "selectAdjacentTab:", key: k("]", [.command, .shift]), tag: 1, row: "Next / previous tab"),
         item("Select Previous Tab", "selectAdjacentTab:", key: k("[", [.command, .shift]), tag: -1, row: "Next / previous tab"),
         item("Next Tab in Sidebar", "selectAdjacentTab:", key: ReservedShortcuts.Shortcut(.downArrow, [.command, .option]), tag: 1,
-             row: "Next / previous tab in sidebar order"),
+             row: "Next / previous tab in sidebar order", id: "selectAdjacentTab:#1.sidebar"),
         item("Previous Tab in Sidebar", "selectAdjacentTab:", key: ReservedShortcuts.Shortcut(.upArrow, [.command, .option]), tag: -1,
-             row: "Next / previous tab in sidebar order"),
+             row: "Next / previous tab in sidebar order", id: "selectAdjacentTab:#-1.sidebar"),
         // ⌃Tab is held for the switcher (TabSwitcher sees it first); the item switches once.
         item("Switch to Recent Tab", "switchToRecentTab:", key: ReservedShortcuts.Shortcut(.tab, .control), tag: 1,
              row: "MRU switcher / backwards", hint: "Hold ⌃ and press Tab to pick from the five most recent"),
@@ -278,8 +287,9 @@ public enum MainMenuTable {
 
     private static func item(_ title: String, _ action: String?, key: ReservedShortcuts.Shortcut? = nil, tag: Int = 0,
                              target: MenuItemSpec.Target = .app, row: String? = nil, chapter: String? = nil, hint: String? = nil,
-                             isAlias: Bool = false) -> MenuNode {
-        .item(MenuItemSpec(title, action, key: key, tag: tag, target: target, row: row, chapter: chapter, hint: hint, isAlias: isAlias))
+                             isAlias: Bool = false, id: String? = nil) -> MenuNode {
+        .item(MenuItemSpec(title, action, key: key, tag: tag, target: target, row: row, chapter: chapter, hint: hint, isAlias: isAlias,
+                           id: id))
     }
 }
 
@@ -354,6 +364,32 @@ public enum MainMenuBuilder {
         }
     }
 
+    /// Sets every item's key equivalent from `table` in place (4.4a: a remap
+    /// changes the bar without rebuilding it, so the Window menu keeps its
+    /// windows); an id that two items share (New Space) keys the first only.
+    /// Returns the number of items whose key changed.
+    @discardableResult
+    public static func apply(_ table: ShortcutTable, to menu: NSMenu) -> Int {
+        var seen = Set<String>()
+        var changed = 0
+        func walk(_ menu: NSMenu) {
+            for item in menu.items {
+                if let submenu = item.submenu { walk(submenu) }
+                guard let id = item.identifier?.rawValue, table.action(id) != nil else { continue }
+                let key = seen.insert(id).inserted ? table.key(for: id) : nil
+                let equivalent: (key: String, modifiers: NSEvent.ModifierFlags) = key.map { MenuKey.equivalent(for: $0) } ?? ("", [])
+                let mask = item.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control])
+                if item.keyEquivalent != equivalent.key || (!equivalent.key.isEmpty && mask != equivalent.modifiers) {
+                    item.keyEquivalent = equivalent.key
+                    item.keyEquivalentModifierMask = equivalent.modifiers
+                    changed += 1
+                }
+            }
+        }
+        walk(menu)
+        return changed
+    }
+
     public static func makeItem(_ spec: MenuItemSpec, appTarget: AnyObject?) -> NSMenuItem {
         // A planned item has no action: AppKit shows it disabled and its key does nothing.
         let action = spec.chapter == nil ? spec.action.map(NSSelectorFromString) : nil
@@ -364,6 +400,7 @@ public enum MainMenuBuilder {
             item.keyEquivalentModifierMask = equivalent.modifiers
         }
         item.tag = spec.tag
+        item.identifier = NSUserInterfaceItemIdentifier(spec.id)
         if spec.target == .app, action != nil { item.target = appTarget }
         item.toolTip = spec.toolTip
         if spec.isAlias {

@@ -44,6 +44,7 @@ public enum ReservedShortcuts {
             if modifiers.contains(.shift) { text += "⇧" }
             if modifiers.contains(.command) { text += "⌘" }
             switch key {
+            case .character(" "): text += "Space"
             case .character(let character): text += character.uppercased()
             case .leftArrow: text += "←"
             case .rightArrow: text += "→"
@@ -78,9 +79,22 @@ public enum ReservedShortcuts {
 
     private static let set = Set(all)
 
+    /// Against the frozen default set (`all`); the key router asks the user's
+    /// `ShortcutTable` instead (4.4a: the set follows remapped keys).
     public static func matches(_ event: NSEvent) -> Bool {
-        guard event.type == .keyDown, let key = key(for: event) else { return false }
-        return set.contains(Shortcut(key, event.modifierFlags))
+        matches(event, in: set)
+    }
+
+    public static func matches(_ event: NSEvent, in reserved: Set<Shortcut>) -> Bool {
+        guard let shortcut = shortcut(for: event) else { return false }
+        return reserved.contains(shortcut)
+    }
+
+    /// The shortcut a key-down event is, as the table names it (`key(for:)`
+    /// plus ⌘⇧⌥⌃); `nil` for any other event. Settings ▸ Shortcuts records with it.
+    public static func shortcut(for event: NSEvent) -> Shortcut? {
+        guard event.type == .keyDown, let key = key(for: event) else { return nil }
+        return Shortcut(key, event.modifierFlags)
     }
 
     /// The layout-independent key of `event`: arrows and Tab by key code,
@@ -88,7 +102,7 @@ public enum ReservedShortcuts {
     /// the key labelled T on Colemak too), falling back to the US key for the
     /// key code when that character is not ASCII (Lithuanian number row,
     /// Cyrillic letters).
-    static func key(for event: NSEvent) -> Shortcut.Key? {
+    public static func key(for event: NSEvent) -> Shortcut.Key? {
         switch event.keyCode {
         case 123: return .leftArrow
         case 124: return .rightArrow
@@ -110,9 +124,8 @@ public enum ReservedShortcuts {
         return usKeys[event.keyCode]
     }
 
-    private static let shiftedPunctuation: [String: String] = [
-        "{": "[", "}": "]", "<": ",", ">": ".", "~": "`",
-    ]
+    /// The US layout's shifted characters back to their keys (⇧⌘2 arrives as "@").
+    private static let shiftedPunctuation: [String: String] = Dictionary(uniqueKeysWithValues: MenuKey.shiftedUS.map { ($1, $0) })
 
     /// ANSI key codes (`kVK_ANSI_*`) for letters, digits and the punctuation used above.
     private static let usKeys: [UInt16: String] = [
@@ -121,5 +134,6 @@ public enum ReservedShortcuts {
         32: "u", 9: "v", 13: "w", 7: "x", 16: "y", 6: "z",
         18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6", 26: "7", 28: "8", 25: "9", 29: "0",
         33: "[", 30: "]", 43: ",", 47: ".", 50: "`",
+        27: "-", 24: "=", 41: ";", 39: "'", 44: "/", 42: "\\",
     ]
 }

@@ -462,6 +462,10 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Recent Space (the default; spec §B). Used when no rule matches; a
     /// space that no longer exists counts as `nil`.
     public var externalLinksSpaceID: UUID?
+    /// Settings ▸ Shortcuts (4.4a): action id (`MenuItemSpec.id`, e.g.
+    /// "togglePin:") → key ("⌥⌘P"; `""` for no key). An absent id keeps the
+    /// default of `docs/shortcuts.md`; `UIKitCore.ShortcutTable` reads it.
+    public var shortcutOverrides: [String: String] = [:]
 
     public init() {}
 
@@ -469,6 +473,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
+        case shortcutOverrides
     }
 
     public init(from decoder: any Decoder) throws {
@@ -498,6 +503,8 @@ public struct Settings: Hashable, Sendable, Codable {
         routeLinksBetweenSpaces = (try? container.decodeIfPresent(Bool.self, forKey: .routeLinksBetweenSpaces)).flatMap { $0 }
             ?? defaults.routeLinksBetweenSpaces
         externalLinksSpaceID = (try? container.decodeIfPresent(UUID.self, forKey: .externalLinksSpaceID)).flatMap { $0 }
+        shortcutOverrides = (try? container.decodeIfPresent([String: String].self, forKey: .shortcutOverrides)).flatMap { $0 }
+            ?? defaults.shortcutOverrides
     }
 }
 

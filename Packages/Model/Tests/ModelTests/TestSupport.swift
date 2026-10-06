@@ -48,6 +48,8 @@ func sampleState() -> RoomState {
     // 4.2: routing between spaces and the external default.
     settings.routeLinksBetweenSpaces = true
     settings.externalLinksSpaceID = home.id
+    // 4.4a: a remapped key and a removed one.
+    settings.shortcutOverrides = ["togglePin:": "⌥⌘P", "toggleMute:": ""]
     let rules = [
         RoutingRule(match: .contains, pattern: "github", targetSpaceID: work.id, position: 0),
         RoutingRule(match: .regex, pattern: #"^https://news\."#, targetSpaceID: home.id, position: 1, enabled: false),
