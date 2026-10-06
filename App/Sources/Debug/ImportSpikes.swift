@@ -43,8 +43,10 @@ extension SpikeRunner.Context {
         let hashBefore = sidebarHash()
         let generationBefore = store.persistence.generation
         SpikeRunner.record("state_before", describe(counts()))
+        SpikeRunner.record("generation_at_start", "\(store.persistence.generation) dirty=\(store.persistence.isDirty)")
         app.showImportSheet(nil)
         await settle(800)
+        SpikeRunner.record("generation_sheet_open", "\(store.persistence.generation) dirty=\(store.persistence.isDirty)")
         guard let model = app.importModel, let sheet = app.importSheet else {
             return SpikeRunner.record("error", "import: the sheet did not open")
         }
