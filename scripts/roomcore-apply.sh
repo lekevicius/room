@@ -11,6 +11,16 @@
 # skipped, so re-running never touches file mtimes (which would cost a
 # rebuild); a changed patch file rebuilds the branch from that patch on.
 #
+# --drop <patch-name> (4.1a): drops one patch from the series and its commit
+# from the `room` branch in the same pass: the series is replayed without it
+# (the guard below is told that this one commit may go), the branch moves
+# with `git reset --keep` (only the patch's files change, so only they
+# rebuild), and then the line leaves `patches/series` and the patch file is
+# removed (commit both in the repo). Refuses while a Chromium build runs.
+# --dry-run: prints what would happen (with --drop: the commit, its files, the
+# commits replayed) and changes nothing: no checkout, no branch move, no
+# series edit, no gn gen.
+#
 # Env: CHROMIUM_TAG (default: the pin in Engine/roomcore/CHROMIUM_TAG, which
 # scripts/roomcore-rebase.sh moves), ROOM_OUT_DIR (or OUT; default out/dev), ROOM_GN_ARGS (a
 # file name in Engine/roomcore/args, default dev.gn); checkout location from
@@ -25,6 +35,22 @@ OUT="${ROOM_OUT_DIR:-${OUT:-out/dev}}"
 ROOMCORE="$REPO/Engine/roomcore"
 ARGS_FILE="$ROOMCORE/args/${ROOM_GN_ARGS:-dev.gn}"
 [[ -f "$ARGS_FILE" ]] || { echo "no GN args file $ARGS_FILE" >&2; exit 1; }
+DROP="" DRY_RUN=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --drop) DROP="${2:?--drop needs a patch name}"; DROP="${DROP%.patch}"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    *) echo "usage: $0 [--drop <patch-name>] [--dry-run]" >&2; exit 2 ;;
+  esac
+done
+if [[ -n "$DROP" ]]; then
+  # The series is never touched while a build reads the checkout.
+  if pgrep -f "autoninja|/siso |siso_|siso ninja|ninja -C" >/dev/null; then
+    echo "a Chromium build is running (autoninja/siso); drop the patch after it ends" >&2; exit 1
+  fi
+  [[ -f "$ROOMCORE/patches/$DROP.patch" ]] || grep -qxF "$DROP.patch" "$ROOMCORE/patches/series" \
+    || echo "note: $DROP.patch is neither in the series nor in patches/ (dropping the branch commit only)" >&2
+fi
 
 cd "$SRC"
 
@@ -54,8 +80,12 @@ done
 # series (a temporary experiment) are kept while the series matches; a
 # rebuild refuses to drop them.
 if git rev-parse -q --verify refs/heads/room >/dev/null; then
-  [[ "$(git branch --show-current)" == room ]] || git checkout -q room
+  if [[ "$(git branch --show-current)" != room ]]; then
+    if (( DRY_RUN )); then echo "dry run: would check out room (now on $(git branch --show-current))"
+    else git checkout -q room; fi
+  fi
 else
+  (( DRY_RUN )) && { echo "dry run: no room branch; would create it at tags/$TAG and apply the series" >&2; exit 0; }
   git checkout -q -b room "tags/$TAG"
 fi
 if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
@@ -67,12 +97,24 @@ scratch_index="$(mktemp -t roomcore-apply-index)"
 trap 'rm -f "$scratch_index"' EXIT
 GIT_INDEX_FILE="$scratch_index" git read-tree "tags/$TAG"
 commits=()
-while read -r commit; do commits+=("$commit"); done < <(git rev-list --reverse "tags/$TAG..HEAD")
+while read -r commit; do commits+=("$commit"); done < <(git rev-list --reverse "tags/$TAG..refs/heads/room")
+drop_subject=""
+if [[ -n "$DROP" ]]; then
+  drop_subject="room: $DROP"
+  drop_commit=""
+  for commit in ${commits[@]+"${commits[@]}"}; do
+    [[ "$(git log -1 --format=%s "$commit")" == "$drop_subject" ]] && drop_commit="$commit"
+  done
+  [[ -n "$drop_commit" ]] || { echo "no commit \"$drop_subject\" on the room branch" >&2; exit 1; }
+  echo "drop: $drop_subject (${drop_commit:0:12}); its files go back to the series without it:"
+  git diff --name-only "$drop_commit^" "$drop_commit" | sed 's/^/  /'
+fi
 parent="$(git rev-parse "tags/$TAG^{commit}")"
 series_subjects=()
 applied=0 skipped=0 index=0 diverged=0
 while read -r patch; do
   [[ -z "$patch" || "$patch" == \#* ]] && continue
+  [[ -n "$DROP" && "$patch" == "$DROP.patch" ]] && continue
   subject="room: ${patch%.patch}"
   series_subjects+=("$subject")
   GIT_INDEX_FILE="$scratch_index" git apply --cached --whitespace=nowarn "$ROOMCORE/patches/$patch" \
@@ -93,18 +135,37 @@ while read -r patch; do
   fi
   index=$((index + 1))
 done < "$ROOMCORE/patches/series"
-if (( diverged )); then
+# A dropped patch that was last in the series leaves the rest matching: the
+# branch still moves to the last series commit.
+if (( diverged )) || [[ -n "$DROP" ]]; then
   for commit in ${commits[@]+"${commits[@]}"}; do
     subject="$(git log -1 --format=%s "$commit")"
+    [[ -n "$drop_subject" && "$subject" == "$drop_subject" ]] && continue
     if ! printf '%s\n' "${series_subjects[@]}" | grep -qxF "$subject"; then
       echo "the room branch has a commit outside the series ($subject, ${commit:0:12});" \
            "drop it before the series can be rebuilt" >&2
       exit 1
     fi
   done
-  git reset -q --keep "$parent"
+  if (( DRY_RUN )); then
+    echo "dry run: would move room from $(git rev-parse --short refs/heads/room) to ${parent:0:12}" \
+         "($applied commits replayed, $skipped kept) with git reset --keep"
+  else
+    git reset -q --keep "$parent"
+  fi
 fi
-echo "patches: $applied applied, $skipped already on the room branch"
+echo "patches: $applied applied, $skipped already on the room branch$( (( DRY_RUN )) && echo " (dry run)")"
+if [[ -n "$DROP" ]]; then
+  if (( DRY_RUN )); then
+    echo "dry run: would remove $DROP.patch from patches/series and delete the patch file"
+  else
+    grep -vxF "$DROP.patch" "$ROOMCORE/patches/series" > "$ROOMCORE/patches/series.new" || true
+    mv "$ROOMCORE/patches/series.new" "$ROOMCORE/patches/series"
+    rm -f "$ROOMCORE/patches/$DROP.patch"
+    echo "dropped $DROP: removed from patches/series and patches/; commit the series change in the repo, then rebuild"
+  fi
+fi
+(( DRY_RUN )) && exit 0
 
 # 3. Branding placeholders: Chromium's icons under the "room" component name.
 for dir in chrome/app/theme chrome/app/theme/default_100_percent \
