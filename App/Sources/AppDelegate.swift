@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var extensionConsent: ExtensionConsentSheets?
     /// The header's action buttons and popups (3.6b), once the center and the window exist.
     private(set) var extensionPopups: ExtensionPopups?
+    /// Extension commands while the sidebar or the palette has the keyboard (4.5, B-70).
+    private(set) var extensionKeys: ExtensionKeyRouter?
     private(set) var switcher: TabSwitcher?
     /// The Library in the sidebar (⇧⌘L, ⌘Y; 4.1a, `LibraryUI.swift`).
     var library: LibraryController?
@@ -955,6 +957,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func installExtensionPopups() {
         guard extensionPopups == nil, let extensions, let sidebar, let tabs, let rootView = windowController?.rootView else { return }
         extensionPopups = ExtensionPopups(center: extensions, sidebar: sidebar, tabs: tabs, rootView: rootView)
+        extensionKeys = ExtensionKeyRouter(
+            center: extensions, window: { [weak rootView] in rootView?.window },
+            pageHasKeyboard: { [weak self] in self?.pageHasKeyboard ?? false },
+            profile: { [weak sidebar] in sidebar?.activeSpace?.profileID },
+            page: { [weak tabs] in tabs?.focusedPage })
+    }
+
+    /// The keyboard is in a page (the card's panes or the Peek's): the
+    /// engine's own key path sees the key first there.
+    var pageHasKeyboard: Bool {
+        guard let responder = windowController?.window?.firstResponder as? NSView else { return false }
+        if let pageHost, responder.isDescendant(of: pageHost.splitView) { return true }
+        if let peek, responder.isDescendant(of: peek.overlay) { return true }
+        return false
     }
 
     /// The Settings switch holds at once (CLAUDE.md): turned off, the open

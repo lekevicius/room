@@ -137,18 +137,106 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
 
     /// The header's buttons for `profile`'s extensions as `page` shows them:
     /// pinned extensions with an action, in the pinned order (the installed
-    /// list's own order); unpinned ones are reachable from Settings ▸
-    /// Extensions' Pin (the overflow menu is Chapter 4.5).
+    /// list's own order: `ToolbarActionsModel`'s); unpinned ones are in the
+    /// overflow menu (`overflowActions`, 4.5).
     public func headerActions(profile: UUID?, page: (any WebContents)?) -> [HeaderExtensionAction] {
         guard let section = section(profile: profile) else { return [] }
         return section.installed.compactMap { item in
-            guard item.isPinned, item.isEnabled, let defaults = item.action else { return nil }
-            let state = page.flatMap { section.extensions.action(for: item.id, in: $0) } ?? defaults
-            return HeaderExtensionAction(id: item.id, name: item.name, title: state.title.isEmpty ? item.name : state.title,
-                                         icon: state.icon ?? defaults.icon ?? item.icon16, badgeText: state.badgeText,
-                                         badgeBackgroundColor: state.badgeBackgroundColor, badgeTextColor: state.badgeTextColor,
-                                         isEnabled: state.isEnabled)
+            guard item.isPinned, item.isEnabled else { return nil }
+            return headerAction(item, section: section, page: page)
         }
+    }
+
+    /// The overflow menu's items (4.5): enabled extensions with an action
+    /// that are not pinned, by name, as `page` shows their actions (badges).
+    public func overflowActions(profile: UUID?, page: (any WebContents)?) -> [HeaderExtensionAction] {
+        guard let section = section(profile: profile) else { return [] }
+        return section.installed.compactMap { item in
+            guard !item.isPinned, item.isEnabled, item.action != nil else { return nil }
+            return headerAction(item, section: section, page: page)
+        }
+    }
+
+    private func headerAction(_ item: InstalledExtension, section: ProfileSection, page: (any WebContents)?) -> HeaderExtensionAction? {
+        guard let defaults = item.action else { return nil }
+        let state = page.flatMap { section.extensions.action(for: item.id, in: $0) } ?? defaults
+        return HeaderExtensionAction(id: item.id, name: item.name, title: state.title.isEmpty ? item.name : state.title,
+                                     icon: state.icon ?? defaults.icon ?? item.icon16, badgeText: state.badgeText,
+                                     badgeBackgroundColor: state.badgeBackgroundColor, badgeTextColor: state.badgeTextColor,
+                                     isEnabled: state.isEnabled)
+    }
+
+    // MARK: Commands with the keyboard outside the page (4.5, B-70)
+
+    /// The extension command of `profile` whose key is `shortcut` (Room's
+    /// notation, "⇧⌘U"), if any: enabled extensions in the list's order, the
+    /// action's command before named ones (the engine's own registry picks
+    /// the first extension too).
+    public func command(forShortcut shortcut: String, profile: UUID?) -> (id: InstalledExtension.ID, name: String)? {
+        guard !shortcut.isEmpty, let section = section(profile: profile) else { return nil }
+        for item in section.installed where item.isEnabled {
+            if let command = section.extensions.commands(for: item.id).first(where: { $0.shortcut == shortcut }) {
+                return (item.id, command.name)
+            }
+        }
+        return nil
+    }
+
+    /// Runs the command whose key is `shortcut` for `page` (the key router
+    /// asks this before the menu while the sidebar or the palette has the
+    /// keyboard); `true` when an extension took it.
+    @discardableResult
+    public func performCommand(forShortcut shortcut: String, profile: UUID?, page: (any WebContents)?) -> Bool {
+        guard let section = section(profile: profile), let match = command(forShortcut: shortcut, profile: profile) else { return false }
+        return section.extensions.performCommand(match.name, for: match.id, in: page)
+    }
+
+    /// Every extension command across profiles with its key, for Settings ▸
+    /// Shortcuts' read-only rows (the extension's name, the command's title).
+    public func shortcutRows() -> [(extension: String, title: String, shortcut: String)] {
+        var rows: [(extension: String, title: String, shortcut: String)] = []
+        for section in sections {
+            for item in section.installed where item.isEnabled {
+                for command in section.extensions.commands(for: item.id) where !command.shortcut.isEmpty {
+                    let title = command.isAction ? "Activate the extension" : (command.description.isEmpty ? command.name : command.description)
+                    rows.append((item.name, title, command.shortcut))
+                }
+            }
+        }
+        return rows
+    }
+
+    // MARK: Site access (4.5)
+
+    /// `item`'s access to `page`'s site, as the engine answers it.
+    public func siteAccess(_ id: InstalledExtension.ID, profile: UUID?, page: any WebContents) -> ExtensionSiteAccess? {
+        section(profile: profile)?.extensions.siteAccess(for: page, extension: id)
+    }
+
+    /// The extensions of `profile` that want `page`'s site (the site
+    /// panel's Extensions section, B-30), with their access, in the list's order.
+    public func extensionsWantingSite(profile: UUID?, page: any WebContents) -> [(item: InstalledExtension, access: ExtensionSiteAccess)] {
+        guard let section = section(profile: profile) else { return [] }
+        return section.installed.compactMap { item in
+            guard item.isEnabled, let access = section.extensions.siteAccess(for: page, extension: item.id), access.wantsSite
+            else { return nil }
+            return (item, access)
+        }
+    }
+
+    @discardableResult
+    public func setSiteAccess(_ level: ExtensionSiteAccess.Level, _ id: InstalledExtension.ID, profile: UUID?, host: String) -> Bool {
+        let done = section(profile: profile)?.extensions.setSiteAccess(level, for: id, host: host) ?? false
+        if done { actionRevision += 1 }
+        return done
+    }
+
+    /// The site panel's Run.
+    @discardableResult
+    public func runBlocked(_ id: InstalledExtension.ID, profile: UUID?, page: any WebContents) -> Bool {
+        let done = section(profile: profile)?.extensions.runAction(for: id, in: page) ?? false
+        if done { actionRevision += 1 }
+        return done
     }
 
     /// A click on an action's button: the engine runs the action for `page`
