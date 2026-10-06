@@ -630,3 +630,9 @@ Both are far under the fallback's "> 1 day each": a milestone costs a night of m
 ## 2026-10-06 — Phase 3.9-2: patch 0012 dropped (Mac mini M4, `out/dev`, 6 jobs)
 
 Series 24 → 23 (`spike-results.md` "Phase 3.9 — patch 0012 dropped"): the branch commit dropped with `git replay` (the apply script refuses to drop a commit outside the series), "0 applied, 23 already" twice, `155.0.8059.36-23-g62be06cc2bcd5`. Incremental rebuild of `out/dev`: **59 s** (`build/roomcore-0012-drop-build.log`, 05:04:34, load 6.6 → 9.1); package 38 s.
+
+## 2026-10-06 — Phase 3.9-2: the release build on 155.0.8059.36 (3.8 task 4) (Mac mini M4, `out/release`, 6 jobs)
+
+`out/release` was stale (154.0.8037.58, 3.1b-2). `ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn scripts/roomcore-apply.sh` ("0 applied, 23 already"; `out/release/args.gn` equal to `args/release.gn`), then `gn gen out/release`: **"Done. Made 35910 targets from 4997 files in 27084ms"** (the apply script runs `gn gen` only when the args file changed, so it ran by hand). Started from bash with nohup: `ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn scripts/roomcore-build.sh`, **pid 32265**, log `build/roomcore-release-155-build.log`, "build start 2026-10-06 05:12:32", series 23 (0012 dropped), the machine otherwise quiet. A clean official build: the clang roll of rebase 2 invalidates everything (3.1b-2's clean build: 4 h 43 min at 6 jobs, the ThinLTO link 18 min at 6.80 GiB).
+
+The first half hour (`out/release/siso_metrics.json` lines; 0 failed steps): 900 at 05:13:41, 9,828 at 05:23:35, 16,558 at 05:33:33, **19,659 at 05:44:21** (31.8 min); load 9–41 (generators and the first links), pageouts flat (215k), no swap.
