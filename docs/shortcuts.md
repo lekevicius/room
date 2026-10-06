@@ -54,9 +54,9 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | Expand Peek to tab / Peek to split | ⌘O / ⇧⌘O | no | 2.7 | Open File is menu-only |
 | Close Peek | Esc, ⌘W | — | 2.7 | ⌘W is reserved |
 | Mute tab | ⇧⌘M | no | 2.3 | |
-| Library / archive | ⇧⌘L | no | 4.1 | |
+| Library / archive | ⇧⌘L | no | 4.1 | the Library in place of the spaces view (Archive, Downloads, History); ⇧⌘L or Esc returns |
 | Downloads popover | ⇧⌘J | no | 2.6 | |
-| History | ⌘Y | no | 2.4 | palette history group until Chapter 3 |
+| History | ⌘Y | no | 4.1 | the Library at History (4.1); the palette's history group stays (2.4) |
 | Fullscreen | ⌃⌘F | no | 2.8 | |
 | Reader mode | ⌥⇧⌘R | no | 4.7 | |
 | Capture screenshot | ⇧⌘2 | no | 4.7 | |

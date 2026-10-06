@@ -6,6 +6,7 @@ import Engine
 import FakeEngine
 import Infra
 import Integration
+import Library
 import Model
 import Omnibox
 import Palette
@@ -24,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var store: RoomStore?
     private(set) var windowController: RoomWindowController?
     private var settingsWindow: SettingsWindowController?
-    private var pageHost: PageHost?
+    private(set) var pageHost: PageHost?
     /// The card's content view (DEBUG spikes read what it shows).
     var pageHostContainer: PageContainerView? { pageHost?.container }
     #if DEBUG
@@ -46,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The header's action buttons and popups (3.6b), once the center and the window exist.
     private(set) var extensionPopups: ExtensionPopups?
     private(set) var switcher: TabSwitcher?
+    /// The Library in the sidebar (⇧⌘L, ⌘Y; 4.1a, `LibraryUI.swift`).
+    var library: LibraryController?
     /// The archive sweep: at launch and every 10 min while idle (spec §A.7, 4.1a).
     private(set) var archiveSweeper: ArchiveSweeper?
     /// ⌘T / ⌘L (Phase 2.4).
@@ -498,6 +501,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let downloads = DownloadsUI(button: sidebar.downloadsButton, rootView: rootView, toasts: toasts, settings: store.settings)
         downloads.pageFavicon = { [weak tabs] in tabs?.current?.favicon }
         self.downloads = downloads
+        installLibrary(sidebar: sidebar, tabs: tabs, store: store)
         installPagePrompts(pageDelegate, pageHost: pageHost, sidebar: sidebar, tabs: tabs, rootView: rootView)
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
         palette.contentRect = { [weak rootView, weak pageHost] in
@@ -1028,11 +1032,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs?.openLocation()
     }
 
-    /// ⌘Y: the palette on recent history (shortcuts.md, until Chapter 3).
-    @objc func showHistory(_ sender: Any?) {
-        palette?.toggleHistory()
-    }
-
     /// ⌘,: Settings v0 (General, Appearance, Search, Downloads).
     @objc func showSettings(_ sender: Any?) {
         guard let store else { return }
@@ -1358,7 +1357,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(goForward(_:)): { app, item in
             (item.tag != 2 || !app.isEditingText) && app.tabs?.focusedPage?.canGoForward == true
         },
-        #selector(showHistory(_:)): { app, _ in app.palette != nil },
+        #selector(showHistory(_:)): { app, _ in app.library != nil },
+        #selector(toggleLibrary(_:)): { app, item in
+            item.title = app.isLibraryShown ? "Hide Library" : "Show Library"
+            return app.library != nil
+        },
         // Tab
         #selector(selectAdjacentTab(_:)): { app, _ in app.sidebar?.selectedEntryID != nil },
         #selector(switchToRecentTab(_:)): { app, _ in (app.sidebar?.recentEntries(limit: 2).count ?? 0) > 1 },

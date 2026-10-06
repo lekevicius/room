@@ -183,8 +183,9 @@ public enum MainMenuTable {
         item("Back", "goBack:", key: ReservedShortcuts.Shortcut(.leftArrow, .command), tag: 2, row: "Back / forward", isAlias: true),
         item("Forward", "goForward:", key: ReservedShortcuts.Shortcut(.rightArrow, .command), tag: 2, row: "Back / forward", isAlias: true),
         .separator,
+        // The Library in the sidebar (4.1a): ⌘Y opens it at History, ⇧⌘L toggles it.
         item("Show History", "showHistory:", key: k("y", .command), row: "History"),
-        item("Show Library", nil, key: k("l", [.command, .shift]), row: "Library / archive", chapter: "4.1"),
+        item("Show Library", "toggleLibrary:", key: k("l", [.command, .shift]), row: "Library / archive"),
     ])
 
     private static let tab = MenuSpec("Tab", [

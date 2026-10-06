@@ -223,6 +223,15 @@ public final class DownloadList: DownloadsDelegate {
         finished.forEach { profiles.removeValue(forKey: $0) }
     }
 
+    /// The Library's Remove: one row leaves the list (a download in progress
+    /// is cancelled first). The host's list only: Chrome's `DownloadHistory`
+    /// keeps the row until 4.1b's `Profile.removeDownload` (B-59).
+    public func remove(_ id: DownloadItem.ID) {
+        if row(id)?.item.state == .inProgress { cancel(id) }
+        rows.removeAll { $0.id == id }
+        profiles.removeValue(forKey: id)
+    }
+
     public var canClear: Bool { rows.contains { DownloadRules.isFinished($0.item.state) } }
 
     /// The popover opened: the badge goes.

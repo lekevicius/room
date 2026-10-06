@@ -64,6 +64,7 @@ targets:
       - package: Tabs
       - package: Omnibox
       - package: Palette
+      - package: Library
       - package: Integration
         product: Integration
       - package: Integration

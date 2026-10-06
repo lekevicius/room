@@ -129,10 +129,11 @@ struct MenuTableTests {
                 #expect(item.action != nil, "\(item.title) has neither an action nor a chapter")
             }
         }
-        // The table's later chapters (4.x) are the ones the doc gives those rows.
-        for row in Self.rows where row.chapter.hasPrefix("4.") {
-            let planned = items.filter { $0.row == row.action }
-            #expect(!planned.isEmpty && planned.allSatisfy { $0.chapter == row.chapter }, "\(row.action)")
+        // A planned item's chapter is the one the doc gives its row (4.1 made
+        // its rows work, so a 4.x row is no longer planned by its number alone).
+        for item in items {
+            guard let chapter = item.chapter, let row = item.row else { continue }
+            #expect(Self.rows.contains { $0.action == row && $0.chapter == chapter }, "\(item.title)")
         }
     }
 

@@ -17,6 +17,8 @@ final class DownloadsUI {
     private weak var button: DownloadsButton?
     private weak var rootView: BrowserWindowView?
     private weak var toasts: ToastPresenting?
+    /// The button's menu ▸ Open Library: the Library at Downloads (4.1a).
+    var onOpenLibrary: (() -> Void)?
     /// The current page's favicon: the flying icon (spec §F "the clicked link's favicon").
     var pageFavicon: () -> NSImage? = { nil }
     /// The last click in the window, in the root view's coordinates.
@@ -73,9 +75,10 @@ final class DownloadsUI {
 
     private func buttonMenu() -> NSMenu {
         let menu = NSMenu()
-        let library = NSMenuItem(title: "Open Library", action: nil, keyEquivalent: "")
-        library.isEnabled = false
-        library.toolTip = "The Library arrives in Chapter 4.1"
+        let library = NSMenuItem(title: "Open Library", action: #selector(MenuTarget.perform(_:)), keyEquivalent: "")
+        let libraryTarget = MenuTarget { [weak self] in self?.onOpenLibrary?() }
+        library.target = libraryTarget
+        library.representedObject = libraryTarget
         menu.addItem(library)
         let folder = NSMenuItem(title: "Show Downloads Folder", action: #selector(MenuTarget.perform(_:)), keyEquivalent: "")
         let target = MenuTarget { [weak self] in

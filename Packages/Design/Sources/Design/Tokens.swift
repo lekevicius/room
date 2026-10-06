@@ -117,6 +117,29 @@ public enum SidebarMetrics {
 }
 
 /// The inset page card (PLAN §2.4).
+/// The Library in the sidebar (4.1a, ⇧⌘L): a search field, then the
+/// Archive, Downloads and History sections (chosen; Chapter 5 revisits).
+public enum LibraryMetrics {
+    /// The search field matches the header's address field.
+    public static let searchFieldHeight: CGFloat = SidebarMetrics.addressFieldHeight
+    /// A section's title row (click to collapse).
+    public static let sectionRowHeight: CGFloat = 28
+    /// A day's label inside the Archive and History.
+    public static let dayRowHeight: CGFloat = 22
+    /// An item: favicon, title, domain, the space chip, its buttons.
+    public static let itemRowHeight: CGFloat = SidebarMetrics.rowHeight
+    /// A row's Restore, Reveal and × buttons.
+    public static let buttonSize: CGFloat = 20
+    /// The space chip and the "Archived" mark.
+    public static let chipHeight: CGFloat = 16
+    public static let chipPadding: CGFloat = Spacing.xs
+    /// History without a query: the last week, by day, at most this many URLs.
+    public static let historyDays = 7
+    public static let historyLimit = 500
+    /// History with a query: the engine's matches, then `history-archive.json`'s (B-66).
+    public static let searchLimit = 200
+}
+
 public enum CardMetrics {
     /// Gap between the card and the window edge on the top, trailing and bottom sides.
     /// Measured from Dia's window (6pt); the ROADMAP's first guess was 8.

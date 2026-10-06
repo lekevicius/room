@@ -47,6 +47,8 @@ public final class SidebarController: NSObject {
     var spaceForm: SpaceFormState?
     /// A space was created from the form (a toast tells about it while the sidebar is hidden, spec §E).
     public var onSpaceCreated: ((Space) -> Void)?
+    /// A space's icon in the footer was clicked (the Library gives way to the spaces first, 4.1a).
+    public var onFooterSpaceSelected: (() -> Void)?
     /// A drag of sidebar entries began (`true`) or ended: the card shows its split drop zones meanwhile (spec §D).
     public var onEntryDrag: ((Bool) -> Void)?
     /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
@@ -108,7 +110,10 @@ public final class SidebarController: NSObject {
         grid.events = self
         grid.dropEvents = self
         grid.registerForDraggedTypes(Self.acceptedDragTypes)
-        footer.onSelectSpace = { [weak self] id in self?.showSpace(id) }
+        footer.onSelectSpace = { [weak self] id in
+            self?.onFooterSpaceSelected?()
+            self?.showSpace(id)
+        }
         footer.spaceMenu = { [weak self] id in self?.spaceMenu(id) }
         footer.onReorderSpace = { [weak self] id, index in try? self?.sidebar.moveSpace(id, to: index) }
         footer.dropEvents = self
@@ -1022,6 +1027,24 @@ public final class SidebarBodyView: NSView {
     }
     /// The accessory's height at a width (its content wraps).
     public var accessoryHeight: ((CGFloat) -> CGFloat)?
+    /// A view in place of the spaces view (the essentials, the lists, the
+    /// accessory) between the header and the footer, which stay: the Library
+    /// (⇧⌘L, 4.1a). `nil` shows the spaces again.
+    public var replacementView: NSView? {
+        didSet {
+            guard replacementView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            let replaced = replacementView != nil
+            grid?.isHidden = replaced
+            listContainer.isHidden = replaced
+            accessoryView?.isHidden = replaced
+            if let replacementView {
+                addSubview(replacementView)
+                setOverflow(above: false, below: false)
+            }
+            needsLayout = true
+        }
+    }
     /// Finishes the running slide at once (a new switch starts from the end state).
     private var finishSlide: (() -> Void)?
     /// The lists under a two-finger swipe: the current one and its neighbour.
@@ -1244,6 +1267,10 @@ public final class SidebarBodyView: NSView {
         let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + Spacing.xs : 0
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
+        if let replacementView {
+            replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - footerHeight))
+            return
+        }
         var listBottom = bounds.height - footerHeight
         if let accessoryView, !accessoryView.isHidden {
             let height = ceil(accessoryHeight?(width) ?? accessoryView.fittingSize.height)
