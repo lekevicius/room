@@ -275,7 +275,7 @@ struct RoutingRulesSheet: View {
             tryField
             HStack {
                 Spacer()
-                Button("Done", action: onDone).keyboardShortcut(model.editing == .none ? .defaultAction : .cancelAction)
+                Button("Done", action: onDone).keyboardShortcut(model.editing == .none ? .defaultAction : nil)
             }
         }
         .padding(20)

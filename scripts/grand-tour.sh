@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs, chrome,
-# layoutmodes, appintegration, netlog. `--only` takes step names, `--from` a step to start at.
+# layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -256,6 +256,9 @@ for appearance in "${appearances[@]}"; do
   group=appintegration
   ROOM_CAPTURE_DIR="$CAPS/app-2.8a" run app28a scripts/app-integration.sh --session 2.8a "$appearance"
   ROOM_CAPTURE_DIR="$CAPS/app-2.8b" run app28b scripts/app-integration.sh --session 2.8b "$appearance"
+  # 4.2: space routing: external links through the inbox's entry with rules, the default, the toast's
+  # Switch, links between spaces with the setting off and on, the routing sheet.
+  run routing scripts/routing-check.sh "$CAPS/routing"
 
   group=netlog
   run netlog scripts/netlog-check.sh "$STEPS/netlog"

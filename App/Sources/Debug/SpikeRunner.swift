@@ -93,6 +93,7 @@ enum SpikeRunner {
         case "spelling": await context.spellingChecks()
         case "archive": await context.archiveChecks()
         case "recovery": await context.recoveryChecks()
+        case "routing": await context.routingChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

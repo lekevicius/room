@@ -810,6 +810,33 @@ def _layoutmodes(c):
         c.number(key)
 
 
+# --- space routing (4.2) ------------------------------------------------------------------
+
+@step_check("routing")
+def _routing(c):
+    spike_from_out(c)
+    c.contains("rules", "1. contains route=work → Work", "2. equals localhost → Play", "3. contains site.html → Work (disabled)",
+               label="the fixture's three rules in order, one disabled")
+    c.contains("invalid_regex", "refused=true", "rules 3 → 3", "Not a valid regular expression", label="an invalid regex is refused at entry")
+    c.contains("external_rule_contains", "space=Work", "selected in its space=true", "shown space=Space", 'toast="Opened in Work" button=Switch',
+               "page=http://127.0.0.1:8770/other.html?route=work", label="external link, contains rule: in Work with the toast")
+    c.contains("external_rule_equals", "space=Play", "selected in its space=true", 'toast="Opened in Play"', label="external link, equals rule (host): in Play")
+    c.contains("external_no_rule", "space=Space", "in the card=true", "toast=none", label="no enabled rule: the most recent space, selected, no toast")
+    c.contains("toast_switch", "shown space=Work", "card=the routed tab", label="the toast's Switch shows the space with the routed tab")
+    c.contains("external_most_recent", "space=Work", "in the card=true", "toast=none", label="the most recent space follows the switch")
+    c.contains("external_chosen_default", "space=Play", 'toast="Opened in Play"', label="Settings ▸ Links' chosen space takes unmatched links")
+    c.contains("cross_space_off_blank", "space=Space", "under its opener=true", "toast=none", label="routing between spaces off: a target=_blank link stays under its opener")
+    c.contains("cross_space_on_blank", "space=Work", "shown space=Space", 'toast="Opened in Work"', label="on: a target=_blank link a rule names goes to Work")
+    c.contains("cross_space_on_command_click", "space=Work", 'toast="Opened in Work"', label="on: a ⌘-click a rule names goes to Work")
+    c.contains("cross_space_on_no_rule", "space=Space", "under its opener=true", label="on, no rule: the link stays under its opener")
+    c.contains("sheet", "shown=true", "editing=true", "match=contains", "pattern=127.0.0.1", "target=Space", label="Add Route for Domain… opens the sheet prefilled")
+    c.contains("sheet_try_url", "→ Opens in Play (rule 2)", "example.com → Opens in the default: ", label="Try a URL names the space")
+    c.contains("sheet_invalid_regex", "inline=Not a valid regular expression", "save refused=true", "rules=3", label="the sheet refuses an invalid regex inline")
+    c.contains("sheet_save", "saved=true", "rules=4", label="the sheet saves a rule")
+    c.check("the sheet closes", c.first("sheet_closed") == "true", c.first("sheet_closed") or "missing")
+    c.contains("rules_in_database", "3 of 3", label="the rules are in the database")
+
+
 # --- app integration (2.8) ---------------------------------------------------------------
 
 @step_check("app28a")

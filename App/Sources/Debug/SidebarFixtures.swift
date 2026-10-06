@@ -44,6 +44,9 @@ enum SidebarFixtures {
             case "archive":
                 try populateArchive(store, first: space, window: window)
                 return
+            case "routing":
+                try populateRouting(store, first: space, window: window)
+                return
             case "50":
                 for index in 0..<4 {
                     try sidebar.addEntry(.essential, url: "https://essential\(index).example.com", title: "Essential \(index)", space: space.id)
@@ -124,6 +127,8 @@ extension SidebarFixtures {
         while let id = sidebar.entries.keys.first { _ = try? sidebar.remove(id) }
         // The Archive is the sidebar's too (4.1a): the deleted spaces' rows go with them.
         sidebar.clearArchive()
+        // Routing rules (4.2): those for deleted spaces went with them; the first space's go too.
+        for rule in sidebar.routingRules { sidebar.removeRoutingRule(rule.id) }
     }
 
     /// The "Work" profile, made once: a second fixture on the same state
@@ -251,6 +256,26 @@ extension SidebarFixtures {
         store.windows.select(selected.id, space: space.id, window: window)
         store.windows.setActiveSpace(space.id, window: window)
         // The selection's own MRU stamp stays 48 h old: only the selection rule keeps it.
+    }
+
+    /// Phase 4.2 (`routing`): spaces "Space" (shown, a Today tab on 2.7's site page, selected), "Work" and
+    /// "Play" (one profile), and three rules in order: `contains` "route=work" → Work, `equals`
+    /// "localhost" → Play, and a disabled `contains` "site.html" → Work (it would catch every fixture URL).
+    static func populateRouting(_ store: RoomStore, first space: Space, window: UUID) throws {
+        let sidebar = store.sidebar
+        let work = try sidebar.createSpace(name: "Work", profile: space.profileID, icon: "briefcase", themeColors: ["#3B6FD8"])
+        let play = try sidebar.createSpace(name: "Play", profile: space.profileID, icon: "gamecontroller", themeColors: ["#E0663A"])
+        let home = try sidebar.addEntry(.today, url: "http://127.0.0.1:8770/site.html", title: "Routing Fixture Home", space: space.id)
+        try sidebar.addRoutingRule(.contains, pattern: "route=work", target: work.id)
+        try sidebar.addRoutingRule(.equals, pattern: "localhost", target: play.id)
+        try sidebar.addRoutingRule(.contains, pattern: "site.html", target: work.id, enabled: false)
+        store.windows.select(home.id, space: space.id, window: window)
+        store.windows.setActiveSpace(space.id, window: window)
+        // The settings start at their defaults (Most Recent Space, routing between spaces off).
+        store.settings.update {
+            $0.routeLinksBetweenSpaces = false
+            $0.externalLinksSpaceID = nil
+        }
     }
 }
 #endif
