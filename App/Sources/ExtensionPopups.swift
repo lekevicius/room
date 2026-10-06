@@ -11,7 +11,9 @@ import UIKitCore
 /// change or the page changes; a click runs the action, and the popup the
 /// engine opens shows in an `ExtensionPopover` on that button (or on the
 /// card's corner while the sidebar is hidden). The popover closing by
-/// itself (focus loss, Esc) tells the engine through the center.
+/// itself (focus loss, Esc) tells the engine through the center. Unpinned
+/// actions are in the overflow menu (4.5): a click there runs the action
+/// and its popup points at the overflow button; "Pin" pins it.
 final class ExtensionPopups: ExtensionPopupPresenting {
     private let center: ExtensionsCenter
     private weak var sidebar: SidebarController?
@@ -33,6 +35,7 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         self.rootView = rootView
         center.popupPresenter = self
         sidebar.addressField.onExtensionAction = { [weak self] id in self?.run(id) }
+        sidebar.addressField.onExtensionPin = { [weak self] id in self?.pin(id) }
         observe()
     }
 
@@ -48,6 +51,14 @@ final class ExtensionPopups: ExtensionPopupPresenting {
             Task { @MainActor in weakSelf.value?.observe() }
         }
         sidebar?.addressField.setExtensionActions(actions)
+        sidebar?.addressField.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage))
+    }
+
+    /// The overflow menu's "Pin": the action joins the header at the end of the pinned order.
+    func pin(_ id: InstalledExtension.ID) {
+        guard let section = center.section(profile: profileID),
+              let item = section.installed.first(where: { $0.id == id }) else { return }
+        center.setPinned(true, item, in: section)
     }
 
     /// A click on `id`'s button.

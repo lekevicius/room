@@ -28,6 +28,9 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
 
     private let settings: SettingsStore
     private let actions = ShortcutTable.actions
+    /// The extensions' commands with keys (4.5): read-only rows after the actions.
+    private let extensionCommands: () -> [(extension: String, title: String, shortcut: String)]
+    private(set) var extensionRows: [ExtensionShortcutRow] = []
     private(set) var table: ShortcutTable
     private(set) var pending: Pending?
     /// The last refusal or note under the table ("" when none).
@@ -40,8 +43,9 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private let resetAllButton = NSButton(title: "Reset All", target: nil, action: nil)
 
-    init(settings: SettingsStore) {
+    init(settings: SettingsStore, extensionCommands: @escaping () -> [(extension: String, title: String, shortcut: String)] = { [] }) {
         self.settings = settings
+        self.extensionCommands = extensionCommands
         table = ShortcutTable(overrides: settings.settings.shortcutOverrides)
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = NSSize(width: ShortcutsSettingsMetrics.width, height: ShortcutsSettingsMetrics.tableHeight + 130)
@@ -113,6 +117,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
     /// The window keeps the last section's height otherwise (the SwiftUI sections size it themselves).
     override func viewWillAppear() {
         super.viewWillAppear()
+        refresh()
         guard let window = view.window else { return }
         let content = window.contentRect(forFrameRect: window.frame)
         let size = preferredContentSize
@@ -238,6 +243,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
 
     private func refresh() {
         guard isViewLoaded else { return }
+        extensionRows = table.extensionRows(extensionCommands())
         tableView.reloadData()
         messageLabel.stringValue = message
         messageLabel.textColor = pending != nil || message.isEmpty ? .labelColor : .systemRed
@@ -257,9 +263,32 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
 
     // MARK: Table
 
-    func numberOfRows(in tableView: NSTableView) -> Int { actions.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { actions.count + extensionRows.count }
+
+    /// An extension command's row (4.5): its extension and title, the key as
+    /// text, the Room actions it takes the key from; no recorder, no reset.
+    private func extensionRowView(_ row: ExtensionShortcutRow, column: String?) -> NSView? {
+        switch column {
+        case "action":
+            let cell = tableView.makeView(withIdentifier: .init("actionCell"), owner: nil) as? ShortcutActionCell ?? ShortcutActionCell()
+            cell.identifier = .init("actionCell")
+            let taken = row.conflicts.isEmpty ? "" : " · takes the key from " + row.conflicts.map(title).joined(separator: ", ")
+            cell.set(title: "\(row.extensionName): \(row.title)", detail: "Extension · " + ExtensionShortcutRow.note + taken,
+                     marked: !row.conflicts.isEmpty)
+            return cell
+        case "key":
+            let label = NSTextField(labelWithString: row.shortcut)
+            label.font = Typography.row
+            label.textColor = row.conflicts.isEmpty ? .secondaryLabelColor : .systemOrange
+            label.toolTip = ExtensionShortcutRow.note
+            return label
+        default:
+            return nil
+        }
+    }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard row < actions.count else { return extensionRowView(extensionRows[row - actions.count], column: tableColumn?.identifier.rawValue) }
         let action = actions[row]
         let marked = markedIDs.contains(action.id)
         switch tableColumn?.identifier.rawValue {

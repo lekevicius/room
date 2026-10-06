@@ -122,3 +122,22 @@ struct ShortcutTableTests {
         #expect(ReservedShortcuts.shortcut(for: key("\u{F701}", code: 125, [.command, .option])) == Shortcut(.downArrow, [.command, .option]))
     }
 }
+
+/// ROADMAP 4.5: extension commands are listed read-only beside Room's
+/// actions; a command on a key a Room action has shows that action.
+@Suite("Shortcut table: extension rows")
+struct ExtensionShortcutRowsTests {
+    @Test("A command on Room's key names the action; another key none; a remap moves the conflict away")
+    func conflicts() {
+        let commands = [(extension: "Fixture", title: "Copy", shortcut: "⇧⌘C"),
+                        (extension: "Fixture", title: "Named", shortcut: "⇧⌘U")]
+        var table = ShortcutTable()
+        let rows = table.extensionRows(commands)
+        #expect(rows.map(\.conflicts) == [["copyPageURL:"], []])
+        #expect(rows.first?.extensionName == "Fixture")
+        #expect(ExtensionShortcutRow.note == "Change in chrome://extensions/shortcuts")
+        #expect(table.assign(ShortcutTable.parse("⌥⌘K"), to: "copyPageURL:") == .ok)
+        #expect(table.extensionRows(commands).map(\.conflicts) == [[], []])
+        #expect(table.extensionRows([(extension: "Fixture", title: "Media", shortcut: "")]).map(\.conflicts) == [[]])
+    }
+}

@@ -1180,6 +1180,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
                 canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
                 extensions: { [weak self] in self?.extensions },
+                shownPage: { [weak self] in
+                    guard let page = self?.tabs?.focusedPage, let profile = self?.sidebar?.activeSpace?.profileID else { return nil }
+                    return (page, profile)
+                },
                 sidebar: store.sidebar,
                 showRoutingRules: { [weak self] in self?.showRoutingRules(over: self?.settingsWindow?.window) },
                 showImportSheet: { [weak self] in self?.showImportSheet(nil) },

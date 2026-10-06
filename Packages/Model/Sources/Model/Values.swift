@@ -477,6 +477,10 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Settings ▸ Downloads (4.4a): PDFs open in Room's viewer (`true`, Chrome's
     /// default) or download; stored now, read by 4.7a.
     public var pdfsOpenInRoom: Bool = true
+    /// Settings ▸ Extensions (4.5): the extensions allowed in incognito, per
+    /// profile (profile id string → extension ids); stored now, applied by
+    /// 4.8b's incognito window (Chrome's own default: none allowed).
+    public var extensionsInIncognito: [String: [String]] = [:]
 
     public init() {}
 
@@ -485,6 +489,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
+        case extensionsInIncognito
     }
 
     public init(from decoder: any Decoder) throws {
@@ -521,6 +526,20 @@ public struct Settings: Hashable, Sendable, Codable {
             ?? defaults.searchEngineByProfile
         askWhereToSave = (try? container.decodeIfPresent(Bool.self, forKey: .askWhereToSave)).flatMap { $0 } ?? defaults.askWhereToSave
         pdfsOpenInRoom = (try? container.decodeIfPresent(Bool.self, forKey: .pdfsOpenInRoom)).flatMap { $0 } ?? defaults.pdfsOpenInRoom
+        extensionsInIncognito = (try? container.decodeIfPresent([String: [String]].self, forKey: .extensionsInIncognito)).flatMap { $0 }
+            ?? defaults.extensionsInIncognito
+    }
+
+    /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).
+    public func allowsInIncognito(_ extensionID: String, profile profileID: UUID) -> Bool {
+        extensionsInIncognito[profileID.uuidString]?.contains(extensionID) == true
+    }
+
+    public mutating func setAllowsInIncognito(_ allowed: Bool, _ extensionID: String, profile profileID: UUID) {
+        var ids = extensionsInIncognito[profileID.uuidString] ?? []
+        ids.removeAll { $0 == extensionID }
+        if allowed { ids.append(extensionID) }
+        extensionsInIncognito[profileID.uuidString] = ids.isEmpty ? nil : ids
     }
 }
 

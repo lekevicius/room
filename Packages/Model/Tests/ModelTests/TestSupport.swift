@@ -56,6 +56,8 @@ func sampleState() -> RoomState {
     settings.searchEngineByProfile = [profile.id.uuidString: "custom-1"]
     settings.askWhereToSave = true
     settings.pdfsOpenInRoom = false
+    // 4.5: an extension allowed in the profile's incognito window (for 4.8b).
+    settings.setAllowsInIncognito(true, "dibedkfpfkdkkcbjmblmfdbjdhdnlgkp", profile: profile.id)
     let rules = [
         RoutingRule(match: .contains, pattern: "github", targetSpaceID: work.id, position: 0),
         RoutingRule(match: .regex, pattern: #"^https://news\."#, targetSpaceID: home.id, position: 1, enabled: false),

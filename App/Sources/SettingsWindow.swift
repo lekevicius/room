@@ -52,7 +52,8 @@ final class SettingsWindowController: NSWindowController {
 
     init(settings: SettingsStore, services: SettingsServices) {
         self.services = services
-        shortcuts = ShortcutsSettingsViewController(settings: settings)
+        shortcuts = ShortcutsSettingsViewController(settings: settings,
+                                                    extensionCommands: { services.extensions()?.shortcutRows() ?? [] })
         tabs.tabStyle = .toolbar
         for section in Section.allCases {
             let controller: NSViewController
@@ -113,6 +114,9 @@ struct SettingsServices {
     let canCheckForUpdates: () -> Bool
     /// Chrome extensions per profile (3.6a); `nil` on an engine without them (no engine, the fakes).
     let extensions: () -> ExtensionsCenter?
+    /// The page in the browser window's card and its Room profile (4.5:
+    /// Settings ▸ Extensions sets site access for its host).
+    let shownPage: () -> (page: any WebContents, profile: UUID)?
     /// The spaces and their routing rules (4.2: the Links popup, Settings ▸ Spaces).
     let sidebar: SidebarStore
     /// The routing sheet over the Settings window.
@@ -138,7 +142,7 @@ private struct SettingsSectionView: View {
             case .downloads: downloads
             case .shortcuts: EmptyView()
             case .spaces: spaces
-            case .extensions: ExtensionsSettingsView(center: services.extensions())
+            case .extensions: ExtensionsSettingsView(center: services.extensions(), settings: settings, shownPage: services.shownPage())
             case .privacy: privacy
             }
         }
@@ -411,7 +415,12 @@ private struct SettingsSectionView: View {
 /// buttons in the sidebar's header (3.6b); side panels are not supported in v1.
 struct ExtensionsSettingsView: View {
     let center: ExtensionsCenter?
+    let settings: SettingsStore
+    /// The browser window's page when Settings opened (site access is set for its host).
+    let shownPage: (page: any WebContents, profile: UUID)?
     @State private var loadError: String?
+    /// Each extension's directory size on disk (bytes), computed off the main thread.
+    @State private var sizes: [String: Int64] = [:]
 
     var body: some View {
         if let center, !center.sections.isEmpty {
@@ -424,6 +433,8 @@ struct ExtensionsSettingsView: View {
                     ForEach(section.installed) { item in row(item, section: section, center: center) }
                     HStack {
                         Button("Load Unpacked…") { loadUnpacked(section: section, center: center) }
+                        Button("Keyboard Shortcuts…") { center.openShortcutsPage(in: section) }
+                            .help("Chrome's page for the extensions' keys, as a tab of this profile")
                         Button("Open chrome://extensions") { center.openManagementPage(in: section) }
                         Spacer()
                     }
@@ -438,8 +449,16 @@ struct ExtensionsSettingsView: View {
                         Text("Room checks installed extensions for updates once a day, and never while none is installed.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
-                    Text("Pinned extensions show in the sidebar's header. Side panels are not supported.")
+                    Text("Pinned extensions show in the sidebar's header in this order; the others are in its puzzle-piece menu.")
                         .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Section("Notes") {
+                ForEach(ExtensionStatements.lines, id: \.title) { line in
+                    LabeledContent { EmptyView() } label: {
+                        Text(line.title)
+                        Text(line.text)
+                    }
                 }
             }
         } else {
@@ -460,7 +479,7 @@ struct ExtensionsSettingsView: View {
                 }
             }
             .frame(width: 24, height: 24)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(item.name).fontWeight(.medium)
                     Text(item.version).foregroundStyle(.secondary)
@@ -474,17 +493,87 @@ struct ExtensionsSettingsView: View {
                     if item.isUnpacked { Button("Reload") { center.reload(item, in: section) } }
                     if item.action != nil {
                         Button(item.isPinned ? "Unpin" : "Pin") { center.setPinned(!item.isPinned, item, in: section) }
+                            .accessibilityIdentifier("extension-pin-\(item.id)")
                     }
                     Button("Remove…") { Task { await center.uninstall(item, in: section) } }
                 }
                 .buttonStyle(.link)
                 .font(.callout)
+                if item.isEnabled { siteAccess(item, section: section, center: center) }
+                Toggle(isOn: Binding(
+                    get: { settings.settings.allowsInIncognito(item.id, profile: section.id) },
+                    set: { allowed in settings.update { $0.setAllowsInIncognito(allowed, item.id, profile: section.id) } })) {
+                    Text("Allow in incognito").font(.callout)
+                }
+                .toggleStyle(.checkbox)
+                .help("Incognito windows arrive in Phase 4.8; the choice is kept for them.")
+                .accessibilityIdentifier("extension-incognito-\(item.id)")
+                DisclosureGroup("Details") { details(item) }
+                    .font(.callout)
             }
             Spacer()
             Toggle("", isOn: Binding(get: { item.isEnabled }, set: { center.setEnabled($0, item, in: section) }))
                 .toggleStyle(.switch)
                 .labelsHidden()
         }
+        .task(id: item.directory) { await measure(item) }
+    }
+
+    /// Site access for the shown page's host (Chrome's site-access menu, 4.5):
+    /// the levels the extension cannot take there are disabled.
+    @ViewBuilder
+    private func siteAccess(_ item: InstalledExtension, section: ExtensionsCenter.ProfileSection, center: ExtensionsCenter) -> some View {
+        let _ = center.actionRevision
+        if let shownPage, shownPage.profile == section.id, let host = shownPage.page.url?.host(),
+           let access = center.siteAccess(item.id, profile: section.id, page: shownPage.page) {
+            if access.wantsSite {
+                Picker(selection: Binding(
+                    get: { access.level },
+                    set: { level in center.setSiteAccess(level, item.id, profile: section.id, host: host) })) {
+                    ForEach(ExtensionSiteAccess.Level.allCases, id: \.self) { level in
+                        Text(level == .onSite ? "On \(host)" : ExtensionSiteAccess.title(level))
+                            .tag(level)
+                            .selectionDisabled(!access.selectable.contains(level))
+                    }
+                } label: {
+                    Text("Site access").font(.callout)
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                .disabled(!access.canAffect)
+                .accessibilityIdentifier("extension-site-access-\(item.id)")
+            } else {
+                Text("Does not ask for \(host).").font(.callout).foregroundStyle(.secondary)
+            }
+        } else {
+            Text("Site access: open a page of this profile, then choose here or in the site panel.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func details(_ item: InstalledExtension) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Version \(item.version)")
+            Text("Size on disk: " + (sizes[item.id].map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…"))
+            Text(item.isFromWebStore ? "From the Chrome Web Store" : item.isUnpacked ? "Unpacked from \(item.directory?.path ?? "a folder")" : "Installed from a file")
+            Text("ID \(item.id)").textSelection(.enabled)
+            if item.permissionMessages.isEmpty {
+                Text("It asks for no special permissions.")
+            } else {
+                Text("It can:")
+                ForEach(item.permissionMessages, id: \.self) { Text("• " + $0) }
+            }
+        }
+        .foregroundStyle(.secondary)
+        .padding(.leading, 4)
+    }
+
+    /// The extension directory's size, summed off the main thread.
+    private func measure(_ item: InstalledExtension) async {
+        guard let directory = item.directory else { return }
+        let bytes = await Task.detached(priority: .utility) { ExtensionStatements.directorySize(directory) }.value
+        sizes[item.id] = bytes
     }
 
     private func loadUnpacked(section: ExtensionsCenter.ProfileSection, center: ExtensionsCenter) {
@@ -502,6 +591,27 @@ struct ExtensionsSettingsView: View {
                 loadError = "\(error)"
             }
         }
+    }
+}
+
+/// Settings ▸ Extensions' one-line statements (4.5; `PrivacyStatements.lines`' shape).
+enum ExtensionStatements {
+    static let lines: [(title: String, text: String)] = [
+        ("Their own requests", "Extensions you install make their own requests (their updates and their own servers): those are the extension's, not Room's."),
+        ("Desktop apps", "Extensions that talk to a desktop app through native messaging cannot reach it from Room."),
+        ("Side panels", "Side panels are not supported: an extension's side panel does not open."),
+    ]
+
+    /// The bytes of every file under `directory` (nonisolated: Settings runs it off the main thread).
+    nonisolated static func directorySize(_ directory: URL) -> Int64 {
+        guard let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey])
+        else { return 0 }
+        var total: Int64 = 0
+        for case let file as URL in files {
+            let values = try? file.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .isRegularFileKey])
+            if values?.isRegularFile == true { total += Int64(values?.totalFileAllocatedSize ?? 0) }
+        }
+        return total
     }
 }
 

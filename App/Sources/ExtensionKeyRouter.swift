@@ -20,7 +20,8 @@ final class ExtensionKeyRouter {
     private let pageHasKeyboard: () -> Bool
     private let profile: () -> UUID?
     private let page: () -> (any WebContents)?
-    /// What the router did last (spikes read it): the key and whether an extension took it.
+    /// The last key the router looked at with the keyboard outside the page (spikes read it): its
+    /// shortcut and whether an extension took it (`false`: it went on to the menu).
     private(set) var lastRouted: (shortcut: String, handled: Bool)?
 
     init(center: ExtensionsCenter, window: @escaping () -> NSWindow?, pageHasKeyboard: @escaping () -> Bool,
@@ -47,7 +48,10 @@ final class ExtensionKeyRouter {
               let window = window(), event.window === window, !pageHasKeyboard(),
               let shortcut = ReservedShortcuts.shortcut(for: event) else { return false }
         let key = ShortcutTable.string(shortcut)
-        guard center.command(forShortcut: key, profile: profile()) != nil else { return false }
+        guard center.command(forShortcut: key, profile: profile()) != nil else {
+            lastRouted = (key, false)
+            return false
+        }
         let handled = center.performCommand(forShortcut: key, profile: profile(), page: page())
         lastRouted = (key, handled)
         return handled

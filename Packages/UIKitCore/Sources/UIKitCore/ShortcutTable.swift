@@ -240,3 +240,40 @@ public struct ShortcutTable: Sendable, Equatable {
         return Shortcut(key, modifiers)
     }
 }
+
+// MARK: Extension commands (4.5)
+
+/// An extension command's key as Settings ▸ Shortcuts lists it (read-only:
+/// the key is changed on Chrome's `chrome://extensions/shortcuts` page), with
+/// the Room actions that use the same key: an extension's key runs before
+/// Room's menu (the engine's registry while a page has the keyboard, the
+/// key router elsewhere, B-70), so such an action loses that key.
+public struct ExtensionShortcutRow: Equatable, Sendable {
+    public static let note = "Change in chrome://extensions/shortcuts"
+
+    public let extensionName: String
+    public let title: String
+    /// The key in the table's notation ("⇧⌘U").
+    public let shortcut: String
+    /// Room actions with the same key (ids), in the table's order.
+    public let conflicts: [String]
+
+    public init(extensionName: String, title: String, shortcut: String, conflicts: [String]) {
+        self.extensionName = extensionName
+        self.title = title
+        self.shortcut = shortcut
+        self.conflicts = conflicts
+    }
+}
+
+public extension ShortcutTable {
+    /// The rows for `commands` (an extension's name, the command's title, its
+    /// key), each with the Room actions on its key under the current overrides.
+    func extensionRows(_ commands: [(extension: String, title: String, shortcut: String)]) -> [ExtensionShortcutRow] {
+        commands.map { command in
+            let conflicts = Self.parse(command.shortcut).map { key in actions(using: key).map(\.id) } ?? []
+            return ExtensionShortcutRow(extensionName: command.extension, title: command.title, shortcut: command.shortcut,
+                                        conflicts: conflicts)
+        }
+    }
+}
