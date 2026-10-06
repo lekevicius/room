@@ -2638,3 +2638,80 @@ Dev build (`build/evidence-4.1b/download-remove-dev`; the official build compili
     result: passed (only the kept download is listed after the relaunch)
 
 Before this change the relaunch listed every download Chrome's `DownloadHistory` held (3.4a's B-28 check: 5 of 5 after Clear).
+
+Release framework (`ROOM_APP=build/roomcore-release/DerivedData/Build/Products/Debug/Room.app`, restaged from the new `out/release` by `roomcore-package.sh --release`, `RoomCoreCommit ccb9ff0`; `build/evidence-4.1b/download-remove-release`, load1 8.89, no build running):
+
+    download_remove: library removed=true rows after=0 cleared=true rows before clear=1 after=0 kept=room-2.6b-unknown.bin rows=1
+    download_restored: rows=1 room-2.6b-unknown.bin:complete:canResume=false
+    minidumps: 0
+    result: passed (only the kept download is listed after the relaunch)
+
+### Tour step `recovery` (group `lifecycle`; `scripts/recovery-check.sh`, spike `recovery` in two launches)
+
+**18 / 18 on the dev build** (`build/grand-tour/20261006-173552-roomcore`, 22 s, load1 3.62, no build running, 0 minidumps) and **18 / 18 on the release framework** (`build/grand-tour/20261006-173512-roomcore`, 17 s, load1 3.76; the first release run `20261006-172320` also 18 / 18). The dev run's lines:
+
+    prepared: spaces=Recovery Kept,Recovery Gone entries=6 selected=Room Test Site loaded=1
+    backup_taken: Room-2026-10-06T14-36-20.229Z.sqlite entries=6 spaces=2 generation=13
+    deleted: space_gone=true entries=3 archived=3 generation=14
+    kill_now: 84181
+    killed: 84181 with SIGKILL at 1791297380.290
+    == check
+    previous_exit: store_unclean=true clean=false (store uncleanExit=true, engine lastExitWasClean Default=false)
+    crash_recovered: true toast=none logged=true
+    restored_unloaded: entries=3 loaded=0 selected=Room Test Site card=card-empty-state
+    click_loads: loaded=1 selected_loaded=true
+    restore: ok=true space_back=true entries=3 database_space=true database_entries=3 generation=14->16 toast=Sidebar restored from 6 Oct 2026 at 17:36
+    before_restore_backup: count=1 entries=3
+    after_restore: spaces=Recovery Kept,Recovery Gone active=Recovery Kept selected=127.0.0.1:8770/site.html?recovery=kept1 loaded=1 footer_spaces=2
+    backups: files=4 before-restore:3e/1s/g15,rolling:3e/1s/g14,rolling:6e/2s/g13,rolling:6e/2s/g10
+    launch_backup: Room-2026-10-06T14-36-24.790Z.sqlite generation=14 4.8 ms
+
+The toast "Room restarted after a crash" (2 s, `Timing.toast`) is usually gone by the time the spike reads it (`toast=none`; it read the toast in the first standalone run); the check reads the launch log's line, written when the toast is shown (`logged=true`). The restore's generation moves by two: the unloads' navigation states flushed, then the restore's one write. `window_main: false` in every run (the Claude app frontmost; the check is not in this step).
+
+The first standalone run of the check crashed the dev build at Restore (`FATAL:chrome/browser/ui/browser.cc:645] Check failed: !IsDeleteScheduled()`, a `DUMP_WILL_BE_CHECK`, a dump without a crash on the release build): unloading every page empties the window's `Browser` strip, Chrome schedules its deletion, and the restored selection's page joined it in the same turn, because `RoomCoreProfile` retires a `RoomBrowser` only at `browserDidClose`. EngineRoomCore is frozen after the official build started: the restore holds a hidden blank page per engine profile in the window until the selection has its page (B-81).
+
+The launch backup: 2.0–4.8 ms for a 3–6-entry state (`VACUUM INTO` on the writer connection, off the main thread); none on a never-written state (generation 0).
+
+### Memory pressure across two spaces (`discardspaces`, `ROOM_SL_ONLY=discardspaces scripts/session-lifecycle.sh`)
+
+Space 1: a1, a2; space "Two": b1, b2, a playing tone; back in space 1, a3 opened and selected; last seen a1 < b1 < b2 < tone < a2. Critical pressure, the host's policy on.
+
+Dev (`build/evidence-4.1b/discardspaces-dev`, load1 4.8; Chromium's own notification through the spike hook):
+
+    twospaces_pages: a1@space1 a2@space1 b1@space2 b2@space2 tone@space2 a3@space1 selected=a3 active_space=1
+    twospaces_pressure: source=chromium=2 discards=a1@20ms,b1@1049ms,b2@2043ms,a2@3044ms
+    twospaces_order: a1,b1,b2,a2
+    twospaces_states_after: a1=discarded a2=discarded b1=discarded b2=discarded tone=alive a3=alive
+    twospaces_kept: a3_selected=alive tone_audible=alive audible=true
+
+Release framework (`build/evidence-4.1b/discardspaces-release`, load1 3.7; no spike hooks in the official framework, so the level goes to the host's policy directly):
+
+    twospaces_pressure: source=host discards=a1@10ms,b1@1027ms,b2@2026ms,a2@3032ms
+    twospaces_order: a1,b1,b2,a2
+    twospaces_states_after: a1=discarded a2=discarded b1=discarded b2=discarded tone=alive a3=alive
+    twospaces_kept: a3_selected=alive tone_audible=alive audible=true
+
+Least recently seen first across both spaces, one page a second (`Timing.criticalPressureStep`), the selected page and the audible one never; 0 minidumps on both. The first release run called the dev-only `roomSpikeAction:` and crashed on an unrecognized selector (the 3.7b `discardpolicy` spike does the same on the release framework, B-82); the spike now checks the hook first.
+
+### Kill test after B-73 and B-80 (`scripts/grand-tour.sh --no-build --only killtest light`, dev, `build/grand-tour/20261006-172013-roomcore`)
+
+    summary: 100 kills in 83.113661583 seconds, 0 failures
+      kills with a transaction in flight: 54 (rolled back to the previous generation: 54)
+      reopened ahead of the last ack (committed, ack not yet read; informational): 0
+      reopened behind the last ack (an acknowledged write lost): 0
+      final generation 106, 106 commits, 49 entries, 18348 archived, database 17460 KB
+      commit time median 11.671 ms, p95 16.646 ms, max 39.387 ms
+
+7 / 7 checks with the harness's `snapshotHash` blanking the navigation states too (B-73). Commit time unchanged against 4.1a (11.41 / 15.67 ms): the harness archives at its own present, so the 30-day retention prunes nothing in an 83 s run, and the 18k rows (2 % of steps archive) are still diffed on every commit; in use the Archive holds at most 30 days of rows and the rows past 7 days carry no navigation state. The diff cost stays 5.4's (B-80).
+
+### The JSON snapshot without navigation states (B-73)
+
+510 Today entries each with an 8.1 KB state (3.7b's worst case; a throwaway Model test, not committed): the snapshot **5,762,018 B before, 157,246 B after**; encoding it 17.4 → 4.3 ms (Debug test build, 20 encodes each). 3.7b's measured file on the 50k state was 5.66 MB.
+
+### Tour step `archive` after the retention (dev and release)
+
+27 / 28 on both (`20261006-173552` dev, `20261006-173512` release): the one failure is `window_main: false` (the Claude app frontmost). Before a spike fix, 25 / 28: the selected fixture tab loaded and took its page's title, so the spike's title lookup missed it ("Selected=false"); the 4.1a app built from `aecd3c5` gave the same 25 / 28 on this machine today, so it was the run's condition, not the retention; the spike now finds the fixture's tabs by URL too.
+
+### Unit tests (`CI=1 swift test`)
+
+Model 92 (+9: the backup planner ×6, the backup file, the snapshot without states, the retention rule), Store 43 (+2: restore, retention), Tabs 64 (+1: crash recovery), Chrome 52 (+1: Remove), Engine 59 (+1: FakeEngine's remove), Sidebar 38, UIKitCore 47, Design 9, Library 2: all pass; `scripts/tests/test_tour_checks.py` OK.
