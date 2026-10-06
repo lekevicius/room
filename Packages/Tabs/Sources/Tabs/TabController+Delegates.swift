@@ -36,6 +36,11 @@ extension TabController: WebContentsUIDelegate {
             newContents.close()
             return
         }
+        // Document picture-in-picture gets the app's floating panel (4.6, B-51); popups stay Today tabs.
+        if disposition == .newPictureInPicture, let presentPictureInPicture {
+            presentPictureInPicture(newContents, webContents, opener)
+            return
+        }
         adoptOpenedPage(newContents, url: targetURL, openedBy: opener, select: disposition != .newBackgroundTab, routable: fromEntry != nil)
     }
 

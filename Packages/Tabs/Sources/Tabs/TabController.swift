@@ -105,6 +105,10 @@ public final class TabController: SidebarHost {
     /// "Route links between spaces" setting; the source space or `nil` keeps
     /// it). Peek and in-place navigations never ask.
     @ObservationIgnored public var routeLink: ((_ url: String, _ sourceSpace: UUID) -> UUID?)?
+    /// A page opened a document picture-in-picture window (4.6, B-51): the
+    /// new page, its opener's page and the opener's entry. The app floats it
+    /// in a panel; without a handler it is a Today tab under the opener.
+    @ObservationIgnored public var presentPictureInPicture: ((_ contents: any WebContents, _ opener: any WebContents, _ entry: UUID) -> Void)?
     /// A link went to another space than its page's (the app's toast).
     @ObservationIgnored public var onLinkRouted: ((_ entry: UUID, _ space: UUID) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.

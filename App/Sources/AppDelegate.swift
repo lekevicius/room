@@ -49,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Extension commands while the sidebar or the palette has the keyboard (4.5, B-70).
     private(set) var extensionKeys: ExtensionKeyRouter?
     private(set) var switcher: TabSwitcher?
+    /// Document picture-in-picture panels (4.6).
+    private(set) var pictureInPicture: PictureInPicturePanels?
     /// The Library in the sidebar (⇧⌘L, ⌘Y; 4.1a, `LibraryUI.swift`).
     var library: LibraryController?
     /// The archive sweep: at launch and every 10 min while idle (spec §A.7, 4.1a).
@@ -543,6 +545,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
         // The footer's media row (4.6): its buttons call the page's media session controls.
         sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
+        // Document picture-in-picture floats in a panel at the card's corner (4.6, B-51).
+        let pictureInPicture = PictureInPicturePanels()
+        pictureInPicture.pageUIDelegate = tabs
+        pictureInPicture.cardScreenRect = { [weak rootView] in
+            guard let rootView, let window = rootView.window else { return NSScreen.main?.visibleFrame ?? .zero }
+            return window.convertToScreen(rootView.convert(rootView.currentLayout.card, to: nil))
+        }
+        tabs.presentPictureInPicture = { [weak pictureInPicture] contents, opener, entry in
+            pictureInPicture?.present(contents, opener: opener, entry: entry)
+        }
+        self.pictureInPicture = pictureInPicture
         // The engine's notices (infobars, the translate offer) as toasts (3.4b).
         pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }
         pageDelegate.chrome.dismissNotice = { [weak toasts] id in toasts?.dismiss(id: id) }

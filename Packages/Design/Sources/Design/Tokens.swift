@@ -130,6 +130,12 @@ public enum MediaRowMetrics {
     public static let gap: CGFloat = Spacing.xs
 }
 
+/// The document picture-in-picture panel (4.6, B-51).
+public enum PictureInPictureMetrics {
+    /// The smallest panel content (a page asking less gets this).
+    public static let minimumSize = CGSize(width: 160, height: 90)
+}
+
 /// The inset page card (PLAN §2.4).
 /// The Library in the sidebar (4.1a, ⇧⌘L): a search field, then the
 /// Archive, Downloads and History sections (chosen; Chapter 5 revisits).
