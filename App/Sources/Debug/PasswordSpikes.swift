@@ -257,11 +257,48 @@ extension SpikeRunner.Context {
 
     func passwordsChecks() async {
         await prepare37()
-        if UserDefaults.standard.string(forKey: "RoomPasswordsPhase") == "fill" {
-            await passwordFillPhase()
-        } else {
+        switch UserDefaults.standard.string(forKey: "RoomPasswordsPhase") {
+        case "fill": await passwordFillPhase()
+        case "import": await passwordImportPhase()
+        default:
             await passwordSavePhase()
         }
+    }
+
+    /// 4.3b (`-RoomPasswordsPhase import`): `Profile.importPasswords` on the
+    /// fixtures of `research/spikes/phase-4.3`: `passwords-saved.csv` first
+    /// (alice with `secret-a0`, standing for a password saved before), then
+    /// `passwords.csv` with `.skip` (alice's row conflicts and is kept; bob
+    /// and carol added; the malformed row skipped), then again with
+    /// `.replace` (alice becomes `secret-a2`). The `fill` phase after a
+    /// relaunch is the check that the imported passwords fill.
+    private func passwordImportPhase() async {
+        let fixtures = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-4.3")
+        guard let app = AppDelegate.current, let model = app.store?.sidebar.profiles.first,
+              let profile = await app.engineProfile(for: model) else {
+            return SpikeRunner.record("error", "import: no engine profile")
+        }
+        func run(_ label: String, _ file: String, _ policy: PasswordImportConflictPolicy) async {
+            guard let csv = try? String(contentsOf: fixtures.appending(path: file), encoding: .utf8) else {
+                return SpikeRunner.record("error", "import: \(file) unreadable")
+            }
+            let start = ContinuousClock.now
+            let result = await profile.importPasswords(csv: csv, conflicts: policy)
+            let rows = result.rows.map { "\($0.username)@\($0.url)=\($0.reason.rawValue)" }.joined(separator: ",")
+            SpikeRunner.record("import_\(label)", "status=\(result.status.rawValue) imported=\(result.imported) conflicts=\(result.conflicts) "
+                + "replaced=\(result.replaced) skipped=\(result.skipped) rows=[\(rows)] " + String(format: "%.0f ms", ms(since: start)))
+        }
+        await run("saved", "passwords-saved.csv", .skip)
+        await run("skip", "passwords.csv", .skip)
+        await run("replace", "passwords.csv", .replace)
+        // A second import while one runs is refused, not queued.
+        let other = "url,username,password\nhttp://127.0.0.1:9/,zed,z1\n"
+        let first = Task { @MainActor in await profile.importPasswords(csv: other, conflicts: .skip) }
+        let second = Task { @MainActor in await profile.importPasswords(csv: other, conflicts: .skip) }
+        let (a, b) = (await first.value, await second.value)
+        SpikeRunner.record("import_concurrent", "first=\(a.status.rawValue) second=\(b.status.rawValue)")
+        let bad = await profile.importPasswords(csv: "title,notes\nx,y\n", conflicts: .skip)
+        SpikeRunner.record("import_bad_header", "status=\(bad.status.rawValue)")
     }
 
     private func signIn(_ page: any WebContents, _ user: String, _ password: String) async {

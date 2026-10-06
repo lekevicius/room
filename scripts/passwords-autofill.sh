@@ -21,6 +21,9 @@
 # Recording for the shell that runs it).
 # Usage: scripts/passwords-autofill.sh [output directory] [-- extra app args]
 # ROOM_PA_ONLY=passwords|autofill runs one spike (passwords runs both phases).
+# ROOM_PA_ONLY=import (4.3b): `-RoomPasswordsPhase import` (Profile.importPasswords
+# on research/spikes/phase-4.3's CSVs: the saved one, then passwords.csv kept,
+# then replaced), then the relaunch's `fill` phase: the imported passwords fill.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
@@ -78,6 +81,10 @@ EXTRA_ARGS=("$@")
 only="${ROOM_PA_ONLY:-}"
 if [[ -z "$only" || "$only" == passwords ]]; then
   run passwords-save passwords -RoomPasswordsPhase save
+  run passwords-fill passwords -RoomPasswordsPhase fill
+fi
+if [[ "$only" == import ]]; then
+  run passwords-import passwords -RoomPasswordsPhase import
   run passwords-fill passwords -RoomPasswordsPhase fill
 fi
 if [[ -z "$only" || "$only" == autofill ]]; then
