@@ -38,6 +38,8 @@ nonisolated public enum CommitAction: Equatable, Sendable {
     case reloadCurrent
     /// Select an existing entry, showing its space first.
     case switchTo(entry: UUID, space: UUID?)
+    /// Restore an archived tab to its space and select it (spec §H).
+    case restoreArchived(id: UUID)
     /// Run a registry command (the palette closes first).
     case runCommand(id: String)
     /// Put a site-search chip in the field (the palette stays open).
@@ -83,6 +85,12 @@ nonisolated public enum PaletteSemantics {
             case .none: return .switchTo(entry: id, space: space)
             case .command: return url.map { .openTab(url: $0, background: false) } ?? .switchTo(entry: id, space: space)
             case .option: return url.map { .openTab(url: $0, background: true) } ?? .switchTo(entry: id, space: space)
+            }
+        case .restoreArchived(let id, let url):
+            switch modifier {
+            case .none: return .restoreArchived(id: id)
+            case .command: return .openTab(url: url, background: false)
+            case .option: return .openTab(url: url, background: true)
             }
         case .command(let id):
             return .runCommand(id: id)

@@ -37,6 +37,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public var commands: () -> [OmniboxCommand] = { [] }
     /// Runs a command by identifier after the palette closed.
     public var onCommand: ((String) -> Void)?
+    /// Enter on an archived tab's row: the app restores it to its space, selected (spec §H).
+    public var onRestoreArchived: ((UUID) -> Void)?
     /// The palette closed (the hidden sidebar's overlay it kept open may go, spec §E).
     public var onClose: (() -> Void)?
     /// The default engine (Settings ▸ Search).
@@ -439,8 +441,10 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         } else {
             ensureContext()
             snapshotDone = ContinuousClock.now
-            // History is the engine's (Chrome's autocomplete, mapped in `engineMatches`).
+            // History is the engine's (Chrome's autocomplete, mapped in `engineMatches`);
+            // archived tabs join it with their chip (spec §H, 4.1a).
             localMatches = omnibox.candidates(for: input, in: context)
+                + ArchiveMatching.matches(for: input, archive: sidebar.store.sidebar.archive.values, now: context.now)
         }
         startEngine()
         let providersDone = ContinuousClock.now
@@ -624,6 +628,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         }
         let hint: String? = switch match.action {
         case .switchToEntry: "Switch to Tab"
+        case .restoreArchived: "Restore"
         case .command: "Run"
         default: nil
         }
@@ -788,6 +793,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         case .switchTo(let entry, let space):
             if let space, space != sidebar.activeSpaceID { sidebar.showSpace(space) }
             sidebar.select(entry)
+        case .restoreArchived(let id):
+            onRestoreArchived?(id)
         case .runCommand(let id):
             onCommand?(id)
         case .enterSiteSearch, .none:

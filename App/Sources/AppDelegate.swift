@@ -522,6 +522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         palette.siteFavicon = { [weak tabs] url in tabs?.favicon(forURL: url) }
         palette.commands = { [weak self] in self?.paletteCommands() ?? [] }
         palette.onCommand = { [weak self] id in self?.runPaletteCommand(id) }
+        palette.onRestoreArchived = { [weak self] id in self?.restoreArchived(id) }
         let settings = store.settings
         palette.searchEngine = { [weak settings] in SearchEngine.named(settings?.settings.searchEngine) }
         palette.suggestionsEnabled = { [weak settings] in settings?.settings.searchSuggestions ?? false }

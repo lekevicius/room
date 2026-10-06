@@ -79,6 +79,12 @@ public struct OmniboxResult: Hashable, Sendable {
                 unique[index].action = match.action
                 unique[index].spaceName = match.spaceName
             }
+            // The same page from history and from the Archive: the row restores
+            // the archived tab and carries its chip (spec §H).
+            if case .restoreArchived = match.action, unique[index].provider == .history, case .navigate = unique[index].action {
+                unique[index].action = match.action
+                unique[index].spaceName = match.spaceName
+            }
         }
         for match in ordered where match.keepsSlot {
             if let index = unique.firstIndex(where: { $0.dedupeKey == match.dedupeKey }) { unique[index].keepsSlot = true }

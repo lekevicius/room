@@ -249,3 +249,18 @@ struct PaletteControllerTests {
         #expect(!f.palette.isOpen)
     }
 }
+
+@Suite("Palette: archived rows (spec §H)")
+struct PaletteArchivedCommitTests {
+    @Test("Enter on an archived row restores it; ⌘Enter and ⌥Enter open a copy of its page")
+    func commit() {
+        let id = UUID()
+        let action = MatchAction.restoreArchived(id: id, url: "https://a.example/")
+        #expect(PaletteSemantics.commit(mode: .new, action: action, textUnchanged: false, modifier: .none, hasCurrent: true)
+            == .restoreArchived(id: id))
+        #expect(PaletteSemantics.commit(mode: .new, action: action, textUnchanged: false, modifier: .command, hasCurrent: true)
+            == .openTab(url: "https://a.example/", background: false))
+        #expect(PaletteSemantics.commit(mode: .new, action: action, textUnchanged: false, modifier: .option, hasCurrent: true)
+            == .openTab(url: "https://a.example/", background: true))
+    }
+}

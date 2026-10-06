@@ -93,6 +93,9 @@ public enum MatchAction: Hashable, Sendable {
     /// Paste & Go (spec §C top hit): the clipboard holds a URL; it is read
     /// only when this row is chosen (no paste-access prompt before).
     case pasteAndGo
+    /// An archived tab (spec §H: the History group's "Archived" chip): Enter
+    /// restores it to its space, selected; ⌘Enter opens a copy of `url`.
+    case restoreArchived(id: UUID, url: String)
 
     /// The page this action ends on, if it is a page (dedupe key, copies).
     public var url: String? {
@@ -100,6 +103,7 @@ public enum MatchAction: Hashable, Sendable {
         case .navigate(let url): url
         case .search(_, let url): url
         case .switchToEntry(_, _, let url): url
+        case .restoreArchived(_, let url): url
         case .command, .enterSiteSearch, .pasteAndGo: nil
         }
     }
@@ -128,7 +132,8 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
     /// The URL or domain under the title.
     public var detail: String?
     public var icon: MatchIcon
-    /// The space name chip of a tab or pinned entry in another space (spec §C).
+    /// The chip: the space name of a tab or pinned entry in another space
+    /// (spec §C), or "Archived" on an archived tab (spec §H).
     public var spaceName: String?
     /// Text that completes the input in the field when this is the top hit
     /// (spec §C: from history only, 2.4b; the scorer drops it otherwise).

@@ -340,7 +340,7 @@ Spec: `ROADMAP.md` Chapter 4 (written 2026-10-06). One line per task; exit crite
 - [x] 4.1a: Schema v7 `archive`; `SidebarStore.archive(_:reason:)` and `restore(archived:)`
 - [x] 4.1a: The sweep (every 10 min idle and at launch; the exemptions); Clear, Archive, Archive Below through it; `deleteSpace` through the archive (B-15)
 - [x] 4.1a: `Packages/Library` in the sidebar (⇧⌘L swaps the spaces view; Esc back): search, Archive, Downloads, History (⌘Y; with `history-archive.json` rows, B-66)
-- [ ] 4.1a: The palette's History group shows archived entries with the chip; Enter restores
+- [x] 4.1a: The palette's History group shows archived entries with the chip; Enter restores
 - [ ] 4.1a: Tour step `archive` (injected clock); by-hand list
 - [ ] 4.1b: Rolling backups (`VACUUM INTO`, the schedule, pruning; tests on a fake clock); Help ▸ Restore Sidebar…; the JSON snapshot without navigation states (B-73)
 - [ ] 4.1b: Crash recovery (every entry unloaded, the toast); memory-pressure discard verified across two spaces
