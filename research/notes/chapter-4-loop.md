@@ -19,3 +19,7 @@ Outcome: accepted; the phase closed with every exit item behind a measured line.
 ### 4.2 — accepted; Phase 4.2 closed; the DMG (2026-10-06 17:52 → 18:36, 44 min; the DMG 18:37 → 18:40)
 
 Outcome: accepted; the phase closed in one session with every exit item behind a measured line. Routing rules (schema v8), the external and cross-space evaluation with the toast, the sheet from three entry points, B-35 (a Peek page's fullscreen expands it first), B-57 closed on the release framework (69.5 ms median first paint), B-82's guard; tour step `routing` 25 / 25 and the Peek table 35 / 35 on both builds. Decisions: 4.8a's schema is v9; "most recent space" is the key window's active space until 4.8a; B-83 (the fullscreen restore during the enter animation) to 5.6. The DMG: version 3, `build/sparkle-4.2/Room-0.1.0-3.dmg`, no engine change. User's list: Phase 4.2 steps 11–19 (nine). No "3.9 week" rows yet.
+
+### 4.3a — accepted (2026-10-06 18:44 → 19:29, 45 min)
+
+Outcome: accepted. The readers for every format on hand-made fixtures (Chrome's History from a headless run on a throwaway profile), the plan with its preview, the sheet, tour step `import` 31 / 31 on both builds. Decisions: extensions from another browser are installed by opening their Web Store pages one after another through 3.6a's consent (no twelfth member); a Firefox `places.sqlite` reader is 4.3b's bounded item; B-84 (scale) measured on a generated fixture in 4.3b; B-81's engine fix rides 4.3b's engine step. User's list: Phase 4.3a steps 20–24. DMG: 4.2's (the phase's DMG comes after 4.3b).
