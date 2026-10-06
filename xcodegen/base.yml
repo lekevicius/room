@@ -54,6 +54,8 @@ packages:
     path: Packages/Integration
   Library:
     path: Packages/Library
+  Import:
+    path: Packages/Import
 # Settings Room.app has with or without its engine (the Room target here, the
 # RoomCore app target in xcodegen/roomcore.yml).
 settingGroups:
@@ -156,6 +158,7 @@ targets:
       - package: Omnibox
       - package: Palette
       - package: Library
+      - package: Import
       - package: Integration
         product: Integration
       - package: Integration
@@ -188,6 +191,7 @@ schemes:
         - package: Omnibox/OmniboxTests
         - package: Palette/PaletteTests
         - package: Library/LibraryTests
+        - package: Import/ImportTests
         - package: Integration/IntegrationTests
     archive:
       config: Release

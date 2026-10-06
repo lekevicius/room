@@ -65,6 +65,7 @@ targets:
       - package: Omnibox
       - package: Palette
       - package: Library
+      - package: Import
       - package: Integration
         product: Integration
       - package: Integration
