@@ -837,6 +837,52 @@ def _routing(c):
     c.contains("rules_in_database", "3 of 3", label="the rules are in the database")
 
 
+# --- import (4.3a) ---------------------------------------------------------------------
+
+@step_check("import")
+def _import(c):
+    """ROADMAP 4.3a (`scripts/import-check.sh`, the fixtures of research/spikes/phase-4.3
+    listed with -RoomImportSource on the `import` fixture): the sheet opens with the
+    fixtures; every reader's counts; nothing written before Import; each import's
+    preview equals the store's rows after it; the duplicates, the depth clip at 5,
+    the Essentials cap of 12, Arc's spaces with icons, colours and profiles (one
+    "Work" profile, made or reused); the history found through the engine in the
+    same launch; the rows in the database; the sheet closes."""
+    v = c.first
+    spike_from_out(c)
+    c.contains("sheet_open", "shown=true", "picked=none", "arc (fixture)", "chrome (fixture)", "netscape (fixture)", "safari (fixture)",
+               label="the sheet opens over the window, nothing picked, the four fixtures listed")
+    c.contains("read_chrome", "bookmarks=31 folders=9", "history=10 visits=16", "extensions=2 skipped=1", "errors=0",
+               "profiles=Person 1/Work", label="Chrome's readers: Bookmarks, History, Preferences, Local State's profiles")
+    c.contains("read_safari", "bookmarks=10 folders=4 skipped=1", "history=4 visits=6", "errors=0", label="Safari's readers: plist, History.db")
+    c.contains("read_netscape", "bookmarks=7 folders=3 skipped=1", "errors=0", label="the Netscape reader")
+    c.contains("read_arc", "arc spaces=3 profiles=2 essentials=3 pinned=6 folders=2 today=3 skipped=2", "errors=0", label="Arc's sidebar reader")
+    c.contains("nothing_before_import", "unchanged=true", "dirty=false", label="nothing is written before Import (four reads and previews)")
+    for label in ("chrome", "safari", "netscape", "arc"):
+        c.contains(f"{label}_applied", "equal=true", label=f"{label}: the store's rows after the import equal the preview")
+    c.contains("chrome_preview", "spaces=1", "pinned=15", "essentials=12", "folders=7", "duplicates=3", "flattened=2", "overflow=2",
+               "history=9", label="Chrome's preview: one space, the bar into Essentials, the clip, the duplicates")
+    c.contains("chrome_applied", "history urls=8", "expired=2/1", label="Chrome's history into the engine (visits over 89 days counted out)")
+    c.contains("essentials_cap", "essentials=12 cap=12", "overflow pinned=Site 11,Site 12", label="the Essentials cap: 12, the rest pinned")
+    c.contains("depth_clip", "max depth=5", "flattened=2", "L5 holds=Level 5,Six,Seven", label="folders clipped at depth 5")
+    c.contains("safari_preview", "spaces=5", "history=4", label="Safari: a space per top-level folder plus the target")
+    c.contains("safari_spaces", "Safari,Dev,Recipes,Reading List,Travel", label="Safari's folders became spaces (the Reading List one of them)")
+    c.contains("netscape_preview", "spaces=0", "folders=3", "pinned=5", "duplicates=1", label="Netscape into Space: the essential Docs is a duplicate")
+    c.contains("arc_preview", "spaces=3", "essentials=1", "today=2", "overflow=2", label="Arc's preview")
+    c.contains("arc_spaces", "Home icon=🏠 colors=#3366CC profile=Default", "Work icon=💼 colors=#CC4D33 profile=Work", "Side icon=none",
+               label="Arc's spaces with their icons, colours and profiles")
+    c.contains("arc_profiles", "work profiles=1", "work essentials=Chat", label="one Work profile (made or reused) with its essential")
+    c.contains("history_search", "Typed three times=https://example.org/typed visits=3 typed=3", "Swift.org=https://swift.org/",
+               label="imported history is found through ProfileHistory.search in the same launch")
+    c.check("the toast names the import", (v("toast") or "").startswith('"Imported from '), v("toast") or "missing")
+    db = v("database") or ""
+    m = re.findall(r"(\d+) of (\d+)", db)
+    c.check("the rows are in the database", len(m) == 3 and all(a == b for a, b in m), db or "missing")
+    c.check("the sheet closes", v("sheet_closed") == "true", v("sheet_closed") or "missing")
+    for key in ("read_chrome", "read_safari", "read_netscape", "read_arc", "chrome_applied"):
+        c.number(key)
+
+
 # --- app integration (2.8) ---------------------------------------------------------------
 
 @step_check("app28a")

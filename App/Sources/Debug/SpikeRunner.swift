@@ -94,6 +94,7 @@ enum SpikeRunner {
         case "archive": await context.archiveChecks()
         case "recovery": await context.recoveryChecks()
         case "routing": await context.routingChecks()
+        case "import": await context.importChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

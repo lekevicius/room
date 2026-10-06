@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs, chrome,
-# layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing), netlog. `--only` takes step names, `--from` a step to start at.
+# layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -259,6 +259,9 @@ for appearance in "${appearances[@]}"; do
   # 4.2: space routing: external links through the inbox's entry with rules, the default, the toast's
   # Switch, links between spaces with the setting off and on, the routing sheet.
   run routing scripts/routing-check.sh "$CAPS/routing"
+  # 4.3a: import from the fixtures (research/spikes/phase-4.3) as detected installs: the readers'
+  # counts, each preview against the store after it, the depth clip, the Essentials cap, Arc's spaces, history.
+  run import scripts/import-check.sh "$CAPS/import"
 
   group=netlog
   run netlog scripts/netlog-check.sh "$STEPS/netlog"

@@ -15,7 +15,7 @@ import Store
 /// in its Today list (`research/spikes/phase-2.5/page.html`; `-RoomSpike
 /// spaces` loads them and times the switches, ROADMAP 2.5 exit).
 /// `archive` (4.1a): Today tabs aged on the store's clock for the archive
-/// sweep (`populateArchive`).
+/// sweep (`populateArchive`). `import` (4.3a): the seed's shape, empty.
 enum SidebarFixtures {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSidebarFixture") }
 
@@ -46,6 +46,9 @@ enum SidebarFixtures {
                 return
             case "routing":
                 try populateRouting(store, first: space, window: window)
+                return
+            case "import":
+                // 4.3a: the seed's shape (one space, no entries); the import spike fills it.
                 return
             case "50":
                 for index in 0..<4 {
