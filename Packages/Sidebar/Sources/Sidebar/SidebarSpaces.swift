@@ -309,12 +309,12 @@ extension SidebarController {
         let crossing = ProfileRules.crossingEntries(moving, into: space, entries: sidebar.entries)
         guard warnCrossProfile(crossing.count, into: space) else { return false }
         if let selected = selectedEntryID, moving.contains(where: { $0.id == selected }),
-           let plan = sidebar.closePlan(for: selected, behavior: .close, space: tree.spaceID) {
+           let plan = sidebar.closePlan(for: selected, behavior: .close, space: tree.spaceID, window: windowID) {
             applyFallback(plan.fallback)
         }
         let today = moving.filter { $0.kind == .today }.map(\.id)
         let pinned = moving.filter { $0.kind != .today }.map(\.id)
-        if !today.isEmpty { try? sidebar.move(today, to: .today(space: spaceID), insertingAt: 0) }
+        if !today.isEmpty { try? sidebar.move(today, to: .today(space: spaceID, window: windowID), insertingAt: 0) }
         if !pinned.isEmpty { try? sidebar.move(pinned, to: .pinned(space: spaceID, folder: nil), insertingAt: .max) }
         clearMultiSelection()
         toasts?.show(Toast(id: "moved", symbol: .moveTo, message: "Moved to \(space.name)"))
@@ -344,7 +344,7 @@ extension SidebarController: SpaceIconDropEvents {
         if !ids.isEmpty { return moveEntries(ids, toSpace: space) }
         let urls = URLFixup.dropURLs(from: info.draggingPasteboard)
         guard !urls.isEmpty else { return false }
-        for (offset, url) in urls.enumerated() { _ = try? sidebar.addEntry(.today, url: url, space: space, at: offset) }
+        for (offset, url) in urls.enumerated() { _ = try? sidebar.addEntry(.today, url: url, space: space, window: windowID, at: offset) }
         if let name = sidebar.space(space)?.name {
             toasts?.show(Toast(id: "added", symbol: .newTab, message: urls.count == 1 ? "Added to \(name)" : "\(urls.count) tabs added to \(name)"))
         }

@@ -87,11 +87,15 @@ final class Mutator {
     let store: RoomStore
     var random: SeededGenerator
     let window: UUID
+    /// A second window (schema v9, 4.8a): opened with Today tabs of its own,
+    /// closed with them archived (`windowClosed`) in the same write.
+    var secondWindow: UUID?
 
     init(store: RoomStore, seed: UInt64) {
         self.store = store
         random = SeededGenerator(state: seed)
         window = store.windows.restoreOrCreateWindow(defaultSidebarWidth: 240, space: store.sidebar.spaces.first?.id).id
+        secondWindow = store.windows.windows.dropFirst().first?.id
     }
 
     var sidebar: SidebarStore { store.sidebar }
@@ -107,7 +111,9 @@ final class Mutator {
         case 1:
             let folder = pick(sidebar.entries.values.filter { $0.kind == .folder && $0.spaceID == space.id })
             return .pinned(space: space.id, folder: Bool.random(using: &random) ? folder?.id : nil)
-        default: return .today(space: space.id)
+        default:
+            // Either window's Today list (`nil`: the default, the first window).
+            return .today(space: space.id, window: Bool.random(using: &random) ? secondWindow : nil)
         }
     }
 
@@ -141,7 +147,24 @@ final class Mutator {
                         try sidebar.setNavigationState(entry.id, Data((0..<size).map { _ in UInt8.random(in: 0...255, using: &random) }))
                     }
                 }
-            case 64..<72:
+            case 70..<72:
+                // Windows: a second one opens with a Today tab, gains one, or closes (its Today tabs archived).
+                if let second = secondWindow {
+                    if Bool.random(using: &random) {
+                        try sidebar.addEntry(.today, url: url(), space: space.id, window: second)
+                        store.windows.select(sidebar.today(space: space.id, window: second).last?.id, space: space.id, window: second)
+                    } else {
+                        sidebar.archiveToday(window: second)
+                        store.windows.removeWindow(second)
+                        secondWindow = nil
+                    }
+                } else {
+                    let frame = CGRect(x: Double(Int.random(in: 0...400, using: &random)), y: 100, width: 900, height: 700)
+                    let second = store.windows.createWindow(frame: frame, sidebarWidth: 240, space: space.id).id
+                    secondWindow = second
+                    try sidebar.addEntry(.today, url: url(), space: space.id, window: second)
+                }
+            case 64..<70:
                 if let entry {
                     try sidebar.markActive(entry.id)
                     store.windows.select(entry.id, space: entry.spaceID ?? space.id, window: window)

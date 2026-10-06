@@ -151,13 +151,18 @@ public struct Entry: Hashable, Sendable, Codable, Identifiable, FetchableRecord,
     /// unload, ⇧⌘T) goes Back where it was. `nil` when the page had none or
     /// the engine cannot serialise it.
     public var navigationState: Data?
+    /// The window a Today tab belongs to (schema v9, Phase 4.8a; spec §J):
+    /// each window has its own Today list, closing it archives them.
+    /// `nil` for essentials, pinned entries and folders, which every window
+    /// shows (and for Today tabs of a state with no window yet).
+    public var windowID: UUID?
 
     public init(
         id: UUID = UUID(), kind: EntryKind, spaceID: UUID?, profileID: UUID, folderID: UUID? = nil,
         splitGroupID: UUID? = nil, position: Int = 0, storedURL: String? = nil, storedTitle: String? = nil,
         customLabel: String? = nil, customIcon: String? = nil, faviconID: Int64? = nil,
         isCollapsed: Bool = false, createdAt: Timestamp = .now, lastActiveAt: Timestamp? = nil,
-        liveURL: String? = nil, liveTitle: String? = nil, navigationState: Data? = nil
+        liveURL: String? = nil, liveTitle: String? = nil, navigationState: Data? = nil, windowID: UUID? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -177,6 +182,7 @@ public struct Entry: Hashable, Sendable, Codable, Identifiable, FetchableRecord,
         self.liveURL = liveURL
         self.liveTitle = liveTitle
         self.navigationState = navigationState
+        self.windowID = kind == .today ? windowID : nil
     }
 
     /// The URL a click loads: the live page if there is one, else the stored one.

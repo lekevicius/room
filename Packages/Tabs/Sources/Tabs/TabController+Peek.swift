@@ -152,7 +152,7 @@ extension TabController {
         guard let sidebar, let opener = store.sidebar.entry(openerID) else { return nil }
         let space = opener.spaceID ?? sidebar.activeSpaceID
         let lastRelated = relatedChain?.opener == openerID ? relatedChain?.last : nil
-        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space))
-        return try? store.sidebar.addEntry(.today, url: url, space: space, at: index)
+        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space, window: windowID))
+        return try? store.sidebar.addEntry(.today, url: url, space: space, window: windowID, at: index)
     }
 }

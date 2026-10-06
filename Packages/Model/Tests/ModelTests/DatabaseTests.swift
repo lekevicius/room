@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 to v8 apply in order; v6 leaves no Chapter 2 history table behind")
+    @Test("v1 to v9 apply in order; v6 leaves no Chapter 2 history table behind")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
@@ -17,7 +17,7 @@ struct SchemaTests {
         }
         #expect(history.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6, Schema.v7, Schema.v8])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6, Schema.v7, Schema.v8, Schema.v9])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }
@@ -171,7 +171,7 @@ struct SchemaTests {
         try queue.write { db in
             try profile.insert(db)
             try space.insert(db)
-            try entry.insert(db)
+            try insertBeforeV9(entry, db)
         }
         #expect(try queue.read { db in try db.tableExists("archive") } == false)
         migrator = Schema.migrator
@@ -214,7 +214,7 @@ struct SchemaTests {
         try queue.write { db in
             try profile.insert(db)
             try space.insert(db)
-            try entry.insert(db)
+            try insertBeforeV9(entry, db)
             try row.insert(db)
         }
         #expect(try queue.read { db in try db.tableExists("routing_rule") } == false)
@@ -236,6 +236,63 @@ struct SchemaTests {
         #expect(throws: DatabaseError.self) {
             try queue.write { db in try RoutingRule(match: .contains, pattern: "x", targetSpaceID: UUID()).insert(db) }
         }
+    }
+
+    @Test("v9 gives the Today rows of a v8 state to the first window by position; permanent entries stay shared (NULL)")
+    func v9EntryWindow() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let queue = try DatabaseQueue(path: directory.url.appending(path: "Room.sqlite").path)
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v8)
+        let profile = Profile(name: "P", position: 0)
+        let space = Space(name: "S", profileID: profile.id, position: 0)
+        // Two windows: the first by position is not the first inserted.
+        let second = WindowState(sidebarWidth: 240, activeSpaceID: space.id, position: 1)
+        let first = WindowState(sidebarWidth: 240, activeSpaceID: space.id, position: 0)
+        let today1 = Entry(kind: .today, spaceID: space.id, profileID: profile.id, position: 0, liveURL: "https://a.example/")
+        let today2 = Entry(kind: .today, spaceID: space.id, profileID: profile.id, position: 1, liveURL: "https://b.example/")
+        let pinned = Entry(kind: .pinned, spaceID: space.id, profileID: profile.id, storedURL: "https://p.example/")
+        let essential = Entry(kind: .essential, spaceID: nil, profileID: profile.id, storedURL: "https://e.example/")
+        let folder = Entry(kind: .folder, spaceID: space.id, profileID: profile.id, position: 1, customLabel: "F")
+        try queue.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            try second.insert(db)
+            try first.insert(db)
+            for entry in [today1, today2, pinned, essential, folder] { try insertBeforeV9(entry, db) }
+        }
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+        let read = try queue.read { db in try Entry.fetchAll(db) }
+        let byID = Dictionary(uniqueKeysWithValues: read.map { ($0.id, $0) })
+        #expect(byID[today1.id]?.windowID == first.id && byID[today2.id]?.windowID == first.id)
+        #expect(byID[pinned.id]?.windowID == nil && byID[essential.id]?.windowID == nil && byID[folder.id]?.windowID == nil)
+        // Everything else is as it was.
+        var expected = today1
+        expected.windowID = first.id
+        #expect(byID[today1.id] == expected && byID[pinned.id] == pinned)
+        // A state with no window row keeps its Today rows window-less (the first window adopts them).
+        let bare = try DatabaseQueue()
+        migrator = Schema.migrator
+        try migrator.migrate(bare, upTo: Schema.v8)
+        try bare.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            try insertBeforeV9(today1, db)
+        }
+        try migrator.migrate(bare)
+        #expect(try bare.read { db in try Entry.fetchOne(db, key: today1.id) }?.windowID == nil)
+    }
+
+    @Test("A JSON snapshot from before v9 decodes with window-less entries")
+    func entryDecodesWithoutWindow() throws {
+        let state = sampleState()
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as! [String: Any]
+        json["entries"] = (json["entries"] as! [[String: Any]]).map { entry in entry.filter { $0.key != "windowID" } }
+        let decoded = try JSONDecoder().decode(RoomState.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(decoded.entries.allSatisfy { $0.windowID == nil })
+        #expect(state.entries.contains { $0.kind == .today && $0.windowID != nil })
     }
 
     @Test("A JSON snapshot from before v8 decodes with no rules; snapshots keep the rules and the routing settings")
@@ -323,7 +380,7 @@ struct SchemaTests {
         #expect(Set(columns) == [
             "id", "kind", "spaceID", "profileID", "folderID", "splitGroupID", "position", "storedURL", "storedTitle",
             "customLabel", "customIcon", "faviconID", "isCollapsed", "createdAt", "lastActiveAt", "liveURL", "liveTitle",
-            "navigationState",
+            "navigationState", "windowID",
         ])
     }
 

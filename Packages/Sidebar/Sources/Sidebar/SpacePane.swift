@@ -17,9 +17,9 @@ final class SpacePane {
     /// The outline has its rows (`reloadData` ran since the last invalidation).
     var isLoaded = false
 
-    init(store: SidebarStore, spaceID: UUID, selectedEntry: UUID?) {
+    init(store: SidebarStore, spaceID: UUID, windowID: UUID? = nil, selectedEntry: UUID?) {
         self.spaceID = spaceID
-        tree = SidebarTree(store: store, spaceID: spaceID, selectedEntry: selectedEntry)
+        tree = SidebarTree(store: store, spaceID: spaceID, windowID: windowID, selectedEntry: selectedEntry)
         scrollView.documentView = outline
         // Height comes from `tile()` in `SidebarBodyView.layout()`: with height autoresizing a
         // shorter window shrank the outline below its rows (2.2b), cutting off the last ones.

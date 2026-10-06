@@ -63,6 +63,8 @@ final class SidebarTree {
 
     let store: SidebarStore
     let spaceID: UUID
+    /// The window whose Today list the tree shows (schema v9; `nil`: the store's default window).
+    let windowID: UUID?
     /// The selected entry (peeks out of a collapsed folder).
     var selectedEntry: UUID?
 
@@ -77,9 +79,10 @@ final class SidebarTree {
     /// Essentials last handed to the grid.
     private(set) var essentialIDs: [UUID] = []
 
-    init(store: SidebarStore, spaceID: UUID, selectedEntry: UUID?) {
+    init(store: SidebarStore, spaceID: UUID, windowID: UUID? = nil, selectedEntry: UUID?) {
         self.store = store
         self.spaceID = spaceID
+        self.windowID = windowID
         self.selectedEntry = selectedEntry
         reloadAll()
     }
@@ -160,13 +163,15 @@ final class SidebarTree {
     func update(for change: SidebarChange) -> Update {
         var keys = Set<ParentKey>()
         var update = Update()
+        let ownToday = store.resolved(.today(space: spaceID, window: windowID))
         for container in change.containers {
             switch container {
             case .essentials(let profile):
                 if profile == space?.profileID { update.essentialsChanged = true }
             case .pinned(let space, let folder) where space == spaceID:
                 keys.insert(folder.map(ParentKey.folder) ?? .pinnedRoot)
-            case .today(let space) where space == spaceID:
+            case .today(let space, _) where space == spaceID && store.resolved(container) == ownToday:
+                // This window's list only: another window's Today tabs are not shown here (spec §J).
                 keys.insert(.root)
             default:
                 break
@@ -292,7 +297,7 @@ final class SidebarTree {
         guard let space else { return [] }
         switch key {
         case .root:
-            return [spaceTitle, separator] + store.today(space: spaceID).filter { !isHiddenPane($0) }.map { node(for: $0.id) } + [newTab]
+            return [spaceTitle, separator] + store.today(space: spaceID, window: windowID).filter { !isHiddenPane($0) }.map { node(for: $0.id) } + [newTab]
         case .pinnedRoot:
             let entries = store.pinned(space: spaceID).filter { !isHiddenPane($0) }
             return (space.pinnedCollapsed ? peek(in: entries) : entries).map { node(for: $0.id) }

@@ -101,7 +101,7 @@ extension TabController: WebContentsUIDelegate {
             adopt(contents, entry: entry)
             sidebar.select(entry)
         } else if let tab = try? store.sidebar.addEntry(.today, url: contents.url?.absoluteString, title: contents.title,
-                                                        space: sidebar.activeSpaceID, at: 0) {
+                                                        space: sidebar.activeSpaceID, window: windowID, at: 0) {
             adopt(contents, entry: tab.id)
             sidebar.select(tab.id)
         }

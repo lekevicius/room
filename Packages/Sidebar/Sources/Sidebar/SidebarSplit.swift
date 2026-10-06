@@ -30,7 +30,7 @@ extension SidebarController {
         case .essential:
             let index = after.flatMap(sidebar.entry).flatMap { $0.kind == .today ? $0.position + 1 : nil }
             return (try? sidebar.addEntry(.today, url: entry.currentURL, title: entry.liveTitle ?? entry.storedTitle,
-                                          space: tree.spaceID, at: index))?.id
+                                          space: tree.spaceID, window: windowID, at: index))?.id
         }
     }
 
@@ -105,7 +105,7 @@ extension SidebarController {
         guard let entry = sidebar.entry(id), let url = entry.currentURL else { return }
         if let group = sidebar.splitGroup(of: id), !SplitRules.canAdd(toCount: group.members.count) { return showSplitFullToast() }
         let index = entry.kind == .today ? entry.position + 1 : nil
-        guard let copy = try? sidebar.addEntry(.today, url: url, title: entry.liveTitle ?? entry.storedTitle, space: tree.spaceID, at: index)
+        guard let copy = try? sidebar.addEntry(.today, url: url, title: entry.liveTitle ?? entry.storedTitle, space: tree.spaceID, window: windowID, at: index)
         else { return }
         do throws(SidebarError) { try join(copy.id, with: id) } catch {
             _ = try? sidebar.remove(copy.id)
@@ -121,7 +121,7 @@ extension SidebarController {
         guard let target = paneEntry(for: selected) else { return }
         let anchor = sidebar.entry(target)
         let index = anchor?.kind == .today ? (anchor?.position ?? 0) + 1 : nil
-        guard let empty = try? sidebar.addEntry(.today, url: nil, space: tree.spaceID, at: index) else { return }
+        guard let empty = try? sidebar.addEntry(.today, url: nil, space: tree.spaceID, window: windowID, at: index) else { return }
         do throws(SidebarError) { try join(empty.id, with: target) } catch {
             _ = try? sidebar.remove(empty.id)
             return showRefusal(error)
@@ -179,7 +179,7 @@ extension SidebarController {
             return
         }
         guard let selected = selectedEntryID else { return }
-        let order = sidebar.sidebarOrder(space: tree.spaceID).filter { $0.kind != .folder && $0.splitGroupID == nil }
+        let order = sidebar.sidebarOrder(space: tree.spaceID, window: windowID).filter { $0.kind != .folder && $0.splitGroupID == nil }
         guard let index = order.firstIndex(where: { $0.id == selected }), order.count > 1 else { return }
         let next = order[(index + 1) % order.count]
         guard let first = paneEntry(for: selected), let second = paneEntry(for: next.id, after: first) else { return }
@@ -257,7 +257,7 @@ extension SidebarController {
         submenu.autoenablesItems = false
         let full = sidebar.splitGroup(of: entry.id).map { !SplitRules.canAdd(toCount: $0.members.count) } ?? false
         let group = sidebar.splitGroup(of: entry.id)?.members ?? [entry.id]
-        let candidates = sidebar.sidebarOrder(space: tree.spaceID).filter { $0.kind != .folder && !group.contains($0.id) }
+        let candidates = sidebar.sidebarOrder(space: tree.spaceID, window: windowID).filter { $0.kind != .folder && !group.contains($0.id) }
         if let selected = selectedEntryID, !group.contains(selected), let current = sidebar.entry(selected) {
             submenu.addItem(action("\(CommandName.currentTab) — \(EntryLabel.title(current))", enabled: !full) { [weak self] in
                 self?.split(entry.id, with: selected)

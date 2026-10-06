@@ -149,7 +149,7 @@ extension SidebarController {
         menu.addItem(.separator())
         addPageItems(menu, entry)
         menu.addItem(.separator())
-        let today = sidebar.today(space: tree.spaceID)
+        let today = sidebar.today(space: tree.spaceID, window: windowID)
         let index = today.firstIndex { $0.id == id } ?? 0
         menu.addItem(action(CommandName.archiveTab, symbol: .archive) { [weak self] in self?.archiveToday([id], keeping: nil) })
         menu.addItem(action(CommandName.archiveBelow, symbol: .archive, enabled: index < today.count - 1) { [weak self] in
@@ -400,7 +400,7 @@ extension SidebarController {
     }
 
     func unpin(_ id: UUID) {
-        try? sidebar.move(id, to: .today(space: tree.spaceID), at: 0)
+        try? sidebar.move(id, to: .today(space: tree.spaceID, window: windowID), at: 0)
     }
 
     func addToEssentials(_ id: UUID) {
@@ -413,7 +413,7 @@ extension SidebarController {
     }
 
     func removeFromEssentials(_ id: UUID) {
-        try? sidebar.move(id, to: .today(space: tree.spaceID), at: 0)
+        try? sidebar.move(id, to: .today(space: tree.spaceID, window: windowID), at: 0)
     }
 
     func move(_ id: UUID, toSpace space: UUID) {
@@ -455,7 +455,7 @@ extension SidebarController {
         guard let entry = sidebar.entry(id), let url = entry.currentURL else { return }
         let index = entry.kind == .today ? entry.position + 1 : 0
         let title = entry.kind == .today ? entry.liveTitle : (entry.liveTitle ?? entry.storedTitle)
-        guard let copy = try? sidebar.addEntry(.today, url: url, title: title, space: tree.spaceID, at: index) else { return }
+        guard let copy = try? sidebar.addEntry(.today, url: url, title: title, space: tree.spaceID, window: windowID, at: index) else { return }
         select(copy.id)
     }
 
@@ -467,7 +467,7 @@ extension SidebarController {
             if let kept {
                 select(kept)
             } else {
-                let next = sidebar.mruOrder(space: tree.spaceID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
+                let next = sidebar.mruOrder(space: tree.spaceID, window: windowID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
                 select(next?.id)
             }
         }
@@ -492,7 +492,7 @@ extension SidebarController {
             if let kept {
                 select(kept)
             } else {
-                let next = sidebar.mruOrder(space: tree.spaceID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
+                let next = sidebar.mruOrder(space: tree.spaceID, window: windowID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
                 select(next?.id)
             }
         }

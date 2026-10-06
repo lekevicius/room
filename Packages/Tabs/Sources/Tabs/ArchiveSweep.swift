@@ -36,7 +36,8 @@ extension TabController {
     @discardableResult
     public func sweepArchive(now: Timestamp) -> [UUID] {
         let sidebar = store.sidebar
-        let today = sidebar.spaces.flatMap { sidebar.today(space: $0.id) }
+        // This window's Today tabs (schema v9): each window sweeps its own.
+        let today = windowID.map { sidebar.todayEntries(window: $0) } ?? sidebar.spaces.flatMap { sidebar.today(space: $0.id) }
         guard !today.isEmpty else { return [] }
         let selected = visibleEntryIDs.union(store.windows.selectedEntries).union(currentEntryID.map { [$0] } ?? [])
         let ids = ArchivePolicy.toArchive(today: today, now: now, afterHours: store.settings.settings.archiveAfterHours,

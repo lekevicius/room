@@ -51,6 +51,9 @@ public final class RoomStore {
         sidebarToken = sidebar.observe { [unowned self] change in
             windows.sidebarDidChange(change, firstSpace: sidebar.spaces.first?.id)
         }
+        // A Today list without a window is the first window's until the app
+        // names its key window (schema v9).
+        sidebar.defaultWindow = { [unowned self] in windows.windows.first?.id }
         if state.isEmpty { seed() }
     }
 
@@ -78,7 +81,10 @@ public final class RoomStore {
     /// one transaction with the next generation (the writer's counter moves
     /// on, never back). The caller has backed up the current state first and
     /// unloads the pages.
-    public func restoreSidebar(from backup: RoomState, window: UUID?) {
+    public func restoreSidebar(from backup: RoomState, window: UUID?, open: [UUID] = []) {
+        // The backup's windows map onto the open ones (4.8a): its Today tabs
+        // land in the windows on screen.
+        let backup = window.map { backup.remappingWindows(onto: open.isEmpty ? [$0] : open, current: $0) } ?? backup
         // Windows first: the sidebar's change then finds the selections pointing at entries that exist.
         windows.replace(with: backup, keeping: window)
         sidebar.replace(with: backup)
@@ -93,5 +99,35 @@ public final class RoomStore {
     /// Final write at quit; marks the session as cleanly ended.
     public func close() {
         do { try persistence.flushAndWait(cleanExit: true) } catch { NSLog("Room: final write failed: \(error)") }
+    }
+}
+
+extension RoomState {
+    /// The state with its windows mapped onto `open` (Restore Sidebar… with
+    /// several windows on screen, 4.8a): the i-th window by position becomes
+    /// the i-th open window, keeping its active space and selections; a
+    /// window with no open counterpart is dropped and its Today tabs (and
+    /// any Today tab of no window) go to `current`.
+    public func remappingWindows(onto open: [UUID], current: UUID) -> RoomState {
+        var copy = self
+        let sorted = windows.sorted { $0.position < $1.position }
+        var mapping: [UUID: UUID] = [:]
+        for (index, window) in sorted.enumerated() where index < open.count { mapping[window.id] = open[index] }
+        copy.windows = sorted.compactMap { window in
+            guard let id = mapping[window.id] else { return nil }
+            var mapped = window
+            mapped.id = id
+            return mapped
+        }
+        copy.windowSpaces = windowSpaces.compactMap { row in
+            guard let id = mapping[row.windowID] else { return nil }
+            var mapped = row
+            mapped.windowID = id
+            return mapped
+        }
+        for index in copy.entries.indices where copy.entries[index].kind == .today {
+            copy.entries[index].windowID = copy.entries[index].windowID.flatMap { mapping[$0] } ?? current
+        }
+        return copy
     }
 }

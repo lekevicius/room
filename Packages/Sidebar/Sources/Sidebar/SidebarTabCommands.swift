@@ -32,19 +32,19 @@ extension SidebarController {
 
     /// ⌘1…⌘8 select the Nth entry in sidebar order, ⌘9 the last.
     public func selectTab(digit: Int) {
-        guard let target = NavigationRules.digitTarget(digit, in: sidebar.sidebarOrder(space: tree.spaceID)) else { return }
+        guard let target = NavigationRules.digitTarget(digit, in: sidebar.sidebarOrder(space: tree.spaceID, window: windowID)) else { return }
         clearMultiSelection()
         select(target.id)
     }
 
     /// ⌘1…⌘9 apply: the sidebar order has an entry for `digit` (⌘9 is the last).
     public func canSelectTab(digit: Int) -> Bool {
-        NavigationRules.digitTarget(digit, in: sidebar.sidebarOrder(space: tree.spaceID)) != nil
+        NavigationRules.digitTarget(digit, in: sidebar.sidebarOrder(space: tree.spaceID, window: windowID)) != nil
     }
 
     /// ⇧⌘] / ⌥⌘↓ (`offset` 1), ⇧⌘[ / ⌥⌘↑ (−1): the next entry in sidebar order, wrapping.
     public func selectAdjacentTab(_ offset: Int) {
-        let order = sidebar.sidebarOrder(space: tree.spaceID)
+        let order = sidebar.sidebarOrder(space: tree.spaceID, window: windowID)
         guard let target = NavigationRules.adjacent(to: selectedEntryID, offset: offset, in: order),
               target.id != selectedEntryID else { return }
         clearMultiSelection()
@@ -54,7 +54,7 @@ extension SidebarController {
     /// The ⌃Tab switcher's list: the space's most recently used entries,
     /// the selected one first.
     public func recentEntries(limit: Int) -> [Entry] {
-        var order = sidebar.mruOrder(space: tree.spaceID)
+        var order = sidebar.mruOrder(space: tree.spaceID, window: windowID)
         if let selected = selectedEntryID, let index = order.firstIndex(where: { $0.id == selected }), index > 0 {
             order.insert(order.remove(at: index), at: 0)
         }

@@ -16,7 +16,7 @@ extension SidebarController {
         case .essentials:
             return tree.essentialIDs
         case .today:
-            return sidebar.today(space: tree.spaceID).map(\.id)
+            return sidebar.today(space: tree.spaceID, window: windowID).map(\.id)
         case .pinned:
             return (0..<outline.numberOfRows).compactMap { row in
                 guard let id = (outline.item(atRow: row) as? OutlineNode)?.entryID, sidebar.entry(id)?.kind == .pinned else { return nil }
@@ -91,7 +91,7 @@ extension SidebarController {
         return kinds == [.essential] ? CommandName.removeFromEssentials : CommandName.addToEssentials
     }
 
-    public var canClearToday: Bool { !sidebar.today(space: tree.spaceID).isEmpty }
+    public var canClearToday: Bool { !sidebar.today(space: tree.spaceID, window: windowID).isEmpty }
 
     /// ⌘D: pin the target Today tabs, or unpin pinned entries to the top of Today.
     public func togglePin() {
@@ -100,7 +100,7 @@ extension SidebarController {
         case CommandName.pinTab?:
             run { () throws(SidebarError) in try sidebar.move(ids, to: .pinned(space: tree.spaceID, folder: nil), insertingAt: .max) }
         case CommandName.unpinTab?:
-            run { () throws(SidebarError) in try sidebar.move(ids, to: .today(space: tree.spaceID), insertingAt: 0) }
+            run { () throws(SidebarError) in try sidebar.move(ids, to: .today(space: tree.spaceID, window: windowID), insertingAt: 0) }
         default:
             NSSound.beep()
         }
@@ -112,7 +112,7 @@ extension SidebarController {
         let ids = commandTargets()
         switch essentialsCommandTitle {
         case CommandName.removeFromEssentials?:
-            run { () throws(SidebarError) in try sidebar.move(ids, to: .today(space: tree.spaceID), insertingAt: 0) }
+            run { () throws(SidebarError) in try sidebar.move(ids, to: .today(space: tree.spaceID, window: windowID), insertingAt: 0) }
         case CommandName.addToEssentials?:
             run { () throws(SidebarError) in try sidebar.move(ids, to: .essentials(profile: space.profileID), insertingAt: .max) }
         default:
@@ -303,7 +303,7 @@ extension SidebarController {
     /// Reduce Motion), then the tabs are removed with an Undo toast.
     @objc func clearToday(_ sender: Any?) {
         guard !isClearing, canClearToday else { return }
-        let todayIDs = Set(sidebar.today(space: tree.spaceID).map(\.id))
+        let todayIDs = Set(sidebar.today(space: tree.spaceID, window: windowID).map(\.id))
         var rows: [NSTableRowView] = []
         outline.enumerateAvailableRowViews { rowView, row in
             if let id = (outline.item(atRow: row) as? OutlineNode)?.entryID, todayIDs.contains(id),
@@ -364,12 +364,12 @@ extension SidebarController {
         let space = tree.spaceID
         let selected = selectedEntryID
         let selectedWasToday = selected.flatMap(sidebar.entry)?.kind == .today
-        let removed = sidebar.clearToday(space: space)
+        let removed = sidebar.clearToday(space: space, window: windowID)
         guard !removed.isEmpty else { return }
         for item in removed { host?.unload(item.entry.id) }
         closedTabs.push(.removed(removed))
         if selectedWasToday {
-            let next = sidebar.mruOrder(space: space).first { $0.kind != .folder && $0.lastActiveAt != nil }
+            let next = sidebar.mruOrder(space: space, window: windowID).first { $0.kind != .folder && $0.lastActiveAt != nil }
             select(next?.id)
         }
         retainMultiSelection()

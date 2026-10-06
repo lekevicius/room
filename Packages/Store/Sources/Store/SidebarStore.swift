@@ -7,7 +7,11 @@ public enum Container: Hashable, Sendable {
     case essentials(profile: UUID)
     /// The pinned root of a space (`folder == nil`) or a folder's children.
     case pinned(space: UUID, folder: UUID?)
-    case today(space: UUID)
+    /// One window's Today list in a space (schema v9, spec §J: each window
+    /// has its own Today tabs). `window == nil` names the store's default
+    /// window (`SidebarStore.defaultWindow`: the key window in the app), so
+    /// one-window callers keep writing `.today(space:)`.
+    case today(space: UUID, window: UUID? = nil)
 
     public var section: EntrySection {
         switch self {
@@ -23,7 +27,7 @@ extension Entry {
         switch kind {
         case .essential: .essentials(profile: profileID)
         case .pinned, .folder: .pinned(space: spaceID!, folder: folderID)
-        case .today: .today(space: spaceID!)
+        case .today: .today(space: spaceID!, window: windowID)
         }
     }
 }
@@ -123,6 +127,11 @@ public final class SidebarStore {
     @ObservationIgnored weak var persistence: Persistence?
     /// The store's clock (tests inject one; DEBUG `-RoomClock` sets it in the app).
     @ObservationIgnored public var clock: () -> Timestamp
+    /// The window a Today list without one means (`Container.today(space:)`,
+    /// `today(space:)`, `addEntry(.today, …)` without a window): the app's
+    /// key window (4.8a). `nil` (tests, the harness without windows) keeps
+    /// Today tabs window-less.
+    @ObservationIgnored public var defaultWindow: () -> UUID? = { nil }
 
     init(state: RoomState, clock: @escaping () -> Timestamp = { .now }) {
         profiles = state.profiles.sorted { $0.position < $1.position }
@@ -195,19 +204,40 @@ public final class SidebarStore {
     public func entry(_ id: UUID) -> Entry? { entries[id] }
 
     public func entries(in container: Container) -> [Entry] {
-        (containers[container] ?? []).compactMap { entries[$0] }
+        (containers[resolved(container)] ?? []).compactMap { entries[$0] }
+    }
+
+    /// `container` with its window filled in: a Today list without one is
+    /// the default window's (`defaultWindow`).
+    public func resolved(_ container: Container) -> Container {
+        guard case .today(let space, nil) = container, let window = defaultWindow() else { return container }
+        return .today(space: space, window: window)
     }
 
     public func essentials(profile: UUID) -> [Entry] { entries(in: .essentials(profile: profile)) }
 
     public func pinned(space: UUID, folder: UUID? = nil) -> [Entry] { entries(in: .pinned(space: space, folder: folder)) }
 
-    public func today(space: UUID) -> [Entry] { entries(in: .today(space: space)) }
+    /// One window's Today list in `space` (`nil`: the default window's).
+    public func today(space: UUID, window: UUID? = nil) -> [Entry] { entries(in: .today(space: space, window: window)) }
+
+    /// Every Today tab of `window`, in every space (closing the window
+    /// archives them; the sweep looks at them), in space order.
+    public func todayEntries(window: UUID) -> [Entry] {
+        spaces.flatMap { today(space: $0.id, window: window) }
+    }
+
+    /// The windows that have Today tabs, and the Today tabs of no window or
+    /// of a window not in `open` (orphans the app adopts at launch).
+    public func todayOrphans(open: Set<UUID>) -> [Entry] {
+        entries.values.filter { $0.kind == .today && !($0.windowID.map(open.contains) ?? false) }
+            .sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }
+    }
 
     public func isChanged(_ id: UUID) -> Bool { entries[id].map(EntryRules.isChanged) ?? false }
 
-    /// Essentials, pinned (expanded, visible order), Today: ⌘1–9 and ⌥⌘↑/↓.
-    public func sidebarOrder(space spaceID: UUID) -> [Entry] {
+    /// Essentials, pinned (expanded, visible order), the window's Today: ⌘1–9 and ⌥⌘↑/↓.
+    public func sidebarOrder(space spaceID: UUID, window: UUID? = nil) -> [Entry] {
         guard let space = space(spaceID) else { return [] }
         var children: [UUID: [Entry]] = [:]
         for (container, ids) in containers {
@@ -215,25 +245,27 @@ public final class SidebarStore {
         }
         return NavigationRules.sidebarOrder(
             essentials: essentials(profile: space.profileID), pinnedRoot: pinned(space: spaceID),
-            pinnedChildren: children, today: today(space: spaceID), pinnedCollapsed: space.pinnedCollapsed)
+            pinnedChildren: children, today: today(space: spaceID, window: window), pinnedCollapsed: space.pinnedCollapsed)
     }
 
-    /// Every selectable entry of the space, most recently used first.
-    public func mruOrder(space: UUID) -> [Entry] {
-        NavigationRules.mruOrder(selectable(space: space))
+    /// Every selectable entry of the space in `window` (its own Today tabs
+    /// and the shared entries), most recently used first.
+    public func mruOrder(space: UUID, window: UUID? = nil) -> [Entry] {
+        NavigationRules.mruOrder(selectable(space: space, window: window))
     }
 
     /// What ⌘W does to `id` and where the selection goes.
-    public func closePlan(for id: UUID, behavior: PermanentCloseBehavior, space: UUID) -> (steps: CloseSteps, fallback: CloseFallback?)? {
+    public func closePlan(for id: UUID, behavior: PermanentCloseBehavior, space: UUID,
+                          window: UUID? = nil) -> (steps: CloseSteps, fallback: CloseFallback?)? {
         guard let entry = entries[id] else { return nil }
         let steps = NavigationRules.closeSteps(for: entry.kind, behavior: behavior)
         let fallback = steps.contains(.switchAway)
-            ? NavigationRules.closeFallback(closing: entry, order: selectable(space: space)) : nil
+            ? NavigationRules.closeFallback(closing: entry, order: selectable(space: space, window: window)) : nil
         return (steps, fallback)
     }
 
     /// Selectable entries in sidebar order, including children of collapsed folders.
-    private func selectable(space spaceID: UUID) -> [Entry] {
+    private func selectable(space spaceID: UUID, window: UUID?) -> [Entry] {
         guard let space = space(spaceID) else { return [] }
         var result = essentials(profile: space.profileID)
         func walk(_ folder: UUID?) {
@@ -242,17 +274,17 @@ public final class SidebarStore {
             }
         }
         walk(nil)
-        result += today(space: spaceID)
+        result += today(space: spaceID, window: window)
         return result
     }
 
-    public func snapshot(space spaceID: UUID) -> SpaceSnapshot? {
+    public func snapshot(space spaceID: UUID, window: UUID? = nil) -> SpaceSnapshot? {
         guard let space = space(spaceID) else { return nil }
         func nodes(_ folder: UUID?) -> [PinnedNode] {
             pinned(space: spaceID, folder: folder).map { PinnedNode(entry: $0, children: $0.kind == .folder ? nodes($0.id) : []) }
         }
         return SpaceSnapshot(space: space, essentials: essentials(profile: space.profileID), pinned: nodes(nil),
-                             today: today(space: spaceID))
+                             today: today(space: spaceID, window: window))
     }
 
     // MARK: Profiles and spaces
@@ -305,7 +337,7 @@ public final class SidebarStore {
             case .essentials(id):
                 containers[container] = nil
                 change.containers.insert(container)
-            case .pinned(let space, _), .today(let space):
+            case .pinned(let space, _), .today(let space, _):
                 if doomed.contains(space) {
                     containers[container] = nil
                     change.containers.insert(container)
@@ -404,7 +436,7 @@ public final class SidebarStore {
         }
         for container in Array(containers.keys) {
             switch container {
-            case .pinned(id, _), .today(id):
+            case .pinned(id, _), .today(id, _):
                 containers[container] = nil
                 change.containers.insert(container)
             default: break
@@ -546,7 +578,7 @@ public final class SidebarStore {
             add(items.pinned, folder: nil, depth: 0)
             for link in items.today {
                 let entry = Entry(kind: .today, spaceID: spaceID, profileID: space.profileID, createdAt: now,
-                                  liveURL: link.url, liveTitle: link.title)
+                                  liveURL: link.url, liveTitle: link.title, windowID: defaultWindow())
                 appendImported(entry, change: &change)
                 applied.today += 1
             }
@@ -645,7 +677,7 @@ public final class SidebarStore {
     /// `url` and start unloaded; Today tabs get it as their live page.
     @discardableResult
     public func addEntry(_ kind: EntryKind, url: String?, title: String? = nil, space spaceID: UUID,
-                         folder: UUID? = nil, at index: Int? = nil) throws(SidebarError) -> Entry {
+                         folder: UUID? = nil, window: UUID? = nil, at index: Int? = nil) throws(SidebarError) -> Entry {
         guard kind != .folder else { throw .invalidKind }
         guard let space = space(spaceID) else { throw .unknownSpace(spaceID) }
         var entry = Entry(kind: kind, spaceID: kind == .essential ? nil : spaceID, profileID: space.profileID,
@@ -665,6 +697,8 @@ public final class SidebarStore {
         case .today, .folder:
             entry.liveURL = url
             entry.liveTitle = title
+            // A Today tab belongs to its window (schema v9).
+            if kind == .today { entry.windowID = window ?? defaultWindow() }
         }
         var change = SidebarChange()
         insert(entry, at: index, change: &change)
@@ -689,6 +723,7 @@ public final class SidebarStore {
     /// kind when the section changes (§A.9). Folders move with their subtree.
     /// `index` counts the container without the moved entry.
     public func move(_ id: UUID, to container: Container, at index: Int) throws(SidebarError) {
+        let container = resolved(container)
         guard let entry = entries[id] else { throw .unknownEntry(id) }
         let space = try targetSpace(for: container, moving: entry)
         try validateFolderTarget(container, moving: [id])
@@ -712,6 +747,7 @@ public final class SidebarStore {
     /// essential; if any entry is refused nothing changes. An entry whose
     /// folder is moved too stays inside it. One change for the whole move.
     public func move(_ ids: [UUID], to container: Container, insertingAt index: Int) throws(SidebarError) {
+        let container = resolved(container)
         let moving = try topLevel(ids)
         guard let first = moving.first else { return }
         let space = try targetSpace(for: container, moving: first)
@@ -746,6 +782,7 @@ public final class SidebarStore {
     /// history; a Today copy carries the original's page URL. Returns them.
     @discardableResult
     public func duplicate(_ ids: [UUID], to container: Container, at index: Int) throws(SidebarError) -> [Entry] {
+        let container = resolved(container)
         let originals = try ids.map { id throws(SidebarError) -> Entry in
             guard let entry = entries[id] else { throw .unknownEntry(id) }
             guard entry.kind != .folder else { throw .invalidKind }
@@ -774,6 +811,7 @@ public final class SidebarStore {
 
     /// Whether `move(ids, to: container, …)` would succeed (drag validation).
     public func canMove(_ ids: [UUID], to container: Container) -> Result<Void, SidebarError> {
+        let container = resolved(container)
         do {
             let moving = try topLevel(ids)
             guard let first = moving.first else { return .success(()) }
@@ -801,7 +839,7 @@ public final class SidebarStore {
                 throw .unknownProfile(profile)
             }
             return match
-        case .pinned(let spaceID, _), .today(let spaceID):
+        case .pinned(let spaceID, _), .today(let spaceID, _):
             guard let match = self.space(spaceID) else { throw .unknownSpace(spaceID) }
             return match
         }
@@ -821,6 +859,8 @@ public final class SidebarStore {
             throw .conversion(error)
         }
         if case .pinned(_, let folder) = container { converted.folderID = folder }
+        // A Today tab takes the target list's window; the shared sections none (schema v9).
+        if case .today(_, let window) = container { converted.windowID = window } else { converted.windowID = nil }
         return converted
     }
 
@@ -870,13 +910,15 @@ public final class SidebarStore {
     /// Clear (⇧⌘K): every Today tab of the space goes to the Archive (reason
     /// `clear`, spec §A.7); returns them for Undo (`restore`, which takes
     /// their rows back out).
+    /// One window's list (`nil`: the default window's): the others keep theirs.
     @discardableResult
-    public func clearToday(space spaceID: UUID) -> [RemovedEntry] {
-        let removed = today(space: spaceID).enumerated().map { RemovedEntry(entry: $0.element, index: $0.offset) }
+    public func clearToday(space spaceID: UUID, window: UUID? = nil) -> [RemovedEntry] {
+        let container = resolved(.today(space: spaceID, window: window))
+        let removed = entries(in: container).enumerated().map { RemovedEntry(entry: $0.element, index: $0.offset) }
         guard !removed.isEmpty else { return [] }
         var change = SidebarChange()
-        containers[.today(space: spaceID)] = nil
-        change.containers.insert(.today(space: spaceID))
+        containers[container] = nil
+        change.containers.insert(container)
         let now = clock()
         for item in removed {
             addArchiveRow(item.entry, reason: .clear, at: now, change: &change)
@@ -952,20 +994,58 @@ public final class SidebarStore {
     /// in that space's profile); the row is deleted. The tab counts as used
     /// now, so the next sweep does not take it again. Returns the new entry.
     @discardableResult
-    public func restore(archived id: UUID, activeSpace: UUID?) throws(SidebarError) -> Entry {
+    public func restore(archived id: UUID, activeSpace: UUID?, window: UUID? = nil) throws(SidebarError) -> Entry {
         guard let row = archive[id] else { throw .unknownEntry(id) }
         let target = row.spaceID.flatMap { self.space($0) } ?? activeSpace.flatMap { self.space($0) } ?? spaces.first
         guard let target else { throw .unknownSpace(row.spaceID ?? id) }
         let now = clock()
         let entry = Entry(id: entries[row.id] == nil ? row.id : UUID(), kind: .today, spaceID: target.id,
                           profileID: target.profileID, faviconID: row.faviconID, createdAt: now, lastActiveAt: now,
-                          liveURL: row.url, liveTitle: row.title, navigationState: row.navigationState)
+                          liveURL: row.url, liveTitle: row.title, navigationState: row.navigationState,
+                          windowID: window ?? defaultWindow())
         var change = SidebarChange()
         archive[id] = nil
         change.archive = true
         insert(entry, at: 0, change: &change)
         commit(change)
         return entries[entry.id]!
+    }
+
+    // MARK: Windows (schema v9, Phase 4.8a)
+
+    /// A window closed (spec §J): its Today tabs go to the Archive with
+    /// reason `windowClosed` (restorable from the Library), in one change.
+    /// Returns them.
+    @discardableResult
+    public func archiveToday(window: UUID) -> [RemovedEntry] {
+        archive(todayEntries(window: window).map(\.id), reason: .windowClosed)
+    }
+
+    /// Launch (and Restore Sidebar…): Today tabs of no window, or of a
+    /// window that is not open, join `window`'s lists at their ends, in
+    /// their order. Returns how many moved.
+    @discardableResult
+    public func adoptTodayOrphans(into window: UUID, open: Set<UUID>) -> Int {
+        let orphans = todayOrphans(open: open.union([window]))
+        guard !orphans.isEmpty else { return 0 }
+        var change = SidebarChange()
+        for entry in orphans {
+            detach(entry.id, change: &change)
+            var moved = entry
+            moved.windowID = window
+            insert(moved, at: nil, change: &change)
+        }
+        commit(change)
+        return orphans.count
+    }
+
+    /// Moves a Today tab to another window's Today list in its space (the
+    /// drag out to a new window, "Open in New Window", 4.8a), at the top.
+    public func moveToday(_ id: UUID, toWindow window: UUID) throws(SidebarError) {
+        guard let entry = entries[id] else { throw .unknownEntry(id) }
+        guard entry.kind == .today, let space = entry.spaceID else { throw .invalidKind }
+        guard entry.windowID != window else { return }
+        try move(id, to: .today(space: space, window: window), at: 0)
     }
 
     /// The × of a Library row: rows leave the Archive for good.

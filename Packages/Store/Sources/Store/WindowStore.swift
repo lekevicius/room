@@ -36,6 +36,28 @@ public final class WindowStore {
         return window
     }
 
+    /// A new window (⌘N, the drag out, "Open in New Window", 4.8a) at the
+    /// end of the order, showing `space`, with `frame` when given.
+    @discardableResult
+    public func createWindow(frame: CGRect?, sidebarWidth: Double, sidebarVisible: Bool = true, space: UUID?) -> WindowState {
+        var window = WindowState(sidebarWidth: sidebarWidth, sidebarVisible: sidebarVisible, activeSpaceID: space,
+                                 position: (windows.map(\.position).max() ?? -1) + 1)
+        window.frame = frame
+        windows.append(window)
+        persistence?.scheduleWrite()
+        return window
+    }
+
+    /// A window closed (not at quit: a quit keeps every window for the next
+    /// launch): its row and its selections go; the others keep their order.
+    public func removeWindow(_ id: UUID) {
+        guard let index = windows.firstIndex(where: { $0.id == id }) else { return }
+        windows.remove(at: index)
+        for key in selections.keys where key.window == id { selections[key] = nil }
+        for i in windows.indices { windows[i].position = i }
+        persistence?.scheduleWrite()
+    }
+
     public func setSidebarWidth(_ width: Double, window: UUID) { update(window) { $0.sidebarWidth = width } }
 
     public func setSidebarVisible(_ visible: Bool, window: UUID) { update(window) { $0.sidebarVisible = visible } }
@@ -50,6 +72,12 @@ public final class WindowStore {
 
     /// Every space's selected entry in every window (the archive sweep never takes them).
     public var selectedEntries: Set<UUID> { Set(selections.values) }
+
+    /// The windows remembering `entry` as a space's selection (a page moved
+    /// away from a window leaves it there for its MRU, 4.8a).
+    public func windows(selecting entry: UUID) -> [UUID] {
+        selections.filter { $0.value == entry }.map(\.key.window)
+    }
 
     public func select(_ entry: UUID?, space: UUID, window: UUID) {
         let key = SelectionKey(window: window, space: space)

@@ -253,7 +253,7 @@ extension SidebarController {
             if container.section == .essentials { return essentialsCount + ids.count <= EntryRules.essentialsCap }
             return true
         }
-        return (try? sidebar.canMove(ids, to: container).get()) != nil
+        return (try? sidebar.canMove(ids, to: local(container)).get()) != nil
     }
 
     var essentialsCount: Int {
@@ -397,6 +397,7 @@ extension SidebarController {
     }
 
     private func drop(_ ids: [UUID], external: [String], into container: Container, at index: Int, copy: Bool) throws(SidebarError) {
+        let container = local(container)
         if !ids.isEmpty {
             if copy {
                 try sidebar.duplicate(ids, to: container, at: index)
@@ -418,7 +419,7 @@ extension SidebarController {
         }
         var first: Entry?
         for (offset, url) in external.enumerated() {
-            let entry = try sidebar.addEntry(kind, url: url, space: space, folder: folder,
+            let entry = try sidebar.addEntry(kind, url: url, space: space, folder: folder, window: windowID,
                                              at: index == .max ? nil : index + offset)
             if first == nil { first = entry }
         }

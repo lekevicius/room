@@ -111,7 +111,7 @@ public final class SidebarController: NSObject {
         self.store = store
         self.windowID = windowID
         let spaceID = Self.activeSpace(store: store, windowID: windowID)
-        pane = SpacePane(store: store.sidebar, spaceID: spaceID,
+        pane = SpacePane(store: store.sidebar, spaceID: spaceID, windowID: windowID,
                          selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
         super.init()
         bodyView.install(grid: grid, footer: footer)
@@ -160,6 +160,12 @@ public final class SidebarController: NSObject {
     public var activeSpaceID: UUID { tree.spaceID }
     public var activeSpace: Space? { tree.space }
 
+    /// `container` in this window: a Today list without a window is this window's (schema v9).
+    func local(_ container: Container) -> Container {
+        if case .today(let space, nil) = container { return .today(space: space, window: windowID) }
+        return container
+    }
+
     public var selectedEntryID: UUID? {
         store.windows.selectedEntry(space: tree.spaceID, window: windowID)
     }
@@ -207,7 +213,7 @@ public final class SidebarController: NSObject {
         if let existing = panes[spaceID] {
             target = existing
         } else {
-            target = SpacePane(store: sidebar, spaceID: spaceID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
+            target = SpacePane(store: sidebar, spaceID: spaceID, windowID: windowID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
             attach(target)
         }
         if !target.isLoaded { load(target) }
@@ -369,7 +375,7 @@ public final class SidebarController: NSObject {
         outline.events = nil
         for other in Array(panes.values) { detach(other) }
         let spaceID = Self.activeSpace(store: store, windowID: windowID)
-        pane = SpacePane(store: sidebar, spaceID: spaceID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
+        pane = SpacePane(store: sidebar, spaceID: spaceID, windowID: windowID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
         attach(pane)
         outline.events = self
         bodyView.show(pane.scrollView, direction: .forward, animated: false)
@@ -485,7 +491,7 @@ public final class SidebarController: NSObject {
         case (.spaceTitle, let cell as SpaceTitleCellView):
             if let space = target.tree.space { cell.configure(space) }
         case (.separator, let cell as SeparatorCellView):
-            cell.configure(todayCount: sidebar.today(space: target.spaceID).count)
+            cell.configure(todayCount: sidebar.today(space: target.spaceID, window: windowID).count)
         default:
             break
         }
@@ -668,7 +674,7 @@ public final class SidebarController: NSObject {
     /// tab, the permanent entry goes back to its stored URL, unloaded.
     func separate(_ id: UUID) {
         guard let entry = sidebar.entry(id), let live = entry.liveURL,
-              let tab = try? sidebar.addEntry(.today, url: live, title: entry.liveTitle, space: tree.spaceID) else { return }
+              let tab = try? sidebar.addEntry(.today, url: live, title: entry.liveTitle, space: tree.spaceID, window: windowID) else { return }
         host?.separate(id, into: tab)
         try? sidebar.resetToStoredURL(id)
         select(tab.id)
@@ -684,7 +690,7 @@ public final class SidebarController: NSObject {
         // A split's pane: only that pane closes (spec §D).
         if let group = sidebar.splitGroup(of: id) { return closePane(id, group: group, behavior: behavior) }
         guard let before = sidebar.entry(id),
-              let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID) else { return }
+              let plan = sidebar.closePlan(for: id, behavior: behavior, space: tree.spaceID, window: windowID) else { return }
         let hadPage = pageState(id).isLoaded
         if plan.steps.contains(.switchAway), selectedEntryID == id { applyFallback(plan.fallback) }
         // A Today tab's entry goes only once its page closed: "stay" in the
@@ -725,7 +731,7 @@ public final class SidebarController: NSObject {
     /// Removes a permanent entry (folders: children move up, spec §A.6), with Undo.
     func removeEntry(_ id: UUID, undoable: Bool) {
         guard let entry = sidebar.entry(id) else { return }
-        if selectedEntryID == id, let plan = sidebar.closePlan(for: id, behavior: .close, space: tree.spaceID) {
+        if selectedEntryID == id, let plan = sidebar.closePlan(for: id, behavior: .close, space: tree.spaceID, window: windowID) {
             applyFallback(plan.fallback)
         }
         host?.unload(id)

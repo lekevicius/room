@@ -34,6 +34,11 @@ public enum Schema {
     /// routing table is v8 and 4.8a's `entry.windowID` becomes v9.)
     public static let v8 = "v8-routing-rules"
 
+    /// Phase 4.8a: Today tabs belong to a window (`Entry.windowID`; spec §J,
+    /// Arc's model): spaces, pinned entries, folders and essentials are shared
+    /// by every window, each window has its own Today list.
+    public static let v9 = "v9-entry-window"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
@@ -44,6 +49,7 @@ public enum Schema {
         migrator.registerMigration(v6, migrate: createV6)
         migrator.registerMigration(v7, migrate: createV7)
         migrator.registerMigration(v8, migrate: createV8)
+        migrator.registerMigration(v9, migrate: createV9)
         return migrator
     }
 
@@ -234,6 +240,24 @@ public enum Schema {
             t.column("targetSpaceID", .blob).notNull().indexed().references("space", deferred: true)
             t.column("position", .integer).notNull()
             t.column("enabled", .boolean).notNull()
+        }
+    }
+
+    /// `entry.windowID`: the window a Today tab belongs to; `NULL` for
+    /// essentials, pinned entries and folders (shared by every window). No
+    /// foreign key: a closing window archives its Today tabs in the same
+    /// write that drops its row, and a stray reference must never fail a
+    /// commit (the store adopts orphans into a window at launch). Existing
+    /// Today rows go to the first window by position (the one window every
+    /// state had before v9); with no window row they stay `NULL` and the
+    /// first window to open adopts them.
+    static func createV9(_ db: Database) throws {
+        try db.alter(table: "entry") { t in
+            t.add(column: "windowID", .blob)
+        }
+        try db.create(index: "entry_window", on: "entry", columns: ["windowID"])
+        if let first = try DatabaseValue.fetchOne(db, sql: "SELECT id FROM window ORDER BY position LIMIT 1") {
+            try db.execute(sql: "UPDATE entry SET windowID = ? WHERE kind = 'today'", arguments: [first])
         }
     }
 

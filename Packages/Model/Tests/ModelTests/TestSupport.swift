@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 @testable import Model
 
 /// A fresh directory under the temporary directory, removed by `cleanup()`.
@@ -27,10 +28,10 @@ func sampleState() -> RoomState {
                        lastActiveAt: Timestamp(milliseconds: 5_000), liveURL: "https://docs.example.com/page", liveTitle: "Page")
     let todayID = UUID()
     let group = SplitGroup(layout: .vbox, ratios: [0.25, 0.75], members: [todayID])
+    var window = WindowState(sidebarWidth: 260, sidebarVisible: false, activeSpaceID: home.id)
     let today = Entry(id: todayID, kind: .today, spaceID: home.id, profileID: profile.id, splitGroupID: group.id,
                       createdAt: Timestamp(milliseconds: 4_000), liveURL: "https://news.example.com", liveTitle: "News",
-                      navigationState: Data("opaque engine state".utf8))
-    var window = WindowState(sidebarWidth: 260, sidebarVisible: false, activeSpaceID: home.id)
+                      navigationState: Data("opaque engine state".utf8), windowID: window.id)
     window.frame = CGRect(x: 10, y: 20, width: 1200, height: 800)
     var settings = Settings()
     settings.permanentCloseBehavior = .unloadSwitch
@@ -78,4 +79,15 @@ func snapshotted(_ state: RoomState) -> RoomState {
     state.archive = []
     for index in state.entries.indices { state.entries[index].navigationState = nil }
     return state
+}
+
+/// Inserts `entry` into a database migrated to before v9 (no `windowID`).
+func insertBeforeV9(_ entry: Entry, _ db: GRDB.Database) throws {
+    try db.execute(sql: """
+        INSERT INTO entry (id, kind, spaceID, profileID, folderID, splitGroupID, position, storedURL, storedTitle, customLabel,
+                           customIcon, faviconID, isCollapsed, createdAt, lastActiveAt, liveURL, liveTitle, navigationState)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, arguments: [entry.id, entry.kind, entry.spaceID, entry.profileID, entry.folderID, entry.splitGroupID, entry.position,
+                         entry.storedURL, entry.storedTitle, entry.customLabel, entry.customIcon, entry.faviconID, entry.isCollapsed,
+                         entry.createdAt, entry.lastActiveAt, entry.liveURL, entry.liveTitle, entry.navigationState])
 }

@@ -89,6 +89,8 @@ public final class TabController: SidebarHost {
     /// that window's Chrome `Browser`).
     @ObservationIgnored public weak var window: NSWindow?
     @ObservationIgnored public weak var sidebar: SidebarController?
+    /// The window's id in the store (its Today tabs carry it, schema v9).
+    public var windowID: UUID? { sidebar?.windowID }
     /// Dialogs, permission prompts, context menus, file choosers, keys.
     @ObservationIgnored public weak var pageUIDelegate: (any WebContentsUIDelegate)?
     /// ⌘T and "New Tab" (the palette, Phase 2.4).
@@ -506,7 +508,7 @@ public final class TabController: SidebarHost {
     /// `transition`: how the palette produced the URL (history weighs it).
     @discardableResult
     public func openNewTab(url: String, transition: PageTransition = .typed) -> UUID? {
-        guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
+        guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID, window: windowID) else { return nil }
         pendingTransitions[entry.id] = transition
         sidebar.select(entry.id)
         return entry.id
@@ -521,7 +523,7 @@ public final class TabController: SidebarHost {
     public func openNewTab(url: String, inSpace space: UUID, transition: PageTransition = .typed) -> UUID? {
         guard let sidebar else { return nil }
         guard space != sidebar.activeSpaceID else { return openNewTab(url: url, transition: transition) }
-        guard let entry = try? store.sidebar.addEntry(.today, url: url, space: space) else { return nil }
+        guard let entry = try? store.sidebar.addEntry(.today, url: url, space: space, window: windowID) else { return nil }
         pendingTransitions[entry.id] = transition
         sidebar.selectInBackground(entry.id, space: space)
         loadInBackground(store.sidebar.entry(entry.id) ?? entry)
@@ -532,7 +534,7 @@ public final class TabController: SidebarHost {
     /// behind the current one (the palette's ⌥Enter, spec §C).
     @discardableResult
     public func openBackgroundTab(url: String, transition: PageTransition = .typed) -> UUID? {
-        guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID) else { return nil }
+        guard let sidebar, let entry = try? store.sidebar.addEntry(.today, url: url, space: sidebar.activeSpaceID, window: windowID) else { return nil }
         pendingTransitions[entry.id] = transition
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
@@ -553,8 +555,8 @@ public final class TabController: SidebarHost {
             return openRouted(url: url.absoluteString, contents: nil, profileID: opener.profileID, in: routed)
         }
         let lastRelated = relatedChain?.opener == openerID ? relatedChain?.last : nil
-        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space))
-        guard let entry = try? store.sidebar.addEntry(.today, url: url.absoluteString, space: space, at: index) else { return nil }
+        let index = NavigationRules.relatedTabIndex(opener: opener, lastRelated: lastRelated, today: store.sidebar.today(space: space, window: windowID))
+        guard let entry = try? store.sidebar.addEntry(.today, url: url.absoluteString, space: space, window: windowID, at: index) else { return nil }
         pendingTransitions[entry.id] = .link
         loadInBackground(entry)
         sidebar.pageStateDidChange([entry.id])
@@ -716,7 +718,7 @@ public final class TabController: SidebarHost {
     @discardableResult
     private func openRouted(url: String, contents: (any WebContents)?, profileID: UUID, in space: UUID) -> UUID? {
         guard let sidebar, let target = store.sidebar.space(space),
-              let entry = try? store.sidebar.addEntry(.today, url: url, space: space) else {
+              let entry = try? store.sidebar.addEntry(.today, url: url, space: space, window: windowID) else {
             contents?.close()
             return nil
         }

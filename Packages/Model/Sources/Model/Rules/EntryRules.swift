@@ -54,10 +54,13 @@ public enum EntryRules {
             result.kind = .essential
             result.spaceID = nil
             result.folderID = nil
+            // Shared by every window (schema v9).
+            result.windowID = nil
         case .pinned:
             try storeCurrentPage(&result)
             result.kind = .pinned
             result.spaceID = space.id
+            result.windowID = nil
         case .today:
             if entry.kind != .today {
                 result.liveURL = entry.liveURL ?? entry.storedURL
