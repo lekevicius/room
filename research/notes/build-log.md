@@ -591,3 +591,38 @@ Build: started **2026-10-05 23:15:14** from bash with nohup (`ROOM_BUILD_JOBS=6 
 The build's first half hour (`out/dev/siso_metrics.json` lines; 0 failed steps throughout): 899 at 23:16:59, 9,118 at 23:28:12, 10,283 at 23:30:56, 13,685 at 23:37:57, 16,669 at 23:40:36, **19,036 at 23:45:39** (30 min after siso began), 19,485 at 23:46:39; load 14–24 (siso's generators and compiles, the syntax-only pass's three clangs for 51 s). The generator steps come first, so the rate falls from here: Phase 1.5's clean build had 63,686 steps in 4 h 15 min. Expected end **~03:30** (03:00–04:00).
 
 Syntax-only pass again at 23:47 against the half-regenerated `gen/` (with the fixes in): **19 of 27 `//room` files clean** (all of `room/browser/` but `room_browser_window.mm`; in `room/core/`: `room_app_controller`, `room_application`, `room_context_menu`, `room_core_version`, `room_cr_application`, `room_downloads`, `room_extensions`, `room_history`, `room_network_policy`, `room_page_dialogs`, `room_page_prompts`, `room_permissions`, `room_profile`, `room_web_contents_tools`; the diagnostics probe). The 8 that wait for the build (each still includes a 154 generated header: `autofill_driver.mojom.h`, `message_port.mojom.h`, `translate.mojom.h`, `print.mojom.h`, `room_cdm.mojom.h`, `url_restriction.pb.h`): `room_browser_window.mm`, `room_autocomplete.mm`, `room_browser.mm`, `room_cdm_browser.cc`, `room_cdm_renderer.cc`, `room_extension_popups.mm`, `room_page_state.mm`, `room_web_contents.mm`. Their only errors located in `//room` are `room_cdm_browser.cc`'s `DocumentService` cascade from the stale `room_cdm.mojom.h`; everything else is in the stale headers or cascades from them.
+
+### Rebase 154.0.8037.98 → 155.0.8059.36: verify (eve, 2026-10-06)
+
+- build: 16440 s (/Users/eve/Code/room/build/roomcore-rebase-2-build.log)
+- package: 42 s
+- baseline: 111 s (/Users/eve/Code/room/build/baseline/rebase-155.0.8059.36-035419)
+  - nav: {"nav_exit": 0, "nav_seconds": 16.868, "nav_assertions": "passed"}
+  - quits: 0.271 s 0.261 s 0.28 s
+- tour: 849 s (/Users/eve/Code/room/build/grand-tour/20261006-035610-roomcore)
+  - Totals: light 297 passed, 5 failed.
+
+What the record above does not say (3.9-2, written by hand):
+
+- **The build.** `build/roomcore-rebase-2-build.log`: siso 2026-10-05 23:15:51 → 2026-10-06 03:49:51, "The build has finished successfully", **"build done in 16440 s"** (4 h 34 min 0 s), **56,073 steps** (`out/dev/siso_metrics.json` lines), 0 failed, uninterrupted, 6 jobs; a clean build (the clang roll), the 3.9-1 tour preview (load 10–30) beside it for its first ~2 h. Phase 1.5's clean `out/dev` on this machine: 4 h 15 min, 63,686 steps. The 8 `//room` files the syntax-only pass could not see compiled without a change. Framework `out/dev/RoomCore.framework/Versions/155.0.8059.36`.
+- **The quits line** was empty in the first record: `roomcore-rebase.sh` grepped `quit.txt` for "N s", which the JSON lines of `roomcore-shutdown-local.py` never held (a harness fault since 3.8-1; 3.8-2's quits never ran, so it went unseen). Fixed in the script (it reads `quit_seconds`) and the line above filled from the same file. **Baseline:** nav passed (16.9 s; 3.8-2 on .98: 16.2 s), three ten-page quits on the external corpus **0.271 / 0.261 / 0.280 s** (load1 3.8 / 5.9 / 9.8), 26 helpers observed, 0 left, 0 crash reports, exit 0 each: Stack Overflow loaded this time (3.8-2: four failed attempts behind its challenge). Against 3.1b-2's component baseline on 154.0.8037.58: 0.269 / 0.261 / 0.240 s.
+- **Tour sections** (`build/grand-tour/20261006-035610-roomcore`, light, 14.0 min): layout **155 / 3**, sidebar **25 / 0**, tabs **38 / 2**, chrome **79 / 0** (**297 / 5**; 3.8-2 on .98: 154 / 1, 25 / 0, 37 / 3, 77 / 1 = 293 / 5 under the old harness). Every failure attributed: memory, open10, quittiming "no helper crash report" with 4 / 1 / 3 renderer minidumps, each `layout_object.h:518 DCHECK failed: !NeedsLayout() || ChildLayoutBlockedByDisplayLock()` on live sites (B-76, the dev build's condition; 155 did not change it: the same DCHECK, the same steps, the same counts as 3.9-1's 154 preview); tabs' discard renderers 15 → 16 (B-56); switching p95 23.94 ms (B-53; the median **15.69 ms** passes again: 3.8-2 16.31). The two 3.9-1 harness fixes hold on 155 (popups 12/12, chrome26b 54/54 with its one expected `chrome://crash` minidump). Audio's first audible edge passed (load 5–10). Stub hits over the run (the surviving engine log): `CreateSadTab` only (the crash step); **no `GetAcceleratorProvider` hit**.
+- **Navigation state written by 154, restored on 155** (`build/evidence-3.9b/restore154`, not committed): a copy of 3.7b's `session` state (schema v5, every entry's state written by **154.0.8037.58**) opened by the 155 Room.app with the `session` spike's `check` phase. The store migrated v5 → v6 at that launch (history tables gone), `entries_with_state: 10 of 10`, and the engine log has **10 × "RoomCore: navigation state written by Chromium 154.0.8037.58, restored by 155.0.8059.36"** and no "not restored" line: all ten restored (`SerializedNavigationEntry` reads across the milestone). Nine of the ten went Back to their site; entry 0 restored to Wikipedia with no Back entry, which is what that state held (3.7b's own `check` had left entry 0 after its discard revival), so the spike's "restore_passed: 9 of 10" is its expectation on a reused state, not a failed read.
+- **Verify** 16 min 42 s (package 42 s, baseline 111 s, tour 849 s), one run, nothing beside it.
+
+**Rebase 2's full cost** (154.0.8037.98 → 155.0.8059.36, the next milestone, by the script): hand time **~18 min active** (script 6 min, hand ~12 min: 0001's context fix ~1.5 min, five `//room` API fixes, the syntax-only pass and `gn check`); sync **122 s** + runhooks **59 s** (the clang roll; inside the 18 min); build **16,440 s = 4 h 34 min** (clean, uninterrupted, 56,073 steps); verify **16 min 42 s**; conflicts **1** (0001, context) + **17** offsets refreshes + **1** clean three-way merge (0014); `//room` API fixes **5**; stub diff **+1** (`GetAcceleratorProvider` → nullptr; 37 → 38; never hit). Wall from the first run (2026-10-05 22:33) to the verified build (2026-10-06 04:10): 5 h 37 min, of which ~20 min a person's.
+
+**Cadence** (PLAN §4 "Chromium cadence"; both rebases measured whole):
+
+| | Rebase 1 (154.0.8037.58 → .98, same milestone) | Rebase 2 (.98 → 155.0.8059.36, next milestone) |
+|---|---|---|
+| Hand + script to the build | ~5.5 min | ~18 min active |
+| Conflicts | 1 (0012 moved with its call site) + 1 offsets | 1 context (0001) + 17 offsets + 1 clean merge |
+| `//room` API fixes | 0 | 5, plus 1 new stub |
+| sync + runhooks | 35 s + 33 s | 122 s + 59 s (clang roll) |
+| Build | 2 h 16 min + 32 min (near-clean, V8 rolled; a power outage between) | 4 h 34 min (clean, the clang roll; 56,073 steps) |
+| Verify | 15.0 min (293 / 5 light, none new) | 16.7 min (297 / 5 light, none new; baseline passed whole) |
+| Person's time | ~6 min + the verify's reading | ~18 min + the verify's reading |
+| Machine time | ~3 h 5 min | ~4 h 52 min |
+
+Both are far under the fallback's "> 1 day each": a milestone costs a night of machine time and well under an hour of a person's. Confirmed by the full tour on 155 (`spike-results.md` "Phase 3.9 — grand tour on RoomCore 155.0.8059.36 (the exit)").

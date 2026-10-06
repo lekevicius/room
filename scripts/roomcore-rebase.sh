@@ -268,7 +268,8 @@ if [[ $mode == verify ]]; then
   step_done baseline "$t" "$dir"
   (( baseline_ok )) || record "  - BASELINE FAILED: $(grep -m1 -E 'Error|error' "$STATE/baseline.log" | cut -c1-300)"
   record "  - nav: $(head -1 "$dir/nav-receipt.json" 2>/dev/null)"
-  record "  - quits: $(grep -Eo '[0-9.]+ s' "$dir/quit.txt" | tr '\n' ' ' || true)"
+  # quit.txt holds one JSON line per quit (roomcore-shutdown-local.py).
+  record "  - quits: $(sed -n 's/.*"quit_seconds": \([0-9.]*\).*/\1 s/p' "$dir/quit.txt" | tr '\n' ' ' || true)"
   t=$(now)
   # shellcheck disable=SC2086  # appearances: words
   "$REPO/scripts/grand-tour.sh" --groups "${ROOM_REBASE_TOUR_GROUPS:-layout,sidebar,tabs,chrome}" \
