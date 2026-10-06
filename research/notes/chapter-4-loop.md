@@ -43,3 +43,11 @@ Outcome: accepted; the phase closed in one session with every exit item behind a
 ### 4.6 — accepted; Phase 4.6 closed; the DMG (2026-10-06 23:46 → 2026-10-07 00:32, 46 min; the DMG from 00:33, notarization slow)
 
 Outcome: accepted; the phase closed in one session with every exit item behind a measured line or a recorded finding. The media controls (`//room` +191 lines, no patch), the media row, document PiP in a floating panel (B-51 closed), video PiP's overlay verified, Now Playing found to work through Chrome's own controls (no host code), the autoplay line; the official incremental **8 min 58 s** beside the app work; `media` 32 / 32 on both builds. Decisions: B-62 waits (no laptop run yet); B-90 rides 4.7a's engine step; the DMG (version 7) packaged once Apple returns. User's list: Phase 4.6 steps 48–54 (seven). No "3.9 week" rows yet.
+
+### Note — the 4.6 DMG and GitHub (2026-10-07 01:05–01:45)
+
+Apple's notarization of the 4.6 release app never returned (the background command hit its 30-minute bound; the previous two submissions that evening took 70–85 s), so build 7 was abandoned and the next DMG is build 8 over 4.7a's framework. GitHub Actions stopped running CI at 01:35 on a billing hold (B-93, the user's); the sessions build and test the CI spec locally until then.
+
+### 4.7a — accepted (2026-10-07 00:41 → 01:29, 48 min; the DMG from 01:45 in the background)
+
+Outcome: accepted. `savePage` and the DevTools command (`//room` +324 lines, no patch), B-90, the PDFs-download default through `EngineConfiguration.features`, Save Page…, View Source, ⇧⌘2 with the crop overlay and Full Page (2068 × 8000 in 168 ms), the PDF viewer verified without a fix; the official incremental **8 min 48 s**; `documents` 42 / 42 on both builds; CI not run (B-93), the CI spec green locally. Decisions: B-91 to 5.6, B-92 to 4.9; build 8 for 4.7a. User's list: Phase 4.7a steps 55–59. No "3.9 week" rows yet.
