@@ -27,6 +27,16 @@ def read_kv(path):
         return {}
 
 
+def conditions_line(directory):
+    """The tour's load and idle check (4.1a): conditions.tsv, else nothing."""
+    c = read_kv(os.path.join(directory, "conditions.tsv"))
+    if not c:
+        return None
+    return (f"Conditions at the start: load1 {c.get('load1', '?')}, "
+            f"other Room processes {c.get('other_room_processes', '?')}, "
+            f"Chromium build running: {c.get('chromium_build', '?')}; app `{c.get('app', '?')}`.\n")
+
+
 def run_summary(run, out):
     steps = read_tsv(os.path.join(run, "steps.tsv"))
     appearance = os.path.basename(run.rstrip("/"))
@@ -82,6 +92,8 @@ def main():
     if os.path.exists(os.path.join(a.directory, "steps.tsv")):
         out.append(f"# Grand tour — {os.path.basename(a.directory)}\n")
         out.append(f"Build {a.commit} (Room binary sha256 {a.binary}).\n")
+        if conditions_line(a.directory):
+            out.append(conditions_line(a.directory))
         run_summary(a.directory, out)
     else:
         tour = read_kv(os.path.join(a.directory, "tour.tsv")).get("tour_seconds")
@@ -90,6 +102,8 @@ def main():
         out.append(f"Build {a.commit} (Room binary sha256 {a.binary})"
                    + (f", built in {float(build):.0f} s" if build else "")
                    + (f"; tour wall time {float(tour) / 60:.1f} min" if tour else "") + ".\n")
+        if conditions_line(a.directory):
+            out.append(conditions_line(a.directory))
         totals = []
         for appearance in ("light", "dark"):
             run = os.path.join(a.directory, appearance)

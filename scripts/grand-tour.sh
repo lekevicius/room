@@ -85,6 +85,21 @@ for port in 8765 8766 8767 8770 8771; do
   if lsof -nP -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1; then echo "port $port is taken (a stale test server?)" >&2; exit 1; fi
 done
 
+# --- Conditions (4.1a) ------------------------------------------------------
+# Numbers are comparable run to run only with the load beside them: the
+# 1-minute load, the Room processes that are not this tour's (the user's own
+# Room, another wrapper's) and whether a Chromium build runs. Recorded, never
+# refused; printed in summary.md's header.
+other_rooms=$(ps -axo pid=,command= | grep -E '/Contents/MacOS/Room( |$)' | grep -v 'Room Helper' \
+  | grep -vF "${APP#./}/Contents/MacOS/Room" | grep -cv grep || true)
+chromium_builds=$(pgrep -f 'autoninja|/siso |siso_|siso ninja' | wc -l | tr -d ' ')
+{
+  printf 'load1\t%s\n' "$(sysctl -n vm.loadavg | awk '{print $2}')"
+  printf 'other_room_processes\t%s\n' "$other_rooms"
+  printf 'chromium_build\t%s\n' "$([[ $chromium_builds -gt 0 ]] && echo "yes ($chromium_builds autoninja/siso processes)" || echo no)"
+  printf 'app\t%s\n' "$APP"
+} > "$TOUR/conditions.tsv"
+
 # --- One build ----------------------------------------------------------------
 commit="$(git rev-parse --short HEAD)"
 [[ -n "$(git status --porcelain -- App Packages Engine project.yml xcodegen)" ]] && commit="$commit+dirty"
@@ -184,6 +199,7 @@ for appearance in "${appearances[@]}"; do
   export ROOM_TOUR_ARGS="-RoomStateDirectory $STATE -RoomEngineDirectory $ENGINE -RoomSpikeAppearance $appearance -RoomFixtureReplaces YES -ApplePersistenceIgnoreState YES"
   run_start=$(now)
   # The main display's mode: window-size checks (Dia's 1244 × 818 framing) need a screen taller than 818 pt.
+  cp "$TOUR/conditions.tsv" "$RUN/conditions.tsv"
   printf 'display\t%s\n' "$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F': ' '/UI Looks like/ {print $2; exit}')" > "$RUN/display.tsv"
 
   group=layout
