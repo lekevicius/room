@@ -324,11 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         #if DEBUG
         // An explicit `-RoomStateDirectory` wins (the relaunch measurement reuses one).
-        if UserDefaults.standard.string(forKey: "RoomStateDirectory") == nil,
-           SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil
-            || HistoryFixture.requestedRows != nil {
-            directory = FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
-        }
+        if let throwaway = Self.throwawayStateDirectory { directory = throwaway }
         #endif
         do {
             let opening = ContinuousClock.now
@@ -349,6 +345,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return nil
         }
     }
+
+    #if DEBUG
+    /// The throwaway state directory of a snapshot, spike or fixture launch
+    /// without `-RoomStateDirectory` (nil otherwise). Decided once, before the
+    /// engine starts: `main.swift` puts the engine root inside it (B-78).
+    static let throwawayStateDirectory: URL? = {
+        guard UserDefaults.standard.string(forKey: "RoomStateDirectory") == nil,
+              SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil
+                || HistoryFixture.requestedRows != nil
+        else { return nil }
+        return FileManager.default.temporaryDirectory.appending(path: "Room-\(UUID().uuidString)", directoryHint: .isDirectory)
+    }()
+
+    /// The engine root of a DEBUG launch (B-78): `-RoomEngineDirectory` when
+    /// given, else `<state>/engine` for `-RoomStateDirectory` or a throwaway
+    /// state, else nil (the real root: a launch with neither flag and no spike).
+    static var debugEngineDirectory: URL? {
+        let defaults = UserDefaults.standard
+        if let override = defaults.string(forKey: "RoomEngineDirectory") {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        if let state = defaults.string(forKey: "RoomStateDirectory") {
+            return URL(fileURLWithPath: state, isDirectory: true).appending(path: "engine", directoryHint: .isDirectory)
+        }
+        return throwawayStateDirectory?.appending(path: "engine", directoryHint: .isDirectory)
+    }
+    #endif
 
     /// The database could not be opened and was left untouched (never
     /// treated as corruption): say so, and let the user quit or go on

@@ -243,7 +243,7 @@ extension SpikeRunner.Context {
             }
             SpikeRunner.record("moved_entry_profile_is_work", store.entry(id)?.profileID == work.profileID)
         }
-        let root = UserDefaults.standard.string(forKey: "RoomEngineDirectory") ?? ""
+        let root = AppDelegate.debugEngineDirectory?.path ?? ""
         let dirs = (try? FileManager.default.contentsOfDirectory(atPath: root))?.filter { $0.hasPrefix("Room Profile") }.sorted() ?? []
         SpikeRunner.record("engine_profile_directories", dirs.joined(separator: ", "))
         // History follows the profile: each profile's own HistoryService (3.5) has only its own visits.

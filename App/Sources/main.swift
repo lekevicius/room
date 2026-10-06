@@ -33,9 +33,10 @@ do {
     // ~/Library/Application Support/Room/RoomCore: the engine's data root.
     var engineDirectory = AppPaths.engineUserData
     #if DEBUG
-    // Spikes that write site data (the Phase 2.5 cookie check) use a throwaway engine root.
-    if let override = UserDefaults.standard.string(forKey: "RoomEngineDirectory") {
-        engineDirectory = URL(fileURLWithPath: override, isDirectory: true)
+    // A spike, fixture or `-RoomStateDirectory` launch never opens the real
+    // engine root (B-78): `-RoomEngineDirectory`, else `<state>/engine`.
+    if let debugRoot = AppDelegate.debugEngineDirectory {
+        engineDirectory = debugRoot
     }
     #endif
     // RoomCore logs to RoomCore.log in its data root and decides the keychain

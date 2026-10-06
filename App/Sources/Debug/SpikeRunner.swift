@@ -25,8 +25,10 @@ enum SpikeRunner {
     }
 
     /// `research/spikes/phase-1.4` in the source tree this build came from.
-    static let pagesDirectory = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    /// `-RoomRepository <path>` lets a Debug app copied to another machine find the fixtures (B-78).
+    static let pagesDirectory = (UserDefaults.standard.string(forKey: "RoomRepository").map { URL(fileURLWithPath: $0, isDirectory: true) }
+        ?? URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
         .appending(path: "research/spikes/phase-1.4", directoryHint: .isDirectory)
 
     static func page(_ name: String) -> URL { pagesDirectory.appending(path: name) }
