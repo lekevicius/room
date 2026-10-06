@@ -58,7 +58,7 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | Downloads popover | ⇧⌘J | no | 2.6 | |
 | History | ⌘Y | no | 4.1 | the Library at History (4.1); the palette's history group stays (2.4) |
 | Fullscreen | ⌃⌘F | no | 2.8 | |
-| Reader mode | ⌥⇧⌘R | no | 4.7 | |
+| Reader mode | ⌥⇧⌘R | no | 4.7 | View ▸ Reader Mode (4.7b): the article (Chrome's DOM Distiller) in Room's reader page in the card, the entry's page kept behind it; again, Esc or Exit Reader returns; Settings ▸ Appearance ▸ Reader text size; a page without an article gets a toast. The context menu's Open in Reader Mode does the same |
 | Save page | ⇧⌘S | no | 4.7 | File ▸ Save Page…: a save panel with Web Page, Complete / HTML Only / Web Archive (MHTML); added 2026-10-07 (4.7a), the key the ⌘S row reserved |
 | Capture screenshot | ⇧⌘2 | no | 4.7 | a crop overlay over the page: drag a rectangle, Return for the whole viewport, Esc cancels; then Copy, Save, Open as Tab, Full Page |
 | Palette actions mode | ⌘T then Tab, or `>` | — | 2.4 | |

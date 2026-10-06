@@ -224,6 +224,12 @@ public final class TabController: SidebarHost {
     @ObservationIgnored var mediaArtwork: (data: Data, image: NSImage)?
     /// Peek pages by the entry they opened over (spec §I.6).
     @ObservationIgnored var peeks: [UUID: Page] = [:]
+    /// Reader pages by the entry whose page they read (4.7b, `TabController+Reader.swift`).
+    @ObservationIgnored var readers: [UUID: ReaderPage] = [:]
+    /// Reader mode ended for an entry (the app deletes the reader file and its history row).
+    @ObservationIgnored public var onReaderEnded: ReaderEnded?
+    /// The card's entry entered (`true`) or left reader mode: the app puts the keyboard in the page now shown.
+    @ObservationIgnored public var onReaderToggled: ((_ entry: UUID, _ isReader: Bool) -> Void)?
     /// Peek pages Room closed, until the engine reports them gone.
     @ObservationIgnored var closingPeeks: Set<ObjectIdentifier> = []
     /// Where Peek shows (the app's overlay card).
@@ -343,7 +349,8 @@ public final class TabController: SidebarHost {
         let indicator: EntryPageState.Capture? = capture.isSharingScreen ? .screen
             : capture.contains(.camera) ? .camera : capture.contains(.microphone) ? .microphone : nil
         return EntryPageState(isLoaded: alive, isLoading: alive && contents.isLoading, isAudible: alive && contents.isAudible,
-                              isMuted: contents.isMuted, favicon: page.favicon ?? storedFavicon(for: entry), capture: indicator)
+                              isMuted: contents.isMuted, favicon: page.favicon ?? storedFavicon(for: entry), capture: indicator,
+                              isReader: readers[entry] != nil)
     }
 
     public func activate(_ entry: Entry) {
@@ -372,7 +379,8 @@ public final class TabController: SidebarHost {
         page.lastVisible = now()
         // A discarded page comes back at its URL with its back/forward list (B-13).
         if page.contents.state == .discarded { page.contents.reload() }
-        show(page.contents, split: split)
+        // In reader mode the card shows the reader page; the entry's page stays loaded behind it (4.7b).
+        show(readers[entry.id]?.contents ?? page.contents, split: split)
         // Its Peek, if it had one, comes back with it.
         updatePeek(animated: false)
     }
@@ -432,8 +440,9 @@ public final class TabController: SidebarHost {
 
     /// Idempotent; the store is not touched (the sidebar resets or removes the entry).
     public func unload(_ entry: UUID) {
-        // Its Peek closes first (spec §A.3).
+        // Its Peek closes first (spec §A.3), and its reader page (4.7b).
         closePeek(over: entry, recordForReopen: false, animated: true)
+        closeReader(of: entry)
         guard let page = pages.removeValue(forKey: entry) else { return }
         page.generation += 1
         if currentEntryID == entry {
@@ -470,6 +479,7 @@ public final class TabController: SidebarHost {
     }
 
     public func separate(_ entry: UUID, into newEntry: Entry) {
+        if let reader = readers.removeValue(forKey: entry) { readers[newEntry.id] = reader }
         guard let page = pages.removeValue(forKey: entry) else { return }
         page.generation += 1
         pages[newEntry.id] = page

@@ -72,6 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var screenshot: ScreenshotController?
     /// Save Page…'s format popup while its panel is up.
     var savePanelFormats: SavePageFormatPopup?
+    /// Reader mode (4.7b, `ReaderMode.swift`).
+    var reader: ReaderController?
     /// The user's shortcuts (4.4a, `Shortcuts.swift`): defaults plus `Settings.shortcutOverrides`.
     var shortcutTable = ShortcutTable()
     /// How long the last table took to reach the menu bar (the settings spike reads it).
@@ -636,6 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         observeShortcuts()
         installExtensionPopups()
         toastCenter = toasts
+        installReader(tabs: tabs, settings: store.settings, toasts: toasts)
         installFirstRun(sidebar: sidebar, settings: store.settings)
         // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
         // without an engine the tab controller listens to macOS's events.
@@ -730,8 +733,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.isPeekAvailable = true
-        chrome.performMenuAction = { [weak tabs] action, page in
+        chrome.performMenuAction = { [weak self, weak tabs] action, page in
             switch action {
+            case .readerMode:
+                // The page's own entry (the menu came from the card's page).
+                if tabs?.entryID(for: page) == tabs?.currentEntryID { self?.reader?.toggle() }
             case .openLinkInNewTab(let url), .openImageInNewTab(let url):
                 tabs?.openLink(url, from: page)
             case .openLinkInPeek(let url):
@@ -1548,6 +1554,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(showJavaScriptConsole(_:)): { app, _ in app.hasPage },
         #selector(inspectElements(_:)): { app, _ in app.hasPage },
         #selector(viewPageSource(_:)): { app, _ in AppDelegate.viewSourceURL(for: app.tabs?.focusedPage?.url) != nil },
+        #selector(readerMode(_:)): { app, item in
+            item.title = app.tabs?.isReaderShown == true ? "Exit Reader Mode" : "Reader Mode"
+            return app.reader?.canToggle == true
+        },
         // History (tag 2: the ⌘← / ⌘→ aliases, outside text fields)
         #selector(goBack(_:)): { app, item in
             (item.tag != 2 || !app.isEditingText) && app.tabs?.focusedPage?.canGoBack == true

@@ -481,6 +481,8 @@ public struct Settings: Hashable, Sendable, Codable {
     /// profile (profile id string → extension ids); stored now, applied by
     /// 4.8b's incognito window (Chrome's own default: none allowed).
     public var extensionsInIncognito: [String: [String]] = [:]
+    /// Settings ▸ Appearance (4.7b): the reader page's text size.
+    public var readerTextSize: ReaderTextSize = .medium
 
     public init() {}
 
@@ -489,7 +491,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
-        case extensionsInIncognito
+        case extensionsInIncognito, readerTextSize
     }
 
     public init(from decoder: any Decoder) throws {
@@ -528,6 +530,7 @@ public struct Settings: Hashable, Sendable, Codable {
         pdfsOpenInRoom = (try? container.decodeIfPresent(Bool.self, forKey: .pdfsOpenInRoom)).flatMap { $0 } ?? defaults.pdfsOpenInRoom
         extensionsInIncognito = (try? container.decodeIfPresent([String: [String]].self, forKey: .extensionsInIncognito)).flatMap { $0 }
             ?? defaults.extensionsInIncognito
+        readerTextSize = (try? container.decodeIfPresent(ReaderTextSize.self, forKey: .readerTextSize)).flatMap { $0 } ?? defaults.readerTextSize
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).
@@ -566,6 +569,11 @@ public struct SearchEngineSetting: Hashable, Sendable, Codable, Identifiable {
 /// The side of the window the sidebar docks on; the traffic lights stay where AppKit puts them.
 public enum SidebarSide: String, Hashable, Sendable, Codable, CaseIterable {
     case left, right
+}
+
+/// The reader page's three text sizes (4.7b; `ReaderMetrics` holds the points).
+public enum ReaderTextSize: String, Hashable, Sendable, Codable, CaseIterable {
+    case small, medium, large
 }
 
 /// Light, dark, or the system's choice.

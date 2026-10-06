@@ -90,6 +90,11 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
+        excludes: ["Reader/**"]
+      # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
+      - path: App/Resources/Reader
+        type: folder
+        buildPhase: resources
     # Info.plist is generated from here (xcodegen writes App/Resources/Info.plist).
     info:
       path: App/Resources/Info.plist

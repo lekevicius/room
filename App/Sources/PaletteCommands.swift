@@ -22,6 +22,7 @@ extension AppDelegate {
         add(CommandRegistry.findInPage, .find, when: tabs.current != nil)
         add(CommandRegistry.importFromBrowser, .importData)
         add(CommandRegistry.print, .print, when: tabs.current != nil)
+        add(CommandRegistry.readerMode, .readerMode, title: tabs.isReaderShown ? "Exit Reader Mode" : nil, when: reader?.canToggle == true)
         add(CommandRegistry.captureScreenshot, .screenshot, when: tabs.current != nil)
         add(CommandRegistry.savePage, .savePage, when: tabs.current != nil)
         add(CommandRegistry.viewSource, .viewSource, when: AppDelegate.viewSourceURL(for: tabs.current?.url) != nil)
@@ -75,6 +76,7 @@ extension AppDelegate {
         // After the palette has closed: the sheet attaches to the window.
         case CommandRegistry.importFromBrowser.id: DispatchQueue.main.async { self.showImportSheet(nil) }
         case CommandRegistry.print.id: tabs.current?.print()
+        case CommandRegistry.readerMode.id: reader?.toggle()
         // After the palette has closed: the overlay and the panel take the window's keys.
         case CommandRegistry.captureScreenshot.id: DispatchQueue.main.async { self.captureScreenshot(nil) }
         case CommandRegistry.savePage.id: DispatchQueue.main.async { self.savePageAs(nil) }

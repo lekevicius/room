@@ -183,7 +183,8 @@ public enum MainMenuTable {
         item("Zoom In", "zoomPage:", key: k("=", .command), tag: 1, row: "Zoom in / out / reset"),
         item("Zoom Out", "zoomPage:", key: k("-", .command), tag: -1, row: "Zoom in / out / reset"),
         .separator,
-        item("Reader Mode", nil, key: k("r", [.command, .shift, .option]), row: "Reader mode", chapter: "4.7"),
+        // 4.7b: the distiller's article in Room's reader page; again (or Esc) returns to the page.
+        item("Reader Mode", "readerMode:", key: k("r", [.command, .shift, .option]), row: "Reader mode"),
         // AppKit's own action: the window retitles it (Exit Full Screen) and no second item is added.
         item("Enter Full Screen", "toggleFullScreen:", key: k("f", [.command, .control]), target: .responderChain, row: "Fullscreen"),
         .separator,

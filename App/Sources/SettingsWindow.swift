@@ -349,6 +349,14 @@ private struct SettingsSectionView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
+        Section {
+            // 4.7b: the reader page's text (⌥⇧⌘R); applies to a reader page that shows.
+            Picker("Reader text size", selection: binding(\.readerTextSize)) {
+                Text("Small").tag(ReaderTextSize.small)
+                Text("Medium").tag(ReaderTextSize.medium)
+                Text("Large").tag(ReaderTextSize.large)
+            }
+        }
     }
 
     // MARK: Search (4.4a: the engines list, the default per profile, the keywords, B-64's line)

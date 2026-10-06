@@ -17,6 +17,7 @@ extension AppDelegate {
         CommandRegistry.duplicateTab.id: "duplicateSelected:",
         CommandRegistry.findInPage.id: "showFindBar:",
         CommandRegistry.print.id: "printPage:",
+        CommandRegistry.readerMode.id: "readerMode:",
         CommandRegistry.captureScreenshot.id: "captureScreenshot:",
         CommandRegistry.savePage.id: "savePageAs:",
         CommandRegistry.viewSource.id: "viewPageSource:",

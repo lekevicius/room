@@ -10,6 +10,9 @@ public enum RoomMenuAction: Equatable {
     case copyLink(URL)
     case openImageInNewTab(URL)
     case copyImageAddress(URL)
+    /// Chrome's "Open in Reading Mode" (its side panel, which Room does not
+    /// have) as Room's reader mode, in its place (4.7b).
+    case readerMode
 }
 
 /// Turns the engine's context menu into an `NSMenu` (ROADMAP 2.6 task 2:
@@ -19,10 +22,15 @@ public enum RoomMenuAction: Equatable {
 public final class ContextMenu: NSObject, NSMenuDelegate {
     /// Room items carry tags below this; engine ids are kept as they are.
     static let roomTagBase = -1_000_000
+    /// Chrome's reading-mode side panel items (`chrome_command_ids.h`): Open in
+    /// Reading Mode becomes Room's reader mode; Listen to This Page (read aloud
+    /// in that panel) is dropped, as the panel never opens in Room (4.7b).
+    static let openInReadingModeID = 50169
+    static let listenToThisPageID = 50195
 
     public let menu: NSMenu
     private let model: MenuModel
-    private let roomActions: [RoomMenuAction]
+    private var roomActions: [RoomMenuAction]
     private let perform: (RoomMenuAction) -> Void
 
     /// `peekAvailable`: whether Open Link in Peek is enabled (Phase 2.7).
@@ -43,7 +51,7 @@ public final class ContextMenu: NSObject, NSMenuDelegate {
             if case .openLinkInPeek = action { item.isEnabled = peekAvailable }
             menu.addItem(item)
         }
-        let engineItems = Self.trimmedSeparators(model.items)
+        let engineItems = Self.trimmedSeparators(Self.withoutDeadItems(model.items))
         if !actions.isEmpty, !engineItems.isEmpty { menu.addItem(.separator()) }
         add(engineItems, to: menu)
         menu.delegate = self
@@ -68,12 +76,18 @@ public final class ContextMenu: NSObject, NSMenuDelegate {
         case .copyLink: "Copy Link"
         case .openImageInNewTab: "Open Image in New Tab"
         case .copyImageAddress: "Copy Image Address"
+        case .readerMode: "Open in Reader Mode"
         }
     }
 
     private static func startsGroup(_ action: RoomMenuAction) -> Bool {
         if case .openImageInNewTab = action { return true }
         return false
+    }
+
+    /// The engine's items without those that would do nothing in Room.
+    static func withoutDeadItems(_ items: [MenuItem]) -> [MenuItem] {
+        items.filter { $0.id != listenToThisPageID }
     }
 
     /// No separator first, last or twice in a row (an engine may leave them where it removed items).
@@ -98,6 +112,14 @@ public final class ContextMenu: NSObject, NSMenuDelegate {
                 submenu.autoenablesItems = false
                 add(Self.trimmedSeparators(children), to: submenu)
                 entry.submenu = submenu
+                entry.isEnabled = item.isEnabled
+                menu.addItem(entry)
+            case .command where item.id == Self.openInReadingModeID:
+                // Room's reader mode where Chrome's reading mode was.
+                let entry = NSMenuItem(title: Self.title(.readerMode), action: #selector(chooseRoom(_:)), keyEquivalent: "")
+                entry.target = self
+                entry.tag = Self.roomTagBase - roomActions.count
+                roomActions.append(.readerMode)
                 entry.isEnabled = item.isEnabled
                 menu.addItem(entry)
             case .command, .checkbox, .radio:

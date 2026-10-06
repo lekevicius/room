@@ -1,0 +1,106 @@
+<!doctype html>
+<!-- Room's reader page (Phase 4.7b). The host fills the {{…}} slots
+     (Chrome's ReaderRules.page): STYLE is the CSS variables generated from
+     the design tokens (ReaderStyle.css: colours, type, spacing), CONTENT the
+     DOM Distiller's markup; the rest is escaped text. data-appearance and
+     data-size follow the app (the window's appearance, Settings ▸ Appearance
+     ▸ Reader text size). No script runs here; links leave reader mode. -->
+<html dir="{{DIRECTION}}" data-appearance="{{APPEARANCE}}" data-size="{{SIZE}}">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src * data: blob:; media-src *; style-src 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width">
+<title>{{TITLE}}</title>
+<style>
+{{STYLE}}
+html {
+  background: var(--room-background);
+  color: var(--room-text);
+  font: var(--room-text-size)/var(--room-line-height) -apple-system, system-ui, sans-serif;
+  -webkit-text-size-adjust: none;
+}
+body {
+  margin: 0;
+  padding: var(--room-page-padding) var(--room-block-gap);
+}
+#room-reader {
+  max-width: var(--room-measure);
+  margin: 0 auto;
+}
+header {
+  margin-bottom: calc(var(--room-block-gap) * 2);
+  padding-bottom: var(--room-block-gap);
+  border-bottom: 1px solid var(--room-separator);
+}
+.room-reader-byline {
+  display: flex;
+  gap: var(--room-block-gap);
+  align-items: baseline;
+  font-size: calc(var(--room-secondary-scale) * 1em);
+  color: var(--room-secondary);
+}
+.room-reader-byline #room-reader-original {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--room-secondary);
+}
+#room-reader-exit {
+  color: var(--room-link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+h1#room-reader-title {
+  font-size: calc(var(--room-title-scale) * 1em);
+  line-height: 1.2;
+  margin: var(--room-block-gap) 0 0;
+}
+main h1, main h2, main h3, main h4 {
+  font-size: calc(var(--room-heading-scale) * 1em);
+  line-height: 1.3;
+  margin: calc(var(--room-block-gap) * 2) 0 var(--room-block-gap);
+}
+main p, main ul, main ol, main blockquote, main pre, main figure, main table {
+  margin: 0 0 var(--room-block-gap);
+}
+main a { color: var(--room-link); }
+main img, main video, main picture, main svg {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--room-image-radius);
+}
+main figure { margin-left: 0; margin-right: 0; }
+main figcaption, main caption {
+  font-size: calc(var(--room-secondary-scale) * 1em);
+  color: var(--room-secondary);
+}
+main blockquote {
+  padding-left: var(--room-block-gap);
+  border-left: 3px solid var(--room-separator);
+  color: var(--room-secondary);
+}
+main pre, main code { font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; }
+main pre { overflow-x: auto; }
+main table { border-collapse: collapse; }
+main td, main th { border: 1px solid var(--room-separator); padding: 0.25em 0.5em; }
+</style>
+</head>
+<body>
+<article id="room-reader">
+<header>
+<div class="room-reader-byline">
+<span id="room-reader-host">{{HOST}}</span>
+<a id="room-reader-original" href="{{URL}}">{{URL}}</a>
+<a id="room-reader-exit" href="{{URL}}" title="Exit Reader (⌥⇧⌘R or Esc)">Exit Reader</a>
+</div>
+<h1 id="room-reader-title">{{TITLE}}</h1>
+</header>
+<main id="room-reader-content">
+{{CONTENT}}
+</main>
+</article>
+</body>
+</html>

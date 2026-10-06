@@ -1412,6 +1412,13 @@ extension SidebarController {
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
 
+    /// The row's cell of an entry on screen, if it has one (4.7b: the reader glyph).
+    public func debugRowView(for id: UUID) -> NSView? {
+        guard let node = tree.displayedNode(for: id) else { return nil }
+        let row = outline.row(forItem: node)
+        return row >= 0 ? outline.view(atColumn: 0, row: row, makeIfNecessary: false) : nil
+    }
+
     /// The context menu a right-click on `id` shows (4.4a: its keys follow the shortcut table).
     public func debugContextMenu(for id: UUID) -> NSMenu? { menu(for: id) }
 

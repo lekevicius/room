@@ -10,6 +10,8 @@ extension TabController: NavigationDelegate {
     /// and opens in Peek over the page. A Peek's own page navigates in place.
     /// New-tab dispositions come back through `didCreate`.
     public func webContents(_ webContents: any WebContents, decidePolicyFor action: NavigationAction) -> Disposition {
+        // The reader page leaves reader mode for any link (4.7b).
+        if let entry = readerEntry(of: webContents) { return readerPolicy(for: action, entry: entry) }
         guard peekDecision(for: action, in: webContents) == .peek, let opener = entryID(for: webContents) else { return action.disposition }
         // After the engine has finished with the cancelled navigation.
         Task { @MainActor in self.openPeek(action.url, over: opener) }
@@ -30,8 +32,9 @@ extension TabController: NavigationDelegate {
 extension TabController: WebContentsUIDelegate {
     public func webContents(_ webContents: any WebContents, didCreate newContents: any WebContents, targetURL: URL?,
                             disposition: Disposition) {
-        // A Peek's popups open under the entry the Peek is over (never routed: Peek is untouched by routing, 4.2).
-        let fromEntry = entryID(for: webContents)
+        // A Peek's popups open under the entry the Peek is over (never routed: Peek is untouched by routing, 4.2);
+        // the reader page's under the entry it reads (4.7b).
+        let fromEntry = entryID(for: webContents) ?? readerEntry(of: webContents)
         guard let opener = fromEntry ?? peekOpener(of: webContents) else {
             newContents.close()
             return
@@ -52,6 +55,11 @@ extension TabController: WebContentsUIDelegate {
             return
         }
         if closingPeeks.remove(ObjectIdentifier(webContents)) != nil { return }
+        // The reader page went by itself (its renderer, never Room's close): the entry's page comes back.
+        if let entry = readerEntry(of: webContents) {
+            readerPageClosed(entry)
+            return
+        }
         // A Peek's page closed itself (`window.close()`): the Peek goes.
         if let opener = peekOpener(of: webContents) {
             peeks.removeValue(forKey: opener)
@@ -222,6 +230,12 @@ extension TabController: WebContentsUIDelegate {
         if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
            webContents === peekContents {
             return closeShownPeek()
+        }
+        // Esc the reader page did not use leaves reader mode (4.7b).
+        if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+           let entry = readerEntry(of: webContents) {
+            exitReader(entry)
+            return true
         }
         if let pageUIDelegate { return pageUIDelegate.webContents(webContents, handleUnhandledKeyEvent: event) }
         return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false

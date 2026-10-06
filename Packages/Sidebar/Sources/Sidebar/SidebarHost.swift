@@ -16,15 +16,18 @@ public struct EntryPageState: Equatable {
     public var isMuted: Bool
     public var favicon: NSImage?
     public var capture: Capture?
+    /// The entry shows its page in reader mode (4.7b): the row carries the reader glyph.
+    public var isReader: Bool
 
     public init(isLoaded: Bool = false, isLoading: Bool = false, isAudible: Bool = false, isMuted: Bool = false,
-                favicon: NSImage? = nil, capture: Capture? = nil) {
+                favicon: NSImage? = nil, capture: Capture? = nil, isReader: Bool = false) {
         self.isLoaded = isLoaded
         self.isLoading = isLoading
         self.isAudible = isAudible
         self.isMuted = isMuted
         self.favicon = favicon
         self.capture = capture
+        self.isReader = isReader
     }
 
     public static let unloaded = EntryPageState()

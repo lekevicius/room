@@ -153,6 +153,31 @@ public enum ScreenshotMetrics {
     public static let maximumCapturePixels: CGFloat = 16_384
 }
 
+/// The reader page (4.7b): a Room-owned HTML page whose CSS variables are
+/// generated from these and the `Palette`/system colours (`ReaderStyle` in
+/// Chrome). Chosen; Chapter 5 judges the look.
+public enum ReaderMetrics {
+    /// Body text per `Settings.readerTextSize` (CSS px = pt at 1×): small, medium, large.
+    public static let textSizes: [CGFloat] = [16, 19, 23]
+    /// The article title relative to the body text.
+    public static let titleScale: CGFloat = 1.6
+    /// Headings inside the article relative to the body text.
+    public static let headingScale: CGFloat = 1.25
+    /// The byline (host, original link) and captions relative to the body text.
+    public static let secondaryScale: CGFloat = 0.8
+    /// Line height as a multiple of the text size.
+    public static let lineHeight: CGFloat = 1.55
+    /// The measure: the text column's widest line, in `em` of the body text.
+    public static let measure: CGFloat = 34
+    /// Space above the title and between blocks.
+    public static let pagePadding: CGFloat = Spacing.l * 3
+    public static let blockGap: CGFloat = Spacing.m
+    /// Image corners.
+    public static let imageRadius: CGFloat = Radius.small
+    /// A page is an article when the distiller's text is at least this many characters.
+    public static let minimumArticleCharacters = 400
+}
+
 /// The inset page card (PLAN §2.4).
 /// The Library in the sidebar (4.1a, ⇧⌘L): a search field, then the
 /// Archive, Downloads and History sections (chosen; Chapter 5 revisits).

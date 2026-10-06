@@ -45,6 +45,11 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
+        excludes: ["Reader/**"]
+      # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
+      - path: App/Resources/Reader
+        type: folder
+        buildPhase: resources
     settings:
       groups: [RoomApp, RoomCoreLink]
       base:

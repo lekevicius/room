@@ -64,6 +64,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let audioButton = AudioIndicatorView()
     /// The page captures its camera, microphone or a screen (3.4b).
     private let captureIndicator = NSImageView()
+    /// The entry is in reader mode (4.7b).
+    private let readerIndicator = NSImageView()
 
     /// The pointer is over the row.
     var isHovered = false { didSet { if isHovered != oldValue { updateHoverState() } } }
@@ -94,7 +96,12 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         captureIndicator.isHidden = true
         captureIndicator.contentTintColor = .systemRed
         captureIndicator.setAccessibilityIdentifier("row-capture")
-        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator] as [NSView] {
+        readerIndicator.isHidden = true
+        readerIndicator.contentTintColor = .secondaryLabelColor
+        readerIndicator.image = Symbol.readerMode.image(pointSize: 11, weight: .medium, accessibilityDescription: "Reader mode")
+        readerIndicator.toolTip = "Reader mode (⌥⇧⌘R or Esc to exit)"
+        readerIndicator.setAccessibilityIdentifier("row-reader")
+        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator, readerIndicator] as [NSView] {
             addSubview(view)
         }
     }
@@ -155,6 +162,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             captureIndicator.toolTip = label
             captureIndicator.setAccessibilityLabel(label)
         }
+        readerIndicator.isHidden = !model.page.isReader
         setAccessibilityLabel(EntryLabel.title(entry))
         updateHoverState()
         needsLayout = true
@@ -230,6 +238,11 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         if !captureIndicator.isHidden {
             let width = SidebarMetrics.audioIndicatorWidth
             captureIndicator.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
+            trailing -= width
+        }
+        if !readerIndicator.isHidden {
+            let width = SidebarMetrics.audioIndicatorWidth
+            readerIndicator.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
             trailing -= width
         }
         let x = icon.maxX + SidebarMetrics.faviconTitleGap

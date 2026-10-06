@@ -56,6 +56,8 @@ func sampleState() -> RoomState {
     settings.searchEngineByProfile = [profile.id.uuidString: "custom-1"]
     settings.askWhereToSave = true
     settings.pdfsOpenInRoom = false
+    // 4.7b: the reader page's text size.
+    settings.readerTextSize = .large
     // 4.5: an extension allowed in the profile's incognito window (for 4.8b).
     settings.setAllowsInIncognito(true, "dibedkfpfkdkkcbjmblmfdbjdhdnlgkp", profile: profile.id)
     let rules = [

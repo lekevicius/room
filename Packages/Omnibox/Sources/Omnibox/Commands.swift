@@ -53,6 +53,8 @@ public enum CommandRegistry {
     public static let openPrivateWindow = OmniboxCommand(id: "open-private-window", title: "Open Private Window", keywords: ["incognito"])
     public static let pinTab = OmniboxCommand(id: "pin-tab", title: "Pin Tab", keywords: ["unpin"])
     public static let print = OmniboxCommand(id: "print", title: "Print")
+    /// View ▸ Reader Mode (4.7b): toggles.
+    public static let readerMode = OmniboxCommand(id: "reader-mode", title: "Reader Mode", keywords: ["read", "article", "distill"])
     public static let reload = OmniboxCommand(id: "reload", title: "Reload", keywords: ["refresh"])
     /// File ▸ Save Page… (4.7a).
     public static let savePage = OmniboxCommand(id: "save-page", title: "Save Page…", keywords: ["download", "mhtml", "archive", "html"])
@@ -74,7 +76,7 @@ public enum CommandRegistry {
     /// Every fixed command, A–Z by title.
     public static let all: [OmniboxCommand] = [
         addToEssentials, captureScreenshot, clearArchive, closeTab, copyURL, copyMarkdown, duplicateTab, findInPage, importFromBrowser, newFolder, newSpace,
-        newSplitView, nextSpace, previousSpace, openPrivateWindow, pinTab, print, reload, reloadWithoutCache, reopenClosedTab,
+        newSplitView, nextSpace, previousSpace, openPrivateWindow, pinTab, print, readerMode, reload, reloadWithoutCache, reopenClosedTab,
         resetPinnedTab, savePage, settings, spaceRouting, lightAppearance, darkAppearance, autoAppearance, toggleSidebar, viewArchive, unsplit,
         unloadTab, viewSource,
     ].sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
