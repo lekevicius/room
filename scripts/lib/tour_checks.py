@@ -888,6 +888,51 @@ def _settings(c):
     c.contains("restored", "defaults=true", label="the settings put back for the next steps")
 
 
+# --- settings2 (4.4b) ------------------------------------------------------------------
+
+@step_check("settings2")
+def _settings2(c):
+    """ROADMAP 4.4b (`scripts/profiles-check.sh`, two launches on one state):
+    a second profile's fixture cookie survives a rename (the engine directory
+    keyed by the profile's id) and the one-time move of a pre-4.4b directory
+    at launch; Clear browsing data for the last hour removes this hour's visit
+    and the cookie and keeps a visit 3 h old; a permission stored through
+    Settings' path is what permissions.html reads, and its reset too; a
+    profile with a space and two pages is deleted with its directory, its tabs
+    in the Archive; Default stays; the palette's Settings ▸ Privacy opens the
+    section; Chromium's site-data page renders in a tab."""
+    spike_from_out(c)
+    c.check("both launches reached their end", len(c.values.get("end", [])) == 2, f"{len(c.values.get('end', []))} end lines")
+    c.check("both launches had the window main", c.values.get("window_main", []) == ["true", "true"], f"{c.values.get('window_main')}")
+    c.contains("reorder", 'up=["Office", "Space"]', 'back=["Space", "Office"]', "positions=[0, 1]", label="spaces reordered as Settings ▸ Spaces moves them")
+    c.contains("cookie_set", '"room_profile=work"', "engine profile=the id", label="the fixture cookie in Work's space, its engine profile keyed by id")
+    c.contains("renamed", "refusal=none", "empty refused=A profile needs a name.", "name=Office Profile", "space profile kept=true",
+               label="renamed through Settings' path; an empty name refused")
+    c.contains("directories_set", "Room Profile <work id>", label="the directory is the id's, nothing moved by the rename")
+    c.contains("space_routing", "shown=true", "on settings=true", "editing=true", "target=Office", label="a space's Routing… opens the sheet with a rule for it")
+    c.contains("moved_at_launch", "Room Profile Office Profile → Room Profile <work id>", "local state updated=true",
+               label="the one-time move of a pre-4.4b directory at launch, Local State with it")
+    c.contains("directories_verify", "id=true", "legacy=false", label="no directory left or made under the old name")
+    c.contains("local_state", "last_used=Room Profile <work id>", label="Chromium's last used profile follows the move")
+    c.contains("cookie_after_relaunch", '"room_profile=work"', label="the cookie survives the rename, the move and the relaunch")
+    c.contains("clear_hour", "before: fresh=true old=true", "after: fresh=false old=true", 'cookie=""', "toast=Cleared history and cookies from the last hour",
+               label="Clear browsing data, last hour: this hour's visit and the cookie go, a 3-hour-old visit stays, the toast says so")
+    m = re.search(r"in (\d+) ms", c.first("clear_hour") or "")
+    if m:
+        c.numbers.append(("clear browsing data, last hour (ms)", m.group(1)))
+    c.contains("permission_listed", "http://127.0.0.1:8766=block", label="the stored permission is listed by contentSettings(ofType:)")
+    c.contains("permission_page", '\\"notifications\\":\\"denied\\"', label="the page reads the permission set in Settings")
+    c.contains("permission_reset", "listed=0", '\\"notifications\\":\\"prompt\\"', label="Reset: the list empties and the page asks again")
+    c.contains("delete_profile", "dir before=true", "outcome=deleted", "dir after=false", "archived=2 of 2", "profile gone=true", "space gone=true",
+               label="a profile deleted: its directory gone after its pages closed, its tabs in the Archive")
+    m = re.search(r"outcome=deleted in (\d+) ms", c.first("delete_profile") or "")
+    if m:
+        c.numbers.append(("delete a profile with two pages (ms)", m.group(1)))
+    c.contains("delete_default_refused", "refused", label="the Default profile cannot be deleted")
+    c.contains("palette_section", "commands=8", "visible=true", "title=Privacy", label="the palette's Settings ▸ Privacy opens the section")
+    c.contains("all_site_data", "title=Settings - All sites", "state=alive", '\\"ui\\":true', label="Chromium's site-data page renders in a Room tab")
+
+
 # --- import (4.3a) ---------------------------------------------------------------------
 
 @step_check("import")

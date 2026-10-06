@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -252,6 +252,10 @@ for appearance in "${appearances[@]}"; do
   # 4.4a: Settings: ⌘D remapped in Settings ▸ Shortcuts (the menu, the palette, the sidebar, the keys
   # page), a conflict, a reserved action remapped, every setting through a relaunch, the save panel, Reset All.
   run settings scripts/settings-check.sh "$CAPS/settings"
+  # 4.4b: Spaces & Profiles and Privacy: a renamed profile keeps its cookie through the one-time move
+  # of its engine directory, Clear browsing data for the last hour, a permission the page reads, a
+  # profile deleted with its directory, the palette's Settings ▸ Privacy.
+  run settings2 scripts/profiles-check.sh "$CAPS/settings2"
 
   group=layoutmodes
   ROOM_CAPTURE_DIR="$CAPS/layoutmodes" run layoutmodes scripts/layout-modes.sh "$appearance"
