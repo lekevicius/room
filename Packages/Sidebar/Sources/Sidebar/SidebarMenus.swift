@@ -241,6 +241,16 @@ extension SidebarController {
         })
         menu.addItem(action(CommandName.copyMarkdown, symbol: .copyMarkdown, key: "c", modifiers: [.command, .shift, .option],
                             enabled: hasURL) { [weak self] in self?.copyURL(of: id, markdown: true) })
+        // Spec §B: a `contains` rule for the page's host, targeting this space, in the routing sheet.
+        let host = entry.currentURL.flatMap { URL(string: $0) }.flatMap { url in
+            ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? url.host(percentEncoded: false) : nil
+        }
+        let space = entry.spaceID ?? tree.spaceID
+        menu.addItem(action(CommandName.addRouteForDomain, symbol: .routing, enabled: host != nil && onRoutingSettings != nil) {
+            [weak self] in
+            guard let host else { return }
+            self?.onRoutingSettings?((host.hasPrefix("www.") ? String(host.dropFirst(4)) : host, space))
+        })
     }
 
     /// Reload, Mute, Unload: need a loaded page.

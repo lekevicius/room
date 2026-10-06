@@ -55,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var backupScheduler: BackupScheduler?
     /// Help ▸ Restore Sidebar…'s sheet while it shows (`RestoreSidebar.swift`).
     var restoreSheet: NSWindow?
+    /// Space routing (spec §B, 4.2): external links and links between spaces; the rules sheet.
+    private(set) var spaceRouter: SpaceRouter?
+    var routingSheet: NSWindow?
+    var routingModel: RoutingRulesModel?
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
@@ -215,13 +219,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if taken.count < urls.count { NSLog("Room: ignored \(urls.count - taken.count) link(s) of a scheme Room does not open") }
     }
 
-    /// Each link as a Today tab at the end of the active space's list, the last
-    /// one selected; with no window showing (after ⇧⌘W) the window comes back first.
+    /// Each link as a selected Today tab at the end of the list of the space
+    /// the routing rules choose (spec §B, 4.2: a rule, else Settings ▸ Links'
+    /// default, the most recent space by default), with the toast when that is
+    /// not the shown space; with no window showing (after ⇧⌘W) the window comes back first.
     private func openIncoming(_ urls: [URL]) {
         guard let tabs else { return NSLog("Room: no sidebar to open \(urls.count) link(s) in") }
         if windowController?.window?.isVisible != true { newRoomWindow(nil) }
         for url in urls {
-            tabs.openNewTab(url: url.absoluteString, transition: .link)
+            if let spaceRouter { spaceRouter.openExternal(url) } else { tabs.openNewTab(url: url.absoluteString, transition: .link) }
             #if DEBUG
             debugIncomingLog.append(("requested", url, Date()))
             #endif
@@ -509,6 +515,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
+        // Space routing (spec §B, 4.2): links a page opens as new tabs follow the rules when the setting is on.
+        let router = SpaceRouter(store: store, sidebar: sidebar, tabs: tabs, toasts: toasts)
+        spaceRouter = router
+        tabs.routeLink = { [weak router] url, source in router?.routePageLink(url, from: source) }
+        tabs.onLinkRouted = { [weak router] _, space in router?.announce(space) }
+        sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
         // The engine's notices (infobars, the translate offer) as toasts (3.4b).
         pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }
         pageDelegate.chrome.dismissNotice = { [weak toasts] id in toasts?.dismiss(id: id) }
@@ -1084,7 +1096,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 showWelcomeCard: { [weak self] in self?.showWelcomeCard() },
                 checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
                 canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
-                extensions: { [weak self] in self?.extensions })
+                extensions: { [weak self] in self?.extensions },
+                sidebar: store.sidebar,
+                showRoutingRules: { [weak self] in self?.showRoutingRules(over: self?.settingsWindow?.window) })
             settingsWindow = SettingsWindowController(settings: store.settings, services: services)
         }
         settingsWindow?.showWindow(nil)

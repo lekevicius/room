@@ -63,7 +63,9 @@ extension SidebarController {
             guard let self else { return }
             unloadSpaces(sidebar.spaces.map(\.id).filter { $0 != id })
         })
-        menu.addItem(later(SpaceCommandName.routingSettings, symbol: .routing, phase: "4.2"))
+        menu.addItem(action(SpaceCommandName.routingSettings, symbol: .routing, enabled: onRoutingSettings != nil) { [weak self] in
+            self?.onRoutingSettings?(nil)
+        })
         menu.addItem(.separator())
         menu.addItem(action(CommandName.newSpace, symbol: .newSpace) { [weak self] in self?.newSpace() })
         menu.addItem(action(SpaceCommandName.deleteSpace, symbol: .deleteSpace, enabled: sidebar.spaces.count > 1) { [weak self] in

@@ -15,7 +15,7 @@ import SwiftUI
 /// opt-ins.
 final class SettingsWindowController: NSWindowController {
     enum Section: String, CaseIterable {
-        case general, appearance, search, downloads, extensions, privacy
+        case general, appearance, search, downloads, spaces, extensions, privacy
 
         var title: String {
             switch self {
@@ -23,6 +23,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "Appearance"
             case .search: "Search"
             case .downloads: "Downloads"
+            case .spaces: "Spaces"
             case .extensions: "Extensions"
             case .privacy: "Privacy"
             }
@@ -34,6 +35,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "paintpalette"
             case .search: "magnifyingglass"
             case .downloads: "arrow.down.circle"
+            case .spaces: "square.stack"
             case .extensions: "puzzlepiece.extension"
             case .privacy: "hand.raised"
             }
@@ -91,6 +93,10 @@ struct SettingsServices {
     let canCheckForUpdates: () -> Bool
     /// Chrome extensions per profile (3.6a); `nil` on an engine without them (no engine, the fakes).
     let extensions: () -> ExtensionsCenter?
+    /// The spaces and their routing rules (4.2: the Links popup, Settings ▸ Spaces).
+    let sidebar: SidebarStore
+    /// The routing sheet over the Settings window.
+    let showRoutingRules: () -> Void
 }
 
 private struct SettingsSectionView: View {
@@ -105,6 +111,7 @@ private struct SettingsSectionView: View {
             case .appearance: appearance
             case .search: search
             case .downloads: downloads
+            case .spaces: spaces
             case .extensions: ExtensionsSettingsView(center: services.extensions())
             case .privacy: privacy
             }
@@ -131,13 +138,32 @@ private struct SettingsSectionView: View {
                 }
             } label: {
                 Text(services.defaultBrowser.isDefault ? "Room is your default browser" : "Room is not your default browser")
-                Text("Links you open in other apps open in Room's window, as Today tabs in the active space.")
+                Text("Links you open in other apps open in Room's window as Today tabs, in the space your routing rules choose (Links, below).")
             }
         }
         Section("Links") {
             Toggle(isOn: binding(\.peekOffSiteLinks)) {
                 Text("Open links to other sites from pinned tabs in Peek")
                 Text("Sign-in pages, form posts and redirects still open in the tab. ⇧-click any link to Peek it.")
+            }
+            // Spec §B (4.2): the default for external links no rule matches, and routing between spaces.
+            Picker(selection: externalTarget) {
+                Text("Most Recent Space").tag(UUID?.none)
+                Divider()
+                ForEach(services.sidebar.spaces, id: \.id) { space in Text(space.name).tag(UUID?.some(space.id)) }
+            } label: {
+                Text("Open external links in")
+                Text("Links from other apps that no routing rule matches. The most recent space is the one you used last.")
+            }
+            Toggle(isOn: binding(\.routeLinksBetweenSpaces)) {
+                Text("Route links between spaces")
+                Text("A link you open as a new tab from a page goes to the space a routing rule names. Peek and links that open in place stay.")
+            }
+            LabeledContent {
+                Button("Routing Rules…") { services.showRoutingRules() }
+            } label: {
+                Text("Space routing")
+                Text(rulesSummary)
             }
         }
         Section("Tabs") {
@@ -157,6 +183,40 @@ private struct SettingsSectionView: View {
             } label: {
                 Text("Welcome card")
                 Text("The first-run choices in the sidebar: search engine, default browser, crash reports and updates.")
+            }
+        }
+    }
+
+    /// The chosen space while it exists; a deleted one reads as Most Recent Space.
+    private var externalTarget: Binding<UUID?> {
+        Binding(get: {
+            settings.settings.externalLinksSpaceID.flatMap { id in services.sidebar.space(id) != nil ? id : nil }
+        }, set: { value in settings.update { $0.externalLinksSpaceID = value } })
+    }
+
+    private var rulesSummary: String {
+        let rules = services.sidebar.routingRules
+        let enabled = rules.count { $0.enabled }
+        return rules.isEmpty ? "No routing rules." : "\(rules.count) rule\(rules.count == 1 ? "" : "s"), \(enabled) enabled."
+    }
+
+    // MARK: Spaces (4.2: routing; 4.4b adds profiles and the rest)
+
+    @ViewBuilder private var spaces: some View {
+        Section("Spaces") {
+            ForEach(services.sidebar.spaces, id: \.id) { space in
+                let rules = services.sidebar.routingRules.count { $0.targetSpaceID == space.id }
+                LabeledContent(space.name) {
+                    Text(rules == 0 ? "no routing rules" : "\(rules) routing rule\(rules == 1 ? "" : "s")").foregroundStyle(.secondary)
+                }
+            }
+        }
+        Section {
+            LabeledContent {
+                Button("Routing Rules…") { services.showRoutingRules() }
+            } label: {
+                Text("Space routing")
+                Text("Rules send links from other apps, and links between spaces when that is on (General ▸ Links), to a space. \(rulesSummary)")
             }
         }
     }

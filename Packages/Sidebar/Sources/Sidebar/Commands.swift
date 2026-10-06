@@ -30,6 +30,8 @@ public enum CommandName {
     public static let changeIcon = "Change Icon…"
     public static let copyURL = "Copy URL"
     public static let copyMarkdown = "Copy URL as Markdown"
+    /// Spec §B's tab context item (4.2): the routing sheet with a new rule for the page's host.
+    public static let addRouteForDomain = "Add Route for Domain…"
     public static let reload = "Reload"
     public static let muteTab = "Mute Tab"
     public static let unmuteTab = "Unmute Tab"
