@@ -78,13 +78,38 @@ extension PageUIDelegate: WebContentsUIDelegate {
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
         let reserved = ReservedShortcuts.matches(event, in: reservedKeys)
-        if reserved { logKey("reserved", event) }
+        if reserved {
+            logKey("reserved", event)
+            // RoomCore offers the event itself to the menu next; an ⌥ key whose character ⌥ changed
+            // ("†" for ⌥⌘T) no longer matches once the page's view has handled it (found in 4.4a), so it
+            // goes to the menu here as a fresh event. No default reserved key is one (⌥⌘ arrows keep theirs).
+            if Self.optionChangedCharacter(event), let copy = Self.fresh(event), NSApp.mainMenu?.performKeyEquivalent(with: copy) == true {
+                appendKeyLog("reserved sent fresh")
+            }
+        }
         return reserved
     }
 
     func webContents(_ webContents: any WebContents, handleUnhandledKeyEvent event: NSEvent) -> Bool {
         logKey("unhandled", event)
-        return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+        if NSApp.mainMenu?.performKeyEquivalent(with: event) == true { return true }
+        // The same as above for a page-first ⌥ key (⌥⌘P remapped onto Pin, 4.4a): a fresh copy matches.
+        guard Self.optionChangedCharacter(event), let copy = Self.fresh(event) else { return false }
+        let handled = NSApp.mainMenu?.performKeyEquivalent(with: copy) ?? false
+        appendKeyLog("unhandled sent fresh handled=\(handled)")
+        return handled
+    }
+
+    /// ⌥ produced another character than the key's ("π" for ⌥P).
+    private static func optionChangedCharacter(_ event: NSEvent) -> Bool {
+        event.type == .keyDown && event.modifierFlags.contains(.option)
+            && event.characters?.lowercased() != event.charactersIgnoringModifiers?.lowercased()
+    }
+
+    private static func fresh(_ event: NSEvent) -> NSEvent? {
+        NSEvent.keyEvent(with: event.type, location: event.locationInWindow, modifierFlags: event.modifierFlags, timestamp: event.timestamp,
+                         windowNumber: event.windowNumber, context: nil, characters: event.characters ?? "",
+                         charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "", isARepeat: event.isARepeat, keyCode: event.keyCode)
     }
 
     /// Nothing to do with a key the page used (RoomCore reports them from the
