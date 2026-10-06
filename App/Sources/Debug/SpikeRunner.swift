@@ -113,6 +113,24 @@ enum SpikeRunner {
         }
     }
 
+    /// The dev framework's spike hooks (`roomSpikeAction:`, `roomSpikeCommand:`; `room_enable_spikes`)
+    /// are absent from the official framework, where calling one is an unrecognized selector (B-82).
+    /// Every call goes through here: without the hook the spike records "spike hooks unavailable"
+    /// (once per selector) and gets nil, so the same spike runs on `ROOM_TOUR_APP`.
+    @MainActor private static var reportedMissingHooks: Set<String> = []
+
+    @MainActor
+    static func spikeHook(_ target: NSObject?, _ selectorName: String, _ argument: Any) -> NSNumber? {
+        let selector = NSSelectorFromString(selectorName)
+        guard let target, target.responds(to: selector) else {
+            if reportedMissingHooks.insert(selectorName).inserted {
+                record("spike_hooks", "spike hooks unavailable (\(selectorName) on \(target.map { String(describing: type(of: $0)) } ?? "no browser"))")
+            }
+            return nil
+        }
+        return target.perform(selector, with: argument)?.takeUnretainedValue() as? NSNumber
+    }
+
     static func loadAverage() -> String {
         var loads = [Double](repeating: 0, count: 3)
         getloadavg(&loads, 3)

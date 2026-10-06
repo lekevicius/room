@@ -273,7 +273,9 @@ extension SpikeRunner.Context {
     }
 
     private func spikeAction(_ action: String) -> Int {
-        (spikeBrowser()?.perform(NSSelectorFromString("roomSpikeAction:"), with: action)?.takeUnretainedValue() as? NSNumber)?.intValue ?? -99
+        // -98: the framework has no spike hooks (the official build; B-82), recorded once by `spikeHook`.
+        guard let browser = spikeBrowser() else { return -99 }
+        return SpikeRunner.spikeHook(browser, "roomSpikeAction:", action as NSString)?.intValue ?? -98
     }
     #endif
 

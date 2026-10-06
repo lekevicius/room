@@ -70,8 +70,7 @@ extension SpikeRunner.Context {
         let browser = (tabs.engineProfiles[historyProfile] as? RoomCoreProfile)?.spikeBrowsers.first
         // The same command executed on the window's Browser (chrome::ExecuteCommand → SetFocusToLocationBar).
         let beforeBrowser = session.pageDelegate.focusLocationBarRequests
-        let executed = browser?.perform(NSSelectorFromString("roomSpikeCommand:"), with: NSNumber(value: 39_001))?
-            .takeUnretainedValue() as? NSNumber
+        let executed = SpikeRunner.spikeHook(browser, "roomSpikeCommand:", NSNumber(value: 39_001))
         await settle(400)
         SpikeRunner.record("idc_focus_location_browser", "executed=\(executed?.boolValue ?? false) "
             + "requests=\(session.pageDelegate.focusLocationBarRequests - beforeBrowser) palette_open=\(palette.isOpen)")
@@ -88,8 +87,7 @@ extension SpikeRunner.Context {
             await settle(1_000)
             var chrome = "n/a"
             #if ROOM_ENGINE_ROOMCORE
-            if let level = browser?.perform(NSSelectorFromString("roomSpikeAction:"), with: "location-bar-security")?
-                .takeUnretainedValue() as? NSNumber {
+            if let level = SpikeRunner.spikeHook(browser, "roomSpikeAction:", "location-bar-security" as NSString) {
                 chrome = Self.securityLevelName(level.intValue)
             }
             #endif
