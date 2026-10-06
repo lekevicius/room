@@ -148,6 +148,8 @@ public enum MainMenuTable {
         // ⇧⌘S: the ⌘S row reserved it for Save page since 1.6 (4.7a; docs/shortcuts.md).
         item("Save Page…", "savePageAs:", key: k("s", [.command, .shift]), row: "Save page"),
         item("Capture Screenshot", "captureScreenshot:", key: k("2", [.command, .shift]), row: "Capture screenshot"),
+        // macOS's standard page setup on the shared print info, no key (4.7b; Chrome's preview starts from it).
+        item("Page Setup…", "showPageSetup:"),
         item("Print…", "printPage:", key: k("p", .command)),
     ])
 

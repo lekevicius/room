@@ -1512,6 +1512,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(showCommands(_:)): { app, _ in app.palette != nil },
         #selector(closeTab(_:)): { app, _ in app.tabs?.shownPeek != nil || app.sidebar?.canCloseCommandTargets == true },
         #selector(reopenClosedTab(_:)): { app, _ in app.sidebar?.canReopenClosedTab == true },
+        #selector(showPageSetup(_:)): { app, _ in app.windowController?.window != nil },
         #selector(printPage(_:)): { app, _ in app.hasPage },
         #selector(savePageAs(_:)): { app, _ in app.hasPage },
         #selector(captureScreenshot(_:)): { app, item in

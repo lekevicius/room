@@ -77,6 +77,19 @@ extension AppDelegate {
         return URL(string: "view-source:" + url.absoluteString)
     }
 
+    // MARK: Page Setup (4.7b)
+
+    /// File ▸ Page Setup…: macOS's page layout sheet on the shared print
+    /// info. Chrome's print preview starts each job from a copy of it
+    /// (`PrintingContextMac`), and its own Layout and paper choices override it.
+    @objc func showPageSetup(_ sender: Any?) {
+        guard let window = windowController?.window else { return }
+        NSPageLayout().beginSheet(using: NSPrintInfo.shared, on: window) { response in
+            NSLog("Room: page setup %@: %@, %@", response == .changed ? "changed" : "cancelled",
+                  NSPrintInfo.shared.orientation == .landscape ? "landscape" : "portrait", NSPrintInfo.shared.paperName?.rawValue ?? "?")
+        }
+    }
+
     // MARK: Screenshots
 
     /// ⇧⌘2: the crop overlay over the focused page (again: closes it).
