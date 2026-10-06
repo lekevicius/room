@@ -4,8 +4,8 @@ import Omnibox
 import Sidebar
 
 /// The palette's commands (spec §C list, `CommandRegistry`): which can run
-/// now and what each does. Commands of later phases (screenshot, archive,
-/// private window, routing) are not offered until
+/// now and what each does. Commands of later phases (archive, private
+/// window, routing) are not offered until
 /// their phase gives them something to do.
 extension AppDelegate {
     func paletteCommands() -> [OmniboxCommand] {
@@ -22,6 +22,9 @@ extension AppDelegate {
         add(CommandRegistry.findInPage, .find, when: tabs.current != nil)
         add(CommandRegistry.importFromBrowser, .importData)
         add(CommandRegistry.print, .print, when: tabs.current != nil)
+        add(CommandRegistry.captureScreenshot, .screenshot, when: tabs.current != nil)
+        add(CommandRegistry.savePage, .savePage, when: tabs.current != nil)
+        add(CommandRegistry.viewSource, .viewSource, when: AppDelegate.viewSourceURL(for: tabs.current?.url) != nil)
         add(CommandRegistry.newFolder, .newFolder)
         add(CommandRegistry.newSplitView, .newSplit, when: sidebar.selectedEntryID != nil)
         add(CommandRegistry.unsplit, .newSplit, when: sidebar.selectedSplit != nil)
@@ -72,6 +75,10 @@ extension AppDelegate {
         // After the palette has closed: the sheet attaches to the window.
         case CommandRegistry.importFromBrowser.id: DispatchQueue.main.async { self.showImportSheet(nil) }
         case CommandRegistry.print.id: tabs.current?.print()
+        // After the palette has closed: the overlay and the panel take the window's keys.
+        case CommandRegistry.captureScreenshot.id: DispatchQueue.main.async { self.captureScreenshot(nil) }
+        case CommandRegistry.savePage.id: DispatchQueue.main.async { self.savePageAs(nil) }
+        case CommandRegistry.viewSource.id: viewPageSource(nil)
         case CommandRegistry.newFolder.id: sidebar.newFolderCommand()
         // After the palette has closed: the new pane opens it again on itself.
         case CommandRegistry.newSplitView.id: DispatchQueue.main.async { sidebar.newSplitPane() }

@@ -54,6 +54,10 @@ public enum CommandRegistry {
     public static let pinTab = OmniboxCommand(id: "pin-tab", title: "Pin Tab", keywords: ["unpin"])
     public static let print = OmniboxCommand(id: "print", title: "Print")
     public static let reload = OmniboxCommand(id: "reload", title: "Reload", keywords: ["refresh"])
+    /// File ▸ Save Page… (4.7a).
+    public static let savePage = OmniboxCommand(id: "save-page", title: "Save Page…", keywords: ["download", "mhtml", "archive", "html"])
+    /// View ▸ Developer ▸ View Source (4.7a).
+    public static let viewSource = OmniboxCommand(id: "view-source", title: "View Source", keywords: ["html", "developer"])
     public static let reloadWithoutCache = OmniboxCommand(id: "reload-without-cache", title: "Reload without Cache", keywords: ["refresh", "hard"])
     public static let reopenClosedTab = OmniboxCommand(id: "reopen-closed-tab", title: "Reopen Closed Tab", keywords: ["undo", "restore"])
     public static let resetPinnedTab = OmniboxCommand(id: "reset-pinned-tab", title: "Reset Pinned Tab")
@@ -71,8 +75,8 @@ public enum CommandRegistry {
     public static let all: [OmniboxCommand] = [
         addToEssentials, captureScreenshot, clearArchive, closeTab, copyURL, copyMarkdown, duplicateTab, findInPage, importFromBrowser, newFolder, newSpace,
         newSplitView, nextSpace, previousSpace, openPrivateWindow, pinTab, print, reload, reloadWithoutCache, reopenClosedTab,
-        resetPinnedTab, settings, spaceRouting, lightAppearance, darkAppearance, autoAppearance, toggleSidebar, viewArchive, unsplit,
-        unloadTab,
+        resetPinnedTab, savePage, settings, spaceRouting, lightAppearance, darkAppearance, autoAppearance, toggleSidebar, viewArchive, unsplit,
+        unloadTab, viewSource,
     ].sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
     /// "Settings ▸ Privacy" (4.4b): opens Settings at one section.

@@ -145,7 +145,9 @@ public enum MainMenuTable {
         item("Close Window", "performClose:", key: k("w", [.command, .shift]), target: .responderChain, row: "Close window"),
         item("Reopen Closed Tab", "reopenClosedTab:", key: k("t", [.command, .shift]), row: "Reopen closed tab (incl. Peek)"),
         .separator,
-        item("Capture Screenshot", nil, key: k("2", [.command, .shift]), row: "Capture screenshot", chapter: "4.7"),
+        // ⇧⌘S: the ⌘S row reserved it for Save page since 1.6 (4.7a; docs/shortcuts.md).
+        item("Save Page…", "savePageAs:", key: k("s", [.command, .shift]), row: "Save page"),
+        item("Capture Screenshot", "captureScreenshot:", key: k("2", [.command, .shift]), row: "Capture screenshot"),
         item("Print…", "printPage:", key: k("p", .command)),
     ])
 
@@ -190,6 +192,9 @@ public enum MainMenuTable {
             item("JavaScript Console", "showJavaScriptConsole:", key: k("j", [.command, .option]),
                  row: "Developer tools / inspect / console"),
             item("Inspect Elements", "inspectElements:", key: k("c", [.command, .option]), row: "Developer tools / inspect / console"),
+            .separator,
+            // No key: ⌥⌘U is Unsplit (4.7a); the page's context menu has Chrome's View Page Source.
+            item("View Source", "viewPageSource:"),
         ]),
     ])
 

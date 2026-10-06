@@ -90,6 +90,10 @@ public enum Symbol: CaseIterable, Sendable {
     case zoomOut
     case print
     case screenshot
+    /// File ▸ Save Page… (4.7a).
+    case savePage
+    /// View ▸ Developer ▸ View Source (4.7a).
+    case viewSource
     case readerMode
     case developerTools
     case share
@@ -193,6 +197,8 @@ public enum Symbol: CaseIterable, Sendable {
         case .zoomOut: "minus.magnifyingglass"
         case .print: "printer"
         case .screenshot: "camera.viewfinder"
+        case .savePage: "square.and.arrow.down"
+        case .viewSource: "chevron.left.forwardslash.chevron.right"
         case .readerMode: "doc.plaintext"
         case .developerTools: "hammer"
         case .share: "square.and.arrow.up"

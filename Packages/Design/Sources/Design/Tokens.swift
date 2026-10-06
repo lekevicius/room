@@ -136,6 +136,23 @@ public enum PictureInPictureMetrics {
     public static let minimumSize = CGSize(width: 160, height: 90)
 }
 
+/// The screenshot overlay over the card (⇧⌘2, 4.7a): the dimmed outside, the
+/// selection's outline and the result bar.
+public enum ScreenshotMetrics {
+    /// Black over everything outside the selection.
+    public static let dimAlpha: CGFloat = 0.35
+    public static let selectionBorderWidth: CGFloat = 1
+    /// A drag shorter than this (either side) is a click, not a selection.
+    public static let minimumSelection: CGFloat = 4
+    /// The bar under the selection (or at the card's bottom).
+    public static let barHeight: CGFloat = 36
+    public static let barPadding: CGFloat = Spacing.s
+    public static let barGap: CGFloat = Spacing.s
+    public static let barCornerRadius: CGFloat = Radius.medium
+    /// Chromium's largest capture texture side, in device pixels: a full page is clipped to it.
+    public static let maximumCapturePixels: CGFloat = 16_384
+}
+
 /// The inset page card (PLAN §2.4).
 /// The Library in the sidebar (4.1a, ⇧⌘L): a search field, then the
 /// Archive, Downloads and History sections (chosen; Chapter 5 revisits).

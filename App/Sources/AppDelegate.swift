@@ -68,6 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var importModel: ImportSheetModel?
     /// The other browser's extensions' store pages, opening one at a time (4.3b).
     var extensionStorePages: ExtensionStorePages?
+    /// ⇧⌘2's overlay while it is up (4.7a, `DocumentsUI.swift`).
+    var screenshot: ScreenshotController?
+    /// Save Page…'s format popup while its panel is up.
+    var savePanelFormats: SavePageFormatPopup?
     /// The user's shortcuts (4.4a, `Shortcuts.swift`): defaults plus `Settings.shortcutOverrides`.
     var shortcutTable = ShortcutTable()
     /// How long the last table took to reach the menu bar (the settings spike reads it).
@@ -1503,6 +1507,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(closeTab(_:)): { app, _ in app.tabs?.shownPeek != nil || app.sidebar?.canCloseCommandTargets == true },
         #selector(reopenClosedTab(_:)): { app, _ in app.sidebar?.canReopenClosedTab == true },
         #selector(printPage(_:)): { app, _ in app.hasPage },
+        #selector(savePageAs(_:)): { app, _ in app.hasPage },
+        #selector(captureScreenshot(_:)): { app, item in
+            item.title = app.screenshot == nil ? "Capture Screenshot" : "Cancel Screenshot"
+            return app.screenshot != nil || app.hasPage
+        },
         // Edit
         #selector(copyPageURL(_:)): { app, _ in app.sidebar?.selectedHasURL == true },
         #selector(showFindBar(_:)): { app, _ in app.hasPage },
@@ -1538,6 +1547,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         },
         #selector(showJavaScriptConsole(_:)): { app, _ in app.hasPage },
         #selector(inspectElements(_:)): { app, _ in app.hasPage },
+        #selector(viewPageSource(_:)): { app, _ in AppDelegate.viewSourceURL(for: app.tabs?.focusedPage?.url) != nil },
         // History (tag 2: the ⌘← / ⌘→ aliases, outside text fields)
         #selector(goBack(_:)): { app, item in
             (item.tag != 2 || !app.isEditingText) && app.tabs?.focusedPage?.canGoBack == true
