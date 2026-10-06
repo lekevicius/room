@@ -51,6 +51,35 @@ public enum ArchivePolicy {
     }
 }
 
+/// How long the Archive keeps its rows (B-80; the app passes the tokens,
+/// `Retention.archiveRows` 30 days and `Retention.archiveNavigationState`
+/// 7 days; no setting): a row archived longer ago than `rows` is pruned at the
+/// sweep, and one older than `navigationState` loses its back/forward list
+/// (a restore then opens its URL with no history).
+public enum ArchiveRetention {
+    public struct Plan: Equatable, Sendable {
+        public var prune: Set<UUID> = []
+        public var dropNavigationState: Set<UUID> = []
+        public var isEmpty: Bool { prune.isEmpty && dropNavigationState.isEmpty }
+        public init() {}
+    }
+
+    public static func plan(_ rows: some Sequence<ArchivedEntry>, now: Timestamp, rows keep: TimeInterval,
+                            navigationState keepState: TimeInterval) -> Plan {
+        var plan = Plan()
+        let rowLimit = now.milliseconds - Int64(keep * 1000)
+        let stateLimit = now.milliseconds - Int64(keepState * 1000)
+        for row in rows {
+            if row.archivedAt.milliseconds < rowLimit {
+                plan.prune.insert(row.id)
+            } else if row.navigationState != nil, row.archivedAt.milliseconds < stateLimit {
+                plan.dropNavigationState.insert(row.id)
+            }
+        }
+        return plan
+    }
+}
+
 /// The Library's and the palette's view of the Archive (spec §H).
 public enum ArchiveSearch {
     /// Rows whose title, URL or domain contains every word of `text`

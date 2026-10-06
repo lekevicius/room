@@ -126,10 +126,11 @@ public final class StateWriter: Sendable {
         if !removed.isEmpty { _ = try Record.deleteAll(db, keys: removed) }
     }
 
-    /// Archive rows are written once and never edited (a restore deletes the
-    /// row; archiving the entry again makes a new one), so rows compare by
-    /// their small columns: the navigation-state blobs of thousands of rows
-    /// are not compared on every write.
+    /// Archive rows are written once and edited only by the retention (B-80:
+    /// the navigation state dropped; a restore deletes the row, archiving the
+    /// entry again makes a new one), so rows compare by their small columns
+    /// and whether a state is present: the navigation-state blobs of thousands
+    /// of rows are not compared on every write.
     private static func syncArchive(_ old: [ArchivedEntry], _ new: [ArchivedEntry], in db: Database) throws {
         let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         var seen = Set<UUID>()
@@ -137,7 +138,8 @@ public final class StateWriter: Sendable {
             seen.insert(row.id)
             if let previous = before[row.id], previous.archivedAt == row.archivedAt, previous.reason == row.reason,
                previous.url == row.url, previous.title == row.title, previous.spaceID == row.spaceID,
-               previous.profileID == row.profileID, previous.faviconID == row.faviconID { continue }
+               previous.profileID == row.profileID, previous.faviconID == row.faviconID,
+               (previous.navigationState == nil) == (row.navigationState == nil) { continue }
             try row.upsert(db)
         }
         let removed = before.keys.filter { !seen.contains($0) }

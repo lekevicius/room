@@ -390,4 +390,20 @@ struct ArchivePolicyTests {
         #expect(ArchivePolicy.afterHoursOptions == [12, 24, 168, 720])
         #expect(Settings().archiveAfterHours == 12)
     }
+
+    @Test("Retention (B-80): rows older than 30 days are pruned; rows older than 7 days lose their navigation state")
+    func retention() {
+        let day: Int64 = 24 * hour
+        let now = Timestamp(milliseconds: 100 * day)
+        func row(_ daysAgo: Int64, state: Bool = true) -> ArchivedEntry {
+            ArchivedEntry(url: "https://r.example/", spaceID: space, profileID: profile,
+                          archivedAt: Timestamp(milliseconds: now.milliseconds - daysAgo * day), reason: .auto,
+                          navigationState: state ? Data([1]) : nil)
+        }
+        let old = row(31), month = row(29), week = row(8), stateless = row(8, state: false), fresh = row(6)
+        let plan = ArchiveRetention.plan([old, month, week, stateless, fresh], now: now, rows: 30 * 86_400, navigationState: 7 * 86_400)
+        #expect(plan.prune == [old.id])
+        #expect(plan.dropNavigationState == [month.id, week.id])
+        #expect(ArchiveRetention.plan([fresh], now: now, rows: 30 * 86_400, navigationState: 7 * 86_400).isEmpty)
+    }
 }

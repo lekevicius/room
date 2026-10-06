@@ -647,6 +647,26 @@ struct ArchiveStoreTests {
         sidebar.deleteArchived([tabs[0].id])
         #expect(sidebar.archive.isEmpty)
     }
+
+    @Test("Retention (B-80): rows older than the span go, rows past the shorter one lose their navigation state; both survive a relaunch")
+    func retention() throws {
+        let day: Int64 = 86_400_000
+        let tabs = try (0..<3).map { try sidebar.addEntry(.today, url: "https://r\($0).example/", space: space.id) }
+        for tab in tabs { try sidebar.setNavigationState(tab.id, Data([1, 2, 3])) }
+        // Archived 40, 10 and 2 days before "now" (day 100).
+        for (tab, at) in zip(tabs, [60, 90, 98]) {
+            sidebar.clock = { Timestamp(milliseconds: day * Int64(at)) }
+            sidebar.archive([tab.id], reason: .auto)
+        }
+        let plan = sidebar.applyArchiveRetention(now: Timestamp(milliseconds: day * 100), rows: 30 * 86_400, navigationState: 7 * 86_400)
+        #expect(plan.prune == [tabs[0].id] && plan.dropNavigationState == [tabs[1].id])
+        #expect(sidebar.archive[tabs[0].id] == nil)
+        #expect(sidebar.archive[tabs[1].id]?.navigationState == nil && sidebar.archive[tabs[2].id]?.navigationState == Data([1, 2, 3]))
+        store.close()
+        let reopened = try test.reopen().sidebar
+        #expect(reopened.archive.count == 2)
+        #expect(reopened.archive[tabs[1].id]?.navigationState == nil && reopened.archive[tabs[2].id]?.navigationState == Data([1, 2, 3]))
+    }
 }
 
 @Suite("Store: Restore Sidebar (spec §H, ROADMAP 4.1b task 6)")

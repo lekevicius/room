@@ -710,6 +710,19 @@ public final class SidebarStore {
         commit(SidebarChange(archive: true))
     }
 
+    /// The Archive's retention at the sweep (B-80, `ArchiveRetention`): old
+    /// rows go, rows past the shorter span lose their navigation state.
+    /// Returns what it did.
+    @discardableResult
+    public func applyArchiveRetention(now: Timestamp, rows: TimeInterval, navigationState: TimeInterval) -> ArchiveRetention.Plan {
+        let plan = ArchiveRetention.plan(archive.values, now: now, rows: rows, navigationState: navigationState)
+        guard !plan.isEmpty else { return plan }
+        for id in plan.prune { archive[id] = nil }
+        for id in plan.dropNavigationState { archive[id]?.navigationState = nil }
+        commit(SidebarChange(archive: true))
+        return plan
+    }
+
     private func addArchiveRow(_ entry: Entry, reason: ArchiveReason, at time: Timestamp, change: inout SidebarChange) {
         guard let row = ArchivedEntry(entry, reason: reason, at: time) else { return }
         archive[row.id] = row
