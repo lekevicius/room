@@ -41,21 +41,6 @@ extension AppDelegate {
     func restoreSidebar(from file: BackupFile) -> Bool {
         guard let store, let tabs, let sidebar, let backupScheduler else { return false }
         hideLibrary()
-        // RoomCore closes a window's Browser when its last page goes, and the close is scheduled, not
-        // done: a page made in the same turn would join a Browser about to be deleted (Chrome's
-        // `!IsDeleteScheduled()` check, B-81). A blank page per engine profile holds each strip
-        // open until the restored selection has its page.
-        var holders: [any WebContents] = []
-        if let window = windowController?.window {
-            let profiles = Set(tabs.loadedEntryIDs.compactMap { store.sidebar.entry($0)?.profileID })
-            for id in profiles {
-                if let holder = try? tabs.engineProfiles[id]?.createWebContents(
-                    WebContentsConfiguration(initiallyHidden: true, hostWindow: window)) {
-                    holders.append(holder)
-                }
-            }
-        }
-        defer { DispatchQueue.main.async { for holder in holders { holder.close() } } }
         // Every page goes; their back/forward lists land in the state being backed up.
         for id in tabs.loadedEntryIDs { tabs.unload(id) }
         tabs.deactivate()

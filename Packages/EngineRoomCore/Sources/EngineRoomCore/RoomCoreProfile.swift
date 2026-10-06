@@ -91,6 +91,14 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
 
     // MARK: RoomBrowserDelegate
 
+    /// Chrome has decided to close the browser (its strip emptied) and
+    /// deletes it after the current task: retired now, so a page made in the
+    /// same turn gets a new Browser instead of joining one whose deletion is
+    /// scheduled (`browser.cc` `!IsDeleteScheduled()`, B-81).
+    public func browserWillClose(_ browser: RoomBrowser) {
+        browsers.removeAll { $0.browser === browser }
+    }
+
     public func browserDidClose(_ browser: RoomBrowser) {
         browsers.removeAll { $0.browser === browser }
     }
