@@ -18,6 +18,9 @@ public final class FirstRun {
 
     public var isShowing: Bool { !read().firstRunDone }
 
+    /// The settings as they are (the card lists Settings ▸ Search's engines from them).
+    public var settings: Settings { read() }
+
     public var searchEngine: String {
         get { read().searchEngine }
         set { write { $0.searchEngine = newValue } }

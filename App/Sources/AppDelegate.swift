@@ -559,7 +559,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         palette.onCommand = { [weak self] id in self?.runPaletteCommand(id) }
         palette.onRestoreArchived = { [weak self] id in self?.restoreArchived(id) }
         let settings = store.settings
-        palette.searchEngine = { [weak settings] in SearchEngine.named(settings?.settings.searchEngine) }
+        // Settings ▸ Search (4.4a): the shown space's profile's engine; every engine's keyword.
+        palette.searchEngine = { [weak settings, weak sidebar, weak store] in
+            guard let settings else { return .google }
+            let profile = sidebar.flatMap { store?.sidebar.space($0.activeSpaceID)?.profileID }
+            return SearchEngines.engine(for: profile, in: settings.settings)
+        }
+        palette.siteSearches = { [weak settings] in settings.map { SearchEngines.siteSearches($0.settings) } ?? SiteSearch.defaults }
         palette.suggestionsEnabled = { [weak settings] in settings?.settings.searchSuggestions ?? false }
         var proxy: String?
         #if DEBUG
@@ -914,7 +920,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// sheets and the daily update check.
     private func prepare(_ profile: any Engine.Profile, for model: Model.Profile) {
         profile.downloadsDelegate = downloads?.list
-        applySearchSettings(to: profile)
+        applySearchSettings(to: profile, profileID: model.id)
         if let engineExtensions = profile.extensions {
             extensionsCenter().add(profile: model.id, name: model.name, extensions: engineExtensions)
         }
@@ -948,11 +954,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         withObservationTracking {
             _ = settings.settings.searchSuggestions
             _ = settings.settings.searchEngine
+            _ = settings.settings.searchEngines
+            _ = settings.settings.searchEngineByProfile
         } onChange: { [weak self, weak settings, weak palette] in
             Task { @MainActor in
                 guard let self, let settings, let palette else { return }
                 palette.suggestionsSettingChanged()
-                for profile in self.tabs?.engineProfiles.values.map({ $0 }) ?? [] { self.applySearchSettings(to: profile) }
+                for (id, profile) in self.tabs?.engineProfiles ?? [:] { self.applySearchSettings(to: profile, profileID: id) }
                 self.observeSuggestionsSwitch(settings, palette: palette)
             }
         }
@@ -963,7 +971,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// switch is mirrored into Chrome's search-suggest preference as well.
     /// DEBUG: `-RoomSuggestURL <template>`, or `-RoomSuggestProxy host:port`
     /// (the tour's logging server), points the suggestions at a local endpoint.
-    func applySearchSettings(to profile: any Engine.Profile) {
+    func applySearchSettings(to profile: any Engine.Profile, profileID: UUID) {
         guard let settings = store?.settings.settings else { return }
         var suggestURL: String?
         #if DEBUG
@@ -973,7 +981,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             suggestURL = "http://\(proxy)/complete/search?client=room&q={searchTerms}"
         }
         #endif
-        profile.setDefaultSearchEngine(SearchEngine.named(settings.searchEngine).engineTemplate(suggestURL: suggestURL))
+        // Settings ▸ Search (4.4a): this profile's default engine.
+        profile.setDefaultSearchEngine(SearchEngines.engine(for: profileID, in: settings).engineTemplate(suggestURL: suggestURL))
         #if ROOM_ENGINE_ROOMCORE
         (profile as? RoomCoreProfile)?.searchSuggestEnabled = settings.searchSuggestions
         #endif

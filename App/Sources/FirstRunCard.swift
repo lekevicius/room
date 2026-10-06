@@ -78,7 +78,7 @@ private struct FirstRunCardContent: View {
             }
             Button("Import from another browser…", action: onImport)
             Picker("Search with", selection: Binding(get: { firstRun.searchEngine }, set: { firstRun.searchEngine = $0 })) {
-                ForEach(SearchEngine.all) { engine in Text(engine.name).tag(engine.id) }
+                ForEach(SearchEngines.list(firstRun.settings)) { engine in Text(engine.name).tag(engine.id) }
             }
             .pickerStyle(.menu)
             defaultBrowserRow

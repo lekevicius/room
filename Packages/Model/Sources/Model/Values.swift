@@ -466,6 +466,17 @@ public struct Settings: Hashable, Sendable, Codable {
     /// "togglePin:") → key ("⌥⌘P"; `""` for no key). An absent id keeps the
     /// default of `docs/shortcuts.md`; `UIKitCore.ShortcutTable` reads it.
     public var shortcutOverrides: [String: String] = [:]
+    /// Settings ▸ Search (4.4a): the engines list, `nil` for Room's built-in
+    /// list (`Omnibox.SearchEngines.builtIn`); written whole on the first edit.
+    public var searchEngines: [SearchEngineSetting]?
+    /// Settings ▸ Search: each profile's default engine (profile id string →
+    /// engine id); a profile without one uses `searchEngine` (the first-run choice).
+    public var searchEngineByProfile: [String: String] = [:]
+    /// Settings ▸ Downloads (4.4a): a save panel for every download instead of the folder.
+    public var askWhereToSave: Bool = false
+    /// Settings ▸ Downloads (4.4a): PDFs open in Room's viewer (`true`, Chrome's
+    /// default) or download; stored now, read by 4.7a.
+    public var pdfsOpenInRoom: Bool = true
 
     public init() {}
 
@@ -473,7 +484,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
-        case shortcutOverrides
+        case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
     }
 
     public init(from decoder: any Decoder) throws {
@@ -505,6 +516,31 @@ public struct Settings: Hashable, Sendable, Codable {
         externalLinksSpaceID = (try? container.decodeIfPresent(UUID.self, forKey: .externalLinksSpaceID)).flatMap { $0 }
         shortcutOverrides = (try? container.decodeIfPresent([String: String].self, forKey: .shortcutOverrides)).flatMap { $0 }
             ?? defaults.shortcutOverrides
+        searchEngines = (try? container.decodeIfPresent([SearchEngineSetting].self, forKey: .searchEngines)).flatMap { $0 }
+        searchEngineByProfile = (try? container.decodeIfPresent([String: String].self, forKey: .searchEngineByProfile)).flatMap { $0 }
+            ?? defaults.searchEngineByProfile
+        askWhereToSave = (try? container.decodeIfPresent(Bool.self, forKey: .askWhereToSave)).flatMap { $0 } ?? defaults.askWhereToSave
+        pdfsOpenInRoom = (try? container.decodeIfPresent(Bool.self, forKey: .pdfsOpenInRoom)).flatMap { $0 } ?? defaults.pdfsOpenInRoom
+    }
+}
+
+/// A search engine in Settings ▸ Search (4.4a): the URLs hold `{searchTerms}`
+/// where the query goes (Chrome's template word; Settings shows it as `%s`).
+public struct SearchEngineSetting: Hashable, Sendable, Codable, Identifiable {
+    public var id: String
+    public var name: String
+    /// Typed in the palette and followed by Tab, searches this engine ("ddg").
+    public var keyword: String
+    public var searchURL: String
+    /// The suggestions endpoint (OpenSearch JSON), if any.
+    public var suggestURL: String?
+
+    public init(id: String, name: String, keyword: String, searchURL: String, suggestURL: String? = nil) {
+        self.id = id
+        self.name = name
+        self.keyword = keyword
+        self.searchURL = searchURL
+        self.suggestURL = suggestURL
     }
 }
 

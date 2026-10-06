@@ -43,6 +43,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public var onClose: (() -> Void)?
     /// The default engine (Settings ▸ Search).
     public var searchEngine: () -> SearchEngine = { .google }
+    /// The keywords that search an engine (`yt` + Tab): Settings ▸ Search's engines (4.4a).
+    public var siteSearches: () -> [SiteSearch] = { SiteSearch.defaults }
     /// The suggestions switch (Settings ▸ Search), read on every use so it holds at once.
     public var suggestionsEnabled: () -> Bool = { false }
     /// The engine's omnibox for a profile (Phase 3.5, RoomCore): Chrome's
@@ -415,7 +417,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         entryCache = cache
         return OmniboxContext(entries: entries, activeSpaceID: sidebar.activeSpaceID, activeProfileID: activeSpace?.profileID,
                               currentEntryID: tabs.currentEntryID,
-                              searchEngine: searchEngine(), commands: commands(), now: now(), reusingKeysFrom: context)
+                              searchEngine: searchEngine(), commands: commands(), siteSearches: siteSearches(), now: now(),
+                              reusingKeysFrom: context)
     }
 
     /// ⌘L with the URL untouched shows no rows: Enter reloads (spec §C).

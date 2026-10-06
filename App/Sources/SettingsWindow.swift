@@ -323,18 +323,10 @@ private struct SettingsSectionView: View {
         }
     }
 
-    // MARK: Search
+    // MARK: Search (4.4a: the engines list, the default per profile, the keywords, B-64's line)
 
     @ViewBuilder private var search: some View {
-        Section {
-            Picker("Search engine", selection: binding(\.searchEngine)) {
-                ForEach(SearchEngine.all) { engine in Text(engine.name).tag(engine.id) }
-            }
-            Toggle(isOn: binding(\.searchSuggestions)) {
-                Text("Show search suggestions")
-                Text("Sends what you type in the palette to the search engine. Off: nothing leaves Room while you type.")
-            }
-        }
+        SearchSettingsView(settings: settings, profiles: services.sidebar.profiles.map { ($0.id, $0.name) })
     }
 
     // MARK: Downloads
@@ -500,3 +492,115 @@ extension PermanentCloseBehavior {
         }
     }
 }
+
+/// Settings ▸ Search (ROADMAP 4.4a task 3): each profile's default engine,
+/// the engines list (add, edit, remove; URLs shown with %s), the suggestions
+/// switch with Chrome's request cadence (B-64). A SwiftUI leaf: nothing here
+/// updates per keystroke but the editor's own fields.
+struct SearchSettingsView: View {
+    let settings: SettingsStore
+    let profiles: [(id: UUID, name: String)]
+    /// The engine being added or edited, its URLs in %s form.
+    @State private var draft: SearchEngineSetting?
+    @State private var problem: String?
+
+    private var engines: [SearchEngineSetting] { SearchEngines.list(settings.settings) }
+
+    var body: some View {
+        Section {
+            ForEach(profiles, id: \.id) { profile in
+                Picker(profiles.count == 1 ? "Search engine" : "Search engine for \(profile.name)", selection: defaultBinding(profile.id)) {
+                    ForEach(engines) { engine in Text(engine.name).tag(engine.id) }
+                }
+            }
+        } header: {
+            Text("Default")
+        } footer: {
+            Text("What you type in the palette searches the default engine of the shown space's profile.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+        Section {
+            ForEach(engines) { engine in row(engine) }
+            if let draft { editor(draft) } else {
+                Button("Add Search Engine…") {
+                    problem = nil
+                    self.draft = SearchEngineSetting(id: SearchEngines.newID(), name: "", keyword: "", searchURL: "https://", suggestURL: nil)
+                }
+            }
+        } header: {
+            Text("Search engines")
+        } footer: {
+            Text("Type an engine's keyword and press Tab in the palette to search it (yt, Tab, then what you look for).")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+        Section {
+            Toggle(isOn: Binding(get: { settings.settings.searchSuggestions }, set: { value in settings.update { $0.searchSuggestions = value } })) {
+                Text("Show search suggestions")
+                Text("With suggestions on, the search engine receives what you type as you type it, several times a second. "
+                     + "Off: nothing leaves Room while you type.")
+            }
+        }
+    }
+
+    private func defaultBinding(_ profile: UUID) -> Binding<String> {
+        Binding(get: { SearchEngines.defaultID(for: profile, in: settings.settings) },
+                set: { id in settings.update { $0.searchEngineByProfile[profile.uuidString] = id } })
+    }
+
+    @ViewBuilder private func row(_ engine: SearchEngineSetting) -> some View {
+        let blocked = SearchEngines.removalBlocked(engine.id, in: settings.settings, profiles: profiles.map(\.id))
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(engine.name)
+                    Text(engine.keyword).font(.callout.monospaced()).foregroundStyle(.secondary)
+                }
+                Text(SearchEngines.displayURL(engine.searchURL)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+            Button("Edit") {
+                problem = nil
+                var copy = engine
+                copy.searchURL = SearchEngines.displayURL(engine.searchURL)
+                copy.suggestURL = engine.suggestURL.map(SearchEngines.displayURL)
+                draft = copy
+            }
+            Button("Remove") { settings.update { SearchEngines.remove(engine.id, in: &$0, profiles: profiles.map(\.id)) } }
+                .disabled(blocked != nil)
+                .help(blocked ?? "Remove \(engine.name)")
+        }
+        .buttonStyle(.link)
+    }
+
+    @ViewBuilder private func editor(_ engine: SearchEngineSetting) -> some View {
+        let binding = Binding(get: { draft ?? engine }, set: { draft = $0 })
+        TextField("Name", text: binding.name)
+        TextField("Keyword", text: binding.keyword)
+        TextField("Search URL (%s for the search terms)", text: binding.searchURL)
+        TextField("Suggestions URL (optional)", text: Binding(get: { binding.wrappedValue.suggestURL ?? "" },
+                                                             set: { binding.wrappedValue.suggestURL = $0 }))
+        if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
+        HStack {
+            Spacer()
+            Button("Cancel") {
+                draft = nil
+                problem = nil
+            }
+            Button("Save") { save(binding.wrappedValue) }.keyboardShortcut(.defaultAction)
+        }
+    }
+
+    /// Stores the draft (%s back to {searchTerms}) or shows why not.
+    func save(_ engine: SearchEngineSetting) {
+        var stored = engine
+        stored.searchURL = SearchEngines.storedURL(engine.searchURL)
+        stored.suggestURL = engine.suggestURL.map(SearchEngines.storedURL)
+        var result: SearchEngines.Problem?
+        settings.update { value in
+            do throws(SearchEngines.Problem) { try SearchEngines.save(stored, in: &value) } catch { result = error }
+        }
+        problem = result?.message
+        if result == nil { draft = nil }
+    }
+}
+

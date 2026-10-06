@@ -50,6 +50,12 @@ func sampleState() -> RoomState {
     settings.externalLinksSpaceID = home.id
     // 4.4a: a remapped key and a removed one.
     settings.shortcutOverrides = ["togglePin:": "⌥⌘P", "toggleMute:": ""]
+    // 4.4a: the engines list, a profile's default, the downloads switches.
+    settings.searchEngines = [SearchEngineSetting(id: "custom-1", name: "Example", keyword: "ex",
+                                                  searchURL: "https://example.com/?q={searchTerms}", suggestURL: nil)]
+    settings.searchEngineByProfile = [profile.id.uuidString: "custom-1"]
+    settings.askWhereToSave = true
+    settings.pdfsOpenInRoom = false
     let rules = [
         RoutingRule(match: .contains, pattern: "github", targetSpaceID: work.id, position: 0),
         RoutingRule(match: .regex, pattern: #"^https://news\."#, targetSpaceID: home.id, position: 1, enabled: false),
