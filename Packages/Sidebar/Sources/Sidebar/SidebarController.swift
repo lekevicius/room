@@ -19,6 +19,10 @@ public final class SidebarController: NSObject {
     public var downloadsButton: DownloadsButton { footer.downloadsButton }
     let grid = EssentialsGridView()
     let footer = SidebarFooterView()
+    /// The footer's media row (4.6); `setMediaRow` shows it.
+    let mediaRow = MediaRowView()
+    /// A click on the media row: its action and the entry it shows (the tab controller acts).
+    public var onMediaRowAction: ((MediaRowAction, UUID) -> Void)?
     /// One list per space of the window, built ahead of a switch; `pane` is
     /// the active space's (`SpacePane`).
     private(set) var panes: [UUID: SpacePane] = [:]
@@ -1071,6 +1075,16 @@ public final class SidebarBodyView: NSView {
     }
     /// The accessory's height at a width (its content wraps).
     public var accessoryHeight: ((CGFloat) -> CGFloat)?
+    /// The media row (4.6) directly above the footer, in the spaces view and
+    /// the Library alike; hidden while nothing plays elsewhere.
+    var mediaRowView: NSView? {
+        didSet {
+            guard mediaRowView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let mediaRowView { addSubview(mediaRowView) }
+            needsLayout = true
+        }
+    }
     /// A view in place of the spaces view (the essentials, the lists, the
     /// accessory) between the header and the footer, which stay: the Library
     /// (⇧⌘L, 4.1a). `nil` shows the spaces again.
@@ -1311,11 +1325,17 @@ public final class SidebarBodyView: NSView {
         let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + Spacing.xs : 0
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
+        var bodyBottom = bounds.height - footerHeight
+        if let mediaRowView, !mediaRowView.isHidden {
+            let height = MediaRowMetrics.height
+            mediaRowView.frame = NSRect(x: inset, y: bodyBottom - height, width: width, height: height)
+            bodyBottom = mediaRowView.frame.minY - MediaRowMetrics.gap
+        }
         if let replacementView {
-            replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - footerHeight))
+            replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bodyBottom))
             return
         }
-        var listBottom = bounds.height - footerHeight
+        var listBottom = bodyBottom
         if let accessoryView, !accessoryView.isHidden {
             let height = ceil(accessoryHeight?(width) ?? accessoryView.fittingSize.height)
             accessoryView.frame = NSRect(x: inset, y: listBottom - FirstRunMetrics.gapAboveFooter - height, width: width, height: height)

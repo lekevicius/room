@@ -56,8 +56,13 @@ final class Page {
     /// The link under the pointer or keyboard focus (the status text): Peek's
     /// rule tells a click on it from a navigation the page's script started.
     var hoveredLink: URL?
-    /// The media session last logged (the footer's row is 4.6's).
+    /// The media session last logged.
     var loggedMediaSession: MediaSessionInfo?
+    /// The media row's view of the page at its last pass (4.6): playing,
+    /// with a session, and the media clock when it last started.
+    var mediaWasPlaying = false
+    var mediaHadSession = false
+    var mediaStartedAt = 0
 
     init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
@@ -203,7 +208,16 @@ public final class TabController: SidebarHost {
     /// The split on screen, if the selected entry is a pane of one (spec §D).
     @ObservationIgnored public private(set) var shownSplit: SplitPresentation?
 
-    @ObservationIgnored var pages: [UUID: Page] = [:]
+    @ObservationIgnored var pages: [UUID: Page] = [:] {
+        didSet { setNeedsMediaRowUpdate() }
+    }
+    /// The footer's media row (4.6, `MediaRows.swift`): what it shows, the
+    /// clock that orders sessions, the × (hidden until a later start).
+    @ObservationIgnored public internal(set) var mediaRow: MediaRowContent?
+    @ObservationIgnored var mediaClock = 0
+    @ObservationIgnored var mediaDismissedAt: Int?
+    @ObservationIgnored var mediaRowUpdatePending = false
+    @ObservationIgnored var mediaArtwork: (data: Data, image: NSImage)?
     /// Peek pages by the entry they opened over (spec §I.6).
     @ObservationIgnored var peeks: [UUID: Page] = [:]
     /// Peek pages Room closed, until the engine reports them gone.
@@ -574,6 +588,8 @@ public final class TabController: SidebarHost {
         current = contents
         display?.showSplit(split)
         display?.show(contents)
+        // The row never shows the page on screen.
+        setNeedsMediaRowUpdate()
         // After the card took its page: a Peek page becoming the card's (Open as Tab) never leaves the
         // window on the way, and Chromium keeps a page's fullscreen only while its view stays (B-35).
         if switching { updatePeekBeforeSwitch() }
@@ -726,6 +742,7 @@ public final class TabController: SidebarHost {
                 self.track(page, entry: entry, generation: generation)
             }
         }
+        noteMediaState(page)
         if let url, let stored = store.sidebar.entry(entry) {
             let live = url.absoluteString
             // Keep the old title while a new load of the same page has none yet (no flicker).

@@ -81,6 +81,7 @@ public enum Symbol: CaseIterable, Sendable {
     case muted
     case play
     case pause
+    case nextTrack
     case pictureInPicture
 
     // Page tools (§C, §G)
@@ -185,6 +186,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .muted: "speaker.slash.fill"
         case .play: "play.fill"
         case .pause: "pause.fill"
+        case .nextTrack: "forward.fill"
         case .pictureInPicture: "pip.enter"
         case .find: "text.magnifyingglass"
         case .zoomIn: "plus.magnifyingglass"

@@ -520,13 +520,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         controller.materialView.setTint(sidebar.activeSpace?.theme.map(SpaceTint.init), animated: false)
         let rootView = controller.rootView
-        let toasts = ToastCenter(hostView: rootView) { [weak rootView] in
+        let toasts = ToastCenter(hostView: rootView) { [weak rootView, weak sidebar] in
             guard let rootView else { return ToastCenter.Anchor(rect: .zero, alignment: .center) }
             let layout = rootView.currentLayout
             if rootView.isSidebarOpen {
-                // Bottom-centre of the sidebar, above its footer.
+                // Bottom-centre of the sidebar, above its footer (and the media row, 4.6).
                 var rect = layout.sidebar
                 rect.size.height -= SidebarMetrics.footerHeight
+                if sidebar?.mediaRowContent != nil { rect.size.height -= MediaRowMetrics.height + MediaRowMetrics.gap }
                 return ToastCenter.Anchor(rect: rect, alignment: .center)
             }
             // Bottom-left of the window.
@@ -540,6 +541,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.routeLink = { [weak router] url, source in router?.routePageLink(url, from: source) }
         tabs.onLinkRouted = { [weak router] _, space in router?.announce(space) }
         sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
+        // The footer's media row (4.6): its buttons call the page's media session controls.
+        sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
         // The engine's notices (infobars, the translate offer) as toasts (3.4b).
         pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }
         pageDelegate.chrome.dismissNotice = { [weak toasts] id in toasts?.dismiss(id: id) }

@@ -116,6 +116,20 @@ public enum SidebarMetrics {
     public static let dragThreshold: CGFloat = 3
 }
 
+/// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at
+/// the rows' width (chosen sizes; Chapter 5 revisits).
+public enum MediaRowMetrics {
+    public static let height: CGFloat = 40
+    /// The artwork or favicon.
+    public static let imageSize: CGFloat = 24
+    public static let imageCornerRadius: CGFloat = Radius.small / 2
+    /// Play/pause, next and ×.
+    public static let buttonSize: CGFloat = 24
+    public static let symbolPointSize: CGFloat = 11
+    /// Above the footer and below the list.
+    public static let gap: CGFloat = Spacing.xs
+}
+
 /// The inset page card (PLAN §2.4).
 /// The Library in the sidebar (4.1a, ⇧⌘L): a search field, then the
 /// Archive, Downloads and History sections (chosen; Chapter 5 revisits).
