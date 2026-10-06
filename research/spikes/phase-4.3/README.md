@@ -1,0 +1,19 @@
+# Phase 4.3a import fixtures
+
+Made for this phase from the formats; nothing here comes from a real browser profile
+(the user's rule: sessions never read `~/Library/Application Support/{Google,Arc,…}`
+or `~/Library/Safari`). The unit tests (`Packages/Import/Tests`) read these files
+through `#filePath`; the tour step `import` lists this directory with
+`-RoomImportSource` (each subdirectory is one detected source).
+
+| Path | How it was made |
+|---|---|
+| `chrome/Default/History` | `make-history.sh`: Google Chrome **154.0.8037.98** headless (`--headless=new --user-data-dir=/tmp/room-4.3/chrome --no-first-run --disable-sync --use-mock-keychain …`, one run per page of `pages/` served on :8780, 12 s each, 2026-10-06), so the schema is Chrome's own (meta version 70: `urls`, `visits`, …); then six rows added with sqlite3 for cases a headless run cannot make (three typed visits, a visit 120 days old beside one 10 days old, one only 200 days old, `chrome://settings/`, a hidden subframe, a form submit and its reload). Times are WebKit microseconds relative to 2026-10-06: 11 URLs, 17 visits |
+| `chrome/Default/Bookmarks`, `chrome/Profile 1/Bookmarks` | `make-bookmarks.py`, by hand from `components/bookmarks/browser/bookmark_codec.cc`'s format (`roots.bookmark_bar`/`other`/`synced`, `type` url\|folder, `date_added` WebKit µs, `guid`): the bar has 14 links (over the Essentials cap of 12), folders six levels deep plus one (L1…L7, the clip at 5), duplicates by normalised URL ("www.", a fragment, `:443`, letter case) and a `javascript:` bookmarklet. Stands for Brave, Edge, Vivaldi and Arc's Chromium data too (their format) |
+| `chrome/Default/Preferences` | by hand from `extensions/browser/extension_prefs.cc`'s keys (`extensions.settings.<id>`: `manifest.name`, `manifest.version`, `from_webstore`, `state`, `location`): two Web Store extensions (one disabled) and one unpacked (location 4, skipped) |
+| `chrome/Local State` | by hand: `profile.info_cache` names Default "Person 1", "Profile 1" "Work" and a "Profile 9" whose directory does not exist (not listed) |
+| `safari/Bookmarks.plist` | `make-safari.py` from the format Firefox's `SafariProfileMigrator` reads (root `WebBookmarkTypeList`; `BookmarksBar`, `BookmarksMenu`, `com.apple.ReadingList`, a user folder, a `WebBookmarkTypeProxy`, a leaf without `URLString`), then `plutil -convert binary1` |
+| `safari/History.db` | `make-safari.py` with sqlite3 from Safari's schema (`history_items`, `history_visits`, `visit_time` in seconds since 2001-01-01, fixed around 2026-10-01): 5 items, 7 visits, one failed load |
+| `arc/StorableSidebar.json`, `arc/User Data/Local State` | `make-arc.py`, by hand from the shape open-source Arc export tools describe (`sidebar.containers[1]`: `spaces` and `items` alternating ids and objects, one bare object; `topAppsContainerIDs`; `data.tab.savedURL`, `data.list`, `data.itemContainer`, an `easel`, a tab without a URL). Arc's real format is undocumented and changes between versions (Chapter 4 risk 4); the user's file is a 4.3b by-hand step |
+| `netscape/bookmarks.html` | by hand in the Netscape format Firefox exports (`<DL><DT><H3>` folders, `<A HREF ADD_DATE>`, `PERSONAL_TOOLBAR_FOLDER`, `<DD>`, `<HR>`, a `place:` query, an anchor without `HREF`, entities); `chrome/utility/importer/bookmarks_file_importer.cc` and `components/user_data_importer/content/content_bookmark_parser_utils.cc` (the line-based parse, `PERSONAL_TOOLBAR_FOLDER`) as references |
+| `pages/` | the four pages the History run visited (served on :8780 by `make-history.sh`) |

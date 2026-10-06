@@ -1,0 +1,448 @@
+{
+   "checksum": "",
+   "roots": {
+      "bookmark_bar": {
+         "children": [
+            {
+               "date_added": "13400000001000000",
+               "date_last_used": "0",
+               "guid": "c7f4278c-ef3c-5993-8733-609a7cc511b0",
+               "id": "5",
+               "meta_info": {},
+               "name": "Room Docs",
+               "type": "url",
+               "url": "https://example.org/docs"
+            },
+            {
+               "date_added": "13400000002000000",
+               "date_last_used": "0",
+               "guid": "0e5d1645-d18a-5990-afa8-f752c083cd74",
+               "id": "6",
+               "meta_info": {},
+               "name": "Alpha",
+               "type": "url",
+               "url": "http://127.0.0.1:8780/alpha.html"
+            },
+            {
+               "date_added": "13400000003000000",
+               "date_last_used": "0",
+               "guid": "0794f2f3-eb85-57c6-a086-49afa29f409f",
+               "id": "7",
+               "meta_info": {},
+               "name": "Site 1",
+               "type": "url",
+               "url": "https://site1.example/"
+            },
+            {
+               "date_added": "13400000004000000",
+               "date_last_used": "0",
+               "guid": "0fbd4815-1acb-5340-9f47-582f4f74b3a7",
+               "id": "8",
+               "meta_info": {},
+               "name": "Site 2",
+               "type": "url",
+               "url": "https://site2.example/"
+            },
+            {
+               "date_added": "13400000005000000",
+               "date_last_used": "0",
+               "guid": "48e6849f-abd0-5cd8-ba4d-cfb332f44930",
+               "id": "9",
+               "meta_info": {},
+               "name": "Site 3",
+               "type": "url",
+               "url": "https://site3.example/"
+            },
+            {
+               "date_added": "13400000006000000",
+               "date_last_used": "0",
+               "guid": "d52bd6ac-d3c0-5896-a4d4-6294428e1c1d",
+               "id": "10",
+               "meta_info": {},
+               "name": "Site 4",
+               "type": "url",
+               "url": "https://site4.example/"
+            },
+            {
+               "date_added": "13400000007000000",
+               "date_last_used": "0",
+               "guid": "36bdefb7-0d43-5e4b-a748-96fe9eae6ceb",
+               "id": "11",
+               "meta_info": {},
+               "name": "Site 5",
+               "type": "url",
+               "url": "https://site5.example/"
+            },
+            {
+               "date_added": "13400000008000000",
+               "date_last_used": "0",
+               "guid": "73c7ea17-32a3-5ad7-9b68-68fc38d021aa",
+               "id": "12",
+               "meta_info": {},
+               "name": "Site 6",
+               "type": "url",
+               "url": "https://site6.example/"
+            },
+            {
+               "date_added": "13400000009000000",
+               "date_last_used": "0",
+               "guid": "0a1021b1-57c9-5139-bf2d-2484ce5e087f",
+               "id": "13",
+               "meta_info": {},
+               "name": "Site 7",
+               "type": "url",
+               "url": "https://site7.example/"
+            },
+            {
+               "date_added": "13400000010000000",
+               "date_last_used": "0",
+               "guid": "16f3c702-be45-537d-af1b-81be89edba14",
+               "id": "14",
+               "meta_info": {},
+               "name": "Site 8",
+               "type": "url",
+               "url": "https://site8.example/"
+            },
+            {
+               "date_added": "13400000011000000",
+               "date_last_used": "0",
+               "guid": "754df617-3108-54f4-a6df-95eb58214e8a",
+               "id": "15",
+               "meta_info": {},
+               "name": "Site 9",
+               "type": "url",
+               "url": "https://site9.example/"
+            },
+            {
+               "date_added": "13400000012000000",
+               "date_last_used": "0",
+               "guid": "1fa7cf10-0d68-502b-a0cb-79197051c897",
+               "id": "16",
+               "meta_info": {},
+               "name": "Site 10",
+               "type": "url",
+               "url": "https://site10.example/"
+            },
+            {
+               "date_added": "13400000013000000",
+               "date_last_used": "0",
+               "guid": "a7cdfeeb-aec0-5590-8765-82f3823b283a",
+               "id": "17",
+               "meta_info": {},
+               "name": "Site 11",
+               "type": "url",
+               "url": "https://site11.example/"
+            },
+            {
+               "date_added": "13400000014000000",
+               "date_last_used": "0",
+               "guid": "2387bb1d-9b10-57a5-b914-a291cd3c9907",
+               "id": "18",
+               "meta_info": {},
+               "name": "Site 12",
+               "type": "url",
+               "url": "https://site12.example/"
+            },
+            {
+               "children": [
+                  {
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "guid": "bdf7769b-62eb-5ef0-83b5-150000469b3f",
+                     "id": "33",
+                     "meta_info": {},
+                     "name": "Tracker",
+                     "type": "url",
+                     "url": "https://tracker.example.com/"
+                  },
+                  {
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "guid": "040f4439-cc66-5fda-9987-b82e884a90be",
+                     "id": "34",
+                     "meta_info": {},
+                     "name": "Docs again",
+                     "type": "url",
+                     "url": "https://www.example.org/docs#intro"
+                  }
+               ],
+               "date_added": "13400000000000000",
+               "date_last_used": "0",
+               "date_modified": "13400000000000000",
+               "guid": "c0ab5634-abb8-518a-803e-0d833222e682",
+               "id": "35",
+               "name": "Work",
+               "type": "folder"
+            },
+            {
+               "children": [
+                  {
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "guid": "24838073-ccfd-5fd8-b594-f5d65fef67aa",
+                     "id": "31",
+                     "meta_info": {},
+                     "name": "Level 1",
+                     "type": "url",
+                     "url": "https://deep.example/1"
+                  },
+                  {
+                     "children": [
+                        {
+                           "date_added": "13400000000000000",
+                           "date_last_used": "0",
+                           "guid": "ec7ad3e3-6e99-57a2-831d-f578b763c0d5",
+                           "id": "29",
+                           "meta_info": {},
+                           "name": "Level 2",
+                           "type": "url",
+                           "url": "https://deep.example/2"
+                        },
+                        {
+                           "children": [
+                              {
+                                 "date_added": "13400000000000000",
+                                 "date_last_used": "0",
+                                 "guid": "ef5a0134-a71d-5cdc-9b99-93b71be4f370",
+                                 "id": "27",
+                                 "meta_info": {},
+                                 "name": "Level 3",
+                                 "type": "url",
+                                 "url": "https://deep.example/3"
+                              },
+                              {
+                                 "children": [
+                                    {
+                                       "date_added": "13400000000000000",
+                                       "date_last_used": "0",
+                                       "guid": "60744b22-ab87-58ed-a48b-5e405ab16439",
+                                       "id": "25",
+                                       "meta_info": {},
+                                       "name": "Level 4",
+                                       "type": "url",
+                                       "url": "https://deep.example/4"
+                                    },
+                                    {
+                                       "children": [
+                                          {
+                                             "date_added": "13400000000000000",
+                                             "date_last_used": "0",
+                                             "guid": "9d329e8f-6b13-5750-a69e-8713b40d7d3a",
+                                             "id": "23",
+                                             "meta_info": {},
+                                             "name": "Level 5",
+                                             "type": "url",
+                                             "url": "https://deep.example/5"
+                                          },
+                                          {
+                                             "children": [
+                                                {
+                                                   "date_added": "13400000000000000",
+                                                   "date_last_used": "0",
+                                                   "guid": "c8add1b7-59c9-5a45-b0a9-3482d21c5321",
+                                                   "id": "19",
+                                                   "meta_info": {},
+                                                   "name": "Six",
+                                                   "type": "url",
+                                                   "url": "https://deep.example/six"
+                                                },
+                                                {
+                                                   "children": [
+                                                      {
+                                                         "date_added": "13400000000000000",
+                                                         "date_last_used": "0",
+                                                         "guid": "640f9a8b-e40b-5a76-8539-b180529844fe",
+                                                         "id": "20",
+                                                         "meta_info": {},
+                                                         "name": "Seven",
+                                                         "type": "url",
+                                                         "url": "https://deep.example/seven"
+                                                      }
+                                                   ],
+                                                   "date_added": "13400000000000000",
+                                                   "date_last_used": "0",
+                                                   "date_modified": "13400000000000000",
+                                                   "guid": "e2443eb0-86ed-5d50-aee0-c64abcf44b8d",
+                                                   "id": "21",
+                                                   "name": "L7",
+                                                   "type": "folder"
+                                                }
+                                             ],
+                                             "date_added": "13400000000000000",
+                                             "date_last_used": "0",
+                                             "date_modified": "13400000000000000",
+                                             "guid": "049a15e6-084a-556c-a758-9e4e1a3eeb07",
+                                             "id": "22",
+                                             "name": "L6",
+                                             "type": "folder"
+                                          }
+                                       ],
+                                       "date_added": "13400000000000000",
+                                       "date_last_used": "0",
+                                       "date_modified": "13400000000000000",
+                                       "guid": "ba2d5ab1-0e02-53cc-bcb5-16dc84037ccd",
+                                       "id": "24",
+                                       "name": "L5",
+                                       "type": "folder"
+                                    }
+                                 ],
+                                 "date_added": "13400000000000000",
+                                 "date_last_used": "0",
+                                 "date_modified": "13400000000000000",
+                                 "guid": "e8144774-0e63-5deb-8430-773564ceb869",
+                                 "id": "26",
+                                 "name": "L4",
+                                 "type": "folder"
+                              }
+                           ],
+                           "date_added": "13400000000000000",
+                           "date_last_used": "0",
+                           "date_modified": "13400000000000000",
+                           "guid": "91475e2c-7884-5828-8a6c-4d011a355340",
+                           "id": "28",
+                           "name": "L3",
+                           "type": "folder"
+                        }
+                     ],
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "date_modified": "13400000000000000",
+                     "guid": "82849f42-32c5-5693-9450-fd5437228ea1",
+                     "id": "30",
+                     "name": "L2",
+                     "type": "folder"
+                  }
+               ],
+               "date_added": "13400000000000000",
+               "date_last_used": "0",
+               "date_modified": "13400000000000000",
+               "guid": "103c25a3-5b1d-52dd-bc73-85b587ebd8f0",
+               "id": "32",
+               "name": "L1",
+               "type": "folder"
+            },
+            {
+               "date_added": "13400000000000000",
+               "date_last_used": "0",
+               "guid": "ae3fe1f8-52a5-55ec-913a-cedb10305c3c",
+               "id": "36",
+               "meta_info": {},
+               "name": "Bookmarklet",
+               "type": "url",
+               "url": "javascript:alert(1)"
+            }
+         ],
+         "date_added": "13400000000000000",
+         "date_last_used": "0",
+         "date_modified": "13400000000000000",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [
+            {
+               "date_added": "13400000030000000",
+               "date_last_used": "0",
+               "guid": "41433a0f-2b7a-5952-8641-8b0befcc1283",
+               "id": "37",
+               "meta_info": {},
+               "name": "Beta",
+               "type": "url",
+               "url": "http://127.0.0.1:8780/beta.html"
+            },
+            {
+               "children": [
+                  {
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "guid": "ee87c400-dde0-5db8-bdfa-237ae551195f",
+                     "id": "38",
+                     "meta_info": {},
+                     "name": "Article A",
+                     "type": "url",
+                     "url": "https://news.example.com/a"
+                  },
+                  {
+                     "date_added": "13400000000000000",
+                     "date_last_used": "0",
+                     "guid": "895bf289-a2dc-5a6f-98c9-80d7b891dd67",
+                     "id": "39",
+                     "meta_info": {},
+                     "name": "Article B",
+                     "type": "url",
+                     "url": "https://news.example.com/b"
+                  }
+               ],
+               "date_added": "13400000031000000",
+               "date_last_used": "0",
+               "date_modified": "13400000031000000",
+               "guid": "869374a3-6b8e-548e-8253-44b555e68415",
+               "id": "40",
+               "name": "Reading",
+               "type": "folder"
+            },
+            {
+               "date_added": "13400000032000000",
+               "date_last_used": "0",
+               "guid": "f984aaa6-dcfb-52ea-9910-0d7a5ffe8b70",
+               "id": "41",
+               "meta_info": {},
+               "name": "Alpha again",
+               "type": "url",
+               "url": "http://127.0.0.1:8780/alpha.html"
+            },
+            {
+               "date_added": "13400000033000000",
+               "date_last_used": "0",
+               "guid": "72048e54-4dfe-5cfb-a1e8-c5271a337670",
+               "id": "42",
+               "meta_info": {},
+               "name": "Example",
+               "type": "url",
+               "url": "https://example.com:443/"
+            }
+         ],
+         "date_added": "13400000000000000",
+         "date_last_used": "0",
+         "date_modified": "13400000000000000",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [
+            {
+               "date_added": "13400000040000000",
+               "date_last_used": "0",
+               "guid": "810dc5ff-32a0-53eb-b01b-bac7762a8a30",
+               "id": "43",
+               "meta_info": {},
+               "name": "Mobile",
+               "type": "url",
+               "url": "https://m.example.com/"
+            },
+            {
+               "date_added": "13400000041000000",
+               "date_last_used": "0",
+               "guid": "2981bf59-c128-51e2-8402-3fee7ebc1b11",
+               "id": "44",
+               "meta_info": {},
+               "name": "Example on the phone",
+               "type": "url",
+               "url": "HTTPS://WWW.Example.com"
+            }
+         ],
+         "date_added": "13400000000000000",
+         "date_last_used": "0",
+         "date_modified": "13400000000000000",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile bookmarks",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

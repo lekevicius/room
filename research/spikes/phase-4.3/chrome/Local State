@@ -1,0 +1,11 @@
+{
+   "profile": {
+      "info_cache": {
+         "Default": { "name": "Person 1", "is_using_default_name": true, "active_time": 1791301869.18 },
+         "Profile 1": { "name": "Work", "is_using_default_name": false, "active_time": 1791301000.0 },
+         "Profile 9": { "name": "Gone", "is_using_default_name": false }
+      },
+      "last_used": "Default",
+      "profiles_order": [ "Default", "Profile 1", "Profile 9" ]
+   }
+}

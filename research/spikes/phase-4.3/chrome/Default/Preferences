@@ -1,0 +1,34 @@
+{
+   "browser": { "has_seen_welcome_page": true },
+   "extensions": {
+      "settings": {
+         "nngceckbapebfimnlniiiahkandclblb": {
+            "active_permissions": { "api": [ "storage", "tabs" ] },
+            "from_webstore": true,
+            "install_time": "13400000000000000",
+            "location": 1,
+            "manifest": { "manifest_version": 3, "name": "Bitwarden Password Manager", "version": "2026.9.0" },
+            "path": "nngceckbapebfimnlniiiahkandclblb/2026.9.0_0",
+            "state": 1
+         },
+         "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
+            "disable_reasons": [ 1 ],
+            "from_webstore": true,
+            "install_time": "13400000100000000",
+            "location": 1,
+            "manifest": { "manifest_version": 2, "name": "uBlock Origin", "version": "1.66.0" },
+            "path": "cjpalhdlnbpafiamejdnhcphjbkeiagm/1.66.0_0",
+            "state": 0
+         },
+         "pkcohfoemkgdcpbkpnhdjeiokhecbepf": {
+            "from_webstore": false,
+            "install_time": "13400000200000000",
+            "location": 4,
+            "manifest": { "manifest_version": 3, "name": "My Unpacked Tool", "version": "0.1" },
+            "path": "/Users/someone/dev/my-unpacked-tool",
+            "state": 1
+         }
+      }
+   },
+   "profile": { "name": "Person 1" }
+}

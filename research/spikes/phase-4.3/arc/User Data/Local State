@@ -1,0 +1,12 @@
+{
+  "profile": {
+    "info_cache": {
+      "Default": {
+        "name": "Personal"
+      },
+      "Profile 1": {
+        "name": "Work"
+      }
+    }
+  }
+}
