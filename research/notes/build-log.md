@@ -626,3 +626,7 @@ What the record above does not say (3.9-2, written by hand):
 | Machine time | ~3 h 5 min | ~4 h 52 min |
 
 Both are far under the fallback's "> 1 day each": a milestone costs a night of machine time and well under an hour of a person's. Confirmed by the full tour on 155 (`spike-results.md` "Phase 3.9 — grand tour on RoomCore 155.0.8059.36 (the exit)").
+
+## 2026-10-06 — Phase 3.9-2: patch 0012 dropped (Mac mini M4, `out/dev`, 6 jobs)
+
+Series 24 → 23 (`spike-results.md` "Phase 3.9 — patch 0012 dropped"): the branch commit dropped with `git replay` (the apply script refuses to drop a commit outside the series), "0 applied, 23 already" twice, `155.0.8059.36-23-g62be06cc2bcd5`. Incremental rebuild of `out/dev`: **59 s** (`build/roomcore-0012-drop-build.log`, 05:04:34, load 6.6 → 9.1); package 38 s.
