@@ -346,7 +346,30 @@ public final class SidebarController: NSObject {
         if let space = tree.space { onSpaceChange?(space) }
     }
 
+    /// Restore Sidebar… (4.1b): the store's state was replaced wholesale.
+    /// Every list is dropped and the window's active space is built again
+    /// from the store, as at launch; the ⇧⌘T stack is emptied (its entries
+    /// belong to the state that was replaced).
+    public func reloadFromStore() {
+        setHovered(nil)
+        clearMultiSelection()
+        focusedNode = nil
+        closedTabs = ClosedTabStack()
+        outline.events = nil
+        for other in Array(panes.values) { detach(other) }
+        let spaceID = Self.activeSpace(store: store, windowID: windowID)
+        pane = SpacePane(store: sidebar, spaceID: spaceID, selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
+        attach(pane)
+        outline.events = self
+        bodyView.show(pane.scrollView, direction: .forward, animated: false)
+        if store.windows.window(windowID)?.activeSpaceID != spaceID { store.windows.setActiveSpace(spaceID, window: windowID) }
+        reloadAll()
+        onTintChange?(tree.space?.theme, false)
+        DispatchQueue.main.async { [weak self] in self?.prepareSpaces() }
+    }
+
     private func apply(_ change: SidebarChange) {
+        if change.reloaded { return reloadFromStore() }
         if change.removedSpaces.contains(tree.spaceID) || tree.space == nil {
             let next = store.windows.window(windowID)?.activeSpaceID.flatMap { sidebar.space($0) }?.id ?? sidebar.spaces.first?.id
             for removed in change.removedSpaces where removed != tree.spaceID { if let gone = panes[removed] { detach(gone) } }

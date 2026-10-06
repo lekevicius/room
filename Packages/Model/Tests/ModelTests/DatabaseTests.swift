@@ -221,9 +221,22 @@ struct SchemaTests {
         inner["archive"] = nil
         object["state"] = inner
         let decoded = try JSONDecoder().decode(StateSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
-        var expected = state
-        expected.archive = []
-        #expect(decoded.state.canonical() == expected.canonical())
+        #expect(decoded.state.canonical() == snapshotted(state))
+    }
+
+    @Test("A JSON snapshot leaves the entries' navigation states out (B-73); the database keeps them")
+    func snapshotWithoutNavigationStates() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let storage = RoomStorage(directory: directory.url)
+        let opened = try storage.open()
+        let state = sampleState()
+        #expect(state.entries.contains { $0.navigationState != nil })
+        try storage.makeWriter(for: opened).writeAndWait(state, generation: opened.generation + 1)
+        let snapshot = try StateSnapshot.read(from: storage.snapshotURL)
+        #expect(snapshot.state.entries.allSatisfy { $0.navigationState == nil })
+        #expect(!String(decoding: try Data(contentsOf: storage.snapshotURL), as: UTF8.self).contains("navigationState\":\""))
+        #expect(try opened.database.loadState().state.entries.contains { $0.navigationState != nil })
     }
 
     @Test("A JSON snapshot from before v5 decodes with no navigation state")
@@ -445,7 +458,7 @@ struct StateWriterTests {
         try writer.writeAndWait(state, generation: opened.generation + 1)
         let snapshot = try StateSnapshot.read(from: storage.snapshotURL)
         #expect(snapshot.generation == opened.generation + 1)
-        #expect(snapshot.state == state.canonical())
+        #expect(snapshot.state == snapshotted(state))
     }
 }
 
@@ -513,7 +526,7 @@ struct StorageTests {
         }
         #expect(generation == 7)
         #expect(reopened.generation == 7)
-        #expect(reopened.state.canonical() == state.canonical())
+        #expect(reopened.state.canonical() == snapshotted(state))
         #expect(FileManager.default.fileExists(atPath: aside.appending(path: RoomStorage.databaseName).path))
         #expect(try reopened.database.integrityCheck() == ["ok"])
     }

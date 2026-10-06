@@ -176,12 +176,14 @@ public struct StateSnapshot: Codable, Sendable, Equatable {
     public func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        // The archive stays out of the snapshot: it only grows, every row may
-        // carry a navigation state, and the snapshot is rewritten after every
-        // commit (B-73's cost). A recovery from the snapshot starts with an
-        // empty Archive; the database backups (4.1b) keep it.
+        // The archive and the entries' navigation states stay out of the
+        // snapshot: it is rewritten after every commit, and the states made a
+        // 500-entry snapshot 5.66 MB (B-73). A recovery from the snapshot
+        // starts with an empty Archive and no back/forward lists; the database
+        // backups (`RoomBackups`, 4.1b) keep both.
         var state = state.canonical()
         state.archive = []
+        for index in state.entries.indices { state.entries[index].navigationState = nil }
         return try encoder.encode(StateSnapshot(generation: generation, state: state))
     }
 

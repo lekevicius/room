@@ -264,8 +264,11 @@ public enum MainMenuTable {
         item("Bring All to Front", "arrangeInFront:", target: .responderChain),
     ])
 
-    /// AppKit adds the search field to the Help menu.
-    private static let help = MenuSpec("Help", [])
+    /// AppKit adds the search field to the Help menu. Restore Sidebar… lists
+    /// the rolling backups (spec §H, 4.1b).
+    private static let help = MenuSpec("Help", [
+        item("Restore Sidebar…", "showRestoreSidebar:"),
+    ])
 
     // MARK: Building blocks
 

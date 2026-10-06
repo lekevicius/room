@@ -41,6 +41,8 @@ public struct SidebarChange: Equatable, Sendable {
     public var removedSpaces: Set<UUID> = []
     /// The Archive gained or lost rows (the Library and the palette reload).
     public var archive = false
+    /// The whole state was replaced (Restore Sidebar…): rebuild, do not diff.
+    public var reloaded = false
 
     public var isEmpty: Bool { self == SidebarChange() }
 }
@@ -114,6 +116,11 @@ public final class SidebarStore {
         splitGroups = Dictionary(state.splitGroups.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         archive = Dictionary(state.archive.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         self.clock = clock
+        rebuildContainers()
+    }
+
+    private func rebuildContainers() {
+        containers = [:]
         let grouped = Dictionary(grouping: entries.values, by: \.container)
         for (container, members) in grouped {
             containers[container] = members.sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }.map(\.id)
@@ -121,6 +128,31 @@ public final class SidebarStore {
         for container in Array(containers.keys) { renumber(container) }
         var ignored = SidebarChange()
         normalizeSplitGroups(into: &ignored)
+    }
+
+    /// Restore Sidebar… (spec §H, 4.1b): the spaces, entries, split groups and
+    /// the Archive become `state`'s. Profiles only grow (B-22): the current
+    /// ones stay and the backup's missing ones come back. One change with
+    /// `reloaded` set: views rebuild instead of applying it row by row.
+    public func replace(with state: RoomState) {
+        let oldEntries = Set(entries.keys)
+        let oldSpaces = Set(spaces.map(\.id))
+        var merged = profiles
+        for profile in state.profiles where !merged.contains(where: { $0.id == profile.id }) { merged.append(profile) }
+        profiles = merged.sorted { $0.position < $1.position }
+        spaces = state.spaces.sorted { $0.position < $1.position }
+        entries = Dictionary(state.entries.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        splitGroups = Dictionary(state.splitGroups.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        archive = Dictionary(state.archive.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        rebuildContainers()
+        var change = SidebarChange(archive: true)
+        change.reloaded = true
+        change.entries = Set(entries.keys)
+        change.removedEntries = oldEntries.subtracting(entries.keys)
+        change.spaces = Set(spaces.map(\.id))
+        change.removedSpaces = oldSpaces.subtracting(spaces.map(\.id))
+        change.containers = Set(containers.keys)
+        commit(change)
     }
 
     // MARK: Observation

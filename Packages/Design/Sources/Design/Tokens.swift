@@ -256,6 +256,9 @@ public enum Timing {
     /// "Idle" for the archive sweep: no key or mouse press in Room for this
     /// long (chosen, 4.1a); a sweep that falls due earlier waits for it.
     public static let archiveIdleAfter: TimeInterval = 60
+    /// A rolling backup of the state database is taken this often while the
+    /// state changes (spec §H; chosen, 4.1b), and at launch.
+    public static let backupInterval: TimeInterval = 30 * 60
     /// Under critical memory pressure, one more background page is discarded
     /// this often until the pressure drops (chosen, 3.7b).
     public static let criticalPressureStep: TimeInterval = 1
@@ -489,4 +492,20 @@ public enum FirstRunMetrics {
     /// The card's shadow, as the pill's lift (chosen).
     public static let shadowOpacity: Float = 0.08
     public static let shadowRadius: CGFloat = 3
+}
+
+/// How long Room keeps what it keeps (spec §H; B-80). Numbers, not settings.
+public enum Retention {
+    /// Rolling backups (Arc's schedule, spec §H): the newest 10 of today, one
+    /// a day for the 10 days before, one a week back a month, one a month back a year.
+    public static let backupsToday = 10
+    public static let backupDays = 10
+    public static let backupWeeksSpanDays = 31
+    public static let backupMonthsSpanDays = 365
+    /// Archive rows are pruned at the sweep after 30 days (B-80, the
+    /// planner's provisional number; Arc keeps its Archive about as long).
+    public static let archiveRows: TimeInterval = 30 * 86_400
+    /// An archived row keeps its back/forward list for 7 days, then only its
+    /// URL (B-80).
+    public static let archiveNavigationState: TimeInterval = 7 * 86_400
 }

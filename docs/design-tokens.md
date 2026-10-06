@@ -314,3 +314,14 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Timing.archiveSweepInterval` | 10 min | spec §A.7 |
 | `Timing.archiveIdleAfter` | 60 s without a key or mouse press in Room | chosen (4.1a's idle definition) |
 | Library section chevron | `Symbol.disclosure` open, `chevron.right` collapsed | chosen |
+
+## Added in Phase 4.1b (backups, the Archive's retention, crash recovery)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `Timing.backupInterval` | 30 min: a rolling backup at launch and then this often, each only when the state changed since the last | spec §H (rolling backups); interval chosen (ROADMAP 4.1b) |
+| `Retention.backupsToday` / `backupDays` / `backupWeeksSpanDays` / `backupMonthsSpanDays` | 10 of today / one a day for 10 days / one a week back 31 days / one a month back 365 days | spec §H (Arc's schedule) |
+| `Retention.archiveRows` | 30 days: older Archive rows are pruned at the sweep | B-80 (the planner's provisional number; no setting) |
+| `Retention.archiveNavigationState` | 7 days: older Archive rows keep their URL, not their back/forward list | B-80 (provisional; no setting) |
+| Restore Sidebar… sheet | SwiftUI leaf: a list of the backups (date, entries, spaces, Archive rows; "before restore" marked), Cancel, Restore (default) | chosen |
+| Crash toast | "Room restarted after a crash" (`Timing.toast`) once, the card's empty state in place of the selected page | spec §H; ROADMAP 4.1b task 7 |

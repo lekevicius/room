@@ -51,9 +51,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var library: LibraryController?
     /// The archive sweep: at launch and every 10 min while idle (spec §A.7, 4.1a).
     private(set) var archiveSweeper: ArchiveSweeper?
+    /// Rolling backups: at launch and every 30 min while the state changes (spec §H, 4.1b).
+    private(set) var backupScheduler: BackupScheduler?
+    /// Help ▸ Restore Sidebar…'s sheet while it shows (`RestoreSidebar.swift`).
+    var restoreSheet: NSWindow?
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
-    private var toastCenter: ToastCenter?
+    private(set) var toastCenter: ToastCenter?
     private(set) var promptPresenter: PagePromptPresenter?
     /// Downloads across the window's profiles: the footer button and its popover (2.6b).
     private(set) var downloads: DownloadsUI?
@@ -581,6 +585,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let sweeper = ArchiveSweeper(tabs: tabs, store: store)
         archiveSweeper = sweeper
         sweeper.start()
+        // Rolling backups (spec §H): one now if the state moved since the last, then every 30 min.
+        let backups = BackupScheduler(store: store)
+        backupScheduler = backups
+        backups.start()
         // Only the selected entry loads at launch (spec §H); it waits for the profile.
         tabs.showSelection()
         // The other spaces' lists are built after the first frame, one per turn,
@@ -1310,6 +1318,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return !isDefault && !app.defaultBrowser.isAsking
         },
         #selector(newPage(_:)): { app, _ in app.tabs != nil },
+        // Help
+        #selector(showRestoreSidebar(_:)): { app, _ in app.store != nil && app.backupScheduler != nil && app.restoreSheet == nil },
         #selector(newRoomWindow(_:)): { app, item in
             let shows = app.windowController?.window?.isVisible == true
             item.toolTip = shows ? "A second window comes in Chapter 4.8" : nil

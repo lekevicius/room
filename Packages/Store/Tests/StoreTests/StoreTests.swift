@@ -649,6 +649,46 @@ struct ArchiveStoreTests {
     }
 }
 
+@Suite("Store: Restore Sidebar (spec §H, ROADMAP 4.1b task 6)")
+struct RestoreSidebarTests {
+    @Test("A backup's spaces, entries, splits, selections and Archive replace the current ones in one write; profiles stay")
+    func restore() throws {
+        let test = try TestStore()
+        let store = test.store
+        let sidebar = store.sidebar
+        let profile = try #require(sidebar.profiles.first)
+        let window = store.windows.restoreOrCreateWindow(defaultSidebarWidth: 240, space: sidebar.spaces.first?.id)
+        let first = try #require(sidebar.spaces.first)
+        let second = try sidebar.createSpace(name: "Two", profile: profile.id)
+        let tab = try sidebar.addEntry(.today, url: "https://kept.example/", space: second.id)
+        store.windows.select(tab.id, space: second.id, window: window.id)
+        store.windows.setActiveSpace(second.id, window: window.id)
+        store.flush()
+        let backups = store.backups
+        let file = try backups.take(from: store.persistence.writer.database, at: Date())
+        // After the backup: the space is deleted, a new tab and a new profile appear.
+        _ = try sidebar.deleteSpace(second.id)
+        let later = try sidebar.addEntry(.today, url: "https://later.example/", space: first.id)
+        let newProfile = sidebar.createProfile(name: "Later")
+        store.flush()
+        let before = store.persistence.generation
+        let backup = try backups.loadState(file)
+        store.restoreSidebar(from: backup.state, window: window.id)
+        #expect(sidebar.space(second.id) != nil && sidebar.entry(tab.id) != nil)
+        #expect(sidebar.entry(later.id) == nil)
+        #expect(sidebar.profiles.contains { $0.id == newProfile.id })
+        #expect(store.windows.selectedEntry(space: second.id, window: window.id) == tab.id)
+        #expect(store.windows.window(window.id)?.activeSpaceID == second.id)
+        #expect(store.persistence.generation == before + 1)
+        #expect(try store.persistence.writer.database.generation() == before + 1)
+        store.close()
+        let reopened = try test.reopen()
+        #expect(reopened.sidebar.space(second.id) != nil && reopened.sidebar.entry(tab.id) != nil)
+        #expect(reopened.sidebar.entry(later.id) == nil)
+        #expect(reopened.windows.selectedEntry(space: second.id, window: window.id) == tab.id)
+    }
+}
+
 @Suite("Store: split groups (spec §D)")
 struct SplitGroupStoreTests {
     let test: TestStore

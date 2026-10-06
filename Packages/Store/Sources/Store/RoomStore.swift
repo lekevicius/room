@@ -68,6 +68,22 @@ public final class RoomStore {
             windowSpaces: windows.stateWindowSpaces, settings: settings.settings, archive: Array(sidebar.archive.values))
     }
 
+    /// The rolling backups beside the database (`<state>/Backups/`, 4.1b).
+    public var backups: RoomBackups { RoomBackups(stateDirectory: storage.directory) }
+
+    /// Restore Sidebar… (spec §H, 4.1b): spaces, entries, split groups, the
+    /// windows' spaces and selections and the Archive become `backup`'s;
+    /// profiles and settings stay (profiles only grow). Written at once as
+    /// one transaction with the next generation (the writer's counter moves
+    /// on, never back). The caller has backed up the current state first and
+    /// unloads the pages.
+    public func restoreSidebar(from backup: RoomState, window: UUID?) {
+        // Windows first: the sidebar's change then finds the selections pointing at entries that exist.
+        windows.replace(with: backup, keeping: window)
+        sidebar.replace(with: backup)
+        flush()
+    }
+
     /// Writes now and waits (window close).
     public func flush() {
         do { try persistence.flushAndWait() } catch { NSLog("Room: flush failed: \(error)") }

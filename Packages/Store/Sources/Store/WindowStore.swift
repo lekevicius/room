@@ -67,6 +67,36 @@ public final class WindowStore {
         persistence?.scheduleWrite()
     }
 
+    /// Restore Sidebar… (4.1b): the windows' active spaces and selections
+    /// become `state`'s. The window on screen (`current`) keeps its id, frame
+    /// and sidebar; the backup's first window maps onto it when its id differs
+    /// (a backup from another state directory).
+    func replace(with state: RoomState, keeping current: UUID?) {
+        var restored = state.windows.sorted { $0.position < $1.position }
+        var rows = state.windowSpaces
+        if let current, !restored.contains(where: { $0.id == current }), let first = restored.first {
+            restored[0].id = current
+            for index in rows.indices where rows[index].windowID == first.id { rows[index].windowID = current }
+        }
+        for index in restored.indices {
+            guard let now = window(restored[index].id) else { continue }
+            restored[index].frame = now.frame
+            restored[index].sidebarWidth = now.sidebarWidth
+            restored[index].sidebarVisible = now.sidebarVisible
+        }
+        if let current, !restored.contains(where: { $0.id == current }), var now = window(current) {
+            now.activeSpaceID = state.spaces.first?.id
+            now.position = restored.count
+            restored.append(now)
+        }
+        windows = restored
+        selections = [:]
+        for row in rows {
+            if let entry = row.selectedEntryID { selections[SelectionKey(window: row.windowID, space: row.spaceID)] = entry }
+        }
+        persistence?.scheduleWrite()
+    }
+
     /// Keeps references valid after the sidebar removed entries or spaces.
     func sidebarDidChange(_ change: SidebarChange, firstSpace: UUID?) {
         guard !change.removedEntries.isEmpty || !change.removedSpaces.isEmpty else { return }

@@ -38,11 +38,13 @@ func hash(_ state: RoomState) -> String {
     return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
 
-/// The JSON snapshot leaves the Archive out (schema v7, 4.1a): it is checked
-/// against the state's hash without it.
+/// The JSON snapshot leaves the Archive (schema v7, 4.1a) and the entries'
+/// navigation states (B-73, 4.1b) out: it is checked against the state's
+/// hash without them (`StateSnapshot.encoded`).
 func snapshotHash(_ state: RoomState) -> String {
     var state = state
     state.archive = []
+    for index in state.entries.indices { state.entries[index].navigationState = nil }
     return hash(state)
 }
 

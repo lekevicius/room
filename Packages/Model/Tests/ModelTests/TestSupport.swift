@@ -51,3 +51,12 @@ func sampleState() -> RoomState {
         settings: settings
     )
 }
+
+/// What a JSON snapshot keeps of `state` (B-73): the entries without their
+/// navigation states, no Archive.
+func snapshotted(_ state: RoomState) -> RoomState {
+    var state = state.canonical()
+    state.archive = []
+    for index in state.entries.indices { state.entries[index].navigationState = nil }
+    return state
+}
