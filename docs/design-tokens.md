@@ -333,3 +333,11 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Routing toast | `Symbol.routing`, "Opened in {space}" with the button "Switch" (`Timing.toastWithAction`, 5 s), id `routed` (a newer one replaces it) | spec §B, §F |
 | Routing sheet (`RoutingSheetMetrics.width` / `height`) | 560 × 520 pt: a SwiftUI leaf in an `NSHostingController` as a sheet on the browser window (or the Settings window when opened from there): the explanation, the rules list (enabled checkbox, number, "URL contains" / "Domain is" / "URL matches regex", pattern, "→ space", move up and down, edit, remove; a disabled rule at 50 % opacity), Add Rule, the editor box (kind popup, pattern field, "Open in" popup, Cancel, Save; the pattern's refusal inline in system red), "Try a URL" with its answer, Done | chosen; looks are Chapter 5's |
 | Menu items | "Space Routing Settings…" (space menu), "Add Route for Domain…" (Today and pinned tab menus), both with `Symbol.routing` | spec §B (title case as the other menu items) |
+
+## Added in Phase 4.3a (import)
+
+| Token / surface | Value | Source |
+|---|---|---|
+| Import sheet (`ImportSheetMetrics.width` / `height`) | 580 × 640 pt: a SwiftUI leaf in an `NSHostingController` as a sheet on the browser window: the title, the sources list (130 pt; a fixture or chosen source on top, detected installs by name, a note line under Firefox), "Choose a File or Folder…", "From profile" (Chromium profiles by `Local State`'s names), a progress bar with the step while reading or importing, the Import box (checkbox rows with the readers' counts in secondary text; Passwords and Extensions disabled with their 4.3b lines), the Where box (Bookmarks: Into one space / One space per folder; "Bookmarks bar into Essentials (up to 12)"; Space: New space named "{source}" or an existing one; Into profile), the preview line and its notes in caption secondary, a Skipped disclosure (80 pt scroll), Cancel and Import (default) or the summary and Done | chosen; looks are Chapter 5's |
+| Import toast | `Symbol.importData` (`square.and.arrow.down.on.square`), "Imported from {source}: …" with the counts, id `imported`, `Timing.toast` | spec §F |
+| Palette command | "Import from another browser…" with `Symbol.importData` | ROADMAP 4.3a |

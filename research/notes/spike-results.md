@@ -2772,3 +2772,71 @@ B-57 is closed as a dev-build condition (69.54 ms against 150 ms; the dev build'
 ### Unit tier and the kill test
 
 `CI=1 swift test`: Model 104 (92 before: the v8 migration, the snapshot's rules, 9 routing rule and decision tests), Store 45 (43: rules CRUD and refusal; deletion with Undo), Tabs 70 (64: four routed-link tests, B-35's expansion, Open as Tab under a Today parent), Sidebar 38, Integration 10; all passing. The engine-free CI build and tests (`xcodegen/ci.yml`, `CI=1`): BUILD and TEST SUCCEEDED in 49 s. The kill test with routing-rule mutations in the writer's mix (`scripts/persistence-kill-test.sh 20 300 4201`): 20 kills, 0 failures, commit median 10.38 ms, p95 15.13 ms.
+
+## Phase 4.3a — import: readers, plan, sheet (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+No engine step: `//room`, `Engine/roomcore` and `Packages/EngineRoomCore` untouched (the series 23); every app build is `xcodebuild` over the staged frameworks (dev `build/roomcore`, `RoomCoreCommit ccb9ff0`; release `build/roomcore-release`). Display: the Mac mini's main display; `window_main: true` in every run. Never a real browser profile: every reader ran on `research/spikes/phase-4.3` (README there). Evidence in `build/evidence-4.3a/tours/`.
+
+### The fixtures
+
+| Fixture | Bytes | Content |
+|---|---|---|
+| `chrome/Default/History` (Chrome 154.0.8037.98 headless, then six rows by sqlite3) | 163,840 | 11 URLs, 17 visits (meta version 70) |
+| `chrome/Default/Bookmarks` | 18,567 | 31 links, 9 folders (7 levels deep), 3 duplicates by normalised URL, 1 `javascript:` |
+| `chrome/Profile 1/Bookmarks` | 1,364 | 1 link |
+| `chrome/Default/Preferences` | 1,325 | 3 extensions (1 unpacked) |
+| `chrome/Local State` | 431 | 3 profiles (1 without a directory) |
+| `safari/Bookmarks.plist` (binary) | 1,920 | 10 links, 4 folders (Reading List one), 1 leaf without a URL, 1 proxy |
+| `safari/History.db` | 36,864 | 5 items, 7 visits (1 failed load) |
+| `arc/StorableSidebar.json` | 13,453 | 3 spaces, 2 profiles, 3 essentials, 6 pinned in 2 folders, 3 Today tabs, an easel, a tab without a URL |
+| `netscape/bookmarks.html` | 1,628 | 7 links, 3 folders, an anchor without HREF, a `place:` query |
+
+Making the History fixture: `research/spikes/phase-4.3/make-history.sh` (7 headless runs × 12 s on `/tmp/room-4.3/chrome`, 84 s wall); with 4 s per run Chrome had not committed and `History` was empty (the backend commits on a timer), so the script holds each page 12 s. Chrome headless takes one target per run ("Multiple targets are not supported in headless mode").
+
+### Tour step `import` (group `appintegration`; `scripts/import-check.sh`, `-RoomImportSource research/spikes/phase-4.3`, fixture `import`)
+
+**31 / 31 on the dev build** (`build/grand-tour/20261006-192250-roomcore`, 8 s, load1 8.54, no other Room, no Chromium build, 0 crash reports) and **31 / 31 on the release framework** (`20261006-192259-roomcore`, 6 s, load1 8.29, 0 crash reports), the final code. Earlier runs, 31 / 31 each: dev `20261006-191442`, `-191536`, `-191942` (load1 24.08 after two builds), release `-191959` (load1 21.11); the counts were identical in all six, the times within the spread below.
+
+| Step (final runs) | dev build | release framework |
+|---|---|---|
+| Chrome read (bookmarks / extensions / history) | 2.2 ms (0.3 / 0.1 / 1.8) | 5.4 ms (0.7 / 0.3 / 4.1) |
+| Safari read (bookmarks / history) | 1.8 ms (0.2 / 1.5) | 4.7 ms (0.2 / 4.5) |
+| Netscape read | 0.9 ms | 0.5 ms |
+| Arc read (sidebar) | 0.5 ms (0.3) | 0.5 ms (0.3) |
+| Plan (Chrome / Safari / Netscape / Arc) | 0.33 / 0.12 / 0.08 / 0.33 ms | 0.33 / 0.10 / 0.07 / 0.21 ms |
+| Import: Chrome (sidebar + flush + 1 history batch) | 98 ms | 89 ms |
+| Import: Safari (5 spaces + flush + 1 batch) | 33 ms | 38 ms |
+| Import: Netscape / Arc (sidebar + flush) | 26 / 9 ms | 25 / 10 ms |
+
+Reads include the SQLite copies into a temporary directory. The release run's lines (the dev run's counts are identical; the two `generation_*` lines are in the final runs only):
+
+    sheet_open: shown=true picked=none fixtures=arc (fixture),chrome (fixture),netscape (fixture),safari (fixture)
+    detected_installs: Google Chrome,Brave,Microsoft Edge,Vivaldi,Arc,Safari        (directories that exist; nothing read)
+    read_chrome: bookmarks=31 folders=9 skipped=0 history=10 visits=16 extensions=2 skipped=1 errors=0 profiles=Person 1/Work
+    read_safari: bookmarks=10 folders=4 skipped=1 history=4 visits=6 errors=0
+    read_netscape: bookmarks=7 folders=3 skipped=1 errors=0
+    read_arc: arc spaces=3 profiles=2 essentials=3 pinned=6 folders=2 today=3 skipped=2 errors=0
+    nothing_before_import: unchanged=true generation 0 → 1 dirty=false spaces=1 profiles=1 folders=0 pinned=0 essentials=0 today=0
+    chrome_preview: spaces=1 profiles=0 folders=7 pinned=15 essentials=12 today=0 history=9 visits=15 duplicates=3 flattened=2 overflow=2 skipped=3
+    chrome_applied: spaces=1 profiles=0 folders=7 pinned=15 essentials=12 today=0 equal=true history urls=8 visits=12 expired=2/1
+    toast: "Imported from chrome (fixture): 1 space, 15 pinned tabs, 7 folders, 12 essentials, 8 history pages"
+    essentials_cap: essentials=12 cap=12 overflow=2 overflow pinned=Site 11,Site 12
+    depth_clip: max depth=5 flattened=2 L5 holds=Level 5,Six,Seven
+    safari_preview: spaces=5 profiles=0 folders=0 pinned=8 essentials=0 today=0 history=4 visits=6 duplicates=2 flattened=0 overflow=0 skipped=2
+    safari_applied: spaces=5 … equal=true history urls=4 visits=5 expired=1/0
+    safari_spaces: Space,Google Chrome,Safari,Dev,Recipes,Reading List,Travel
+    netscape_preview: spaces=0 profiles=0 folders=3 pinned=5 essentials=0 today=0 … duplicates=1 skipped=2
+    netscape_applied: … equal=true
+    arc_preview: spaces=3 profiles=1 folders=2 pinned=7 essentials=1 today=2 … duplicates=2 overflow=2 skipped=2
+    arc_applied: … equal=true
+    arc_spaces: Home icon=🏠 colors=#3366CC profile=Default pinned=4 today=1 | Work icon=💼 colors=#CC4D33 profile=Work pinned=1 today=1 | Side icon=none colors= profile=Default pinned=1 today=0
+    arc_profiles: profiles=Default,Work work profiles=1 work essentials=Chat
+    history_search: Typed three times=https://example.org/typed visits=3 typed=3 | Import fixture Gamma=http://127.0.0.1:8780/gamma.html?q=1 visits=1 typed=0 | Swift.org=https://swift.org/ visits=1 typed=0 | Old and new=https://www.example.com/old visits=1 typed=0
+    database: entries 62 of 62, spaces 10 of 10, profiles 2 of 2
+    sheet_closed: true
+
+Reading them: the persistence generation moved 0 → 1 while the sheet opened (`generation_at_start: 0 dirty=true`, `generation_sheet_open: 1 dirty=false`: a write the launch had pending before the sheet existed landed then), but the sidebar's content hash (profiles, spaces, entries) did not change and nothing was dirty; Chrome's history: 9 URLs planned (the hidden subframe left out by the reader, `chrome://settings/` by the plan), the engine took 8 URLs and 12 visits and counted 2 visits and 1 URL as older than its 89 days (the reload visit is not a visit, `HistoryImportEntry`); Safari's 100-day visit likewise; Safari's preview has 2 duplicates in the tour (Alpha is one of the profile's essentials after Chrome's import) against 1 on a fresh state (the unit test); Arc's two default-profile essentials found the grid full (12 after Chrome) and were pinned in Home. Captures (eyes only): `captures/import/phase-4.3-import-preview.png` (the sheet with Chrome's preview) and `phase-4.3-import-done.png` in each run.
+
+### Unit tier (`CI=1 swift test`)
+
+Import 25, Model 104, Store 47 (2 new: `applyImport`), Tabs 70, Omnibox 45, Design 9, Palette 24: all passing. The engine-free CI build and tests locally (`xcodegen/ci.yml`, `xcodebuild build test`): succeeded in 73 s, the Import tests found their fixtures under `xcodebuild test` (25 passed).
