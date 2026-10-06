@@ -114,6 +114,9 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     public func pauseDownload(id: DownloadItem.ID) { profile.pauseDownload(id) }
     public func resumeDownload(id: DownloadItem.ID) { profile.resumeDownload(id) }
     public func cancelDownload(id: DownloadItem.ID) { profile.cancelDownload(id) }
+    /// `download::DownloadItem::Remove` by GUID (4.1b): out of Chrome's list
+    /// and `DownloadHistory`'s database.
+    public func removeDownload(id: DownloadItem.ID) { profile.removeDownload(id) }
 
     /// `DetermineDownloadTarget` (patch 0019): the delegate picks the file.
     public func profile(_ profile: RoomProfile, willBeginDownload item: RoomDownloadItem,

@@ -240,6 +240,17 @@ class ProfileDownloadsImpl : public room::ProfileDownloads,
     }
   }
 
+  void Remove(NSString* identifier) override {
+    if (download::DownloadItem* item = Find(identifier)) {
+      // The host has dropped its row: the item's last update (an
+      // interruption, when it was still running) is not reported.
+      if (observed_.erase(item)) {
+        item->RemoveObserver(this);
+      }
+      item->Remove();  // DownloadHistory drops its row; the item is deleted
+    }
+  }
+
   // content::DownloadManager::Observer:
   void OnDownloadCreated(content::DownloadManager* manager,
                          download::DownloadItem* item) override {

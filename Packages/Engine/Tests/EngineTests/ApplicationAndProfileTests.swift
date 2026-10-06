@@ -146,6 +146,20 @@ struct DownloadTests {
         #expect(profile.downloads[id]?.state == .cancelled)
         #expect(profile.downloads[id]?.fractionCompleted == nil)
     }
+
+    /// B-59: a removed download leaves the engine's list and reports nothing more.
+    @Test func removedDownloadsAreForgotten() throws {
+        let (_, profile) = try makeProfile()
+        let delegate = RecordingDownloadsDelegate()
+        profile.downloadsDelegate = delegate
+        let id = profile.simulateDownload(url: url("https://files.example/a.zip"), totalBytes: 10)
+        profile.advanceDownload(id: id, by: 10)
+        let updates = delegate.updates.count
+        profile.removeDownload(id: id)
+        #expect(profile.downloads[id] == nil)
+        profile.advanceDownload(id: id, by: 1)
+        #expect(delegate.updates.count == updates)
+    }
 }
 
 @Suite("Menu model")

@@ -146,6 +146,11 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 - (void)pauseDownload:(NSString*)identifier;
 - (void)resumeDownload:(NSString*)identifier;
 - (void)cancelDownload:(NSString*)identifier;
+// download::DownloadItem::Remove by identifier (4.1b): the download leaves
+// Chrome's list and its history database (DownloadHistory), so the next
+// launch does not list it; a finished file stays on disk, a partial one is
+// deleted. No further update is reported for it.
+- (void)removeDownload:(NSString*)identifier;
 
 // The setting stored for `origin` (HostContentSettingsMap), Default when the
 // site has none.

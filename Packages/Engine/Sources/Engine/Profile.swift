@@ -17,6 +17,11 @@ public protocol Profile: AnyObject {
     func pauseDownload(id: DownloadItem.ID)
     func resumeDownload(id: DownloadItem.ID)
     func cancelDownload(id: DownloadItem.ID)
+    /// Removes the download from the engine's list and its download history
+    /// (Chromium `DownloadItem::Remove`), so a relaunch does not list it; a
+    /// finished file stays on disk, a partial one is deleted. No further
+    /// update is reported for it. The host cancels a running one first.
+    func removeDownload(id: DownloadItem.ID)
 
     /// The engine's stored favicon for a page, if it has one.
     func favicon(for pageURL: URL) async -> NSImage?

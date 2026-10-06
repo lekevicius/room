@@ -119,6 +119,12 @@ public final class FakeProfile: Profile {
         }
     }
 
+    /// Forgets the download (Chromium `DownloadItem::Remove`): no update is
+    /// reported for it any more.
+    public func removeDownload(id: DownloadItem.ID) {
+        downloads.removeValue(forKey: id)
+    }
+
     private func update(_ id: DownloadItem.ID, _ change: (inout DownloadItem) -> Void) {
         guard var item = downloads[id] else { return }
         let before = item

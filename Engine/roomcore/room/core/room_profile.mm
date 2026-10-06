@@ -268,6 +268,12 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   }
 }
 
+- (void)removeDownload:(NSString*)identifier {
+  if (room::ProfileDownloads* downloads = [self room_downloads]) {
+    downloads->Remove(identifier);
+  }
+}
+
 // MARK: Site settings (Phase 3.4a)
 
 - (RoomContentSetting)contentSettingForType:(RoomContentSettingType)type

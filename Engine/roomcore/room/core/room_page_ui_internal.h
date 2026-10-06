@@ -65,6 +65,7 @@ class ProfileDownloads {
   virtual void Pause(NSString* identifier) = 0;
   virtual void Resume(NSString* identifier) = 0;
   virtual void Cancel(NSString* identifier) = 0;
+  virtual void Remove(NSString* identifier) = 0;
 };
 
 // The site panel's settings (HostContentSettingsMap) and site data removal.
