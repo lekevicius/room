@@ -14,6 +14,8 @@ import Store
 /// entries split over five spaces, each with ten local colour pages first
 /// in its Today list (`research/spikes/phase-2.5/page.html`; `-RoomSpike
 /// spaces` loads them and times the switches, ROADMAP 2.5 exit).
+/// `archive` (4.1a): Today tabs aged on the store's clock for the archive
+/// sweep (`populateArchive`).
 enum SidebarFixtures {
     static var requested: String? { UserDefaults.standard.string(forKey: "RoomSidebarFixture") }
 
@@ -38,6 +40,9 @@ enum SidebarFixtures {
                 return
             case "spaces500":
                 try populateSpaces500(store, first: space, window: window)
+                return
+            case "archive":
+                try populateArchive(store, first: space, window: window)
                 return
             case "50":
                 for index in 0..<4 {
@@ -117,6 +122,8 @@ extension SidebarFixtures {
         }
         // A folder's removal moves its children up, so this runs until nothing is left.
         while let id = sidebar.entries.keys.first { _ = try? sidebar.remove(id) }
+        // The Archive is the sidebar's too (4.1a): the deleted spaces' rows go with them.
+        sidebar.clearArchive()
     }
 
     /// The "Work" profile, made once: a second fixture on the same state
@@ -204,6 +211,46 @@ extension SidebarFixtures {
                 }
             }
         }
+    }
+}
+#endif
+
+#if DEBUG
+extension SidebarFixtures {
+    /// The archive sweep's fixture (4.1a, `-RoomSpike archive`): Today tabs
+    /// whose `lastActiveAt` is set in the past on the store's clock
+    /// (`-RoomClock` moves it). Space "Space": "Old 1" and "Old 2" (48 h),
+    /// "Old 3" (13 h), "Young" (1 h), "Selected" (48 h, the selection) and
+    /// "Split" (48 h, in a split with the pinned "Docs"); space "Two": "Two
+    /// Old A" and "Two Old B" (48 h) and "Two Young" (1 h). With the default
+    /// 12 h the launch sweep archives the three old tabs of "Space" and the
+    /// two of "Two" and keeps the selected, the split and the young ones.
+    /// Pages are the 2.7 test server's (`:8770`), so restored tabs load.
+    static func populateArchive(_ store: RoomStore, first space: Space, window: UUID) throws {
+        let sidebar = store.sidebar
+        let now = sidebar.clock()
+        func page(_ name: String) -> String { "http://127.0.0.1:8770/site.html?archive=\(name)" }
+        func aged(_ title: String, hours: Int64, in spaceID: UUID) throws -> Entry {
+            let entry = try sidebar.addEntry(.today, url: page(title.replacingOccurrences(of: " ", with: "-").lowercased()),
+                                             title: "Archive Fixture \(title)", space: spaceID, at: sidebar.today(space: spaceID).count)
+            try sidebar.markActive(entry.id, at: Timestamp(milliseconds: now.milliseconds - hours * 3_600_000))
+            return entry
+        }
+        let docs = try sidebar.addEntry(.pinned, url: page("docs"), title: "Archive Fixture Docs", space: space.id)
+        for (title, hours) in [("Old 1", 48), ("Old 2", 48), ("Old 3", 13), ("Young", 1)] as [(String, Int64)] {
+            _ = try aged(title, hours: hours, in: space.id)
+        }
+        let selected = try aged("Selected", hours: 48, in: space.id)
+        let split = try aged("Split", hours: 48, in: space.id)
+        try sidebar.createSplitGroup([docs.id, split.id])
+        let two = try sidebar.createSpace(name: "Two", profile: space.profileID, themeColors: ["#4A90D9"])
+        try sidebar.addEntry(.pinned, url: page("two-pinned"), title: "Archive Fixture Two Pinned", space: two.id)
+        for (title, hours) in [("Two Old A", 48), ("Two Old B", 48), ("Two Young", 1)] as [(String, Int64)] {
+            _ = try aged(title, hours: hours, in: two.id)
+        }
+        store.windows.select(selected.id, space: space.id, window: window)
+        store.windows.setActiveSpace(space.id, window: window)
+        // The selection's own MRU stamp stays 48 h old: only the selection rule keeps it.
     }
 }
 #endif

@@ -341,6 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                let start = ISO8601DateFormatter().date(from: text) {
                 let offset = start.timeIntervalSinceNow
                 store.sidebar.clock = { Timestamp(Date().addingTimeInterval(offset)) }
+                debugClockOffset = offset
                 NSLog("Room: clock set to %@ (offset %.0f s)", text, offset)
             }
             #endif
@@ -362,6 +363,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     #if DEBUG
+    /// `-RoomClock`'s offset from the real clock (seconds), when given (the archive spike reports it).
+    static var debugClockOffset: TimeInterval?
+    /// The window's toasts (spikes press their buttons).
+    var debugToastCenter: ToastCenter? { toastCenter }
+
     /// The throwaway state directory of a snapshot, spike or fixture launch
     /// without `-RoomStateDirectory` (nil otherwise). Decided once, before the
     /// engine starts: `main.swift` puts the engine root inside it (B-78).

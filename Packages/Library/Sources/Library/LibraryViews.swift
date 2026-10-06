@@ -85,7 +85,11 @@ final class LibraryHeaderCell: NSTableCellView {
     func configure(title text: String, count value: Int, collapsed: Bool, action: (String, () -> Void)?) {
         title.stringValue = text
         count.stringValue = "\(value)"
-        chevron.frameCenterRotation = collapsed ? 0 : -90
+        // Right when collapsed, down when open (no rotation: the cell's geometry is not a layer's).
+        chevron.image = collapsed
+            ? NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Expand")?
+                .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
+            : Symbol.disclosure.image(pointSize: 11, weight: .semibold)
         if let action {
             button.title = action.0
             button.handler = action.1

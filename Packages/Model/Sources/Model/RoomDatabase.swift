@@ -100,6 +100,11 @@ public final class RoomDatabase: Sendable {
         }
     }
 
+    /// Rows in the `archive` table (schema v7; spikes and diagnostics).
+    public func archivedRowCount() throws -> Int {
+        try pool.read { db in try ArchivedEntry.fetchCount(db) }
+    }
+
     // MARK: Favicon cache (outside the state pipeline)
 
     public func favicons() throws -> [Favicon] {

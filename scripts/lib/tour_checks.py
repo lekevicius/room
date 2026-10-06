@@ -339,6 +339,59 @@ def _killtest(c):
         c.number("wall time", m.group(2))
 
 
+# --- lifecycle (4.1a) ---------------------------------------------------------
+
+@step_check("archive")
+def _archive(c):
+    """Spec §A.7 / §H and ROADMAP 4.1a: the launch sweep takes the old Today
+    tabs (5 of the fixture) and keeps the selected, the split-with-a-pinned
+    and the young ones; the rows are in the database; 13 h later the young
+    tabs go; the Library lists the rows by reason and restores into the
+    row's space, selected; Clear writes `clear` rows and Undo takes them
+    out; the palette shows the Archived chip and Enter restores; Delete
+    Space writes `spaceDeleted` rows and Undo takes them out; ⌘Y opens the
+    Library at History, Esc returns; Clear Archive empties the table."""
+    v = c.first
+    c.contains("clock", "injected=true", label="the clock is injected (-RoomClock)")
+    sweep = v("launch_sweep") or ""
+    c.check("launch sweep archives the five old Today tabs", sweep.startswith("archived=5 ")
+            and "Old 1,Old 2,Old 3,Two Old A,Two Old B" in sweep, sweep or "missing")
+    c.contains("launch_sweep_kept", "Selected=true", "Split=true", "Young=true", "Two Young=true",
+               label="the selected, split-with-pinned and young tabs stay")
+    c.check("the archive's rows are reason auto", (v("archive_rows") or "").startswith("5 auto=5 "), v("archive_rows") or "missing")
+    c.check("the rows are in the database", v("database_archive_rows") == "5", v("database_archive_rows") or "missing")
+    later = v("sweep_after_13h") or ""
+    c.check("13 h later the young tabs go", later.startswith("archived=2 ") and "Two Young,Young" in later, later or "missing")
+    c.contains("sweep_after_13h_kept", "Selected=true", "Split=true", label="the selected and split tabs still stay")
+    c.check("the Library replaces the spaces view", v("library_shown") == "true", v("library_shown") or "missing")
+    c.contains("library_rows", "archive=7 (auto=7 clear=0 spaceDeleted=0 windowClosed=0 manual=0)",
+               label="the Library lists the seven rows by reason")
+    c.contains("library_restore", "space=Two", "top=true", "selected=true", "row_gone=true",
+               label="Restore from the Library: back at the top of its space, selected, the row gone")
+    clear = v("clear") or ""
+    c.check("Clear writes its tabs to the Archive (reason clear) with the Undo toast",
+            "done=true" in clear and "rows_clear=0" not in clear and "toast=" in clear and "toast=none" not in clear, clear or "missing")
+    m = re.search(r"today_before=(\d+) rows_clear=(\d+)", clear)
+    if m:
+        c.check("one clear row per Today tab", m.group(1) == m.group(2), clear)
+    undo = v("clear_undo") or ""
+    c.check("Clear's Undo puts the tabs back and takes the rows out",
+            "rows_clear=0" in undo and m is not None and f"today={m.group(1)}" in undo, undo or "missing")
+    c.contains("palette_archived_row", "chip=Archived", "group=history", label="the palette's History row has the Archived chip")
+    c.contains("palette_restore", "selected=true", "space=Space", "row_gone=true",
+               label="Enter on it restores the tab to its space, selected")
+    c.contains("delete_space", "space_gone=true", label="Delete Space")
+    m = re.search(r"entries=(\d+) rows_spaceDeleted=(\d+)", v("delete_space") or "")
+    c.check("Delete Space archives its entries (B-15)", m is not None and m.group(1) == m.group(2) and m.group(1) != "0",
+            v("delete_space") or "missing")
+    c.contains("delete_space_undo", "space_back=true", "rows_spaceDeleted=0", label="its Undo brings the space and takes the rows out")
+    c.contains("cmd_y", "library_shown=true", "history_expanded=true", label="⌘Y opens the Library at History")
+    c.contains("esc_returns", "library_shown=false", label="Esc returns to the spaces")
+    c.contains("clear_archive", "rows=0", "database_rows=0", label="Clear Archive empties the table")
+    for key in ("library_rows", "archive_rows_before_clear_archive", "capture_library"):
+        c.number(key)
+
+
 @step_check("sidebardemo", "sidebar500")
 def _sidebar(c):
     states = [l for l in c.out if re.match(r"^[a-z0-9-]+: active=", l)]
