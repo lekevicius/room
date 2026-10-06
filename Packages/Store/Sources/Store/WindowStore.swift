@@ -48,6 +48,9 @@ public final class WindowStore {
         selections[SelectionKey(window: window, space: space)]
     }
 
+    /// Every space's selected entry in every window (the archive sweep never takes them).
+    public var selectedEntries: Set<UUID> { Set(selections.values) }
+
     public func select(_ entry: UUID?, space: UUID, window: UUID) {
         let key = SelectionKey(window: window, space: space)
         guard selections[key] != entry else { return }

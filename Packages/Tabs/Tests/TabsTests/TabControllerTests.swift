@@ -483,6 +483,29 @@ struct RelatedTabTests {
     }
 }
 
+@Suite("Tab controller: the archive sweep (spec §A.7)")
+struct ArchiveSweepTests {
+    @Test("Old Today tabs go to the Archive with their pages unloaded; the selection and pages the engine keeps (sound, capture, a dirty form) stay")
+    func sweep() throws {
+        let f = try TabsFixture()
+        let old = try f.today("https://old.example"), form = try f.today("https://form.example")
+        let capture = try f.today("https://call.example"), audible = try f.today("https://music.example")
+        let selected = try f.today("https://s.example")
+        for entry in [old, form, capture, audible, selected] { f.sidebar.select(entry.id) }
+        f.page(form.id)?.simulatedDiscardBlockers = .formInteractions
+        f.page(capture.id)?.simulatedDiscardBlockers = .capturing
+        f.page(audible.id)?.simulateAudio(true)
+        let later = Timestamp(Date().addingTimeInterval(13 * 3_600))
+        #expect(f.tabs.sweepArchive(now: later) == [old.id])
+        #expect(f.sidebarStore.entry(old.id) == nil && f.sidebarStore.archive[old.id]?.reason == .auto)
+        #expect(f.tabs.contents(for: old.id) == nil, "its page is closed")
+        #expect(f.sidebarStore.entry(selected.id) != nil)
+        // The form is submitted: the next sweep takes it.
+        f.page(form.id)?.simulatedDiscardBlockers = []
+        #expect(f.tabs.sweepArchive(now: later) == [form.id])
+    }
+}
+
 @Suite("Tab controller: discarding (spec §H)")
 struct DiscardTests {
     @Test("Idle limits: Today 60 min, permanent 3 h; never the selected or an audible page")

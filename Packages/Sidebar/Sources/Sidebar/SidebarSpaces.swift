@@ -209,7 +209,7 @@ extension SidebarController {
         let alert = NSAlert()
         alert.messageText = "Delete “\(space.name)”?"
         alert.informativeText = count == 0 ? "The space is empty."
-            : "Its \(count) pinned \(count == 1 ? "entry and Today tab" : "entries and Today tabs") are deleted with it."
+            : "Its \(count) pinned \(count == 1 ? "entry and Today tab go" : "entries and Today tabs go") to the Archive (⇧⌘L)."
         alert.addButton(withTitle: "Delete Space")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
@@ -217,7 +217,8 @@ extension SidebarController {
         deleteSpace(id)
     }
 
-    /// Deletes a space with an Undo toast (the Archive keeps them from 4.1, B-15).
+    /// Deletes a space with an Undo toast; its entries go to the Archive
+    /// (reason `spaceDeleted`, B-15), and Undo takes them back out.
     public func deleteSpace(_ id: UUID) {
         guard let space = sidebar.space(id) else { return }
         let entries = sidebar.entries.values.filter { $0.spaceID == id }.map(\.id)

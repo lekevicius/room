@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The header's action buttons and popups (3.6b), once the center and the window exist.
     private(set) var extensionPopups: ExtensionPopups?
     private(set) var switcher: TabSwitcher?
+    /// The archive sweep: at launch and every 10 min while idle (spec §A.7, 4.1a).
+    private(set) var archiveSweeper: ArchiveSweeper?
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
     private var toastCenter: ToastCenter?
@@ -329,6 +331,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         do {
             let opening = ContinuousClock.now
             let store = try RoomStore.open(directory: directory)
+            #if DEBUG
+            // `-RoomClock <ISO 8601 date>`: the store's clock starts there and runs on, so
+            // fixture entries age without waiting (the archive sweep, 4.1a).
+            if let text = UserDefaults.standard.string(forKey: "RoomClock"),
+               let start = ISO8601DateFormatter().date(from: text) {
+                let offset = start.timeIntervalSinceNow
+                store.sidebar.clock = { Timestamp(Date().addingTimeInterval(offset)) }
+                NSLog("Room: clock set to %@ (offset %.0f s)", text, offset)
+            }
+            #endif
             let elapsed = ContinuousClock.now - opening
             let check = store.integrityCheck == .full ? "integrity_check" : store.integrityCheck == .quick ? "quick_check" : "recovered"
             let milliseconds = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
@@ -554,6 +566,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #else
         tabs.startLifecycle(systemMemoryPressure: true)
         #endif
+        // The launch sweep (spec §A.7) before anything loads: the selection is never taken.
+        let sweeper = ArchiveSweeper(tabs: tabs, store: store)
+        archiveSweeper = sweeper
+        sweeper.start()
         // Only the selected entry loads at launch (spec §H); it waits for the profile.
         tabs.showSelection()
         // The other spaces' lists are built after the first frame, one per turn,

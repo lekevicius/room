@@ -140,6 +140,17 @@ private struct SettingsSectionView: View {
                 Text("Sign-in pages, form posts and redirects still open in the tab. ⇧-click any link to Peek it.")
             }
         }
+        Section("Tabs") {
+            Picker(selection: binding(\.archiveAfterHours)) {
+                ForEach(ArchivePolicy.afterHoursOptions, id: \.self) { hours in
+                    Text(hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours").tag(hours)
+                }
+            } label: {
+                Text("Archive tabs after")
+                Text("Today tabs you have not used for this long move to the Archive (⇧⌘L); the selected one and tabs playing sound, "
+                     + "using the camera or holding unsaved form input stay.")
+            }
+        }
         Section {
             LabeledContent {
                 Button("Show Welcome Card") { services.showWelcomeCard() }

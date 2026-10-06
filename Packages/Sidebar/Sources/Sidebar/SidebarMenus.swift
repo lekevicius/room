@@ -95,6 +95,11 @@ extension SidebarController {
         if kind == .today || kind == .pinned {
             menu.addItem(.separator())
             if kind == .today {
+                menu.addItem(action(CommandName.archiveTabs(count), symbol: .archive) { [weak self] in
+                    guard let self else { return }
+                    clearMultiSelection()
+                    archiveToday(ids, keeping: nil)
+                })
                 menu.addItem(action(CommandName.closeTabs(count), symbol: .closeTab, key: "w") { [weak self] in
                     guard let self else { return }
                     clearMultiSelection()
@@ -146,7 +151,10 @@ extension SidebarController {
         menu.addItem(.separator())
         let today = sidebar.today(space: tree.spaceID)
         let index = today.firstIndex { $0.id == id } ?? 0
-        menu.addItem(later(CommandName.archiveBelow, symbol: .archive, phase: "4.1"))
+        menu.addItem(action(CommandName.archiveTab, symbol: .archive) { [weak self] in self?.archiveToday([id], keeping: nil) })
+        menu.addItem(action(CommandName.archiveBelow, symbol: .archive, enabled: index < today.count - 1) { [weak self] in
+            self?.archiveToday(Array(today[(index + 1)...]).map(\.id), keeping: id)
+        })
         menu.addItem(action(CommandName.closeTabsBelow, enabled: index < today.count - 1) { [weak self] in
             self?.closeToday(Array(today[(index + 1)...]).map(\.id), keeping: id)
         })
@@ -435,6 +443,29 @@ extension SidebarController {
         closedTabs.push(.removed(removed))
         toasts?.show(Toast(id: "tabs-closed", symbol: .clearToday,
                            message: removed.count == 1 ? "1 tab closed" : "\(removed.count) tabs closed",
+                           action: .init(title: "Undo") { [weak self] in self?.sidebar.restore(removed) },
+                           duration: Timing.undoToast))
+    }
+
+    /// "Archive Tab", "Archive Tabs Below", "Archive N Tabs" (spec §A.8):
+    /// the tabs go to the Archive (reason `manual`) with an Undo toast; the
+    /// selection moves as `closeToday`'s does.
+    func archiveToday(_ ids: [UUID], keeping kept: UUID?) {
+        guard !ids.isEmpty else { return }
+        if let selected = selectedEntryID, ids.contains(selected) {
+            if let kept {
+                select(kept)
+            } else {
+                let next = sidebar.mruOrder(space: tree.spaceID).first { !ids.contains($0.id) && $0.kind != .folder && $0.lastActiveAt != nil }
+                select(next?.id)
+            }
+        }
+        for id in ids { host?.unload(id) }
+        let removed = sidebar.archive(ids, reason: .manual)
+        guard !removed.isEmpty else { return }
+        closedTabs.push(.removed(removed))
+        toasts?.show(Toast(id: "tabs-archived", symbol: .archive,
+                           message: removed.count == 1 ? "1 tab archived" : "\(removed.count) tabs archived",
                            action: .init(title: "Undo") { [weak self] in self?.sidebar.restore(removed) },
                            duration: Timing.undoToast))
     }

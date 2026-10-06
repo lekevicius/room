@@ -34,7 +34,9 @@ public enum CommandName {
     public static let muteTab = "Mute Tab"
     public static let unmuteTab = "Unmute Tab"
     public static let unloadTab = "Unload Tab"
+    public static let archiveTab = "Archive Tab"
     public static let archiveBelow = "Archive Tabs Below"
+    public static func archiveTabs(_ count: Int) -> String { "Archive \(count) Tabs" }
     public static let closeTabsBelow = "Close Tabs Below"
     public static let closeOtherTabs = "Close Other Tabs"
     public static let closeTab = "Close Tab"

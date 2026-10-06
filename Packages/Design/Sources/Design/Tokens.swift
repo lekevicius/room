@@ -227,6 +227,12 @@ public enum Timing {
     public static let discardIdlePermanent: TimeInterval = 3 * 60 * 60
     /// How often the idle-discard sweep runs (chosen).
     public static let discardSweepInterval: TimeInterval = 60
+    /// The archive sweep runs at launch and then this often while the window
+    /// is idle (spec §A.7: every 10 min).
+    public static let archiveSweepInterval: TimeInterval = 10 * 60
+    /// "Idle" for the archive sweep: no key or mouse press in Room for this
+    /// long (chosen, 4.1a); a sweep that falls due earlier waits for it.
+    public static let archiveIdleAfter: TimeInterval = 60
     /// Under critical memory pressure, one more background page is discarded
     /// this often until the pressure drops (chosen, 3.7b).
     public static let criticalPressureStep: TimeInterval = 1
