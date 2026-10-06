@@ -3092,3 +3092,78 @@ The fixture's named command fetches `http://127.0.0.1:8771/room-extension-fetch?
 ### Unit tier (`CI=1 swift test`)
 
 Engine 70 (+4: on click waits for Run and on this site is per host; a level the extension cannot take is refused; commands run only when the extension has them; Chrome's accelerator text in Room's notation, 8 cases), Chrome 58 (+3: pin/unpin and the overflow; commands by key; the site panel's section; the pages test now checks the profile), Model 108 (+3: the B-67 space choice; the settings round trip with an extension allowed in incognito), UIKitCore 56 (+1: extension rows and their conflicts), Sidebar 39, Tabs 71: all passing. The engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (74 s).
+
+## Phase 4.6 — media: the media session controls, the footer's media row, Now Playing and the media keys, document and video picture-in-picture (2026-10-07, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+### Baseline after the engine change (`build/evidence-4.6/baseline-1`, embryo host, dev framework `2ca0dd2`)
+
+| Run | Result |
+|---|---|
+| nav | passed, 13.0 s |
+| ten-page quits | **0.346 / 0.308 / 0.298 s** (load1 8.1 / 9.8 / 13.9), helpers left 0, 0 crash reports, stub hits 0 |
+| first attempt (`baseline-1-so`) | nav passed 19.5 s; the first quit run stopped at the ten-page fixture ("loading-at-ready 1": Stack Overflow still loading at ready), the known live-site condition |
+
+### The engine probe (`scripts/media-check.sh "" -RoomSpikeOnly engine`, dev build, before the official build started; fixture `research/spikes/phase-4.6/media.html?quiet=1` on :8776)
+
+The fixture's `#play` is clicked (a gesture), track 0 plays; then each member is called and the page's own log (its action handlers append to `#log`) is read back.
+
+| Member | Result (probe; then the tour runs dev / release) |
+|---|---|
+| `mediaSession` after the click | "Room Tone A" by "Phase 4.6", playing, actions `[nextTrack, pause, play, previousTrack, seekBackward, seekForward, seekTo, stop]`, position 1.6 / 30.0 s at rate 1, artwork URL `data:`, **artwork PNG 1,412 B** (Chrome's `GetMediaImageBitmap`, 96 px) |
+| `mediaPause()` | page logged `pause` in **8 ms** (12 / 2 / 2 ms); session paused, rate 0 |
+| `mediaPlay()` | `play` in 3 ms (7 / 2 / 1); session playing |
+| `mediaNextTrack()` | `nexttrack` in 10 ms (9 / 8 / 13); session "Room Tone B", artwork 1,361 B (the second canvas) |
+| `mediaPreviousTrack()` | `previoustrack` in 6 ms (11 / 9 / 10); "Room Tone A" again |
+| `mediaSeek(to: 12)` | `seekto 12.0` in 1 ms (2 / 1 / 1); position 12.0 / 30.0 |
+| the page's log | `click,pause,play,nexttrack,previoustrack,seekto 12.0` |
+
+At `quiet=1` (volume 0.02) the page is never `isAudible` (Chrome's level threshold): the row's rule takes the playing session. The fixture's `currentTime` advanced ~0.1 s per second of "playing" in these runs (`time=0.3` after ~3 s); not chased (the `audio` step below measures real output).
+
+### Tour step `media` (`scripts/media-check.sh`, own state and engine directories; `--only media light`)
+
+| Run | Checks | Conditions |
+|---|---|---|
+| dev `20261007-002511` (final code) | **32 / 32** | load1 8.06, no build, no other Room, 0 minidumps |
+| release framework `20261007-002536` (`ROOM_TOUR_APP`, Debug app over `RoomCoreCommit 2ca0dd2`, final code) | **32 / 32** | load1 7.96, 0 minidumps |
+| earlier: dev `20261007-002055`, release `20261007-002131` (31 checks, before the viewport check) | 31 / 31 each | load1 5–8 |
+
+Result lines (dev / release):
+
+| Check | Dev | Release |
+|---|---|---|
+| Row hidden while the playing entry is selected | hidden | hidden |
+| Space switch → row shown (fixture in the second space "Media") | **24 ms**, "Room Tone A" / "Phase 4.6", playing, next enabled, artwork 96×96, frame {{6, 40}, {228, 40}} (window coordinates, above the footer) | 25 ms, same |
+| Row's pause → page's `pause` handler; row shows Play | 1 ms; 21 ms | 2 ms; 21 ms |
+| Row's play → `play`; row shows Pause | 1 ms; 21 ms | 1 ms; 21 ms |
+| Row's next → `nexttrack`; row retitled "Room Tone B" | 1 ms; 22 ms | 2 ms; 20 ms |
+| Click on the row → its entry selected in its space, row hidden | 30 ms | 33 ms |
+| × → hidden, still hidden after 500 ms while the page plays | yes | yes |
+| The page pauses, plays again 300 ms later → row back | 21 ms | 21 ms |
+| Document PiP: panel shown after the click | 29 ms; requested {320, 180} → content **320×180**, frame {{1286, 761}, {320, 204}} (title bar 24 pt), floating level, non-activating, `hidesOnDeactivate` false, all Spaces; panel top-right (1606, 965) = the card's (1622, 981) less 16 pt; Today tabs 1 → 1 | 34 ms, same frame |
+| The PiP page painted | `captureViewport` 320×180 with the page's text (`phase-4.6-docpip-viewport.png`) | same |
+| Opener while PiP shows | alive, discard blockers `pictureInPicture` (3.7b's exemption holds) | same |
+| PiP page's `window.close()` → panel closed | 6 ms; opener alive, entry kept | 8 ms |
+| User closes the panel → the page | closed; opener alive | same |
+| The opener's entry closed → panel closed | 29 ms | 30 ms |
+| Video PiP (`requestPictureInPicture` on a click) | `NativeWidgetMacFramelessNSWindow` {{1523, 24}, {373, 210}}, level 3 (floating), page logged "video pip"; the opener's blockers `pictureInPicture`; `exitPictureInPicture()` → window gone, "video pip left" | same |
+
+The window server's capture (`CGWindowListCreateImage`) shows Chromium's page layers white in the panel **and** in the main window's card (`phase-4.6-docpip-opener-window.png`: pip.html's canvas and heading absent), so it cannot judge the panel's content; the engine's own capture is the evidence and the user's by-hand step the judge.
+
+### Now Playing and the media keys (the finding)
+
+| Check (dev / release) | Result |
+|---|---|
+| `MPNowPlayingInfoCenter.default().nowPlayingInfo` in Room's process with the fixture playing | **set by Chrome**: title "Room Tone A", artist "Phase 4.6", duration 30.0, rate 1.0, artwork present, `playbackState` 1 (playing), 8 keys; after a pause: elapsed 3.5, rate 0.0, state 2 (paused) |
+| `MPRemoteCommandCenter.shared()` | play, pause, toggle, next, previous, change-position all enabled (Chrome's `SystemMediaControls` registered them) |
+| MediaRemote's `MRMediaRemoteSendCommand(kMRPause)` (what Control Center's button sends to the Now Playing app; the system routes it) | **the page's `pause` handler ran in 30 / 23 ms** |
+| A synthetic play/pause key (`NSEvent.otherEvent` subtype 8, `NX_KEYTYPE_PLAY`, posted to the HID tap) | posted, `AXIsProcessTrusted` false: nothing reached the page in 3 s (a spike cannot post a system key without accessibility trust); the key is the user's by-hand step |
+
+**Finding:** Chrome's own system media controls (`content`'s `MediaKeysListenerManagerImpl` → `SystemMediaControlsNotifier` → `system_media_controls::SystemMediaControlsMac`) reach macOS from a Room window without Room's help: Now Playing carries the active session and MediaRemote's command reaches the page. The host registers no `MPRemoteCommandCenter` handlers (they would compete with Chrome's).
+
+### The audible edge after the observer work (`--only audio light`, dev, `20261007-002155`, load1 5.4)
+
+13 / 13: first audible edge **1,783 ms** (bound 2 s; 3.9-2: 1,558 ms), later 128 ms, Web Audio 144 ms; reported stopped 297 / 302 ms.
+
+### Unit tier (`CI=1 swift test`)
+
+Engine 72 (+2: the controls recorded, the state moved; none without a session), Tabs 75 (+4: the rule, × and the next start, the row on the fake with its buttons and selection), Sidebar 39, Design 9; the engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (95 s).
