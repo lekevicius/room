@@ -2372,6 +2372,8 @@ After the exit tour: `0012-extension-chooser-toolbar-guard.patch` removed from `
 
 `ROOM_TOUR_APP=<Debug app over release> scripts/grand-tour.sh --no-build --only smoke,open10,quittiming,memory light` (`build/grand-tour/20261006-093253-roomcore`; `ROOM_TOUR_APP` added to the tour for this, a harness option; load 4–7): **40 / 40 checks, 0 minidumps** under the engine's `Crashpad/{pending,completed}` (the database exists; the steps' `.crashpad` files are empty), 0 crash reports, 0 helpers left. The same four steps on the 155 dev build left **9 renderer minidumps per appearance** (the exit tour: 8 × `layout_object.h:518`, 1 × `inline_node.cc:2297`, plus one `//net` DCHECK in dark): the live sites that trip the dev build's DCHECKs do not crash the product. B-76 stays a dev-build condition.
 
+The switching p95 on the release framework (20.87 ms) still misses the 16 ms bound by more than a quarter (B-53: the release build removes ~3 ms at the median and ~2 ms at the p95 against the dev build; the profile of 3.3b already found no single Room-side cause; performance work is a later chapter). tabsmeasure: 11 / 12, 0 minidumps.
+
 From the same steps (release framework, light, the machine quiet but for the session):
 
 | Measure | Release framework (155) | Dev build, exit tour (155, light) | CEF (2.9 tour, light) |
@@ -2381,6 +2383,9 @@ From the same steps (release framework, light, the machine quiet but for the ses
 | open10: seconds to all loaded | 5 | 11 | — |
 | Quit with ten pages (3 runs) | 0.24 / 0.26 / 0.30 s, 0 helpers left (load1 5.4–6.5) | 0.30–0.37 s | 0.35–0.50 s |
 | Smoke quit | 0.10 s | 0.11 s | — |
+| Tab switch (tabsmeasure, `--only`, `20261006-093907-roomcore`): select call; click → committed median / p95; page visible | 5.19 / 8.28; **12.88 / 20.87**; 4.17 ms | 6.63 / 10.80; 15.38 / 22.97; 5.74 ms | 13.7 / 17.5 ms (committed) |
+| 10 loaded of 50 entries (tabsmeasure) | 4,801 MB, 19 renderers | 5,565 MB, 17 renderers | 3,572 MB |
+| Relaunch: load start; selected loaded | **0.56 s; 1.33 s** | 2.08 s; 4.17 s | 0.82 s; 1.44 s |
 
 ### Sizes (Release app, `du -sk`)
 
