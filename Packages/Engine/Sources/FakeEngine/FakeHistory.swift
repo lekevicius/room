@@ -26,6 +26,22 @@ public final class FakeHistory: ProfileHistory {
         entries[url.absoluteString] = record
     }
 
+    /// Clear browsing data's history kind: every visit at or after `start`
+    /// (`nil`: all) goes, and a URL left without visits with it.
+    public func deleteVisits(since start: Date?) {
+        for (key, record) in entries {
+            let kept = record.visits.filter { visit in start.map { visit.time < $0 } ?? false }
+            if kept.isEmpty {
+                entries[key] = nil
+            } else if kept.count != record.visits.count {
+                var entry = record.entry
+                entry.visitCount = kept.count
+                entry.lastVisit = kept.map(\.time).max()
+                entries[key] = (entry, kept)
+            }
+        }
+    }
+
     public func search(_ text: String, limit: Int) async -> [HistoryEntry] {
         let words = text.lowercased().split(separator: " ").map(String.init)
         return Array(sortedByRecency.filter { entry in

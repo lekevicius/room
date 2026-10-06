@@ -22,10 +22,13 @@
 #include "base/memory/weak_ptr.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/browsing_data/core/browsing_data_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/content_settings/core/common/content_settings_enums.mojom.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -588,6 +591,114 @@ void ClearSiteData(Profile* profile,
   } else {
     barrier.Run();
   }
+}
+
+NSArray<NSDictionary<NSString*, id>*>* ContentSettingsForType(
+    Profile* profile,
+    RoomContentSettingType type) {
+  NSMutableArray<NSDictionary<NSString*, id>*>* result = [NSMutableArray array];
+  HostContentSettingsMap* map =
+      profile ? HostContentSettingsMapFactory::GetForProfile(profile) : nullptr;
+  if (!map) {
+    return result;
+  }
+  for (const ContentSettingPatternSource& rule :
+       map->GetSettingsForOneType(ToContentSettingsType(type))) {
+    // The user's own rules (Settings, the site panel, a prompt's answer):
+    // not the defaults, policies, extensions or Chrome's allowlists.
+    if (rule.source != content_settings::mojom::ProviderType::kPrefProvider ||
+        rule.primary_pattern.MatchesAllHosts() || rule.IsExpired()) {
+      continue;
+    }
+    RoomContentSetting setting = RoomContentSettingDefault;
+    switch (rule.GetContentSetting()) {
+      case CONTENT_SETTING_ALLOW:
+      case CONTENT_SETTING_SESSION_ONLY:
+        setting = RoomContentSettingAllow;
+        break;
+      case CONTENT_SETTING_BLOCK:
+        setting = RoomContentSettingBlock;
+        break;
+      case CONTENT_SETTING_ASK:
+        setting = RoomContentSettingAsk;
+        break;
+      default:
+        continue;
+    }
+    NSMutableDictionary<NSString*, id>* entry = [NSMutableDictionary dictionary];
+    entry[@"pattern"] =
+        base::SysUTF8ToNSString(rule.primary_pattern.ToString());
+    const GURL representative = rule.primary_pattern.ToRepresentativeUrl();
+    if (representative.is_valid()) {
+      entry[@"origin"] = net::NSURLWithGURL(representative);
+    }
+    entry[@"setting"] = @(setting);
+    entry[@"embedded"] = @(!rule.secondary_pattern.MatchesAllHosts());
+    [result addObject:entry];
+  }
+  return result;
+}
+
+void ClearBrowsingData(Profile* profile,
+                       RoomBrowsingDataTypes types,
+                       RoomBrowsingDataPeriod period,
+                       void (^completion)(void)) {
+  void (^done)(void) = [completion copy];
+  uint64_t mask = 0;
+  if (types & RoomBrowsingDataTypeHistory) {
+    mask |= chrome_browsing_data_remover::DATA_TYPE_HISTORY;
+  }
+  if (types & RoomBrowsingDataTypeCookiesAndSiteData) {
+    mask |= chrome_browsing_data_remover::DATA_TYPE_SITE_DATA;
+  }
+  if (types & RoomBrowsingDataTypeCache) {
+    mask |= content::BrowsingDataRemover::DATA_TYPE_CACHE;
+  }
+  if (types & RoomBrowsingDataTypeDownloads) {
+    mask |= content::BrowsingDataRemover::DATA_TYPE_DOWNLOADS;
+  }
+  if (types & RoomBrowsingDataTypeAutofill) {
+    mask |= chrome_browsing_data_remover::DATA_TYPE_FORM_DATA;
+  }
+  if (types & RoomBrowsingDataTypePasswords) {
+    mask |= chrome_browsing_data_remover::DATA_TYPE_PASSWORDS;
+  }
+  if (!profile || !mask) {
+    done();
+    return;
+  }
+  browsing_data::TimePeriod time_period = browsing_data::TimePeriod::ALL_TIME;
+  switch (period) {
+    case RoomBrowsingDataPeriodLastHour:
+      time_period = browsing_data::TimePeriod::LAST_HOUR;
+      break;
+    case RoomBrowsingDataPeriodLastDay:
+      time_period = browsing_data::TimePeriod::LAST_DAY;
+      break;
+    case RoomBrowsingDataPeriodLastWeek:
+      time_period = browsing_data::TimePeriod::LAST_WEEK;
+      break;
+    case RoomBrowsingDataPeriodFourWeeks:
+      time_period = browsing_data::TimePeriod::FOUR_WEEKS;
+      break;
+    case RoomBrowsingDataPeriodAllTime:
+      time_period = browsing_data::TimePeriod::ALL_TIME;
+      break;
+  }
+  // Web origins, protected (installed web apps) or not, as Chrome's dialog
+  // clears them; extensions keep their own storage.
+  const uint64_t origins =
+      content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
+      content::BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB;
+  content::BrowsingDataRemover* remover = profile->GetBrowsingDataRemover();
+  LOG(INFO) << "RoomCore: clear browsing data mask " << mask << " period "
+            << static_cast<int>(time_period);
+  remover->RemoveAndReply(
+      browsing_data::CalculateBeginDeleteTime(time_period),
+      browsing_data::CalculateEndDeleteTime(time_period), mask, origins,
+      new RemovalObserver(remover, base::BindOnce(^{
+                            done();
+                          })));
 }
 
 }  // namespace room

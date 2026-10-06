@@ -78,15 +78,9 @@ extension PageUIDelegate: WebContentsUIDelegate {
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
         let reserved = ReservedShortcuts.matches(event, in: reservedKeys)
-        if reserved {
-            logKey("reserved", event)
-            // RoomCore offers the event itself to the menu next; an ⌥ key whose character ⌥ changed
-            // ("†" for ⌥⌘T) no longer matches once the page's view has handled it (found in 4.4a), so it
-            // goes to the menu here as a fresh event. No default reserved key is one (⌥⌘ arrows keep theirs).
-            if Self.optionChangedCharacter(event), let copy = Self.fresh(event), NSApp.mainMenu?.performKeyEquivalent(with: copy) == true {
-                appendKeyLog("reserved sent fresh")
-            }
-        }
+        // RoomCore offers the event to the menu next, as a fresh copy when ⌥ changed its character
+        // ("†" for ⌥⌘T: B-86, engine-side since 4.4b).
+        if reserved { logKey("reserved", event) }
         return reserved
     }
 

@@ -85,6 +85,15 @@ public protocol EngineApplication: AnyObject {
     /// Valid only while the main loop runs.
     func createProfile(name: String) async throws -> any Profile
 
+    /// Deletes `profile` and its directory (4.4b): the engine lets go of it,
+    /// it leaves `profiles`, and its data (cookies, history, passwords,
+    /// cache, settings) is removed from disk before this returns. Every page
+    /// of the profile must be closed first: with one still open it throws
+    /// `EngineError.profileInUse` and changes nothing. RoomCore:
+    /// `ProfileManager`'s unload of a profile marked for deletion
+    /// (`NukeProfileFromDisk`); the fake forgets it.
+    func deleteProfile(_ profile: any Profile) async throws
+
     /// The site of `url` as the engine counts it for same-site rules (spec
     /// §A.4 "same eTLD+1", Peek): the registrable domain of its host by the
     /// Public Suffix List with the private section, lower-case and in

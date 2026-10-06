@@ -155,6 +155,33 @@ public final class FakeProfile: Profile {
         permissionSettings[Self.originKey(origin), default: [:]][permission] = setting
     }
 
+    /// Every origin with its own setting for `permission`, by origin.
+    public func contentSettings(ofType permission: SitePermission) -> [ContentSettingEntry] {
+        permissionSettings.compactMap { key, settings in
+            settings[permission].map { ContentSettingEntry(pattern: key, origin: URL(string: key), setting: $0) }
+        }.sorted { $0.pattern < $1.pattern }
+    }
+
+    // MARK: Clear browsing data (4.4b)
+
+    /// Every `clearBrowsingData` call, in order.
+    public private(set) var clearedBrowsingData: [(kinds: BrowsingDataKinds, period: BrowsingDataPeriod)] = []
+    /// The fake's clock for the periods.
+    public var now: () -> Date = Date.init
+
+    /// History through `fakeHistory`, the downloads list by start time, the
+    /// saved passwords (all of them: the fake keeps no dates) for all time;
+    /// the rest is only recorded.
+    public func clearBrowsingData(_ kinds: BrowsingDataKinds, since period: BrowsingDataPeriod) async {
+        clearedBrowsingData.append((kinds, period))
+        let start = period.start(before: now())
+        if kinds.contains(.history) { fakeHistory?.deleteVisits(since: start) }
+        if kinds.contains(.downloads) {
+            downloads = downloads.filter { _, item in start.map { item.startTime < $0 } ?? false }
+        }
+        if kinds.contains(.passwords), start == nil { savedPasswords = [] }
+    }
+
     static func originKey(_ url: URL) -> String {
         "\(url.scheme ?? "")://\(url.host() ?? "")" + (url.port.map { ":\($0)" } ?? "")
     }

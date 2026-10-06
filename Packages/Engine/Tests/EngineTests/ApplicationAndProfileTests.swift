@@ -239,3 +239,57 @@ struct PasswordImportTests {
         #expect(noHeader.status == .badFormat)
     }
 }
+
+/// The three 4.4b members (ROADMAP 4.4 task 6) on the fake.
+@Suite("Profile deletion, browsing data, content settings")
+struct ProfileDataTests {
+    @Test func deleteProfileRefusesWhileAPageIsOpen() async throws {
+        let (app, _) = try makeProfile()
+        let work = try app.profile(named: "Work")
+        let page = work.makeWebContents()
+        await #expect(throws: EngineError.profileInUse("1 pages open")) { try await app.deleteProfile(work) }
+        #expect(app.profiles.count == 2)
+        page.close()
+        try await app.deleteProfile(work)
+        #expect(app.profiles.map(\.name) == ["Default"])
+        #expect(app.deletedProfiles == ["Work"])
+        await #expect(throws: EngineError.closed) { try await app.deleteProfile(work) }
+    }
+
+    @Test func clearBrowsingDataKeepsWhatIsOlderThanThePeriod() async throws {
+        let (_, profile) = try makeProfile()
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        profile.now = { now }
+        let history = FakeHistory()
+        profile.fakeHistory = history
+        history.addVisit(url("https://old.example/"), title: "Old", at: now.addingTimeInterval(-7200))
+        history.addVisit(url("https://both.example/"), title: "Both", at: now.addingTimeInterval(-7200))
+        history.addVisit(url("https://both.example/"), title: "Both", at: now.addingTimeInterval(-60))
+        history.addVisit(url("https://new.example/"), title: "New", at: now.addingTimeInterval(-60))
+        await profile.clearBrowsingData([.history, .cookiesAndSiteData], since: .lastHour)
+        #expect(Set(history.entries.keys) == ["https://old.example/", "https://both.example/"])
+        #expect(history.entries["https://both.example/"]?.entry.visitCount == 1)
+        #expect(profile.clearedBrowsingData.map(\.period) == [.lastHour])
+        await profile.clearBrowsingData(.history, since: .allTime)
+        #expect(history.entries.isEmpty)
+    }
+
+    @Test func contentSettingsListTheSitesWithTheirOwnSetting() throws {
+        let (_, profile) = try makeProfile()
+        profile.setPermissionSetting(.block, for: .camera, origin: url("https://b.example"))
+        profile.setPermissionSetting(.allow, for: .camera, origin: url("https://a.example:8443"))
+        profile.setPermissionSetting(.allow, for: .popups, origin: url("https://c.example"))
+        let camera = profile.contentSettings(ofType: .camera)
+        #expect(camera.map(\.pattern) == ["https://a.example:8443", "https://b.example"])
+        #expect(camera.map(\.setting) == [.allow, .block])
+        profile.setPermissionSetting(nil, for: .camera, origin: url("https://b.example"))
+        #expect(profile.contentSettings(ofType: .camera).map(\.pattern) == ["https://a.example:8443"])
+    }
+
+    @Test func periodsStartWhereChromeStartsThem() {
+        let now = Date(timeIntervalSinceReferenceDate: 0)
+        #expect(BrowsingDataPeriod.lastHour.start(before: now) == now.addingTimeInterval(-3600))
+        #expect(BrowsingDataPeriod.lastFourWeeks.start(before: now) == now.addingTimeInterval(-28 * 86_400))
+        #expect(BrowsingDataPeriod.allTime.start(before: now) == nil)
+    }
+}

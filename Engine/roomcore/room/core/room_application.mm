@@ -25,7 +25,12 @@
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/nuke_profile_directory_utils.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
@@ -439,6 +444,75 @@ class RoomMemoryPressureListener : public base::MemoryPressureListener {
                                                          room_profileFor:profile]
                                                    : nil);
                               }));
+}
+
+- (void)deleteProfile:(RoomProfile*)profile
+           completion:(void (^)(NSError*))completion {
+  void (^done)(NSError*) = [completion copy];
+  auto fail = ^(RoomProfileDeletionError code, NSString* reason) {
+    done([NSError errorWithDomain:@"RoomProfileDeletion"
+                             code:code
+                         userInfo:@{NSLocalizedDescriptionKey : reason}]);
+  };
+  ProfileManager* manager =
+      g_browser_process ? g_browser_process->profile_manager() : nullptr;
+  Profile* chrome = profile.room_profile;
+  if (!manager || !chrome || chrome->IsOffTheRecord() ||
+      profile.room_deleting) {
+    fail(RoomProfileDeletionErrorNotLoaded, @"not a loaded profile");
+    return;
+  }
+  const NSInteger open = profile.room_openPageCount;
+  if (open > 0) {
+    fail(RoomProfileDeletionErrorPagesOpen,
+         [NSString stringWithFormat:@"%ld pages open", (long)open]);
+    return;
+  }
+  const base::FilePath path = chrome->GetPath();
+  const std::string base_name = path.BaseName().AsUTF8Unsafe();
+  // Chrome must not start the next launch in a deleted profile: the last
+  // used one becomes another loaded profile (Chrome's own deletion does the
+  // same, without its profile picker).
+  PrefService* local_state = g_browser_process->local_state();
+  if (local_state->GetString(prefs::kProfileLastUsed) == base_name) {
+    std::string other;
+    for (Profile* loaded : manager->GetLoadedProfiles()) {
+      if (loaded != chrome && !loaded->IsOffTheRecord()) {
+        other = loaded->GetPath().BaseName().AsUTF8Unsafe();
+        break;
+      }
+    }
+    if (other.empty()) {
+      local_state->ClearPref(prefs::kProfileLastUsed);
+    } else {
+      local_state->SetString(prefs::kProfileLastUsed, other);
+    }
+  }
+  {
+    ScopedListPrefUpdate active(local_state, prefs::kProfilesLastActive);
+    active->EraseValue(base::Value(base_name));
+  }
+  // Marked: Chrome's unload deletes the directory, and a crash before that
+  // leaves it on the ProfilesDeleted list the next launch deletes.
+  if (manager->GetProfileAttributesStorage().GetProfileAttributesWithPath(
+          path) &&
+      ScheduleProfileDirectoryForDeletion(path)) {
+    MarkProfileDirectoryForDeletion(path);
+  }
+  local_state->CommitPendingWrite();
+  LOG(INFO) << "RoomCore: deleting profile " << base_name;
+  [profile room_deleteWithCompletion:^(BOOL destroyed, BOOL gone) {
+    if (!destroyed) {
+      fail(RoomProfileDeletionErrorStillLoaded,
+           @"Chromium still holds the profile; its directory is deleted at "
+           @"the next launch");
+    } else if (!gone) {
+      fail(RoomProfileDeletionErrorDirectoryLeft,
+           @"the profile's directory could not be deleted");
+    } else {
+      done(nil);
+    }
+  }];
 }
 
 - (RoomMemoryPressureLevel)memoryPressureLevel {

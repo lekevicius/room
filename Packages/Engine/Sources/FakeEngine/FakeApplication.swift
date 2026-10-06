@@ -61,6 +61,20 @@ public final class FakeApplication: EngineApplication {
         try profile(named: name)
     }
 
+    /// Forgets the profile (RoomCore deletes its directory); refused while
+    /// one of its pages is open.
+    public func deleteProfile(_ profile: any Profile) async throws {
+        guard let fake = profile as? FakeProfile, let index = fakeProfiles.firstIndex(where: { $0 === fake }) else {
+            throw EngineError.closed
+        }
+        guard fake.openWebContents.isEmpty else { throw EngineError.profileInUse("\(fake.openWebContents.count) pages open") }
+        fakeProfiles.remove(at: index)
+        deletedProfiles.append(fake.name)
+    }
+
+    /// Names of the profiles `deleteProfile` removed, in order.
+    public private(set) var deletedProfiles: [String] = []
+
     /// Synchronous `createProfile` for tests and previews.
     public func profile(named name: String) throws -> FakeProfile {
         guard configuration != nil else { throw EngineError.notRunning }

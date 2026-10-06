@@ -100,6 +100,29 @@ typedef NS_OPTIONS(NSUInteger, RoomSiteDataTypes) {
   RoomSiteDataTypePermissions = 1 << 4,
 };
 
+// What -clearBrowsingData:since:completion: removes (Chrome's Clear browsing
+// data kinds).
+typedef NS_OPTIONS(NSUInteger, RoomBrowsingDataTypes) {
+  RoomBrowsingDataTypeHistory = 1 << 0,
+  // Cookies and site storage (Chrome's DATA_TYPE_SITE_DATA).
+  RoomBrowsingDataTypeCookiesAndSiteData = 1 << 1,
+  RoomBrowsingDataTypeCache = 1 << 2,
+  // The downloads list (the files stay on disk).
+  RoomBrowsingDataTypeDownloads = 1 << 3,
+  // Autofill's form entries and addresses (DATA_TYPE_FORM_DATA).
+  RoomBrowsingDataTypeAutofill = 1 << 4,
+  RoomBrowsingDataTypePasswords = 1 << 5,
+};
+
+// How far back -clearBrowsingData:since:completion: goes
+// (browsing_data::TimePeriod).
+typedef NS_ENUM(NSInteger, RoomBrowsingDataPeriod) {
+  RoomBrowsingDataPeriodLastHour = 0,
+  RoomBrowsingDataPeriodLastDay,
+  RoomBrowsingDataPeriodLastWeek,
+  RoomBrowsingDataPeriodFourWeeks,
+  RoomBrowsingDataPeriodAllTime,
+};
 
 // A Chromium Profile: cookie jar, history, settings, extensions.
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
@@ -162,6 +185,24 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                   forType:(RoomContentSettingType)type
                    origin:(NSURL*)origin
     NS_SWIFT_NAME(setContentSetting(_:for:origin:));
+// Every site with its own setting for `type` (4.4b): the rules
+// HostContentSettingsMap::GetSettingsForOneType has from the user's
+// preferences whose site pattern is not the wildcard, as dictionaries of
+// Foundation values (no class of its own):
+//   @"pattern"  NSString: the site pattern (ContentSettingsPattern::ToString);
+//   @"origin"   NSURL: a URL the pattern matches (ToRepresentativeUrl;
+//               absent when it has none), for -setContentSetting:…;
+//   @"setting"  NSNumber: a RoomContentSetting (Allow, Block or Ask);
+//   @"embedded" NSNumber (BOOL): the secondary pattern is not the wildcard.
+- (NSArray<NSDictionary<NSString*, id>*>*)contentSettingsForType:
+    (RoomContentSettingType)type NS_SWIFT_NAME(contentSettings(for:));
+// Chrome's Clear browsing data (4.4b): BrowsingDataRemover with Chrome's
+// data types for `types`, every site, web origins protected or not, from the
+// start of `period` until now; completion on the main thread once Chrome has.
+- (void)clearBrowsingData:(RoomBrowsingDataTypes)types
+                    since:(RoomBrowsingDataPeriod)period
+               completion:(void (^)(void))completion
+    NS_SWIFT_NAME(clearBrowsingData(_:since:completion:));
 // Removes site data of `types` for `origin` (nil: every site); completion
 // on the main thread once Chrome has.
 - (void)clearSiteData:(RoomSiteDataTypes)types

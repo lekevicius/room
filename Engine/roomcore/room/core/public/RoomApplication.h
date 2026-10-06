@@ -18,6 +18,20 @@ typedef NS_ENUM(NSInteger, RoomMemoryPressureLevel) {
   RoomMemoryPressureLevelCritical,
 };
 
+// -deleteProfile:completion:'s error codes, in the error domain
+// @"RoomProfileDeletion" (a literal: an exported constant would join
+// room_core.exports, which lists classes only, B-77).
+typedef NS_ENUM(NSInteger, RoomProfileDeletionError) {
+  // Not a loaded profile (destroyed, off the record, or being deleted).
+  RoomProfileDeletionErrorNotLoaded = 1,
+  // A page of the profile is open; the description says how many.
+  RoomProfileDeletionErrorPagesOpen = 2,
+  // Chrome still holds the profile after the wait.
+  RoomProfileDeletionErrorStillLoaded = 3,
+  // The profile is gone but its directory could not be deleted.
+  RoomProfileDeletionErrorDirectoryLeft = 4,
+};
+
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @protocol RoomApplicationDelegate <NSObject>
 // The browser process is up: profiles are loaded and RoomBrowser/RoomProfile
@@ -112,6 +126,23 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // creating it if needed. The completion receives nil on failure.
 - (void)createProfile:(NSString*)name
            completion:(void (^)(RoomProfile* _Nullable profile))completion;
+
+// Deletes `profile` and its directory (4.4b). Every page of the profile must
+// be closed first: with one open the completion gets an error at once
+// (code RoomProfileDeletionErrorPagesOpen) and nothing changes. Otherwise
+// the profile is marked for deletion (Chrome's ProfilesDeleted list, so a
+// crash before the end still deletes the directory at the next launch),
+// stops being Chrome's last used profile, RoomCore lets go of it and closes
+// its emptied browsers; Chrome unloads it, and once it is destroyed its
+// directory and cache are deleted (NukeProfileFromDisk). The completion runs
+// on the main thread: nil when the directory is gone; an error when it is
+// still there (RoomProfileDeletionErrorDirectoryLeft) or when Chrome did not
+// let go of the profile within 20 s (RoomProfileDeletionErrorStillLoaded:
+// the directory goes at the next launch). The profile is not usable after
+// the call.
+- (void)deleteProfile:(RoomProfile*)profile
+           completion:(void (^)(NSError* _Nullable error))completion
+    NS_SWIFT_NAME(deleteProfile(_:completion:));
 
 @end
 

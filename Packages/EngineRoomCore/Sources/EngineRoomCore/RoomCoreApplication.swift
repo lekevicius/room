@@ -170,6 +170,27 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
         return profile
     }
 
+    /// `-[RoomApplication deleteProfile:completion:]` (4.4b): refused with
+    /// a page open; otherwise Chrome unloads the profile and deletes its
+    /// directory before this returns.
+    public func deleteProfile(_ profile: any Profile) async throws {
+        guard let roomProfile = profile as? RoomCoreProfile,
+              loadedProfiles.contains(where: { $0 === roomProfile }) else { throw EngineError.closed }
+        do {
+            try await core.deleteProfile(roomProfile.profile)
+            loadedProfiles.removeAll { $0 === roomProfile }
+        } catch let error as NSError where error.domain == "RoomProfileDeletion" {
+            switch RoomProfileDeletionError(rawValue: error.code) {
+            case .pagesOpen?: throw EngineError.profileInUse(error.localizedDescription)
+            case .notLoaded?: throw EngineError.closed
+            default:
+                // Unloaded or not, the profile is gone for this session.
+                loadedProfiles.removeAll { $0 === roomProfile }
+                throw EngineError.failed(error.localizedDescription)
+            }
+        }
+    }
+
     nonisolated static func isValidProfileName(_ name: String) -> Bool {
         !name.isEmpty && name.count <= 64 && name != "." && name != ".."
             && !name.contains("/") && !name.contains(":") && !name.hasPrefix(".")

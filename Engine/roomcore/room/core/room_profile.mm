@@ -2,6 +2,16 @@
 
 #import "room/core/room_profile_internal.h"
 
+#include "base/files/file_util.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/task/thread_pool.h"
+#include "base/time/time.h"
+#include "chrome/browser/profiles/nuke_profile_directory_utils.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
+#include "ui/base/base_window.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include <memory>
@@ -95,6 +105,13 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   RoomProfileExtensions* _extensions;
   // The password importer (4.3b), made with the first import.
   std::unique_ptr<room::PasswordImport> _passwordImport;
+  // The host's pages made here (4.4b: a deletion waits for none to be open).
+  NSHashTable<RoomWebContents*>* _pages;
+  // -room_deleteWithCompletion:'s completion, until the profile is destroyed
+  // or the wait ends (4.4b).
+  void (^_deletion)(BOOL destroyed, BOOL gone);
+  BOOL _deleting;
+  base::FilePath _path;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -123,6 +140,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   if ((self = [super init])) {
     _profile = profile;
     const base::FilePath path = profile->GetPath();
+    _path = path;
     _name = base::SysUTF8ToNSString(path.BaseName().value());
     _directory = [NSURL fileURLWithPath:base::SysUTF8ToNSString(path.value())
                             isDirectory:YES];
@@ -190,6 +208,96 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   _downloads.reset();
   _faviconTasks.reset();
   _profile = nullptr;
+  if (void (^deletion)(BOOL, BOOL) = _deletion) {
+    _deletion = nil;
+    // Chrome's unload has posted its own deletion of the marked directory;
+    // this one reports back. NukeProfileFromDisk retries while files are
+    // still locked by the profile's last writers.
+    const base::FilePath path = _path;
+    void (^reply)(void) = ^{
+          base::ThreadPool::PostTaskAndReplyWithResult(
+              FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+              base::BindOnce(&base::PathExists, path),
+              base::BindOnce(^(bool exists) {
+                LOG(INFO) << "RoomCore: profile " << path.BaseName().value()
+                          << " deleted, directory "
+                          << (exists ? "left" : "gone");
+                deletion(YES, !exists);
+              }));
+    };
+    base::ThreadPool::PostTask(
+        FROM_HERE,
+        {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+         base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+        base::BindOnce(&NukeProfileFromDisk, path, base::BindOnce(reply)));
+  }
+}
+
+- (NSInteger)room_openPageCount {
+  NSInteger count = 0;
+  for (RoomWebContents* page in _pages) {
+    if (!page.closed) {
+      ++count;
+    }
+  }
+  if (!_profile) {
+    return count;
+  }
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    if (browser->GetProfile() != _profile) {
+      continue;
+    }
+    TabStripModel* strip = browser->GetTabStripModel();
+    for (int i = 0; i < strip->count(); ++i) {
+      // A host page already counted above is in a strip too.
+      RoomWebContents* wrapper =
+          [RoomWebContents room_existingWrapperFor:strip->GetWebContentsAt(i)];
+      if (!wrapper || ![_pages containsObject:wrapper]) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+- (BOOL)room_deleting {
+  return _deleting;
+}
+
+- (void)room_deleteWithCompletion:(void (^)(BOOL, BOOL))completion {
+  _deleting = YES;
+  _deletion = [completion copy];
+  // Browsers of the profile whose strips emptied close themselves; one
+  // still open (none expected) is closed now.
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    if (browser->GetProfile() == _profile &&
+        browser->GetTabStripModel()->empty() &&
+        !browser->capabilities()->IsAttemptingToCloseBrowser()) {
+      browser->GetWindow()->Close();
+    }
+  }
+  // The last keep-alive RoomCore holds: Chrome unloads the profile once the
+  // browsers' go too (ProfileManager::UnloadProfileIfNoKeepAlive).
+  _keepAlive.reset();
+  __weak RoomProfile* weakSelf = self;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, base::BindOnce(^{
+        RoomProfile* strongSelf = weakSelf;
+        if (strongSelf) {
+          [strongSelf room_deletionTimedOut];
+        }
+      }),
+      base::Seconds(20));
+}
+
+- (void)room_deletionTimedOut {
+  if (void (^deletion)(BOOL, BOOL) = _deletion) {
+    _deletion = nil;
+    LOG(WARNING) << "RoomCore: profile " << _path.BaseName().value()
+                 << " still loaded 20 s after its deletion; its directory "
+                    "goes at the next launch";
+    deletion(NO, NO);
+  }
 }
 
 - (RoomWebContents*)createWebContents {
@@ -198,13 +306,19 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 
 - (RoomWebContents*)createWebContentsInitiallyHidden:(BOOL)initiallyHidden {
   CHECK(_profile) << "createWebContents on a destroyed profile";
+  CHECK(!_deleting) << "createWebContents on a profile being deleted";
   content::WebContents::CreateParams params(_profile);
   // Hidden until its view is in a visible window: WebContentsViewCocoa
   // reports VISIBLE then (and HIDDEN when the host takes the view out).
   params.initially_hidden = initiallyHidden;
-  return [[RoomWebContents alloc]
+  RoomWebContents* page = [[RoomWebContents alloc]
       initWithChromeWebContents:content::WebContents::Create(params)
                        profile:self];
+  if (!_pages) {
+    _pages = [NSHashTable weakObjectsHashTable];
+  }
+  [_pages addObject:page];
+  return page;
 }
 
 - (void)faviconForPageURL:(NSURL*)pageURL
@@ -289,6 +403,17 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
                   forType:(RoomContentSettingType)type
                    origin:(NSURL*)origin {
   room::SetContentSetting(_profile, setting, type, origin);
+}
+
+- (NSArray<NSDictionary<NSString*, id>*>*)contentSettingsForType:
+    (RoomContentSettingType)type {
+  return room::ContentSettingsForType(_profile, type);
+}
+
+- (void)clearBrowsingData:(RoomBrowsingDataTypes)types
+                    since:(RoomBrowsingDataPeriod)period
+               completion:(void (^)(void))completion {
+  room::ClearBrowsingData(_profile, types, period, completion);
 }
 
 - (void)clearSiteData:(RoomSiteDataTypes)types

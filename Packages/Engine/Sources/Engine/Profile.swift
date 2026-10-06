@@ -34,6 +34,16 @@ public protocol Profile: AnyObject {
     func permissionSetting(_ permission: SitePermission, for origin: URL) -> PermissionSetting?
     /// Stores `setting` for `origin`; `nil` removes the site's setting.
     func setPermissionSetting(_ setting: PermissionSetting?, for permission: SitePermission, origin: URL)
+    /// Every site with its own setting for `permission` (4.4b, Settings ▸
+    /// Privacy): the user's and the prompts' answers, not the default.
+    /// RoomCore: `HostContentSettingsMap::GetSettingsForOneType`, the
+    /// preference provider's rules whose site is not the wildcard.
+    func contentSettings(ofType permission: SitePermission) -> [ContentSettingEntry]
+
+    /// Clear browsing data (4.4b, Settings ▸ Privacy): removes `kinds`
+    /// recorded in `period` (until now) from every site. RoomCore:
+    /// `BrowsingDataRemover` with Chrome's data types for Chrome's periods.
+    func clearBrowsingData(_ kinds: BrowsingDataKinds, since period: BrowsingDataPeriod) async
 
     // Optional capabilities: `nil` when the engine does not provide them
     // (the fakes by default, no engine). Specified in Chapter 3.
@@ -355,6 +365,63 @@ nonisolated public struct SearchEngineTemplate: Hashable, Sendable {
         self.keyword = keyword
         self.searchURL = searchURL
         self.suggestURL = suggestURL
+    }
+}
+
+/// What `Profile.clearBrowsingData` removes (Chrome's Clear browsing data
+/// with its advanced kinds).
+nonisolated public struct BrowsingDataKinds: OptionSet, Sendable, Hashable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+
+    /// Visited pages (the engine's history; the palette's history group).
+    public static let history = BrowsingDataKinds(rawValue: 1 << 0)
+    /// Cookies and every kind of site storage; signs out of most sites.
+    public static let cookiesAndSiteData = BrowsingDataKinds(rawValue: 1 << 1)
+    public static let cache = BrowsingDataKinds(rawValue: 1 << 2)
+    /// The downloads list (the files stay).
+    public static let downloads = BrowsingDataKinds(rawValue: 1 << 3)
+    /// Autofill's saved form entries and addresses.
+    public static let autofill = BrowsingDataKinds(rawValue: 1 << 4)
+    public static let passwords = BrowsingDataKinds(rawValue: 1 << 5)
+
+    public static let all: BrowsingDataKinds = [.history, .cookiesAndSiteData, .cache, .downloads, .autofill, .passwords]
+}
+
+/// How far back `Profile.clearBrowsingData` goes (Chrome's time periods).
+nonisolated public enum BrowsingDataPeriod: String, Sendable, Hashable, CaseIterable {
+    case lastHour, lastDay, lastWeek, lastFourWeeks, allTime
+
+    /// The period's start for `now`; `nil` for all time.
+    public func start(before now: Date) -> Date? {
+        switch self {
+        case .lastHour: now.addingTimeInterval(-3600)
+        case .lastDay: now.addingTimeInterval(-86_400)
+        case .lastWeek: now.addingTimeInterval(-7 * 86_400)
+        case .lastFourWeeks: now.addingTimeInterval(-28 * 86_400)
+        case .allTime: nil
+        }
+    }
+}
+
+/// One site's own setting for a permission (`Profile.contentSettings(ofType:)`).
+nonisolated public struct ContentSettingEntry: Hashable, Sendable {
+    /// The site as the engine stores it (Chrome's pattern, e.g.
+    /// `https://example.com:443` or `[*.]example.com`).
+    public var pattern: String
+    /// A URL the pattern matches, for `setPermissionSetting` (change, reset);
+    /// `nil` when the pattern names no single site.
+    public var origin: URL?
+    public var setting: PermissionSetting
+    /// The setting applies only where the site is embedded in another
+    /// (Chrome's secondary pattern is not the wildcard).
+    public var isEmbedded: Bool
+
+    public init(pattern: String, origin: URL?, setting: PermissionSetting, isEmbedded: Bool = false) {
+        self.pattern = pattern
+        self.origin = origin
+        self.setting = setting
+        self.isEmbedded = isEmbedded
     }
 }
 

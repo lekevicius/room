@@ -27,6 +27,10 @@ final class NoEngineApplication: EngineApplication {
         throw EngineError.notSupported("NoEngineApplication.createProfile")
     }
 
+    func deleteProfile(_ profile: any Profile) async throws {
+        throw EngineError.notSupported("NoEngineApplication.deleteProfile")
+    }
+
     func site(of url: URL) -> String? { PublicSuffixList.site(of: url) }
 }
 #endif

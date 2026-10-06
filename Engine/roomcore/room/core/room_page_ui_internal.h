@@ -80,6 +80,15 @@ void ClearSiteData(Profile* profile,
                    RoomSiteDataTypes types,
                    NSURL* origin,
                    void (^completion)(void));
+// Settings ▸ Privacy (4.4b): the sites with their own setting for `type`
+// (-[RoomProfile contentSettingsForType:]) and Clear browsing data.
+NSArray<NSDictionary<NSString*, id>*>* ContentSettingsForType(
+    Profile* profile,
+    RoomContentSettingType type);
+void ClearBrowsingData(Profile* profile,
+                       RoomBrowsingDataTypes types,
+                       RoomBrowsingDataPeriod period,
+                       void (^completion)(void));
 
 }  // namespace room
 

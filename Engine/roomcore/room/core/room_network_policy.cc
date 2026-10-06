@@ -17,6 +17,7 @@
 #include "components/component_updater/update_scheduler.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/spellcheck/browser/pref_names.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/keyed_service/core/keyed_service.h"
 
@@ -128,6 +129,14 @@ base::CallbackListSubscription InstallNetworkPolicy() {
             // Chrome's, so a later setting can turn it on).
             profile->GetPrefs()->SetDefaultPrefValue(
                 password_manager::prefs::kPasswordLeakDetectionEnabled,
+                base::Value(false));
+            // Chrome's "Enhanced Spell Check" sends the text being checked
+            // to Google's spelling service. Room offers no switch for it
+            // and hides the context menu's item (B-74, decided 2026-10-06):
+            // off as a default too, so nothing turns it on behind the user.
+            // The macOS checker keeps working.
+            profile->GetPrefs()->SetDefaultPrefValue(
+                spellcheck::prefs::kSpellCheckUseSpellingService,
                 base::Value(false));
             ChromeSigninClientFactory::GetInstance()->SetTestingFactory(
                 context, base::BindRepeating(

@@ -483,8 +483,23 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     /// menu here, once, and never to the page.
     public func webContents(_ webContents: RoomWebContents, isReservedKeyEvent event: NSEvent) -> Bool {
         guard uiDelegate?.webContents(self, isReservedKeyEvent: event) == true else { return false }
-        _ = NSApp.mainMenu?.performKeyEquivalent(with: event)
+        _ = NSApp.mainMenu?.performKeyEquivalent(with: Self.menuEvent(for: event))
         return true
+    }
+
+    /// The event to offer the menu: a fresh copy of an ⌥ key whose character
+    /// ⌥ changed ("†" for ⌥⌘T), which no longer matches its item once the
+    /// page's view has handled the original (B-86, found in 4.4a; the copy
+    /// moved here from the app's delegate in 4.4b).
+    static func menuEvent(for event: NSEvent) -> NSEvent {
+        guard event.type == .keyDown, event.modifierFlags.contains(.option),
+              event.characters?.lowercased() != event.charactersIgnoringModifiers?.lowercased(),
+              let copy = NSEvent.keyEvent(with: event.type, location: event.locationInWindow, modifierFlags: event.modifierFlags,
+                                          timestamp: event.timestamp, windowNumber: event.windowNumber, context: nil,
+                                          characters: event.characters ?? "", charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+                                          isARepeat: event.isARepeat, keyCode: event.keyCode)
+        else { return event }
+        return copy
     }
 
     /// A key-down the page did not consume: the delegate offers it to the

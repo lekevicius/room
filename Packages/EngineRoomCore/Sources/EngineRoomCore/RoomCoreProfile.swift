@@ -187,6 +187,46 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         profile.setContentSetting(value, for: RoomContentSettingType(permission), origin: origin)
     }
 
+    /// `HostContentSettingsMap::GetSettingsForOneType`: the preference
+    /// provider's rules for a site (4.4b; dictionaries of Foundation values).
+    public func contentSettings(ofType permission: SitePermission) -> [ContentSettingEntry] {
+        profile.contentSettings(for: RoomContentSettingType(permission)).compactMap { values in
+            guard let pattern = values["pattern"] as? String,
+                  let raw = (values["setting"] as? NSNumber)?.intValue else { return nil }
+            let setting: PermissionSetting
+            switch RoomContentSetting(rawValue: raw) {
+            case .allow?: setting = .allow
+            case .block?: setting = .block
+            case .ask?: setting = .ask
+            default: return nil
+            }
+            return ContentSettingEntry(pattern: pattern, origin: values["origin"] as? URL, setting: setting,
+                                       isEmbedded: (values["embedded"] as? NSNumber)?.boolValue ?? false)
+        }
+    }
+
+    /// Chrome's Clear browsing data (`BrowsingDataRemover::RemoveAndReply`
+    /// over Chrome's data types and time periods; 4.4b).
+    public func clearBrowsingData(_ kinds: BrowsingDataKinds, since period: BrowsingDataPeriod) async {
+        var types: RoomBrowsingDataTypes = []
+        if kinds.contains(.history) { types.insert(.history) }
+        if kinds.contains(.cookiesAndSiteData) { types.insert(.cookiesAndSiteData) }
+        if kinds.contains(.cache) { types.insert(.cache) }
+        if kinds.contains(.downloads) { types.insert(.downloads) }
+        if kinds.contains(.autofill) { types.insert(.autofill) }
+        if kinds.contains(.passwords) { types.insert(.passwords) }
+        let since: RoomBrowsingDataPeriod = switch period {
+        case .lastHour: .lastHour
+        case .lastDay: .lastDay
+        case .lastWeek: .lastWeek
+        case .lastFourWeeks: .fourWeeks
+        case .allTime: .allTime
+        }
+        await withCheckedContinuation { continuation in
+            profile.clearBrowsingData(types, since: since) { continuation.resume() }
+        }
+    }
+
     // MARK: Passwords (4.3b)
 
     /// Chromium's `PasswordImporter` over the profile's password stores

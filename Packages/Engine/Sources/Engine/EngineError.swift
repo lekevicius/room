@@ -9,6 +9,8 @@ nonisolated public enum EngineError: Error, Sendable, Equatable {
     case notRunning
     /// The web contents or profile was closed.
     case closed
+    /// The profile still has open pages (`deleteProfile`); the string says how many.
+    case profileInUse(String)
     /// A profile name that cannot be used as a directory name.
     case invalidProfileName(String)
     /// Script evaluation threw; the payload is the exception message.
