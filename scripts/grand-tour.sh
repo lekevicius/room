@@ -27,7 +27,7 @@
 # Needs the screen unlocked, Room frontmost-able, Screen Recording for the
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
-# layout, sidebar, lifecycle (4.1a: archive), spaces, palette, tabs, chrome,
+# layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs, chrome,
 # layoutmodes, appintegration, netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
@@ -221,6 +221,9 @@ for appearance in "${appearances[@]}"; do
   group=lifecycle
   run archive spike archive -RoomSidebarFixture archive -RoomClock "$(date -u -v+2H +%Y-%m-%dT%H:%M:%SZ)" \
     -RoomSpikeCaptureDirectory "$CAPS/archive"
+  # 4.1b: a backup, a deleted space, SIGKILL after the commit; the relaunch restores every entry
+  # unloaded with the toast, then Restore Sidebar brings the space back (the tour's state and engine).
+  run recovery scripts/recovery-check.sh "$RUN/recovery"
 
   group=spaces
   run spaces spike spaces -RoomSidebarFixture spaces500

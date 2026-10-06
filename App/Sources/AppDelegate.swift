@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var backupScheduler: BackupScheduler?
     /// Help ▸ Restore Sidebar…'s sheet while it shows (`RestoreSidebar.swift`).
     var restoreSheet: NSWindow?
+    /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
+    private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
     private(set) var palette: PaletteController?
     private(set) var toastCenter: ToastCenter?
@@ -149,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             for model in profiles where tabs.engineProfiles[model.id] == nil {
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
                 prepare(profile, for: model)
+                holdSelectionAfterCrash(profile, tabs: tabs)
                 if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
             }
             // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
@@ -167,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 tabs.openNewTab(url: URLFixup.url(from: start) ?? URLFixup.searchURL(for: start))
             }
             logPreviousExit(tabs.engineProfiles.values.map { $0 })
+            if previousExitWasClean == false { announceCrashRecovery() }
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
         }
@@ -457,6 +461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 do {
                     let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
                     self.prepare(profile, for: model)
+                    self.holdSelectionAfterCrash(profile, tabs: tabs)
                     tabs.setEngineProfile(profile, for: model.id)
                 } catch {
                     NSLog("Room: no engine profile for \(model.name): \(error)")
@@ -589,7 +594,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let backups = BackupScheduler(store: store)
         backupScheduler = backups
         backups.start()
-        // Only the selected entry loads at launch (spec §H); it waits for the profile.
+        // Only the selected entry loads at launch (spec §H); it waits for the profile. After a
+        // crash (the store's running flag here, the engine's exit type when its profiles arrive)
+        // not even that one: every entry is restored unloaded.
+        if store.uncleanExit { tabs.holdsSelectionUnloaded = true }
         tabs.showSelection()
         // The other spaces' lists are built after the first frame, one per turn,
         // so a switch never waits on a list (ROADMAP 2.5 exit).
@@ -976,6 +984,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             Self.launchLog.append(line)
             #endif
         }
+    }
+
+    /// Crash recovery (spec §H, 4.1b): an engine profile whose last exit was
+    /// not clean keeps the launch's selection unloaded (set before the
+    /// profile is delivered, which would load it).
+    private func holdSelectionAfterCrash(_ profile: any Engine.Profile, tabs: TabController) {
+        guard !crashRecovered, profile.lastExitWasClean == false else { return }
+        tabs.holdsSelectionUnloaded = true
+    }
+
+    /// The toast, once per launch, after either count said the last session
+    /// did not end cleanly; the card shows its empty state.
+    private func announceCrashRecovery() {
+        guard !crashRecovered else { return }
+        crashRecovered = true
+        toastCenter?.show(Toast(id: "crash-recovery", symbol: .reload, message: "Room restarted after a crash"))
+        NSLog("Room: crash recovery: every entry restored unloaded (loaded now: %ld)", tabs?.loadedEntryIDs.count ?? -1)
+        #if DEBUG
+        Self.launchLog.append("crash recovery: toast “Room restarted after a crash”, \(tabs?.loadedEntryIDs.count ?? -1) pages loaded")
+        #endif
     }
 
     /// The store's `uncleanExit` and the engine's exit type, combined: either

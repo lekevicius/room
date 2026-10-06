@@ -224,6 +224,31 @@ struct PageTests {
         #expect(f.display.shown?.url?.absoluteString == "https://t3.example")
     }
 
+    @Test("After a crash the selected entry stays unloaded with the empty card until it is activated again (spec §H, 4.1b)")
+    func crashRecoveryLoadsNothing() throws {
+        var selected: UUID?
+        let f = try TabsFixture(withProfile: false) { store, space in
+            let window = store.windows.restoreOrCreateWindow(defaultSidebarWidth: 240, space: space.id)
+            for index in 0..<3 {
+                let entry = try store.sidebar.addEntry(.today, url: "https://c\(index).example", space: space.id)
+                if index == 1 { selected = entry.id }
+            }
+            store.windows.select(selected, space: space.id, window: window.id)
+        }
+        f.tabs.holdsSelectionUnloaded = true
+        f.tabs.showSelection()
+        f.tabs.profile = f.profile
+        #expect(f.profile.openWebContents.isEmpty)
+        #expect(f.tabs.loadedEntryIDs.isEmpty)
+        #expect(f.display.shown == nil)
+        #expect(f.sidebar.selectedEntryID == selected)
+        // A click on the selected row loads it; from then on as usual.
+        f.sidebar.select(selected)
+        #expect(f.tabs.loadedEntryIDs == [selected!])
+        #expect(f.display.shown?.url?.absoluteString == "https://c1.example")
+        #expect(!f.tabs.holdsSelectionUnloaded)
+    }
+
     @Test("Nothing selected at launch shows the empty state")
     func emptyAtLaunch() throws {
         let f = try TabsFixture()

@@ -115,11 +115,19 @@ public final class TabController: SidebarHost {
     @ObservationIgnored private var waitingLoads: [UUID] = []
     @ObservationIgnored private var storeToken: ObservationToken?
 
+    /// Crash recovery (spec §H, 4.1b): after a crash every entry is restored
+    /// unloaded, the selected one included. While set, the launch's own loads
+    /// (`showSelection`, an engine profile arriving for the selection) leave
+    /// the card on its empty state; the first activation once the entry's
+    /// engine profile exists (a click on the row, a space switch) clears it.
+    @ObservationIgnored public var holdsSelectionUnloaded = false
+
     /// Delivers a model profile's engine profile; the selection and background
     /// loads waiting for it load now.
     public func setEngineProfile(_ engineProfile: any Engine.Profile, for profileID: UUID) {
         engineProfiles[profileID] = engineProfile
-        if let id = currentEntryID, pages[id] == nil, let entry = store.sidebar.entry(id), entry.profileID == profileID { activate(entry) }
+        if !holdsSelectionUnloaded, let id = currentEntryID, pages[id] == nil, let entry = store.sidebar.entry(id),
+           entry.profileID == profileID { activate(entry) }
         let waiting = waitingLoads
         waitingLoads = []
         for id in waiting {
@@ -272,7 +280,14 @@ public final class TabController: SidebarHost {
     /// Launch and window restore: shows the window's selected entry (the
     /// only page that loads, spec §H; it waits for `profile`), or the empty state.
     public func showSelection() {
-        if let id = sidebar?.selectedEntryID, let entry = store.sidebar.entry(id) { activate(entry) } else { deactivate() }
+        guard let id = sidebar?.selectedEntryID, let entry = store.sidebar.entry(id) else { return deactivate() }
+        guard !holdsSelectionUnloaded else {
+            // Crash recovery: selected, not loaded (spec §H).
+            currentEntryID = entry.id
+            show(nil)
+            return
+        }
+        activate(entry)
     }
 
     // MARK: SidebarHost
@@ -296,6 +311,10 @@ public final class TabController: SidebarHost {
             if let previous = currentEntryID { pages[previous]?.lastVisible = now() }
         }
         currentEntryID = entry.id
+        if holdsSelectionUnloaded, engineProfiles[entry.profileID] != nil {
+            // The first activation after a crash recovery's launch: from here on, as usual.
+            holdsSelectionUnloaded = false
+        }
         guard engineProfiles[entry.profileID] != nil || pages[entry.id] != nil else {
             // Its profile is still being created: the card waits, empty (it loads in `setEngineProfile`).
             requestProfile(entry.profileID)

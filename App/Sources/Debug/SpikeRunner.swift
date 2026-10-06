@@ -89,8 +89,10 @@ enum SpikeRunner {
         case "autofill": await context.autofillChecks()
         case "session": await context.sessionChecks()
         case "discardpolicy": await context.discardPolicyChecks()
+        case "discardspaces": await context.discardTwoSpacesChecks()
         case "spelling": await context.spellingChecks()
         case "archive": await context.archiveChecks()
+        case "recovery": await context.recoveryChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

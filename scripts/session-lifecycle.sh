@@ -7,9 +7,10 @@
 #   2. `session` crash (killed with SIGKILL as soon as it writes `kill_now:`,
 #      right after its last navigation committed), then `session` check;
 #   3. `discardpolicy` (Chromium's fake camera and microphone);
-#   4. `spelling`.
+#   4. `discardspaces` (4.1b: memory pressure across two spaces);
+#   5. `spelling`.
 # Usage: scripts/session-lifecycle.sh [output directory] [-- extra app args]
-# ROOM_SL_ONLY=session|crash|discard|spelling runs one part.
+# ROOM_SL_ONLY=session|crash|discard|discardspaces|spelling runs one part.
 # ROOM_SL_KILL_DELAY_MS=<ms> waits that long after `kill_now:` before the kill
 # (the loss window's other side: a step older than the store's debounce survives).
 set -euo pipefail
@@ -67,6 +68,9 @@ if [[ -z "$only" || "$only" == crash ]]; then
 fi
 if [[ -z "$only" || "$only" == discard ]]; then
   run discardpolicy "$OUTDIR/discard" discardpolicy --use-fake-device-for-media-stream
+fi
+if [[ -z "$only" || "$only" == discardspaces ]]; then
+  run discardspaces "$OUTDIR/discardspaces" discardspaces
 fi
 if [[ -z "$only" || "$only" == spelling ]]; then
   run spelling "$OUTDIR/spelling" spelling

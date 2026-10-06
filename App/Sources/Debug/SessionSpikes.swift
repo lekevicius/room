@@ -388,6 +388,87 @@ extension SpikeRunner.Context {
         tabs.debugDidDiscard = nil
     }
 
+    // MARK: discardspaces (4.1b)
+
+    /// `discardspaces`: memory pressure across two spaces (spec §H: least
+    /// recently used first across all spaces, never the selected tab or one
+    /// playing audio). Space 1 gets a1 and a2, a new space "Two" b1, b2 and a
+    /// playing tone; back in space 1, a3 is opened and stays selected. The
+    /// pages were last seen in the order a1, b1, b2, tone, a2; simulated
+    /// critical pressure (Chromium's notification on RoomCore, the policy on)
+    /// then discards one page a second: a1, b1, b2, a2, crossing spaces; the
+    /// tone and a3 stay.
+    func discardTwoSpacesChecks() async {
+        var pages: [(name: String, page: any WebContents)] = []
+        func add(_ name: String, _ url: URL) async -> (any WebContents)? {
+            guard let page = await open(url) else {
+                SpikeRunner.record("error", "discardspaces: \(name) did not open")
+                return nil
+            }
+            try? await Task.sleep(for: .milliseconds(400))
+            pages.append((name, page))
+            return page
+        }
+        let first = sidebar.activeSpaceID
+        _ = await add("a1", stepURL("a1", 0))
+        _ = await add("a2", stepURL("a2", 0))
+        guard let profile = store.space(first)?.profileID, let two = try? store.createSpace(name: "Two", profile: profile) else {
+            return SpikeRunner.record("error", "discardspaces: no second space")
+        }
+        sidebar.showSpace(two.id, animated: false)
+        try? await Task.sleep(for: .milliseconds(400))
+        _ = await add("b1", stepURL("b1", 0))
+        _ = await add("b2", stepURL("b2", 0))
+        if let tone = await add("tone", fixture("phase-3.7/tone.html")) {
+            await click(tone, "#play")
+            SpikeRunner.record("tone_audible", await waitUntil(5) { tone.isAudible })
+        }
+        sidebar.showSpace(first, animated: false)
+        try? await Task.sleep(for: .milliseconds(400))
+        guard let selected = await add("a3", stepURL("a3", 0)) else { return }
+        try? await Task.sleep(for: .seconds(1))
+        let names = Dictionary(uniqueKeysWithValues: pages.compactMap { item in tabs.entryID(for: item.page).map { ($0, item.name) } })
+        let spaceOf = Dictionary(uniqueKeysWithValues: pages.compactMap { item in
+            tabs.entryID(for: item.page).flatMap { id in store.entry(id)?.spaceID.map { (item.name, $0 == first ? "1" : "2") } }
+        })
+        func states() -> String { pages.map { "\($0.name)=\($0.page.state)" }.joined(separator: " ") }
+        SpikeRunner.record("twospaces_pages", pages.map { "\($0.name)@space\(spaceOf[$0.name] ?? "?")" }.joined(separator: " ")
+            + " selected=\(tabs.entryID(for: selected).flatMap { names[$0] } ?? "?") active_space=\(sidebar.activeSpaceID == first ? 1 : 2)")
+        SpikeRunner.record("twospaces_states_before", states())
+        var discards: [(String, Double)] = []
+        let start = ContinuousClock.now
+        tabs.debugDidDiscard = { [weak self] id, _ in
+            guard let self else { return }
+            discards.append((names[id] ?? "?", self.ms(since: start)))
+        }
+        tabs.respondsToMemoryPressure = true
+        // Chromium's own notification where the framework has the spike hooks (`out/dev`); the
+        // release framework has none, so there the level reaches the host's policy directly.
+        #if ROOM_ENGINE_ROOMCORE
+        let hooks = spikeBrowser()?.responds(to: NSSelectorFromString("roomSpikeAction:")) == true
+        #else
+        let hooks = false
+        #endif
+        var source = "host"
+        if hooks {
+            #if ROOM_ENGINE_ROOMCORE
+            source = "chromium=\(spikeAction("memory-pressure-critical"))"
+            try? await Task.sleep(for: .seconds(6))
+            _ = spikeAction("memory-pressure-none")
+            #endif
+        } else {
+            tabs.handleMemoryPressure(.critical)
+            try? await Task.sleep(for: .seconds(6))
+            tabs.handleMemoryPressure(.none)
+        }
+        try? await Task.sleep(for: .milliseconds(500))
+        tabs.debugDidDiscard = nil
+        SpikeRunner.record("twospaces_pressure", "source=\(source) discards=" + discards.map { "\($0.0)@\(Int($0.1))ms" }.joined(separator: ","))
+        SpikeRunner.record("twospaces_order", discards.map(\.0).joined(separator: ","))
+        SpikeRunner.record("twospaces_states_after", states())
+        SpikeRunner.record("twospaces_kept", "a3_selected=\(selected.state) tone_audible=\(pages.first { $0.name == "tone" }.map { "\($0.page.state) audible=\($0.page.isAudible)" } ?? "nil")")
+    }
+
     // MARK: spelling
 
     func spellingChecks() async {

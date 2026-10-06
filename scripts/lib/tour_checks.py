@@ -392,6 +392,41 @@ def _archive(c):
         c.number(key)
 
 
+@step_check("recovery")
+def _recovery(c):
+    """Spec §H and ROADMAP 4.1b (`scripts/recovery-check.sh`, two launches):
+    a backup, a space deleted and written, SIGKILL after the commit; the
+    relaunch sees the unclean exit, restores every entry unloaded (the
+    selected included) with the card's empty state and the toast; a click
+    on the selected row loads it; Restore Sidebar from the backup brings the
+    space back with its tabs (in the database too) after backing up the
+    current state, and the generation moves on."""
+    v = c.first
+    c.contains("prepared", "spaces=Recovery Kept,Recovery Gone", "entries=6", "loaded=1",
+               label="prepare: two spaces of three tabs, the selection loaded")
+    c.contains("backup_taken", "entries=6", "spaces=2", label="a backup taken before the deletion")
+    c.contains("deleted", "space_gone=true", "entries=3", label="the space deleted and written")
+    killed = [l for l in c.out if l.startswith("killed: ")]
+    c.check("killed with SIGKILL right after the commit", bool(killed), "no `killed:` line")
+    c.contains("previous_exit", "store_unclean=true", "clean=false", label="the relaunch sees the unclean exit")
+    crash = v("crash_recovered") or ""
+    c.check("the toast \u201cRoom restarted after a crash\u201d was shown",
+            crash.startswith("true") and "logged=true" in crash, crash or "missing")
+    c.contains("restored_unloaded", "entries=3", "loaded=0", "card=card-empty-state",
+               label="every entry restored unloaded, the selected one included; the card's empty state")
+    c.contains("click_loads", "loaded=1", "selected_loaded=true", label="a click on the selected row loads it")
+    c.contains("restore", "ok=true", "space_back=true", "entries=3", "database_space=true", "database_entries=3",
+               label="Restore Sidebar brings the space back with its tabs, in the database too")
+    m = re.search(r"generation=(\d+)->(\d+)", v("restore") or "")
+    c.check("the restore is written with a newer generation", m is not None and int(m.group(2)) > int(m.group(1)),
+            v("restore") or "missing")
+    c.contains("before_restore_backup", "count=1", "entries=3", label="the state before the restore was backed up first")
+    c.contains("after_restore", "spaces=Recovery Kept,Recovery Gone", "loaded=1",
+               label="after the restore: both spaces, the selection loaded")
+    c.check("the check launch reached its end", "recovery" in (c.values.get("end") or []), "no `end: recovery`")
+    c.number("launch_backup")
+
+
 @step_check("sidebardemo", "sidebar500")
 def _sidebar(c):
     states = [l for l in c.out if re.match(r"^[a-z0-9-]+: active=", l)]
