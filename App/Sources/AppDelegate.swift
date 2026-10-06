@@ -723,8 +723,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// applied now and again whenever either changes.
     private func applyLookSettings() {
         guard let settings = store?.settings else { return }
-        let (appearance, side) = withObservationTracking {
-            (settings.settings.appearance, settings.settings.sidebarSide)
+        let (appearance, side, toolbar) = withObservationTracking {
+            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar)
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.applyLookSettings() }
         }
@@ -742,6 +742,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         windowController?.rootView.sidebarEdge = side == .right ? .right : .left
+        // Settings ▸ General ▸ Show the toolbar (4.4a) as View ▸ Show Toolbar.
+        if let controller = windowController, controller.showsToolbar != toolbar { controller.showsToolbar = toolbar }
     }
 
     /// ⌘S, View ▸ Hide Sidebar / Show Sidebar (spec §E).

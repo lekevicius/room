@@ -184,6 +184,13 @@ private struct SettingsSectionView: View {
             }
         }
         Section("Tabs") {
+            // Spec §A.3 (4.4a): what ⌘W does to a pinned tab or an Essential.
+            Picker(selection: binding(\.permanentCloseBehavior)) {
+                ForEach(PermanentCloseBehavior.allCases, id: \.self) { behavior in Text(behavior.settingsTitle).tag(behavior) }
+            } label: {
+                Text("⌘W on a pinned tab or Essential")
+                Text(settings.settings.permanentCloseBehavior.settingsExplanation)
+            }
             Picker(selection: binding(\.archiveAfterHours)) {
                 ForEach(ArchivePolicy.afterHoursOptions, id: \.self) { hours in
                     Text(hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours").tag(hours)
@@ -193,6 +200,20 @@ private struct SettingsSectionView: View {
                 Text("Today tabs you have not used for this long move to the Archive (⇧⌘L); the selected one and tabs playing sound, "
                      + "using the camera or holding unsaved form input stay.")
             }
+        }
+        Section("Window") {
+            Toggle(isOn: binding(\.showsToolbar)) {
+                Text("Show the toolbar")
+                Text("Back, Forward, Reload and the full URL above the page (View ▸ Show Toolbar).")
+            }
+            Picker(selection: binding(\.sidebarSide)) {
+                Text("Left").tag(SidebarSide.left)
+                Text("Right").tag(SidebarSide.right)
+            } label: {
+                Text("Sidebar")
+                Text("The window's buttons stay where macOS puts them; with the sidebar on the right they float over the page.")
+            }
+            .pickerStyle(.segmented)
         }
         Section("Import") {
             LabeledContent {
@@ -208,7 +229,7 @@ private struct SettingsSectionView: View {
                 Button("Show Welcome Card") { services.showWelcomeCard() }
             } label: {
                 Text("Welcome card")
-                Text("The first-run choices in the sidebar: search engine, default browser, crash reports and updates.")
+                Text("Shows the first-run card in the sidebar now: search engine, default browser, import, crash reports and updates.")
             }
         }
     }
@@ -451,6 +472,31 @@ struct ExtensionsSettingsView: View {
             } catch {
                 loadError = "\(error)"
             }
+        }
+    }
+}
+
+/// Settings ▸ General's ⌘W popup (spec §A.3's six behaviours, 4.4a): a title and one line each.
+extension PermanentCloseBehavior {
+    var settingsTitle: String {
+        switch self {
+        case .resetUnloadSwitch: "Unload, reset and switch away"
+        case .unloadSwitch: "Unload and switch away"
+        case .resetSwitch: "Reset and switch away"
+        case .switchOnly: "Switch away"
+        case .reset: "Reset only"
+        case .close: "Close it"
+        }
+    }
+
+    var settingsExplanation: String {
+        switch self {
+        case .resetUnloadSwitch: "The default: the page is unloaded, goes back to its pinned URL, and the last tab you used is selected."
+        case .unloadSwitch: "The page is unloaded but keeps where you were; the last tab you used is selected."
+        case .resetSwitch: "The page goes back to its pinned URL and stays loaded; the last tab you used is selected."
+        case .switchOnly: "The page stays as it is, loaded; the last tab you used is selected."
+        case .reset: "The page goes back to its pinned URL and stays selected."
+        case .close: "The tab leaves the sidebar like a Today tab; ⇧⌘T brings it back."
         }
     }
 }
