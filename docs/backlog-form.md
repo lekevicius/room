@@ -1,6 +1,6 @@
 # Backlog decisions — a form
 
-The questions the backlog leaves to you, one per row, with the planner's provisional choice marked `(P)`. Tick a box or write in the blank; `docs/backlog.md` has the full context for each id. When you are done, a session reads this file and applies the answers (the row is updated, the provisional choice confirmed or replaced, the code or doc changed where the answer needs it).
+The questions the backlog leaves to you, one per row, with the planner's provisional choice marked `(P)`. On 2026-10-06 the user confirmed the `(P)` choices in chat ("most defaults are fine") and decided the Chapter 4 questions (ROADMAP Chapter 4 "Before the loop"); the boxes below stay open for anything you want to change later. Tick a box or write in the blank; `docs/backlog.md` has the full context for each id. When you are done, a session reads this file and applies the answers (the row is updated, the provisional choice confirmed or replaced, the code or doc changed where the answer needs it).
 
 ## Decisions the chapter already runs on provisionally
 
@@ -16,7 +16,7 @@ The questions the backlog leaves to you, one per row, with the planner's provisi
 - Notes: ________________________________________________
 
 **B-63 — translation.** Chrome offers to translate only with a Google API key configured; the element script itself is Google's.
-- [ ] No key, no offer; a Chapter 4 Settings item states it `(P)`
+- [x] No key, no offer; a Chapter 4 Settings item states it `(P)` — confirmed 2026-10-06
 - [ ] Use a Google API key (yours; it also enables other Google services unless each is turned off: list them before enabling): ________
 - [ ] A `//room` override that loads the translate element without a key (outside the patch policy; needs the user's say-so)
 - Notes: ________________________________________________
@@ -33,13 +33,13 @@ The questions the backlog leaves to you, one per row, with the planner's provisi
 - Notes: ________________________________________________
 
 **B-69 — native messaging hosts.** 1Password's extension looks for its desktop app through native messaging host manifests under Chrome's and Chromium's directories; Room registers none, so 1Password shows no popup without an account.
-- [ ] None registered in Chapter 3; decide in Chapter 4.5 with the extensions UX `(P)`
+- [x] None registered; nothing special-cased for any vendor `(P)` — confirmed 2026-10-06
 - [ ] Read Chrome's directory (`~/Library/Application Support/Google/Chrome/NativeMessagingHosts`) so hosts installed for Chrome work in Room
 - [ ] Read Chromium's directory only
 - Notes: ________________________________________________
 
 **B-72 — password generation.** M154 offers generated passwords only while password Sync is active; Room has no Sync.
-- [ ] No generation in Chapter 3; revisit with Chapter 4's passwords work `(P)`
+- [x] No generation `(P)` — confirmed 2026-10-06
 - [ ] A `//room` behaviour hook that enables generation without Sync (one patch in `//components/password_manager`, against the patch policy; your call)
 - Notes: ________________________________________________
 

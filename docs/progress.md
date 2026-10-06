@@ -326,17 +326,20 @@ Spec: `ROADMAP.md` Chapter 3 (written 2026-10-04). One line per task; exit crite
 
 Spec: `ROADMAP.md` Chapter 4 (written 2026-10-06). One line per task; exit criteria last. Build rule: the engine stays on 155.0.8059.36; `//room` changes only in the engine steps; no new patch; one rebase and official build at 4.9.
 
-### Before the loop (user)
-- [ ] The week's notes as "3.9 week" backlog rows, each assigned by the planner to a phase or to the iteration after Chapter 5
-- [ ] `docs/backlog-form.md` filled in (B-63, B-66, B-68, B-69, B-72, B-74; B-46 and B-27 confirmed or replaced)
-- [ ] Import fixtures under `research/fixtures/import/` (a Chrome profile copy with a passwords CSV, Arc's `StorableSidebar.json`, Safari's `Bookmarks.plist` and `History.db`)
-- [ ] Optional: the feed URL and the EdDSA signature for 4.9's DMG
+### Decided 2026-10-06 (user, in chat)
+- [x] Chapter 4 starts before the week's notes; "3.9 week" rows are assigned at each fold-in
+- [x] A DMG after each phase; migrations need not be reversible (`scripts/reset-state.sh` before an install when told)
+- [x] No scheduled rebases; one only on the user's request or a phase's need
+- [x] Today tabs per window; incognito in scope (a patch allowed if required); the Library in the sidebar
+- [x] Import treats every browser equally; sessions make their own fixtures; nothing special-cased for any vendor (B-69 none)
+- [x] B-27, B-46, B-63, B-66, B-68, B-72, B-74 keep the planner's choices
+- [ ] Optional, any time: the feed URL and the EdDSA signature
 
 ### Phase 4.1 — Lifecycle, archive, Library
-- [ ] 4.1a: Tooling carry-overs first: B-78 (spike launches never open the real engine root), B-79 (the kill test's counter), `roomcore-apply.sh --drop`, the tour's load and idle check at its start
+- [ ] 4.1a: Tooling carry-overs first: B-78 (spike launches never open the real engine root), B-79 (the kill test's counter), `roomcore-apply.sh --drop`, the tour's load and idle check at its start, `scripts/reset-state.sh`
 - [ ] 4.1a: Schema v7 `archive`; `SidebarStore.archive(_:reason:)` and `restore(archived:)`
 - [ ] 4.1a: The sweep (every 10 min idle and at launch; the exemptions); Clear, Archive, Archive Below through it; `deleteSpace` through the archive (B-15)
-- [ ] 4.1a: `Packages/Library` window ⇧⌘L: Archive, History ⌘Y (with `history-archive.json` rows, B-66), Downloads
+- [ ] 4.1a: `Packages/Library` in the sidebar (⇧⌘L swaps the spaces view; Esc back): search, Archive, Downloads, History (⌘Y; with `history-archive.json` rows, B-66)
 - [ ] 4.1a: The palette's History group shows archived entries with the chip; Enter restores
 - [ ] 4.1a: Tour step `archive` (injected clock); by-hand list
 - [ ] 4.1b: Rolling backups (`VACUUM INTO`, the schedule, pruning; tests on a fake clock); Help ▸ Restore Sidebar…; the JSON snapshot without navigation states (B-73)
@@ -374,7 +377,7 @@ Spec: `ROADMAP.md` Chapter 4 (written 2026-10-06). One line per task; exit crite
 - [ ] Exit: a remapped ⌘D everywhere and the old key reaches the page; a reserved remap stays reserved; a conflict shown; a renamed profile keeps cookies; Clear for the last hour; a permission from Settings read by the page; 0 engine requests
 
 ### Phase 4.5 — Extensions UX
-- [ ] Engine step: `siteAccess`/`setSiteAccess`, `commands(for:)`/`performCommand` (B-70), the native-messaging directories per the form (B-69); incremental, package, baseline
+- [ ] Engine step: `siteAccess`/`setSiteAccess`, `commands(for:)`/`performCommand` (B-70); B-69 stays none (stated in Settings); incremental, package, baseline
 - [ ] Management: pin/unpin and the overflow menu, site access, the shortcuts page, details, Allow in incognito, the statements
 - [ ] The site panel's Extensions section (B-30)
 - [ ] Extension pages open in the extension's profile's space (B-67)
@@ -414,12 +417,11 @@ Spec: `ROADMAP.md` Chapter 4 (written 2026-10-06). One line per task; exit crite
 - [ ] 4.8b: Tour step `incognito`; by-hand list
 - [ ] Exit: a pinned rename live in two windows; a Today tab in its window after a relaunch; drag-out makes a window; a moved pinned page keeps its history; incognito leaves no history or cookies and no save bubble; "Open Link in Incognito Window" opens there
 
-### Phase 4.9 — Integration check, rebase, release, review
-- [ ] The full tour (34 + 9 steps) on the dev build light and dark and on the release framework; the by-hand lists reconciled
-- [ ] The rebase to the current Stable (night 1) and `--verify`; the official build (night 2) and `--verify`; costs in `build-log.md`
-- [ ] The release: package, sign, notarize, Sparkle; through the feed or by hand; sizes and cold launch
+### Phase 4.9 — Integration check, release, review
+- [ ] The full tour (34 + 9 steps) on the dev build light and dark and on the release framework; the by-hand lists reconciled into one, the current DMG named at its top
+- [ ] The release: the incremental official build if `//room` changed since `out/release`; package, sign, notarize, Sparkle; sizes and cold launch
 - [ ] `chapter-4-review.md`; Chapter 5 confirmed; the untaken "3.9 week" rows listed for the iteration
-- [ ] Exit: tour green on both builds; rebase and official build recorded; the DMG installed; review written; Chapter 5 confirmed
+- [ ] Exit: tour green on both builds; the DMG built and named; review written; Chapter 5 confirmed
 
 ## Chapter 5 — Polish
 
@@ -489,12 +491,12 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [ ] 5.7b: PLAN §4 Hybrid UI rewritten; review sheet
 - [ ] Exit: password and autofill-save popovers pass the 3.7a fixtures; each remaining Views bubble named with its reason
 
-### Phase 5.8 — Integration, rebase, review, the iteration list
+### Phase 5.8 — Integration, release, review, the iteration list
 - [ ] The full tour on both builds
-- [ ] The rebase and the official build (two nights), `--verify` on both; the DMG through the feed
+- [ ] The release as in 4.9 (the incremental official build if `//room` changed; package, sign, the DMG)
 - [ ] `chapter-5-review.md`
 - [ ] `research/notes/ui-iteration.md`
-- [ ] Exit: tour green on the current Stable; the DMG installed; the review and the iteration list written
+- [ ] Exit: tour green on both builds; the DMG built; the review and the iteration list written
 
 ## Log
 
@@ -826,3 +828,4 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - 2026-10-06 — Phase 3.9-2 accepted; the planner's part of 3.9 done; the chapter loop ends (planner loop, Mac mini). Reviewed 12 commits (`fa44470`..`c4be7a3`): `phase-3.9:` prefixes, no trailers, paths in scope; CI green (37425322256); the series is 23 with `0 applied / 23 already` and the checkout at `155.0.8059.36-23-g…` (one droppable stash of 0012's content, listed for the user); the exit tour's 505 / 6 per appearance stands with every failure a row or B-76's condition and 0 minidumps on the release framework's same steps; the release on 155 built in 4 h 15 min (B-77's export-order check found and fixed in `//room`), notarized, 386 MB, DMG 178 MiB, cold launch 0.457 s. Deviations 1–8 accepted (dropping 0012 by `git replay` because the apply script refuses to drop a branch commit: the README now says how; a drop option is a Chapter 4 tooling row). Decisions: Phase 3.8 closed with task 4's feed step the user's; Phase 3.9 stays open for the user's by-hand pass, week and top 20, with the planner's review columns, closing and PLAN §7 re-ranking done now and the Chapter 4 spec left for the user's return (the week's friction is its input; the loop does not start Chapter 4). Changed: `chapter-3-review.md` (planner column, closing), PLAN §6–§7, this entry, `chapter-3-loop.md`'s closing. Next: the user.
 - 2026-10-06 — Laptop checks, Chapter 3 (laptop session, M1 Max; the user away, measured as is at their choice). **Conditions**: the 120 Hz built-in panel is not the main display (the Pro Display XDR at 60 Hz is), so every spike window and every number is **60 Hz**; load 70–145 throughout; the user's notarized Room running on the real state. **Numbers** (`spike-results.md` "Laptop (M1 Max, 64 GB), 2026-10-06"): palette later keys p95 14.3–15.1 ms (bound 16, met at 60 Hz); space switch key → first slide frame 10.8–11.7 / 15.1–15.8 ms (Mac mini 14.90 / 20.49); tab switching click → committed 9.3–9.6 / **11.4–12.4 ms**, the 16 ms p95 bound met on the same release framework that misses it on the Mac mini (20.87); 500-entry scroll 0 late frames of 1,440 at 60 Hz, proxy120 4–8 % of steps over 8.33 ms; tour layout + sidebar + tabs 219 / 222 (quittiming under load, the kill test's ack-race check B-79, B-56); the DMG's app verified in place (codesign strict, `spctl` Notarized Developer ID; already installed and running, not overwritten). **Devices**: geolocation still "prompt"; camera and microphone never reached Room's popover (Chromium waits on macOS authorization; a system dialog from the run is left on screen); Web Serial and Bluetooth **hang the browser's main thread** in `IOBluetoothDeviceInquiry init` (B-62; a quit is impossible until Chrome's shutdown watchdog). **Harness fixes** (laptop reasons): the wrappers matched any Room (would have SIGTERMed the user's), `tabs-measure.sh` opened the real engine root (truncated the user's `RoomCore.log`; B-78 for the app side), the copied Debug app's `#filePath` fixtures and the stale `build/roomcore` stage (`docs/laptop-build.md`); the chooser fixture and spike gained Serial and Bluetooth. Backlog: B-18 closed; B-16, B-20, B-21 stay open for the 120 Hz reading (the window on the built-in panel); B-26, B-53, B-62 updated; B-78, B-79 new. Left for the user: `chapter-3-by-hand.md` "Laptop" 1–9. Nothing in the product changed.
 - 2026-10-06 — Chapter 4 and 5 specs written (planner, Mac mini). The user's direction: finish Chapters 4 and 5, then iterate on the app's UI and UX before Chapter 6, and avoid Chromium rebuilds the work does not need. ROADMAP Chapters 4 and 5 replace the stubs in the Chapter 3 shape (end state, what exists on 2026-10-06, decisions, phases with a/b sessions and exits, risks). The build rule for both chapters: the engine pinned to 155.0.8059.36, `//room` and `EngineRoomCore` changed only in named engine steps (each one `//room` incremental, package, baseline), no new patch, one rebase and official build per chapter (4.9, 5.8), the incremental official build measured once in 4.1b to decide whether `//room` changes reach the DMG per phase, and product DMGs in minutes while `//room` is unchanged. The `Engine` protocol is frozen except eleven named members; numbers and crashes are judged on the release framework; every phase adds a tour step and ends with a by-hand list of at most ten steps. Chapter 4 gains 4.9 (integration, rebase, release, review); Chapter 5 gains 5.7 (native bubbles by measured annoyance), 5.8 (the iteration list) and the review-sheet rule for what sessions cannot judge. Changed: `ROADMAP.md` (the two chapters, the preamble, the overview row), the checklists above, PLAN §4 (cadence and build config amended; engine work in app chapters, Library, import, routing, reader mode, windows and incognito added), PLAN §5–§6. Before the loop (the user): the week's notes as "3.9 week" rows, the decision form, the import fixtures (ROADMAP Chapter 4 "Before the loop"). The Chapter 3 loop prompt (`docs/chapter-loop-prompt.md`) needs its Chapter 4 edits (session list, read list, the build rule) before the loop starts.
+- 2026-10-06 — The user's Chapter 4 decisions (in chat; planner, Mac mini): the loop starts now, before the week's notes; a DMG per phase is enough and migrations need not be reversible (a state reset script comes in 4.1a); no scheduled rebases (only on request or need); Today tabs per window; incognito in scope with a patch allowed if required; the Library in the sidebar rather than a window; import treats every browser equally and the sessions make their own fixtures; nothing special-cased for any vendor (B-69 none); B-63, B-72 and the other provisional rows confirmed. ROADMAP Chapter 4 and 5, PLAN §4 and the checklists above amended; `docs/chapter-loop-prompt.md` rewritten for Chapter 4.
