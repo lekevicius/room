@@ -524,7 +524,8 @@ struct ExtensionsSettingsView: View {
     @ViewBuilder
     private func siteAccess(_ item: InstalledExtension, section: ExtensionsCenter.ProfileSection, center: ExtensionsCenter) -> some View {
         let _ = center.actionRevision
-        if let shownPage, shownPage.profile == section.id, let host = shownPage.page.url?.host(),
+        if let shownPage, shownPage.profile == section.id, let url = shownPage.page.url, ["http", "https"].contains(url.scheme ?? ""),
+           let host = url.host(),
            let access = center.siteAccess(item.id, profile: section.id, page: shownPage.page) {
             if access.wantsSite {
                 Picker(selection: Binding(
@@ -546,7 +547,7 @@ struct ExtensionsSettingsView: View {
                 Text("Does not ask for \(host).").font(.callout).foregroundStyle(.secondary)
             }
         } else {
-            Text("Site access: open a page of this profile, then choose here or in the site panel.")
+            Text("Site access: open a web page of this profile, then choose here or in the site panel.")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }
