@@ -41,7 +41,9 @@ extension SpikeRunner.Context {
             ArchiveReason.allCases.map { "\($0.rawValue)=\(sidebar.archivedCount(reason: $0))" }.joined(separator: " ")
         }
         func entry(titled title: String) -> Entry? {
-            sidebar.entries.values.first { $0.liveTitle == "Archive Fixture \(title)" }
+            // By its fixture URL too: a page that loaded (the selection) carries the page's title (4.1b).
+            let slug = "archive=" + title.replacingOccurrences(of: " ", with: "-").lowercased()
+            return sidebar.entries.values.first { $0.liveTitle == "Archive Fixture \(title)" || $0.liveURL?.hasSuffix(slug) == true }
         }
         func row(titled title: String) -> ArchivedEntry? {
             sidebar.archive.values.first { $0.title == "Archive Fixture \(title)" }
