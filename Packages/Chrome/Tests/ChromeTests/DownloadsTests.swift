@@ -63,6 +63,33 @@ struct DownloadsTests {
         #expect(list.rows.allSatisfy { $0.profileName == "Default" })
     }
 
+    @Test("Ask where to save (4.4a): the panel's file is the destination; a cancelled panel cancels the download and lists nothing")
+    func askWhereToSave() throws {
+        let list = DownloadList()
+        list.folder = { folder }
+        list.fileExists = { _ in false }
+        var proposed: [URL] = []
+        var answer: URL? = URL(fileURLWithPath: "/Users/someone/Desktop/chosen.zip")
+        list.chooseDestination = { url, reply in
+            proposed.append(url)
+            reply(answer)
+        }
+        let profile = try profile()
+        profile.downloadsDelegate = list
+        // Off: the folder, no panel.
+        let plain = profile.simulateDownload(url: URL(string: "https://a.example/file.zip")!, totalBytes: 100)
+        #expect(proposed.isEmpty && profile.downloads[plain]?.destination?.path == "/Users/someone/Downloads/file.zip")
+        list.askWhereToSave = { true }
+        let chosen = profile.simulateDownload(url: URL(string: "https://a.example/other.zip")!, totalBytes: 100)
+        #expect(proposed.map(\.lastPathComponent) == ["other.zip"])
+        #expect(profile.downloads[chosen]?.destination?.path == "/Users/someone/Desktop/chosen.zip")
+        #expect(list.row(chosen)?.destination?.lastPathComponent == "chosen.zip")
+        answer = nil
+        let cancelled = profile.simulateDownload(url: URL(string: "https://a.example/no.zip")!, totalBytes: 100)
+        #expect(profile.downloads[cancelled]?.state == .cancelled)
+        #expect(list.row(cancelled) == nil && list.rows.count == 2)
+    }
+
     @Test("The ring adds up downloads in progress; a finished one bumps the badge until seen; Clear keeps what is running")
     func progressBadgeAndClear() throws {
         let list = DownloadList()

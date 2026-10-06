@@ -143,6 +143,13 @@ public final class DownloadList: DownloadsDelegate {
     }
     /// Whether a file exists (tests replace it).
     @ObservationIgnored public var fileExists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }
+    /// Settings ▸ Downloads ▸ "Ask where to save each download" (4.4a).
+    @ObservationIgnored public var askWhereToSave: () -> Bool = { false }
+    /// The save panel: offered the folder's name for the file, answers the
+    /// chosen file or `nil` (the download is cancelled). Without it nothing is asked.
+    @ObservationIgnored public var chooseDestination: ((_ proposed: URL, _ answer: @escaping (URL?) -> Void) -> Void)?
+    /// Downloads the save panel cancelled: the engine's later updates for them are not listed.
+    @ObservationIgnored private var declined: Set<DownloadItem.ID> = []
     /// A download started (the fly-in animation).
     @ObservationIgnored public var onBegin: ((Row) -> Void)?
     /// A download finished writing its file (bounce, badge, toast).
@@ -167,6 +174,21 @@ public final class DownloadList: DownloadsDelegate {
         let destination = DownloadRules.destination(for: item.suggestedFilename, in: folder) { url in
             reserved.contains(url.standardizedFileURL) || fileExists(url)
         }
+        if askWhereToSave(), let chooseDestination {
+            chooseDestination(destination) { [weak self, weak profile] chosen in
+                guard let self, let profile, let chosen else {
+                    self?.declined.insert(item.id)
+                    completion(nil)
+                    return
+                }
+                begin(item, at: chosen, profile: profile, completion: completion)
+            }
+            return
+        }
+        begin(item, at: destination, profile: profile, completion: completion)
+    }
+
+    private func begin(_ item: DownloadItem, at destination: URL, profile: any Profile, completion: @escaping (URL?) -> Void) {
         var started = item
         started.destination = destination
         let row = Row(item: started, profileName: profile.name, destination: destination)
@@ -178,6 +200,7 @@ public final class DownloadList: DownloadsDelegate {
     }
 
     public func profile(_ profile: any Profile, didUpdateDownload item: DownloadItem) {
+        if declined.contains(item.id) { return }
         guard let index = rows.firstIndex(where: { $0.id == item.id }) else {
             // An update for a download this list did not start (the engine's own); listed as it is.
             rows.insert(Row(item: item, profileName: profile.name, destination: item.destination), at: 0)

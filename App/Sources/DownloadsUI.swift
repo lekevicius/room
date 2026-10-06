@@ -34,6 +34,21 @@ final class DownloadsUI {
             DownloadRules.folder(setting: settings?.settings.downloadDirectory,
                                  downloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0])
         }
+        // Settings ▸ Downloads ▸ Ask where to save (4.4a): a save panel on the window per download.
+        list.askWhereToSave = { [weak settings] in settings?.settings.askWhereToSave ?? false }
+        list.chooseDestination = { [weak rootView] proposed, answer in
+            let panel = NSSavePanel()
+            panel.directoryURL = proposed.deletingLastPathComponent()
+            panel.nameFieldStringValue = proposed.lastPathComponent
+            panel.canCreateDirectories = true
+            panel.message = "Where should Room save this download?"
+            let done: (NSApplication.ModalResponse) -> Void = { response in answer(response == .OK ? panel.url : nil) }
+            if let window = rootView?.window {
+                panel.beginSheetModal(for: window, completionHandler: done)
+            } else {
+                panel.begin(completionHandler: done)
+            }
+        }
         button.onClick = { [weak self] in self?.togglePopover() }
         button.menuProvider = { [weak self] in self?.buttonMenu() }
         list.onBegin = { [weak self] row in self?.flyIn(row) }

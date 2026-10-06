@@ -352,6 +352,19 @@ private struct SettingsSectionView: View {
             if settings.settings.downloadDirectory != nil {
                 Button("Use the Downloads Folder") { settings.update { $0.downloadDirectory = nil } }
             }
+            Toggle(isOn: binding(\.askWhereToSave)) {
+                Text("Ask where to save each download")
+                Text("A save panel opens for every download, starting in the folder above.")
+            }
+        }
+        Section {
+            Picker(selection: binding(\.pdfsOpenInRoom)) {
+                Text("Open in Room").tag(true)
+                Text("Download").tag(false)
+            } label: {
+                Text("PDFs")
+                Text("Applies from Phase 4.7, which brings the PDF viewer's checks: until then PDFs open in Room.")
+            }
         }
     }
 
