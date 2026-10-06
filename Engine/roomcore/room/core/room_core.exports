@@ -4,55 +4,60 @@
 # adds this list beside it so the Swift app can link the classes. The
 # component build exports them through their default visibility alone.
 # Keep in step with public/*.h.
+# Order: as `nm -jUng` lists them in the official framework (address order,
+# which follows the link order of //room/core's objects), because
+# verify_chrome_framework_order (patch 0004) checks the exports against
+# framework.order followed by this list. A new class goes where nm puts it;
+# the check's "actual order" output is the list to copy (3.9-2).
 _OBJC_CLASS_$_RoomApplication
 _OBJC_METACLASS_$_RoomApplication
-_OBJC_CLASS_$_RoomAuthChallenge
-_OBJC_METACLASS_$_RoomAuthChallenge
-_OBJC_CLASS_$_RoomAutocompleteController
-_OBJC_METACLASS_$_RoomAutocompleteController
 _OBJC_CLASS_$_RoomAutocompleteMatch
 _OBJC_METACLASS_$_RoomAutocompleteMatch
+_OBJC_CLASS_$_RoomAutocompleteController
+_OBJC_METACLASS_$_RoomAutocompleteController
 _OBJC_CLASS_$_RoomBrowser
 _OBJC_METACLASS_$_RoomBrowser
-_OBJC_CLASS_$_RoomCertificateError
-_OBJC_METACLASS_$_RoomCertificateError
+_OBJC_CLASS_$_RoomMenuItem
+_OBJC_METACLASS_$_RoomMenuItem
 _OBJC_CLASS_$_RoomContextMenu
 _OBJC_METACLASS_$_RoomContextMenu
 _OBJC_CLASS_$_RoomCrApplication
 _OBJC_METACLASS_$_RoomCrApplication
 _OBJC_CLASS_$_RoomDownloadItem
 _OBJC_METACLASS_$_RoomDownloadItem
-_OBJC_CLASS_$_RoomExtension
-_OBJC_METACLASS_$_RoomExtension
 _OBJC_CLASS_$_RoomExtensionAction
 _OBJC_METACLASS_$_RoomExtensionAction
+_OBJC_CLASS_$_RoomExtension
+_OBJC_METACLASS_$_RoomExtension
 _OBJC_CLASS_$_RoomExtensionInstallRequest
 _OBJC_METACLASS_$_RoomExtensionInstallRequest
-_OBJC_CLASS_$_RoomExternalProtocolRequest
-_OBJC_METACLASS_$_RoomExternalProtocolRequest
-_OBJC_CLASS_$_RoomFileChooserRequest
-_OBJC_METACLASS_$_RoomFileChooserRequest
+_OBJC_CLASS_$_RoomProfileExtensions
+_OBJC_METACLASS_$_RoomProfileExtensions
 _OBJC_CLASS_$_RoomHistoryEntry
 _OBJC_METACLASS_$_RoomHistoryEntry
-_OBJC_CLASS_$_RoomHistoryImportEntry
-_OBJC_METACLASS_$_RoomHistoryImportEntry
 _OBJC_CLASS_$_RoomHistoryVisit
 _OBJC_METACLASS_$_RoomHistoryVisit
+_OBJC_CLASS_$_RoomHistoryImportEntry
+_OBJC_METACLASS_$_RoomHistoryImportEntry
+_OBJC_CLASS_$_RoomProfileHistory
+_OBJC_METACLASS_$_RoomProfileHistory
+_OBJC_CLASS_$_RoomExternalProtocolRequest
+_OBJC_METACLASS_$_RoomExternalProtocolRequest
+_OBJC_CLASS_$_RoomAuthChallenge
+_OBJC_METACLASS_$_RoomAuthChallenge
+_OBJC_CLASS_$_RoomCertificateError
+_OBJC_METACLASS_$_RoomCertificateError
+_OBJC_CLASS_$_RoomFileChooserRequest
+_OBJC_METACLASS_$_RoomFileChooserRequest
 _OBJC_CLASS_$_RoomInfoBar
 _OBJC_METACLASS_$_RoomInfoBar
 _OBJC_CLASS_$_RoomMediaSessionInfo
 _OBJC_METACLASS_$_RoomMediaSessionInfo
-_OBJC_CLASS_$_RoomMenuItem
-_OBJC_METACLASS_$_RoomMenuItem
-_OBJC_CLASS_$_RoomNavigationAction
-_OBJC_METACLASS_$_RoomNavigationAction
 _OBJC_CLASS_$_RoomPermissionRequest
 _OBJC_METACLASS_$_RoomPermissionRequest
-_OBJC_CLASS_$_RoomProfile
 _OBJC_METACLASS_$_RoomProfile
-_OBJC_CLASS_$_RoomProfileExtensions
-_OBJC_METACLASS_$_RoomProfileExtensions
-_OBJC_CLASS_$_RoomProfileHistory
-_OBJC_METACLASS_$_RoomProfileHistory
+_OBJC_CLASS_$_RoomProfile
+_OBJC_CLASS_$_RoomNavigationAction
+_OBJC_METACLASS_$_RoomNavigationAction
 _OBJC_CLASS_$_RoomWebContents
 _OBJC_METACLASS_$_RoomWebContents
