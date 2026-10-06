@@ -1,6 +1,6 @@
 # Chapter 3 review — RoomCore
 
-Date: 2026-10-06. **Draft** by the implementer (Phase 3.9 session 1, task 5), written while the 155.0.8059.36 build of 3.8 compiled; the tour on 155 (3.9-2), the week of use (task 4, the user's) and the top 20 are still to come and have marked places below. The planner's columns and closing are left empty. Phases 3.1–3.7 are done (reviews in `docs/progress.md`); 3.8's second rebase is judged on the finished build in 3.9-2. Numbers come from `research/notes/spike-results.md`, the build and rebase costs from `research/notes/build-log.md`, the planner's per-session decisions from `research/notes/chapter-3-loop.md`.
+Date: 2026-10-06. **Draft** by the implementer (Phase 3.9 session 1, task 5), written while the 155.0.8059.36 build of 3.8 compiled; the tour on 155 and the numbers it changed filled in by 3.9-2; the week of use (task 4, the user's) and the top 20 are still to come. The planner's columns and closing are left empty. Phases 3.1–3.8 are done (reviews in `docs/progress.md`; 3.8's second rebase judged on its finished build in 3.9-2). Numbers come from `research/notes/spike-results.md`, the build and rebase costs from `research/notes/build-log.md`, the planner's per-session decisions from `research/notes/chapter-3-loop.md`.
 
 ## End state against the ROADMAP
 
@@ -15,9 +15,9 @@ Chapter 3's end state: "`RoomCore.framework` implements the whole `Engine` proto
 | Chrome's omnibox and history feed the palette; the local history retired (3.5, 3.9) | done | `HistoryService` and `AutocompleteController` behind the palette, 50k URLs imported in 3.83 s; keystroke p95 10.3–14.8 ms; suggestions off = 0 requests; schema v6 dropped the local tables in 3.9 with an archive (B-66) | B-64 (Chrome polls suggestions), B-65 |
 | Extensions with popups and Web Store installs (3.6) | done | uBlock Origin Lite, 1Password and Dark Reader from the store through Room's consent sheet in 6.4–7.5 s; popups in a native popover in 26–86 ms; `action.openPopup`, commands; side panels refused safely | 1Password needs an account (B-69), shortcuts only with a page focused (B-70), the extension-origin chooser (B-71) |
 | Passwords, autofill, session restore, discarding (3.7) | done | save/update bubbles and fill on two local origins after a relaunch; address and card save and fill; every entry's back/forward through a relaunch and a `kill -9` (10/10 each); host-driven discarding with Chromium's blockers; memory pressure; the translate offer (placeholder key); spelling | the signed build's keychain and two real sites (by hand), translate's key (B-63), generation (B-72) |
-| The fork rebases to a new stable with a script (3.8) | done for the script and the cost; the second rebase judged in 3.9-2 | `scripts/roomcore-rebase.sh`; rebase 1 (same milestone) 5.5 min of hand time, rebase 2 (next milestone, by the script) ~18 min; 2 conflicts in 48 patch replays; the build dominates (2 h 16 min + 32 min near-clean; ~4 h 15 min clean) | the tour on 155 (3.9-2); dropping 0012 (3.9-2) |
+| The fork rebases to a new stable with a script (3.8) | done (the second rebase judged on its build in 3.9-2) | `scripts/roomcore-rebase.sh`; rebase 1 (same milestone) 5.5 min of hand time, rebase 2 (next milestone, by the script) ~18 min; 2 conflicts in 48 patch replays; the build dominates (2 h 16 min + 32 min near-clean; **4 h 34 min clean** on 155, 56,073 steps); verify 15 and 17 min; PLAN §4 Stable confirmed on the 155 tour; 0012 dropped on 155 (series 23; rebuild 59 s) | the release build on 155 (3.8 task 4: see the 3.1 row) |
 | Room.app runs on RoomCore by default; `EngineCEF` deleted (3.9 task 1) | done (3.9-1) | `ROOM_ENGINE` defaults to `roomcore` (`none` for the engine-free Room target CI builds); 19 tracked files and 4,124 lines deleted (`Packages/EngineCEF` 13 files / 3,817 lines, the CEF helper target, `xcodegen/cef.yml`, `bootstrap-cef.sh`, `embed-cef-framework.sh`) plus 1.3 GB untracked (`Engine/cef/dist`, build leftovers); the two helper entitlements kept for RoomCore's signing; every wrapper defaults to Room.app on RoomCore | — |
-| The grand tour green on RoomCore, light and dark (3.9 task 3) | **preview only** (3.9-1, 154.0.8037.98, under the 155 build's load); the exit's run is 3.9-2's on 155 | "The grand tour" below | 3.9-2 |
+| The grand tour green on RoomCore, light and dark (3.9 task 3) | **done for what 3.9 owns** (3.9-2 on 155.0.8059.36: light 505 / 6, dark 505 / 6 of 511, every failure B-53, B-56 or B-76's stated dev-build condition) | "The grand tour" below | the Chapter 2 by-hand pass on RoomCore (the user) |
 | The week of exclusive use; the top 20 fixed (3.9 task 4) | not started (the user's) | — | the user |
 
 What the chapter built, in size: `//room` 50 source files, 14,748 lines (ObjC++ and C++; the public ObjC API is Room's own, shaped after ArcCore's surface); 24 patches with 326 changed lines (factory redirects, delegate hooks, two guards, branding; one parked); `Packages/EngineRoomCore` 1,867 lines of Swift; the `Engine` protocol changed ten times (`hostWindow`, `lastExitWasClean`, `site(of:)`, `systemAuthorization`, the 3.4b delegate members, history and autocomplete, extensions, popups, `bubbleAnchorRect`, navigation state with discard blockers and memory pressure), each with its `FakeEngine` behaviour.
@@ -28,33 +28,33 @@ What the chapter built, in size: `//room` 50 source files, 14,748 lines (ObjC++ 
 
 **3.9-1 preview** (154.0.8037.98, the packaged component build, Debug, 60 Hz, the Claude desktop app frontmost, the 155 build compiling beside it at 6 jobs, load 10–30): **light 498 passed / 7 failed, dark 499 / 6**, 48.3 min (24.1 + 24.2), 505 checks per appearance (Chapter 2's 491 plus the 3.x checks). Every failure attributed (`spike-results.md` "Phase 3.9 — grand tour on RoomCore 154.0.8037.98"): two harness faults fixed and rerun with `--only` (popups' alert read from the isolated world, B-75, closed; the crash-report count that looked where CEF wrote, now the engine's Crashpad directory, B-76); one condition (the element picker, light only, under load); one condition of the dev build under load (the first audible edge 2.6 s, the component build's process launch, B-57); two known rows (B-56 renderers 15 → 16 after a discard; B-53 switching median 16.2 / 17.8 ms, p95 23.2 / 24.3 ms). The harness fix then showed what the tour had never seen: every RoomCore tour since 3.1a killed 0–10 renderers on Blink layout DCHECKs on live sites in the dev build (B-76: per appearance here 8 × `layout_object.h:518` and 1 × `inline_node.cc:2330`); under the fixed harness memory, open10, quittiming and palette fail "no helper crash report" with the DCHECK named. Nothing in the product was fixed from the tour. No activation failure and no Stack Overflow quit in this run.
 
-**3.9-2 on 155.0.8059.36** (the exit's run): *to come.*
+**3.9-2 on 155.0.8059.36** (the exit's run; `spike-results.md` "Phase 3.9 — grand tour on RoomCore 155.0.8059.36 (the exit)"): the packaged component build of rebase 2 (framework `Versions/155.0.8059.36`, series 24 with 0012 still in), Debug, 60 Hz, the Claude desktop app frontmost, **no build beside it** (load1 7–13 at the quit steps): **light 505 passed / 6 failed, dark 505 / 6**, 41.4 min (20.8 + 20.6), **511 checks** per appearance (the preview's 505 plus the crash checks the fixed harness adds). Every failure attributed, none a harness fault or a condition, so no `--only` rerun: four steps per appearance fail "no helper crash report" on the dev build's DCHECKs on live sites, stated per step as the planner's dev-build condition (B-76): memory (4 / 5 dumps), open10 (1 / 1), quittiming (3 / 3), all `layout_object.h:518`, and palette (1 / 1, `inline_node.cc:2297`), plus in dark one `net/http/http_cache_transaction.cc:4112` DCHECK in the network service, the first `//net` one; two known rows: B-56 (renderers 15 → 16 after seven discards) and B-53 (switching p95 22.97 / 23.79 ms; the median passes again at 15.38 / 15.98). The preview's conditions failures are gone without the build (audio's first audible edge 1,558 / 1,588 ms, the element picker, quits 0.29–0.37 s). No `window_main` failure, no Stack Overflow quit, no `GetAcceleratorProvider` stub hit; navigation states written by 154.0.8037.58 restored on 155 (10 of 10, `build-log.md` "Rebase 154.0.8037.98 → 155.0.8059.36: verify"). Nothing in the product fixed from the tour. **Green for what 3.9 owns**: every failure is a row or the stated dev-build condition; crashes are judged on the release framework ("Phase 3.9 — crashes on the release framework", below in Numbers). The Chapter 2 by-hand pass on RoomCore stays the user's.
 
 ## Numbers
 
-RoomCore beside CEF. CEF: Chapter 2's tour (run 2, light / dark, visible window, frontmost, load 4–10). RoomCore phase: the Chapter 3 phase's own standalone measurement (component build unless "release"; 60 Hz; window key). RoomCore tour: this session's preview (light / dark, under the 155 build's load: load 10–30 against CEF's 4–10, so slower by condition).
+RoomCore beside CEF. CEF: Chapter 2's tour (run 2, light / dark, visible window, frontmost, load 4–10). RoomCore phase: the Chapter 3 phase's own standalone measurement (component build unless "release"; 60 Hz; window key). RoomCore tour: 3.9-2's exit tour on 155.0.8059.36 (light / dark, no build beside it, load1 7–13 at the quits; 3.9-1's preview under the 155 build's load is in `spike-results.md`).
 
-| Measure | CEF (2.9 tour) | RoomCore, phase | RoomCore, 3.9-1 tour (light / dark) |
+| Measure | CEF (2.9 tour) | RoomCore, phase | RoomCore, 3.9-2 tour on 155 (light / dark) |
 |---|---|---|---|
-| Memory, baseline (summed RSS) | 849 / 857 MB | 996 MB (3.3b) | 1,233 / 1,243 MB |
-| 10 loaded pages | 3,572 / 3,560 MB | 6,398 MB, 19 renderers (3.3b); **release framework 4,975 MB** (3.3b, embryo `open10`) | 4,164 / 4,649 MB, 17 renderers |
-| 30 hidden pages | 7,292 / 7,145 MB | 11,880 MB (3.3b) | 10,283 / 8,627 MB |
-| 50 loaded over 5 spaces | 6,495 / 6,509 MB | 10,317 MB (3.3b) | 9,790 / 9,234 MB |
-| Tab switch: click → committed, median / p95 | 13.7 / 17.5 and 14.5 / 18.2 ms | 15.41 / 22.33 ms (3.3b) | 16.18 / 23.23 and 17.83 / 24.28 ms (B-53) |
-| Relaunch: load start; selected loaded | 0.82 / 0.83 s; 1.44 / 1.49 s | 2.10 s; 4.08 s (3.3b); 50k state 2.16–2.22 s; 3.92–3.98 s (3.5); **release: first page 0.41 s** (3.1b-2) | 2.54 s; 6.03 / 6.30 s |
+| Memory, baseline (summed RSS) | 849 / 857 MB | 996 MB (3.3b) | 1,241 / 1,246 MB |
+| 10 loaded pages | 3,572 / 3,560 MB | 6,398 MB, 19 renderers (3.3b); **release framework 4,975 MB** (3.3b, embryo `open10`) | 5,565 / 5,429 MB, 17 renderers (tabsmeasure); 4,962 / 4,584 MB (memory's 10 hidden) |
+| 30 hidden pages | 7,292 / 7,145 MB | 11,880 MB (3.3b) | 11,720 / 9,888 MB |
+| 50 loaded over 5 spaces | 6,495 / 6,509 MB | 10,317 MB (3.3b) | 9,723 / 9,727 MB |
+| Tab switch: click → committed, median / p95 | 13.7 / 17.5 and 14.5 / 18.2 ms | 15.41 / 22.33 ms (3.3b) | 15.38 / 22.97 and 15.98 / 23.79 ms (B-53: the p95) |
+| Relaunch: load start; selected loaded | 0.82 / 0.83 s; 1.44 / 1.49 s | 2.10 s; 4.08 s (3.3b); 50k state 2.16–2.22 s; 3.92–3.98 s (3.5); **release: first page 0.41 s** (3.1b-2) | 2.08 / 2.21 s; 4.17 / 4.75 s |
 | State open on the 50k state | 151–153 ms (3.1a, quick_check) | 156–158 ms (3.5) | **11.9–12.1 ms after schema v6** (3.9-1; the migration launch 252 ms) |
-| Palette at 50k rows: first key median; later keys p95 | 18.8 / 17.9; 11.6 / 11.5 ms | 20.5–24.7; 9.2–12.1 ms (3.5) | 22.99 / 22.41; 10.12 / 13.25 ms |
-| Palette open: our code; to next frame | 2.7 / 2.5; 6.0 / 5.5 ms | — | 2.21 / 1.28; 5.32 / 4.28 ms |
-| Space switch, ⌃digit → first frame, median / p95 | 12.8 / 15.8 and 10.8 / 16.4 ms | — | 12.69 / 18.05 and 12.57 / 18.36 ms |
-| Split created → laid out; → next frame | 14.2 / 11.8; 22.9 / 22.3 ms | — | 5.38 / 5.23; 11.76 / 11.86 ms |
-| Find, keystroke → match | 15.4 / 14.4 ms median | 6 / 38 ms at 4+ characters; ~410 ms for 1–3 (Chromium's delay) (3.3b) | 37 / 40 ms median, p95 424 ms |
-| DevTools ⌥⌘I → front-end loaded | 329 / 340 ms | 331 ms (3.3b) | 439 / 431 ms |
-| Peek decision → overlay frame; → first paint | 21.4 / 30.0; 91.7 / 102.2 ms | 22.5; 493 ms (3.3b, B-57) | 27.2 / 27.6; 1,646 / 761 ms |
-| Quit with ten pages | 0.35–0.50 / 0.31–0.32 s | 0.22–0.28 s embryo (3.3b); release 0.175 s median of 20 (3.1b-2) | 0.78–1.14 / 0.80–1.47 s at load1 35–39 |
-| Cold launch by a link: event → requested | 598 / 610 ms | — | 479 / 496 ms |
-| Running link (open / AppleScript / NSWorkspace) | 22.4 / 22.9 / 22.5 ms | — | 25.6 / 23.3 / 20.9 ms |
-| Script round trip (CEF: CDP `Runtime.evaluate`; RoomCore: isolated world) | 0.07 / 0.17 ms | 0.14 ms (3.2b) | 0.15 / 0.14 ms |
-| Kill test, 100 kills | 0 failures | 0 (3.7b, v5) | 0 / 0 (and 0 on v6, 3.9-1) |
+| Palette at 50k rows: first key median; later keys p95 | 18.8 / 17.9; 11.6 / 11.5 ms | 20.5–24.7; 9.2–12.1 ms (3.5) | 21.75 / 21.73; 9.79 / 10.00 ms |
+| Palette open: our code; to next frame | 2.7 / 2.5; 6.0 / 5.5 ms | — | 2.23 / 2.71; 3.74 / 4.90 ms |
+| Space switch, ⌃digit → first frame, median / p95 | 12.8 / 15.8 and 10.8 / 16.4 ms | — | 14.90 / 20.49 and 15.74 / 20.50 ms |
+| Split created → laid out; → next frame | 14.2 / 11.8; 22.9 / 22.3 ms | — | 4.76 / 4.57; 11.45 / 12.68 ms |
+| Find, keystroke → match | 15.4 / 14.4 ms median | 6 / 38 ms at 4+ characters; ~410 ms for 1–3 (Chromium's delay) (3.3b) | 19 / 31 ms median, p95 426 ms |
+| DevTools ⌥⌘I → front-end loaded | 329 / 340 ms | 331 ms (3.3b) | 331 / 334 ms |
+| Peek decision → overlay frame; → first paint | 21.4 / 30.0; 91.7 / 102.2 ms | 22.5; 493 ms (3.3b, B-57) | 22.4 / 21.1; 110 / 469 ms median (p95 525 / 494) |
+| Quit with ten pages | 0.35–0.50 / 0.31–0.32 s | 0.22–0.28 s embryo (3.3b); release 0.175 s median of 20 (3.1b-2) | 0.30–0.37 / 0.29–0.36 s (load1 7–13); embryo baseline on 155 0.261–0.280 s |
+| Cold launch by a link: event → requested | 598 / 610 ms | — | 287 / 273 ms |
+| Running link (open / AppleScript / NSWorkspace) | 22.4 / 22.9 / 22.5 ms | — | 24.4 / 17.9 / 18.6 and 25.5 / 13.6 / 21.1 ms |
+| Script round trip (CEF: CDP `Runtime.evaluate`; RoomCore: isolated world) | 0.07 / 0.17 ms | 0.14 ms (3.2b) | 0.15 / 0.25 ms |
+| Kill test, 100 kills | 0 failures | 0 (3.7b, v5) | 0 / 0 (on v6) |
 | Engine requests (net-log) | 3 hosts (B-19) | 0 over launch + 600 s idle + browse + quit, dev and release (3.1b-2) | 0 / 0 |
 | Suggestions on, requests for three queries | 3 (Room's client) | 34 (3.5, Chrome's SearchProvider, B-64) | 34 / 34 |
 | Bundle | — (CEF dist 1.2 GB) | Room.app 382 MB release (framework 364), 945 MB component; DMG 176 MiB (3.1b-2) | — |
