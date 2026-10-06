@@ -797,6 +797,13 @@ def _layoutmodes(c):
     c.check("every split key handled", keys and "handled=false" not in keys, keys[:240])
     c.contains("split_command_w", "panes 4 → 3", "removed=true", label="⌘W closes only the focused pane")
     c.contains("peek_split", "panes 2 → 3", "Peek gone=true", label="Peek ▸ Split (⇧⌘O) adds a pane")
+    # 4.2: Open as Tab's placement (spec §I.6) and a Peek page's fullscreen request (B-35).
+    c.contains("peek_open_as_tab", "selected is the Peek's page=true", "Peek gone=true", label="Open as Tab (⌘O) makes the Peek the selected tab")
+    c.contains("peek_open_as_tab_placement", "under the parent=true", label="Open as Tab from a pinned entry: the first Today tab")
+    c.contains("peek_open_as_tab_today_parent", "directly under=true", label="Open as Tab from a Today tab: directly under it")
+    c.contains("peek_fullscreen", "Peek gone=true", "card page is the Peek's=true", "index in Today=0", "window fullscreen=true",
+               "page fullscreen=true", 'document.fullscreenElement="true"', label="B-35: a Peek page's fullscreen expands it into a Today tab, then fullscreen")
+    c.contains("peek_fullscreen_exit", "window back=true", "the tab stays=true", label="leaving it restores the window; the tab stays")
     c.contains("split_element_fullscreen", "focused pane fills the card=true", "after exit panes visible=true", label="element fullscreen of a pane")
     for key in ("reveal_band_to_shown", "reveal_leave_to_hidden", "cluster_fade", "peek_open_to_overlay_frame", "peek_open_to_first_contentful_paint",
                 "split_create_to_laid_out", "split_create_to_next_frame", "focus_click_to_field_updated", "focus_click_to_next_frame"):

@@ -87,6 +87,58 @@ struct PeekTests {
         #expect(fixture.tabs.currentEntryID == entry.id)
     }
 
+    @Test("A fullscreen request from the Peek's page expands it into a Today tab under its entry first, then goes on as the card's page's (B-35)")
+    func fullscreenExpandsFirst() async throws {
+        let (fixture, display, entry, page) = try await pinnedFixture()
+        let earlier = try fixture.today("https://first.example/")
+        try fixture.select(entry.id)
+        await fixture.settle()
+        await click(page, article)
+        let peek = try #require(display.shown)
+        final class Recorder: WebContentsUIDelegate {
+            var requests: [(contents: any WebContents, shown: (any WebContents)?)] = []
+            weak var tabs: TabController?
+            func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {
+                requests.append((webContents, tabs?.current))
+            }
+        }
+        let recorder = Recorder()
+        recorder.tabs = fixture.tabs
+        fixture.tabs.pageUIDelegate = recorder
+        fixture.tabs.webContentsDidRequestEnterFullscreen(peek, origin: nil)
+        await fixture.settle()
+        #expect(display.shown == nil, "the Peek is gone")
+        #expect(fixture.todayIDs.count == 2 && fixture.todayIDs[1] == earlier.id, "the new Today tab is directly under its pinned entry: the top of Today")
+        #expect(fixture.sidebar.selectedEntryID == fixture.todayIDs[0] && fixture.tabs.current === peek)
+        #expect(recorder.requests.count == 1 && recorder.requests[0].contents === peek && recorder.requests[0].shown === peek,
+                "the request reached the app with the page already in the card")
+        // A card page's request goes on unchanged.
+        fixture.tabs.webContentsDidRequestEnterFullscreen(peek, origin: nil)
+        #expect(recorder.requests.count == 2 && fixture.todayIDs.count == 2)
+    }
+
+    @Test("Open as Tab from a Today tab's Peek places the tab directly under it (spec §I.6)")
+    func expandUnderTodayParent() async throws {
+        let fixture = try TabsFixture()
+        let display = RecordingPeekDisplay()
+        fixture.tabs.peekDisplay = display
+        let first = try fixture.today("https://one.example/"), parent = try fixture.today("https://two.example/")
+        let last = try fixture.today("https://three.example/")
+        try fixture.select(parent.id)
+        await fixture.settle()
+        let page = try #require(fixture.page(parent.id))
+        // ⇧-click peeks from any page.
+        page.simulateStatusText(article.absoluteString)
+        page.simulateLinkClick(to: article, disposition: .newWindow)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(display.shown != nil)
+        fixture.tabs.expandShownPeek()
+        await fixture.settle()
+        let ids = fixture.todayIDs
+        #expect(ids.count == 4 && ids[0] == first.id && ids[1] == parent.id && ids[3] == last.id)
+        #expect(fixture.sidebar.selectedEntryID == ids[2])
+    }
+
     @Test("A Peek stays with its entry: it hides on a switch and comes back; unloading the entry closes it")
     func belongsToEntry() async throws {
         let (fixture, display, entry, page) = try await pinnedFixture()

@@ -97,6 +97,10 @@ extension TabController: WebContentsUIDelegate {
     // Everything below is presentation, forwarded to `pageUIDelegate` (the app's prompts, menus and file choosers, Phase 2.6).
 
     public func webContentsDidRequestEnterFullscreen(_ webContents: any WebContents, origin: URL?) {
+        // B-35 (4.2): only the card's page can take the window, so the shown Peek's page first
+        // becomes a Today tab under its entry (Open as Tab's path, spec §I.6) and the card's page;
+        // the request then goes on and is granted like any card page's.
+        if let opener = peekOpener(of: webContents), opener == currentEntryID { expandShownPeek() }
         pageUIDelegate?.webContentsDidRequestEnterFullscreen(webContents, origin: origin)
     }
 

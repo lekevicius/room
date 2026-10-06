@@ -549,7 +549,7 @@ public final class TabController: SidebarHost {
     // MARK: Pages
 
     private func show(_ contents: (any WebContents)?, split: SplitPresentation? = nil) {
-        if contents !== current { updatePeekBeforeSwitch() }
+        let switching = contents !== current
         var split = split
         if let index = split?.panes.firstIndex(where: { $0.entry == split?.focused }) { split?.panes[index].contents = contents }
         // Panes that leave the card are seen for the last time now (the idle clock, spec §H).
@@ -558,6 +558,9 @@ public final class TabController: SidebarHost {
         current = contents
         display?.showSplit(split)
         display?.show(contents)
+        // After the card took its page: a Peek page becoming the card's (Open as Tab) never leaves the
+        // window on the way, and Chromium keeps a page's fullscreen only while its view stays (B-35).
+        if switching { updatePeekBeforeSwitch() }
     }
 
     /// Another page goes into the card: the old entry's Peek leaves with it.

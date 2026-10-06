@@ -259,6 +259,66 @@ extension SpikeRunner.Context {
         PageDriver.click(page, at: point, modifiers: modifiers, "click \(selector)")
     }
 
+    /// Spec §I.6 (4.2): Open as Tab from a Peek over a Today tab (⇧-click peeks from any page) puts the new
+    /// tab directly under that tab. The Today parent is a new tab of the fixture's site, closed afterwards.
+    fileprivate func peekPlacementUnderToday() async {
+        let home = URL(string: Self.site + "site.html")!
+        let store = sidebar.store.sidebar
+        let space = sidebar.activeSpaceID
+        guard let parentID = tabs.openNewTab(url: home.absoluteString, transition: .link) else {
+            return SpikeRunner.record("peek_open_as_tab_today_parent", "no parent tab")
+        }
+        // Two more Today tabs under it so "directly under" is not "at the end".
+        let below = [tabs.openBackgroundTab(url: home.absoluteString + "?below=1"), tabs.openBackgroundTab(url: home.absoluteString + "?below=2")]
+        for id in below.compactMap({ $0 }) { try? store.move(id, to: .today(space: space), at: (store.today(space: space).firstIndex { $0.id == parentID } ?? 0) + 1) }
+        sidebar.select(parentID)
+        guard let parent = tabs.contents(for: parentID) else { return SpikeRunner.record("peek_open_as_tab_today_parent", "no parent page") }
+        await waitLoaded(parent)
+        try? await Task.sleep(for: .milliseconds(300))
+        await hoverAndClick(parent, "#offsite", modifiers: .shift)
+        _ = await waitUntil(4) { self.tabs.shownPeek?.isLoading == false }
+        guard tabs.shownPeek != nil else { return SpikeRunner.record("peek_open_as_tab_today_parent", "⇧-click opened no Peek") }
+        tabs.expandShownPeek()
+        try? await Task.sleep(for: .milliseconds(400))
+        let today = store.today(space: space).map(\.id)
+        let parentIndex = today.firstIndex(of: parentID), newIndex = tabs.currentEntryID.flatMap { today.firstIndex(of: $0) }
+        SpikeRunner.record("peek_open_as_tab_today_parent", "parent index=\(parentIndex.map(String.init) ?? "none") new tab index=\(newIndex.map(String.init) ?? "none") "
+            + "directly under=\(parentIndex != nil && newIndex == parentIndex.map { $0 + 1 }) today=\(today.count)")
+        for id in ([parentID] + below.compactMap { $0 } + [tabs.currentEntryID].compactMap { $0 }) { sidebar.close(id) }
+        try? await Task.sleep(for: .milliseconds(400))
+    }
+
+    /// B-35 (4.2): a fullscreen request from the Peek's page (`requestFullscreen()` with a gesture) expands
+    /// the Peek into a Today tab under the pinned entry, then the page takes the window as the card's page.
+    fileprivate func peekFullscreen(pinned: UUID, page: any WebContents, reset: () async -> Void) async {
+        guard let app = app27 else { return }
+        if sidebar.selectedEntryID != pinned { sidebar.select(pinned) }
+        await reset()
+        await hoverAndClick(page, "#offsite")
+        _ = await waitUntil(4) { self.tabs.shownPeek?.isLoading == false }
+        try? await Task.sleep(for: .milliseconds(400))
+        guard let peeked = tabs.shownPeek else { return SpikeRunner.record("peek_fullscreen", "Peek did not open") }
+        let before = sidebar.store.sidebar.today(space: sidebar.activeSpaceID).count
+        let asked = await PageDriver.evaluateWithGesture(peeked, "document.documentElement.requestFullscreen().then(() => 'ok', e => 'refused: ' + e.message)",
+                                                         "fullscreen from Peek")
+        let entered = await waitUntil(6) { self.window.styleMask.contains(.fullScreen) && app.pageDelegate?.fullscreen?.isActive == true }
+        try? await Task.sleep(for: .milliseconds(800))
+        let element = await js(peeked, "String(document.fullscreenElement !== null)")
+        let today = sidebar.store.sidebar.today(space: sidebar.activeSpaceID)
+        let index = today.firstIndex { $0.id == tabs.currentEntryID }
+        SpikeRunner.record("peek_fullscreen", "request=\(asked ?? "nil") Peek gone=\(tabs.shownPeek == nil) today \(before) → \(today.count) "
+            + "card page is the Peek's=\(tabs.current === peeked) index in Today=\(index.map(String.init) ?? "none") "
+            + "window fullscreen=\(window.styleMask.contains(.fullScreen)) page fullscreen=\(app.pageDelegate?.fullscreen?.isActive == true) "
+            + "document.fullscreenElement=\(element) entered=\(entered)")
+        _ = await js(peeked, "document.exitFullscreen().then(() => 'ok', e => e.message)")
+        let left = await waitUntil(8) { !self.window.styleMask.contains(.fullScreen) && app.pageDelegate?.fullscreen?.isActive != true }
+        try? await Task.sleep(for: .milliseconds(600))
+        SpikeRunner.record("peek_fullscreen_exit", "window back=\(left) the tab stays=\(tabs.current === peeked)")
+        if let id = tabs.currentEntryID, id != pinned { sidebar.close(id) }
+        sidebar.select(pinned)
+        try? await Task.sleep(for: .milliseconds(400))
+    }
+
     fileprivate func peekCheck(pinned: UUID) async {
         guard let app = app27, let peek = app.peek, let page = tabs.contents(for: pinned) else {
             return SpikeRunner.record("error", "no pinned page for Peek")
@@ -378,9 +438,14 @@ extension SpikeRunner.Context {
             try? await Task.sleep(for: .milliseconds(400))
             let today = sidebar.store.sidebar.today(space: sidebar.activeSpaceID)
             SpikeRunner.record("peek_open_as_tab", "today \(before) → \(today.count); selected is the Peek's page=\(tabs.current === peeked) url=\(tabs.current?.url?.absoluteString ?? "nil") Peek gone=\(tabs.shownPeek == nil)")
+            // Spec §I.6 (4.2): "under the parent": a pinned parent's tab is the first of Today (§A.7's related-tab rule).
+            let index = today.firstIndex { $0.id == tabs.currentEntryID }
+            SpikeRunner.record("peek_open_as_tab_placement", "parent=pinned index in Today=\(index.map(String.init) ?? "none") under the parent=\(index == 0)")
             sidebar.select(pinned)
             try? await Task.sleep(for: .milliseconds(400))
         }
+        await peekPlacementUnderToday()
+        await peekFullscreen(pinned: pinned, page: page, reset: reset)
         // Esc closes it (the page did not use the key); ⇧⌘T brings it back.
         await reset()
         await hoverAndClick(page, "#offsite")

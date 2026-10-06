@@ -79,11 +79,12 @@ extension TabController {
         guard let opener = currentEntryID, let page = peeks[opener], let sidebar,
               let entry = insertRelatedToday(url: page.contents.url?.absoluteString, openedBy: opener) else { return }
         peeks.removeValue(forKey: opener)
-        updatePeek(animated: false)
         pages[entry.id] = page
         observe(page, entry: entry.id)
         relatedChain = (opener, entry.id)
+        // The card shows the page before the overlay lets go of it (the page never leaves the window, B-35).
         sidebar.select(entry.id)
+        updatePeek(animated: false)
     }
 
     /// ⇧⌘O, Split (spec §I.6, Zen `cmd_zenGlanceSplit`): the Peek becomes a
