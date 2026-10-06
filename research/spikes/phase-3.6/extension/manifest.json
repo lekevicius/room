@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Room 3.6 fixture",
   "version": "1.0",
-  "description": "Phase 3.6 fixture: an action with a badge, an icon and a popup that resizes itself, a content script, a service worker that reads chrome.tabs and opens the popup on request (action.openPopup), two commands (_execute_action and a named one whose handler calls sidePanel.open), a side panel, an options page.",
+  "description": "Phase 3.6 fixture: an action with a badge, an icon and a popup that resizes itself, a content script, a service worker that reads chrome.tabs and opens the popup on request (action.openPopup), two commands (_execute_action and a named one whose handler calls sidePanel.open), a side panel, an options page. Phase 4.5: activeTab and a host permission for the local test servers (site access On click / On this site / On all sites), and the named command fetches one local URL (extension-originated requests counted apart from the engine's).",
   "icons": {
     "16": "icon16.png",
     "32": "icon32.png",
@@ -24,7 +24,11 @@
   "permissions": [
     "tabs",
     "storage",
-    "sidePanel"
+    "sidePanel",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
   ],
   "content_scripts": [
     {

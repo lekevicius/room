@@ -2,7 +2,8 @@
 // what chrome.tabs sees (Room's tabs through the Browser's TabStripModel) and
 // shows the count as the action's badge; on request it opens the action's
 // popup (action.openPopup, 3.6b); its named command calls sidePanel.open and
-// reports both in the action's title, which the host reads.
+// reports both in the action's title, which the host reads; since 4.5 the
+// named command first fetches one local URL (the extension's own request).
 chrome.runtime.onInstalled.addListener(() => {
   console.log("room 3.6 fixture worker installed");
   chrome.action.setBadgeBackgroundColor({ color: "#2f7de1" });
@@ -34,6 +35,17 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   } catch (error) {
     panel = "error: " + error.message;
   }
+  // Phase 4.5: one local request of the extension's own (its origin is the
+  // initiator in the net-log; the test server's log has it). After
+  // sidePanel.open, which needs the command's user gesture.
+  let fetched = "not tried";
+  try {
+    await fetch("http://127.0.0.1:8771/room-extension-fetch?command=" + encodeURIComponent(command), { cache: "no-store" });
+    fetched = "ok";
+  } catch (error) {
+    fetched = "error: " + error.message;
+  }
+  await chrome.storage.local.set({ lastFetch: fetched });
   await chrome.storage.local.set({ lastCommand: command, sidePanel: panel });
   await chrome.action.setTitle({ title: "command:" + command + " | sidePanel:" + panel });
 });

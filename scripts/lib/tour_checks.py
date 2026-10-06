@@ -1001,6 +1001,87 @@ def _import(c):
         c.number(key)
 
 
+# --- extensions (3.6b, 4.5) ---------------------------------------------------------------
+
+def _no_dumps(c):
+    n = c.first("crashpad_dumps")
+    c.check("no engine minidump in the run's own engine directory", n == "0",
+            f"{n}: " + "; ".join(c.values.get("crashpad_dump", []))[:240] if n else "missing")
+
+
+@step_check("extpopup")
+def _extpopup(c):
+    """3.6b's popups from the header (`scripts/extensions-check.sh --spike extpopup`),
+    rerun after 4.5's pinned-order change: the fixture's button with the page's
+    badge, the popup from a click and its own resize, focus loss and Esc
+    closing it with the page destroyed, action.openPopup, ⇧⌘Y and ⇧⌘U from
+    the page."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("header", "buttons=[", "badge=\"T", label="the fixture's button in the header with the page's badge")
+    c.contains("popup_click", "page state \"popup", label="a click opens the popup")
+    c.check("the popup resized itself to 384×285", "384" in (c.first("popup_click") or ""), c.first("popup_click") or "missing")
+    c.contains("popup_focus_loss", "popover_closed=true", "engine_destroyed_page=true", label="focus loss closes it; the engine destroys the page")
+    for i in range(3):
+        c.contains(f"popup_esc_{i}", "esc closed=true", "page_destroyed=true", label=f"Esc round {i + 1} closes it")
+    c.contains("action_open_popup", "popover=true", label="action.openPopup() from the worker opens it")
+    c.contains("command_execute_action", "popover=true", label="⇧⌘Y in the page opens it")
+    c.contains("command_named", "onCommand=true", label="⇧⌘U in the page reaches commands.onCommand")
+    for key in ("popup_open_times", "action_open_popup", "command_execute_action"):
+        c.number(key)
+
+
+@step_check("extensions")
+def _extensions(c):
+    """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the
+    net-log): site access On click keeps the fixture's content script waiting
+    until Run (the engine's member and the site panel's button), On this site
+    holds across reloads; ⇧⌘U and ⇧⌘Y with the sidebar's list focused reach
+    the extension (B-70); unpinning moves the action to the overflow menu with
+    its badge, its popup points at the overflow button, Pin puts it back at
+    the header's end; the options page opens in a space of the extension's
+    profile with two profiles (B-67), a profile without a space gets one;
+    Chrome's shortcuts page as a tab; Settings ▸ Shortcuts' read-only rows;
+    the extension's own request carries its origin and the engine's own
+    requests stay 0."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("content_script_default", "ran=true", label="the content script runs by default (on all sites)")
+    c.contains("access_default", "level=onAllSites", 'selectable=["onClick", "onSite", "onAllSites"]', "canAffect=true",
+               label="site access: on all sites, all three levels selectable")
+    c.contains("access_on_click", "set=true", "ran_after_reload=false", "level=onClick", "wantsToRun=true",
+               label="On click: after a reload the script waits (wantsToRun)")
+    c.contains("access_run", "run=true", "ran=true", "wantsToRun=false", label="runAction runs the waiting script")
+    c.contains("access_on_site", "set=true", "ran_after_reloads=[true, true]", "level=onSite", label="On this site: runs after two reloads")
+    c.contains("commands", "_execute_action=⇧⌘Y action", "room-named=⇧⌘U", label="the commands with their keys in Room's notation")
+    c.contains("command_sidebar_named", "first_responder=SidebarOutlineView", "page_has_keyboard=false", "routed=⇧⌘U true", "onCommand=true",
+               label="⇧⌘U with the sidebar's list focused reaches commands.onCommand (B-70)")
+    c.contains("command_sidebar_action", "popover=true", "routed=⇧⌘Y true", label="⇧⌘Y with the sidebar focused opens the popup")
+    c.contains("command_sidebar_other_key", "routed=⇧⌘C false", label="a key no extension has goes on to the menu")
+    c.contains("header_initial", 'buttons=["fixture", "second"]', "overflow_button=false", label="two pinned actions in install order, no overflow button")
+    c.contains("header_unpinned", 'buttons=["second"]', 'overflow=["fixture"]', "overflow_button=true", "Room 3.6 fixture  T", "badge=T",
+               label="unpinned: the header keeps the other, the overflow menu lists it with its badge")
+    c.contains("overflow_run", "popover=true", "anchored_on_overflow=true", "shown_id=fixture", label="the overflow item runs the action; its popup on the overflow button")
+    c.contains("header_repinned", 'buttons=["second", "fixture"]', "overflow_button=false", label="Pin puts it back at the header's end (the pinned order)")
+    c.contains("site_panel_section", 'rows=["fixture"]', "host=127.0.0.1", "level=0", "run_shown=true", "ran_before_run=false",
+               label="the site panel lists the extension on click with Run; the script has not run")
+    c.contains("site_panel_run", "ran=true", "ran_here=true", "keep_offered=true", label="the site panel's Run runs it and offers to keep it on the site")
+    c.contains("site_panel_on_site", "ran_after_reloads=[true, true]", "level=1", "wants_to_run=false",
+               label="\"Always on this site\": remembered across two reloads")
+    c.contains("site_access_all", "set=true", "level=2", label="back to On all sites")
+    c.contains("options_page", "profiles=2", "shown_before=Office", "space_profile=extension's", "options.html", "page_profile=extension's",
+               "storage written", label="the options page opens in a space of the extension's profile with two profiles (B-67) and works there")
+    c.contains("extension_page_new_space", "made=Extensions", "shown=true", label="a profile without a space gets an Extensions space for its page")
+    c.contains("shortcuts_page", "url=chrome://extensions/shortcuts", "space_profile=extension's", label="Keyboard Shortcuts…: Chrome's page as a tab")
+    c.contains("settings_shortcut_rows", "⇧⌘Y", "⇧⌘U", label="Settings ▸ Shortcuts lists the fixture's two commands read-only")
+    c.contains("incognito_setting", "stored=true", "other_profile=false", label="Allow in incognito stored per profile")
+    c.contains("extension_fetch_server", "1 request(s)", label="the extension's own request reached the local server once")
+    c.contains("extension_fetch_netlog", "1 with initiator chrome-extension://", label="the net-log attributes it to the extension's origin")
+    c.contains("engine_netlog", "0 not page traffic", label="the engine's own requests: 0")
+    for key in ("access_run", "command_sidebar_named", "command_sidebar_action", "overflow_run", "site_panel_run"):
+        c.number(key)
+
+
 # --- app integration (2.8) ---------------------------------------------------------------
 
 @step_check("app28a")
