@@ -2840,3 +2840,127 @@ Reading them: the persistence generation moved 0 → 1 while the sheet opened (`
 ### Unit tier (`CI=1 swift test`)
 
 Import 25, Model 104, Store 47 (2 new: `applyImport`), Tabs 70, Omnibox 45, Design 9, Palette 24: all passing. The engine-free CI build and tests locally (`xcodegen/ci.yml`, `xcodebuild build test`): succeeded in 73 s, the Import tests found their fixtures under `xcodebuild test` (25 passed).
+
+## Phase 4.3b — passwords through Chrome's importer, extensions through their store pages, first run, Firefox, import at scale (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+The engine step (`Profile.importPasswords`, `//room` `room_passwords.mm`; B-81 in `EngineRoomCore`), then app work over the staged frameworks: dev `build/roomcore` (`out/dev` after the member) and release `build/roomcore-release` (the official incremental below, `--release` restaged; the Debug app over it per `docs/laptop-build.md` §A step 3). The Claude app frontmost during the session; the user's own Room not touched; every launch on a state under `/tmp`; never a real browser profile (Safari, Arc, Firefox and Chrome were detected on a fake home holding the fixtures).
+
+### The engine step
+
+- Dev incremental after the change: **91 s** of build (133 s with the apply step; the `BUILD.gn` change regenerated the ninja files), `patches: 0 applied, 23 already`; `roomcore-package.sh` 51 s.
+- Baseline (`build/evidence-4.3b/baseline-1`, dev, embryo host, load1 11.5–16.3, the official build not yet started): **nav passed** (19.7 s); ten-page quits **0.387 / 0.347 / 0.319 s**, helpers left 0, 0 new crash reports, exit 0 each.
+- The official incremental (`build-log.md` "Phase 4.3b"): **538 s of build, 9 min 39 s wall**, the ThinLTO link 407 s at 7.95 GiB, the export-order check passed (no new class: the answer is an `NSDictionary`, B-77); `--release` 125 s.
+
+### `Profile.importPasswords` (`scripts/passwords-autofill.sh` with `ROOM_PA_ONLY=import`: `-RoomPasswordsPhase import`, then the relaunch's `fill`; the 3.7a server on :8772/:8773)
+
+Fixtures `research/spikes/phase-4.3/passwords-saved.csv` (alice `secret-a0` on 127.0.0.1:8772, standing for a saved password) and `passwords.csv` (alice `secret-a2` on 127.0.0.1:8772: the conflict; bob on localhost:8772; carol on https 127.0.0.1:8773; one row whose URL does not parse). The engine's answers, identical on both builds:
+
+| Pass | Dev (`build/evidence-4.3b/pw-dev-1`, load1 10.2) | Release (`pw-release-1`, load1 15.0) |
+|---|---|---|
+| `passwords-saved.csv`, `.skip` | success, imported 1 — **2,434 ms** (the presenter's first load and the sandboxed CSV parser's first launch) | success, imported 1 — **38 ms** |
+| `passwords.csv`, `.skip` | success, **imported 2, conflicts 1 kept, skipped 1** (`alice@http://127.0.0.1:8772=conflictKept`, `mallory@not a url=invalidURL`) — 1 ms | the same — 1 ms |
+| `passwords.csv`, `.replace` | success, **imported 3 (bob and carol counted as already saved, alice replaced), conflicts 1 replaced 1**, skipped 1 — 1 ms | the same — 0 ms |
+| a second import while one runs | `first=success second=busy` | the same |
+| a CSV without Chrome's header | `badFormat` | the same |
+
+After the relaunch (`fill`): **site A fills alice with `secret-a2`** (`username_matches=true password_matches=true`, the popup 81 ms dev / 35 ms release after the click), **site B fills bob** (23 / 22 ms), both sign in ("Signed in as alice", "… bob"), `chrome://password-manager` lists both hosts. `Login Data` after the runs: 127.0.0.1:8772 alice, 127.0.0.1:9 zed (the busy check's first import), localhost bob, https 127.0.0.1:8773 carol, each password 19 bytes encrypted (mock keychain). Net-log: 0 engine requests in both launches on both builds (the import's launch 0 URL requests at all; the fill launch 9, all page traffic). Captures (dev): `research/screenshots/phase-4.3b/phase-4.3b-dev-import-fill-popup-{a,b}.png`, `…-password-manager.png`.
+
+### B-81 (`scripts/recovery-check.sh`, tour step `recovery`)
+
+The first form (the `RoomBrowser` dropped from `RoomCoreProfile.browsers` at `browserWillClose`) crashed the check launch at Restore Sidebar on dev: SIGBUS in `RoomBrowserWindow::~RoomBrowserWindow` ← `BrowserManagerService::DeleteBrowser` ← `UnloadController::OnWindowCloseComplete` (the wrapper's dealloc reset the window's client, which the destructor then called), `build/evidence-4.3b/tours/20261006-200130-roomcore` 13 / 19. The kept form (retired from `browsers` at `browserWillClose`, retained in `closingBrowsers` until `browserDidClose`), with 4.1b's hidden holder pages removed from `restoreSidebar`: **18 / 18 on dev** (`20261006-200304-roomcore`, load1 7.4, no `browser.cc:645` DCHECK, 0 minidumps) and **18 / 18 on the release framework** (`20261006-200337-roomcore`, load1 7.7, 0 crash reports).
+
+### Tour step `import` (extended: 31 → 51 checks)
+
+`scripts/import-check.sh`: the fixtures with `-RoomImportSource`, a fake home under `/tmp/room-4/importhome.*` (`-RoomImportHome`: Safari's files at `Library/Safari`, Arc's at `Library/Application Support/Arc`, Firefox's profile at `Library/Application Support/Firefox/Profiles/x1y2z3.default-release`, Chrome's at `Library/Application Support/Google/Chrome`) and `-RoomWebStorePage file://…/webstore/detail.html?id={id}` (no store request). **51 / 51 on dev** (`build/grand-tour/20261006-201515-roomcore`, 0.3 min, load1 10.5, `window_main: true`, 0 minidumps) and **51 / 51 on the release framework** (`20261006-201534-roomcore`, 0.2 min, load1 9.6, 0 crash reports). The two runs before the last code change (`200827` dev, `200907` release): 50 / 51 each, the failure `window_main: false` (the Claude app frontmost). Copies in `build/evidence-4.3b/tours/`. Every check, release run:
+
+- exit 0
+- no crash report
+- no Room left running
+- no error lines
+- no capture timeouts
+- spike reached its end
+- window main
+- the sheet opens over the window, nothing picked, the four fixtures listed
+- Chrome's readers: Bookmarks, History, Preferences, Local State's profiles
+- Safari's readers: plist, History.db
+- the Netscape reader
+- Arc's sidebar reader
+- nothing is written before Import (four reads and previews)
+- chrome: the store's rows after the import equal the preview
+- safari: the store's rows after the import equal the preview
+- netscape: the store's rows after the import equal the preview
+- arc: the store's rows after the import equal the preview
+- Chrome's preview: one space, the bar into Essentials, the clip, the duplicates
+- Chrome's history into the engine (visits over 89 days counted out)
+- the Essentials cap: 12, the rest pinned
+- folders clipped at depth 5
+- Safari: a space per top-level folder plus the target
+- Safari's folders became spaces (the Reading List one of them)
+- Netscape into Space: the essential Docs is a duplicate
+- Arc's preview
+- Arc's spaces with their icons, colours and profiles
+- one Work profile (made or reused) with its essential
+- imported history is found through ProfileHistory.search in the same launch
+- the toast names the import
+- the rows are in the database
+- the sheet closes
+- Firefox's places.sqlite reader
+- firefox: the store's rows after the import equal the preview
+- Firefox: the toolbar first, then the menu and Other Bookmarks, then mobile
+- a passwords CSV alone can be imported
+- the CSV's passwords through the engine's importer (the malformed row skipped)
+- the toast names the passwords
+- the Web Store extensions listed, the unpacked one skipped with its reason
+- the summary names the store pages
+- the first store page opens as a Today tab of the target space
+- the next page waits while the first is open
+- closing the page opens the next
+- the sequence ends with its toast
+- the sheet says cookies are not imported
+- the browsers detected at their real paths (a fake home)
+- Safari read from ~/Library/Safari
+- Arc read from ~/Library/Application Support/Arc
+- Firefox's profile found under Profiles/
+- a file macOS refuses: the sheet offers the open panel
+- Settings ▸ General ▸ Import… opens the sheet
+- the first-run card's Import from another browser… opens the sheet
+
+Numbers, release run (dev in parentheses): Firefox read 3.2 ms (2.5), plan 0.17 ms (0.09), import 87 ms (70) with one history batch; the passwords-only import through the sheet 36 ms (1,552 ms: the dev build's first password import in the profile); Chrome's import 101 ms (130). Spike lines (release):
+
+    read_firefox: bookmarks=10 folders=3 skipped=1 history=4 visits=7 errors=0
+    firefox_space: Firefox pinned=Firefox,MDN,Dev,Python,Recipes,News,Maps,On the phone
+    passwords_chosen: line=passwords.csv: 4 rows phase=choosing can_import=true profile=Default
+    passwords_sheet: status=success imported=3 conflicts=0 skipped=1 line=3 imported, 1 skipped
+    passwords_toast: "Imported from passwords.csv: 3 passwords, 1 password row skipped"
+    extensions_row: web_store=uBlock Origin,Bitwarden Password Manager chosen=2 skipped=[My Unpacked Tool: unpacked (loaded from a folder)] can_import=true
+    extensions_import: pages_to_open=2 summary="Imported from chrome (fixture): 2 extension pages to open, one at a time"
+    store_page_first: opened=1 pending=1 current=cjpalhdlnbpafiamejdnhcphjbkeiagm tab=today space=Space url=file:///…/webstore/detail.html?id=cjpal… new_tabs=1
+    store_page_waits: new_tabs=1 opened=1 pending=1 (after 1.5 s)
+    store_page_next: opened=2 pending=0 current=nngceckbapebfimnlniiiahkandclblb … first_tab_gone=true
+    store_pages_done: finished toast="Extensions from the Web Store: 0 added, 2 not added"
+    home_detected: home=fake Google Chrome=~/Library/Application Support/Google/Chrome Arc=~/Library/Application Support/Arc Safari=~/Library/Safari Firefox=~/Library/Application Support/Firefox
+    home_safari: bookmarks=10 folders=4 history=4 visits=6 errors=0 needs_access=false
+    home_firefox: bookmarks=10 folders=3 history=4 visits=7 profiles=default-release errors=0 needs_access=false
+    permission_denied: needs_access=true error=true message=macOS keeps Room out of Safari's files. Click Choose a File or Folder… and choose its folder (…): choosing it there lets Room read it.
+    settings_import: sheet=true
+    first_run_import: card=true sheet=true
+
+The install that moves the sequence on (`extensionsDidChange`) is the unit tier's (`StorePageSequenceTests`) and by-hand step 27's: a store install needs the Web Store and a click. Captures: the sheet with the Passwords box, the Extensions list and the access message, `phase-4.3b-import-{passwords,extensions,permission}.png` (in the run's capture directory).
+
+### B-84: import at scale (`scripts/import-large.sh`, spike `importlarge`; `make-large.py`'s generated profile)
+
+The generated profile (`research/spikes/phase-4.3/generated/large`, 17,212,909 bytes, not committed): **5,000 bookmarks in 200 folders** (40 top-level folders on the bar and in Other bookmarks, 4 subfolders each, 25 links per folder) and a Chrome `History` with **50,000 URLs and 100,000 visits** within the last 80 days. Imported into one new space in the default profile with history. The main thread's longest stall: the longest gap between 5 ms ticks of a main-actor task during each part. Release framework, two runs (`build/evidence-4.3b/importlarge-release-{1,2}.txt`, load1 7.3 and 6.6, no build running); dev once (load1 6.7):
+
+| Part | Release run 1 | Release run 2 | Dev |
+|---|---|---|---|
+| Read (off the main thread): Bookmarks / History (copy + read) | 318 ms: 21 / 297 | 323 ms: 26 / 297 | 324 ms: 23 / 301 |
+| Plan (off the main thread); a replan after an option change | 73 ms; 70 ms | 74 ms; 70 ms | 76 ms; 71 ms |
+| Pick to plan, main thread's longest stall | 411 ms, **51 ms** | 415 ms, **51 ms** | 422 ms, 54 ms |
+| Two option changes (two replans), longest stall | 192 ms, 27 ms | 191 ms, 26 ms | 187 ms, 21 ms |
+| Import: the sidebar write (`applyImport`, 5,200 rows in one `SidebarChange`, and the flush) on the main thread | **568 ms** | **569 ms** | 573 ms |
+| Import: 25 history batches of 2,000 URLs (`importEntries`, awaited) | **1,425 ms** | 1,439 ms | 2,378 ms |
+| Import in all; main thread's longest stall | **2,025 ms; 604 ms** | 2,036 ms; 596 ms | 2,980 ms; 609 ms |
+| The sidebar's full reload after (5,200 rows; five times) | 80.4, 80.3, 85.5, 84.8, 84.4 ms | 90.2, 81.4, 81.5, 83.0, 75.9 ms | 75.9–79.6 ms |
+| Summed RSS before → after (6 processes, no renderer) | **334 → 497 MB** | 335 → 497 MB | 596 → 736 MB |
+
+Every URL and visit reached the engine (`history urls=50000 visits=100000 expired=0/0`); `ProfileHistory.search("Large history page 49999")` finds it in the same launch; the database holds 5,200 of 5,200 entries (reloaded in 35 ms). Against the bounds (100 ms of main thread per step, 10 s in all): the whole import is 2.0 s (inside), reading and planning stay off the main thread (stalls ≤ 51 ms), **the sidebar's write blocks the main thread for ~570 ms** (5.7× the bound: B-85), and the reload of a 5,200-row sidebar is 80–90 ms (inside 100 ms, over a frame: the 2.2a number scaled).
