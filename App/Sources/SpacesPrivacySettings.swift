@@ -187,6 +187,8 @@ struct SitePermissionsView: View {
                 .font(.callout).foregroundStyle(.secondary)
         }
         .task(id: TaskKey(profile: profileID ?? sidebar.profiles.first?.id, permission: permission)) { await reload() }
+        // A prompt answered or the site panel used while Settings was away: the list is read again when it shows.
+        .onAppear { Task { await reload() } }
     }
 
     private struct TaskKey: Hashable {

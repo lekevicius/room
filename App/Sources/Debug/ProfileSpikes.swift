@@ -145,7 +145,11 @@ extension SpikeRunner.Context {
             let elapsed = ms(since: start)
             let toast = app.debugToastCenter?.currentToast?.message ?? "none"
             let after = "fresh=\(await history.visits(for: fresh) != nil) old=\(await history.visits(for: old) != nil)"
-            SpikeRunner.record("clear_hour", "before: \(before); after: \(after) cookie=\(await cookieInShownSpace()) in \(String(format: "%.0f", elapsed)) ms; "
+            // A renderer of the site still open keeps a cookie cache that the network service's change
+            // notice refreshes a moment later: read the jar from a page loaded after it.
+            await settleProfiles(1000)
+            let cookie = await cookieInShownSpace()
+            SpikeRunner.record("clear_hour", "before: \(before); after: \(after) cookie=\(cookie) in \(String(format: "%.0f", elapsed)) ms; "
                 + "line=\(line) toast=\(toast)")
         } else {
             SpikeRunner.record("clear_hour", "no engine history")
