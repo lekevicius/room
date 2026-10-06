@@ -51,11 +51,14 @@ extension AppDelegate {
     }
 
     private func applyShortcuts(_ table: ShortcutTable) {
+        let start = ContinuousClock.now
         shortcutTable = table
         if let menu = NSApp.mainMenu {
             let changed = MainMenuBuilder.apply(table, to: menu)
             if changed > 0 { NSLog("Room: shortcuts: %ld menu keys changed, %ld overrides", changed, table.overrides.count) }
         }
+        let elapsed = ContinuousClock.now - start
+        lastShortcutsApplyMilliseconds = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
         pageDelegate?.reservedKeys = table.reservedKeys
         sidebar?.shortcutKey = { [weakSelf = MainActorWeak(self)] id in
             guard let key = weakSelf.value?.shortcutTable.key(for: id) else { return ("", []) }

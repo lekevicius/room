@@ -66,6 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var extensionStorePages: ExtensionStorePages?
     /// The user's shortcuts (4.4a, `Shortcuts.swift`): defaults plus `Settings.shortcutOverrides`.
     var shortcutTable = ShortcutTable()
+    /// How long the last table took to reach the menu bar (the settings spike reads it).
+    var lastShortcutsApplyMilliseconds = 0.0
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).

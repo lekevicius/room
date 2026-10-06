@@ -1392,6 +1392,9 @@ extension SidebarController {
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
 
+    /// The context menu a right-click on `id` shows (4.4a: its keys follow the shortcut table).
+    public func debugContextMenu(for id: UUID) -> NSMenu? { menu(for: id) }
+
     /// The cell class showing `id`'s row (a split's pane: its group row).
     public func debugRowCellKind(_ id: UUID) -> String {
         guard let node = tree.displayedNode(for: id) else { return "none" }

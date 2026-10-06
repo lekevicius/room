@@ -809,5 +809,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     #if DEBUG
     /// The panel, while open (captures).
     public var debugPanel: NSView? { overlay?.panel }
+    /// The rows as the panel shows them: title and hint (4.4a: a command's key).
+    public var debugRows: [(title: String, hint: String?)] { overlay?.panel.rows.rows.map { ($0.title, $0.hint) } ?? [] }
     #endif
 }

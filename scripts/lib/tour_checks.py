@@ -837,6 +837,57 @@ def _routing(c):
     c.contains("rules_in_database", "3 of 3", label="the rules are in the database")
 
 
+# --- settings (4.4a) -------------------------------------------------------------------
+
+@step_check("settings")
+def _settings(c):
+    """ROADMAP 4.4a (`scripts/settings-check.sh`, two launches on one state): Pin
+    (⌘D) remapped to ⌥⌘P by a key press in Settings ▸ Shortcuts moves the key in
+    the menu, the palette's hint and the sidebar's menu; the old ⌘D reaches the
+    keys page (1.4's fixture) and pins nothing, ⌥⌘P pins; a conflict is marked
+    on both rows and resolved only when confirmed; macOS's keys refused; a
+    reserved action under a new key stays reserved and its old key reaches the
+    page; every setting round-trips through a relaunch; the save panel per
+    download; Reset All restores the frozen table."""
+    spike_from_out(c)
+    c.check("both launches reached their end", len(c.values.get("end", [])) == 2, f"{len(c.values.get('end', []))} end lines")
+    c.check("both launches had the window main", c.values.get("window_main", []) == ["true", "true"], f"{c.values.get('window_main')}")
+    c.contains("defaults", "overrides=0", "pin=⌘D", "reopen=⇧⌘T", "reserved=17", "has ⇧⌘T=true", label="the defaults: the frozen table")
+    c.contains("remap_pin", "recording=true", "stored=⌥⌘P", "menu=⌥⌘P", "palette command=⌥⌘P", "sidebar=⌥⌘P",
+               label="⌘D → ⌥⌘P recorded in Settings ▸ Shortcuts: the menu, the palette's command and the sidebar's menu")
+    c.contains("palette_hint", "row=Pin Tab", "hint=⌥⌘P", label="the palette's row shows the new key")
+    t = c.first("remap_timing") or ""
+    m = re.search(r"in the menu ([\d.]+) ms.*menu apply ([\d.]+) ms", t)
+    c.check("the remap's timing is reported", m, t or "missing")
+    if m:
+        c.numbers.append(("key press → stored and in the menu (ms)", m.group(1)))
+        c.numbers.append(("menu apply (ms)", m.group(2)))
+    c.contains("old_key", '"⌘d/KeyD"', "reached the page=true", "kind=today", label="the old ⌘D reaches the page and pins nothing")
+    c.contains("new_key", "pinned=true", label="⌥⌘P pins")
+    c.contains("new_key_again", "unpinned=true", label="⌥⌘P again unpins")
+    c.contains("conflict", 'conflict(["printPage:"])', "pending=true", 'marked=["printPage:", "togglePin:"]', "Use it for Pin Tab instead?",
+               label="⌘P (Print's) for Pin: both rows marked, the prompt asks")
+    c.contains("conflict_cancel", "pin=⌥⌘P", "print=⌘P", "marked=0", label="Cancel keeps both keys")
+    c.contains("conflict_resolved", "pin=⌘P", "print=none", "conflicts=0", label="confirmed: the newer wins, Print loses the key")
+    c.contains("refused", "⌘Q: ⌘Q is Quit", "⌘H: ⌘H is Hide Room", "K: K has no ⌘ or ⌃", "Quit to ⌥⌘T: refused", "pin=⌥⌘P", "print=⌘P",
+               label="macOS's keys and keys without ⌘ or ⌃ refused with a message; Quit keeps ⌘Q")
+    c.contains("reserved_set", "has ⌥⌘T=true", "has ⇧⌘T=false", "count=17", "menu=⌥⌘T", label="Reopen Closed Tab under ⌥⌘T: the reserved set follows")
+    c.contains("reserved_remap", '⇧⌘T page saw=["⌘⇧T/KeyT"]', "reopened by ⇧⌘T=false", "⌥⌘T page saw=[]", "reopened by ⌥⌘T=true", "tabs reopened=1",
+               label="the old ⇧⌘T reaches the page; ⌥⌘T never does and reopens once")
+    c.contains("applied", "toolbar=true", "sidebar=right", "palette engine=Spike Search", "keyword row=Press Tab", "suggestions=false",
+               label="the settings applied: toolbar, sidebar side, the profile's engine, the keyword, suggestions off")
+    c.contains("save_panel", "shown=true", "sheet=true", "proposed=spike-ask.bin", label="Ask where to save: a save panel over the window")
+    c.contains("save_panel_ok", "complete=true", "file=true", label="the panel's file is the download's")
+    c.contains("save_panel_cancel", "rows 1 → 1", "listed=false", label="a cancelled panel cancels the download, nothing listed")
+    c.contains("stored", "reopenClosedTab:=⌥⌘T", "togglePin:=⌥⌘P", label="the overrides in Settings")
+    c.contains("relaunch_equal", "true (13 of 13)", label="every setting read back after the relaunch")
+    c.contains("relaunch_applied", "toolbar=true", "sidebar=right", "palette engine=Spike Search", label="applied again at launch")
+    c.contains("relaunch_keys", "pin=⌥⌘P", "reopen=⌥⌘T", "print=⌘P", "reserved has ⌥⌘T=true", "has ⇧⌘T=false", label="the remapped keys after the relaunch")
+    c.contains("reset_all", "overrides=0", "pin=⌘D", "reopen=⇧⌘T", "has ⇧⌘T=true", "has ⌥⌘T=false", "equals the defaults=true",
+               label="Reset All: the frozen table and reserved set again")
+    c.contains("restored", "defaults=true", label="the settings put back for the next steps")
+
+
 # --- import (4.3a) ---------------------------------------------------------------------
 
 @step_check("import")
