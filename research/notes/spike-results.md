@@ -3167,3 +3167,62 @@ The window server's capture (`CGWindowListCreateImage`) shows Chromium's page la
 ### Unit tier (`CI=1 swift test`)
 
 Engine 72 (+2: the controls recorded, the state moved; none without a session), Tabs 75 (+4: the rule, × and the next start, the row on the fake with its buttons and selection), Sidebar 39, Design 9; the engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (95 s).
+
+## Phase 4.7a — documents: Save Page, the full-page capture through the DevTools protocol, Chrome's PDF viewer and the PDFs setting, View Source, ⇧⌘2 (2026-10-07, Mac mini M4, 24 GB, display 1920 × 1080 @ 60 Hz, RoomCore 155.0.8059.36)
+
+### Baseline after the engine change (`build/evidence-4.7a/baseline-1`, embryo host, dev framework `02de228`)
+
+| Run | Result |
+|---|---|
+| nav | passed, 18.4 s |
+| ten-page quits | **0.313 / 0.289 / 0.336 s** (load1 11.8 / 16.0 / 17.0), helpers left 0, 0 crash reports, stub hits 0 |
+
+### The engine probe (`scripts/documents-check.sh … -RoomSpikeOnly engine`, dev build, before the official build started; fixtures `research/spikes/phase-4.7` on :8777; `build/evidence-4.7a/probe-1.txt`)
+
+| Member | Result (probe; then the tour runs dev / release) |
+|---|---|
+| `savePage(as: .html)` | 26 ms (25 / 21), `Page-html.html` 543 B |
+| `savePage(as: .completeHTML)` | 36 ms (39 / 18), `Page-completeHTML.html` 775 B + `Page-completeHTML_files/` with `page.css` 176 B and `swatch.png` 322 B (the fixture's own bytes) |
+| `savePage(as: .mhtml)` | 3 ms (4 / 3), `Page-mhtml.mhtml` 2,542 B |
+| the MHTML reopened as `file://` | title "Room Save Page fixture", `#swatch` complete 240 × 120; `captureViewport` at the image: (233, 161, 72) in the orange part, (67, 113, 220) in the blue band (the fixture's (240, 140, 20) and (40, 90, 220) after colour management) |
+| `sendDevToolsCommand`: `Page.getLayoutMetrics` + `Page.captureScreenshot` (`captureBeyondViewport`, clip = CSS content size) on `tall.html` | 168 ms (163 / 134): PNG **2068 × 8000** px (104,458 B) for content 1034 × 4000 CSS px, viewport 1034 × 788 pt at 2× |
+| the same with DevTools' front-end open (3.3b's pane, a second agent-host client) | 136 ms (143 / 136), the same 2068 × 8000 PNG: no conflict, nothing refused |
+| the viewport after the capture | `[innerWidth, innerHeight, scrollHeight]` `[1034, 788, 4000]` before and after |
+| an unknown method (`Room.noSuchMethod`) | the protocol's error: "'Room.noSuchMethod' wasn't found" |
+| a HTML and a complete-HTML save in the host's downloads list | yes: Chrome's `SavePackage` makes download items, which 3.4a's observers report and Chrome's download history restores after a relaunch (`pdf_download`'s rows list `Page-completeHTML.html`, `Page-html.html`); the MHTML (`GenerateMHTML`) makes none |
+
+### Tour step `documents` (`scripts/documents-check.sh`, own state and engine directories; `--only documents light`)
+
+| Run | Checks | Conditions |
+|---|---|---|
+| dev `20261007-012640` | **42 / 42** | load1 7.09 (the official build had ended), no other Room, 0 minidumps, 57 s |
+| release framework `20261007-012849` (`ROOM_TOUR_APP`, Debug app over `RoomCoreCommit 02de228`) | **42 / 42** | load1 13.38, 0 minidumps, 36 s |
+
+Result lines (dev / release):
+
+| Check | Dev | Release |
+|---|---|---|
+| PDF opened in Chrome's viewer (`document.contentType` application/pdf, title from the PDF's info) | loaded in 4,083 ms (5,697–6,848 ms in the probes) | **349 ms** |
+| The viewer painted (`captureViewport`, every 8th pixel) | 2068 × 1576 px, 30.5 % not white | same |
+| ⌘F's find (`find("zebracorn")`, Chrome's `FindTabHelper` across the PDF frame) | **3 matches**, final in 43 ms; the next step → active 2 | 3, 43 ms |
+| Zoom (`zoomFactor = 1.5`) | redrawn | redrawn |
+| Print (`print()`) | Chrome's preview (`NativeWidgetMacNSWindow` 1000 × 660) after 30 ms; Esc closed it | 24 ms; closed |
+| The viewer's Download button (clicked 116 pt left of the right edge, 28 pt down) | Chrome's save panel (`NSSavePanel` sheet on Room's window) after 666 ms, "sample.pdf" proposed in Downloads; cancelled by the spike | 692 ms |
+| PDFs ▸ Download, next launch (`RoomPdfsDownload` passed) | the PDF navigation downloaded `sample.pdf` (1,477 B) in 2,799 ms; the new tab closed | 628 ms |
+| View ▸ Developer ▸ View Source | `view-source:` tab right under the entry, selected, 15 source lines, in 1,583 ms | 339 ms |
+| The context menu's View Page Source (Chrome's `IDC_VIEW_SOURCE`, already in the menu) | opened under the page (position +1), selected, in 786 ms | 773 ms |
+| File ▸ Save Page… | the panel with "Web Page, Complete / HTML Only / Web Archive (MHTML)", name "Room Save Page fixture.html" → ".mhtml" on MHTML; Save → 2,542 B in 291 ms, toast "Saved “Room Save Page fixture.mhtml”" with Show; the file reopened with its image 240 × 120 | 295 ms |
+| Save Page… on the PDF | refused with the toast "Could not save the page: a application/pdf page cannot be saved" | same |
+| ⇧⌘2 overlay | over the page's frame {{240, 6}, {1034, 788}}, first responder, in 5–14 ms | 5–16 ms |
+| A dragged rectangle over the swatch (24, 102.08, 240 × 120 pt) | 480 × **241** px (the fractional top rounds outward) in 48 ms; the bar under it | 49 ms |
+| Copy | the pasteboard: PNG 480 × 241 (3,014 B) + TIFF, pixel (233, 162, 72); toast "Copied the screenshot" | same |
+| Return (the viewport) then Save | 2068 × 1576 px, `Screenshot 2026-10-07 at 01.27.12.png` 102,108 B in the downloads folder, toast with Show | same |
+| Open as Tab | a `file://` Today tab under the page, selected, the image 800 × 600 (a 400 × 300 pt drag) | same |
+| Esc | overlay closed, the window first responder | same |
+| Full Page on `tall.html` | 2068 × 8000 px in 166 ms (taller than the viewport), saved | 151 ms |
+
+Chrome's save panels are out of process on macOS 26 (ViewBridge): `-[NSSavePanel ok:]` raises "not implemented" (it crashed the first PDF run: an uncaught `NSException` from the spike's call, found with lldb) and setting `directoryURL` or the name while the panel shows is refused (`NSViewBridgeErrorIncorrectPhase`). Room's own Save Page… panel is answered by ending its sheet with OK (its folder is the run's downloads folder, set before it shows); Chrome's PDF panel is only checked to appear (its folder is Chrome's download pref, `~/Downloads`), and the landing is by-hand step 55.
+
+### Unit tier (`CI=1 swift test`)
+
+Engine 75 (+3: `SavePageFormat`'s names, the fake's three formats and a closed page, the DevTools handler or `notSupported`), Chrome 64 (+6: the drag's rectangle, a click, the cut at 1× and 2× with outward rounding and the edge, the file names and their uniqueness, the full page's clip, Save Page's names), Model 109 (+1: `storedSettings` without opening the store), UIKitCore 56 (the menu against `docs/shortcuts.md`: the new row, ⇧⌘S unique), Omnibox 51, Design 9; the engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (90 s).
