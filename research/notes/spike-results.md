@@ -2995,3 +2995,48 @@ Timings (`remap_timing`): key press in the recorder → stored and on the menu i
 Evidence for the reviewer: `research/screenshots/phase-4.4a/` (Settings ▸ Shortcuts during the conflict, General, Search, Downloads; light, dev).
 
 Found on the way: an ⌥ key whose character ⌥ changed (⌥⌘P arrives with `characters` "π") no longer matched its menu item once the page's view had handled the event: `NSApp.mainMenu.performKeyEquivalent` returned false for the original `NSEvent` and true for a fresh `NSEvent` with the same type, flags, characters and key code (and for the same constructed event sent straight to the menu). The host now retries with a fresh copy, on the unhandled path and, for reserved keys, in `isReservedKeyEvent` (RoomCore's own call with the original then fails as measured, so the action runs once: `tabs reopened=1`). B-86.
+
+## Phase 4.4b — the engine step (deleteProfile, clearBrowsingData, contentSettings, the Google-service defaults), Settings ▸ Spaces & Profiles and Privacy, palette sections (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+Display 1920 × 1080 @ 60 Hz; the Claude app frontmost (Room activated by `run-spike.sh`). Dev = `build/roomcore` (component `out/dev`, `//room` at `6429da8`); release = the Debug app over the official framework (`build/roomcore-release`, `RoomCoreCommit 6429da8`, `docs/laptop-build.md` §A step 3, 28 s). Builds and their times: `build-log.md` "Phase 4.4b".
+
+### The engine step
+
+| Run | Result |
+|---|---|
+| Dev incremental (`roomcore-build.sh`) | 98 s build (2 min 20 s with apply), then the deletion fix 54 s; "0 applied, 23 already" |
+| Baseline after the members (`build/evidence-4.4b/baseline-1`) | nav passed 18.4 s; ten-page quits **0.367 / 0.299 / 0.372 s** (load1 20.5 / 22.3 / 19.4), 0 helpers left, 0 crash reports |
+| Baseline after the deletion fix (`baseline-2`) | nav passed 17.9 s; quits **0.381 / 0.291 / 0.375 s** (load1 8.3 / 14.1 / 16.7), 0 helpers left, 0 crash reports |
+| Net-log, launch + 600 s idle + browse + quit (`ROOM_NETCHECK_IDLE=600 scripts/netlog-check.sh`, the dev app at `6429da8`, fresh state, first-run card shown; launch_idle → browse 600.3 s; load1 6.7 at launch, the official build running beside it) | Room's own code **0** (main process 0 bytes in/out; updater and crash reporter not created); page traffic 127.0.0.1 2 requests, localhost 4; **engine 0 requests**, 0 hosts besides the page's (`build/evidence-4.4b/netlog`) |
+| Context menu on a misspelled word (`ROOM_SL_ONLY=spelling scripts/session-lifecycle.sh`, dev, `build/evidence-4.4b/spelling`) | "Add to Dictionary \| — \| Look Up “misspeled” \| — \| Undo \| Redo \| — \| Cut \| Copy \| Paste \| — \| Search Google for “misspeled” \| Translate “misspeled” \| — \| Inspect \| — \| Speech": **no "Use Enhanced Spell Check"**. The 4.3b release framework the same minute: "Add to Dictionary \| Use Enhanced Spell Check \| …" (`spelling-release-old`). Neither offered the "misspelled" suggestion today (3.7b's run did): the macOS checker's answer, the same on the old framework |
+| Engine smoke (`-RoomSpike profiles -RoomSpikeOnly engine`, dev) | `deleteProfile` refused with a page open (`profileInUse("1 pages open")`), then **deleted in 285 ms**, the directory gone ("directory deleted after 2 attempt(s)"); Clear for the last hour 4 ms: the cookie gone, this hour's visit gone, an imported visit 3 h old kept; `contentSettings(.notifications)` = `http://127.0.0.1:8766=block` (origin `http://127.0.0.1:8766/`, not embedded), the page reads `notifications: denied`, reset → listed 0, `prompt` |
+
+**Found on the way (B-87):** the first deletion took **177 s**: Chrome unloaded the profile at once (`RemoveKeepAlive … keep_alives=[]`, "Unloading profile" in the same millisecond, `--vmodule=profile_manager=1`), but its `NukeProfileFromDisk` retries run at best-effort priority, and Chrome holds best-effort work until its startup is complete, which a Room window never signals: the 3-minute fallback released them (the new profile's README written and the extension updater's keep-alive at the same second). `room::DeleteProfileDirectory` now deletes at user-visible priority after `OnProfileWillBeDestroyed`, retrying every 250 ms: 2 attempts, 285 ms.
+
+Translate and generation (B-63, B-72): `//room` sets no API key and enables no translate or generation feature (grep over `Engine/roomcore/room` and `args/`: only the ranker features disabled in 3.1b-2 and the translate client's wiring); nothing added.
+
+### Tour steps `settings2` (new) and `settings` (B-86's engine-side copy)
+
+| Run | Build | load1 | Checks | Tour directory |
+|---|---|---|---|---|
+| `settings`, `settings2` | dev | 7.00 | **32 / 32, 26 / 26** | `build/grand-tour/20261006-223230-roomcore` |
+| `settings`, `settings2` | release framework (`ROOM_TOUR_APP`) | 11.67 | **32 / 32, 26 / 26** | `build/grand-tour/20261006-223416-roomcore` |
+| `settings2` after the Privacy list's refresh on appear | dev | — | **25 / 26**: the cookie read right after Clear was still `room_profile=work` | `20261006-223903-roomcore` |
+| `settings2`, the cookie read 1 s after Clear from a new page (three runs) | dev | — | **26 / 26 ×3** (`cookie=""` each) | `20261006-224027`, `-224110`, `-224146` |
+| `settings2`, the final code | release framework | 8.50 | **26 / 26** (Clear 6 ms, delete 324 ms) | `20261006-224237-roomcore` |
+
+0 crash reports in every step. The one 25 / 26: Clear had returned (BrowsingDataRemover's reply, 5 ms) but a new page of the site, in the renderer still holding the site's earlier page, read the cookie from that renderer's cookie cache, which the network service's change notice refreshes a moment later; the step now reads the jar from a page loaded 1 s after the Clear (Chrome behaves the same; a page loaded later sees the jar). The `settings2` result lines (identical on both builds but for ids and timings):
+
+- `set`: a profile Work with a space Office; the spaces reordered as Settings' rows move them (`up=["Office", "Space"] back=["Space", "Office"] positions=[0, 1]`); the 2.5 fixture's cookie in Office: `room_profile=work`, Work's engine profile named by its id; **renamed** to "Office Profile" through Settings' path (an empty name refused "A profile needs a name."; the space keeps the profile); the directory is `Room Profile <work id>` (nothing moved by the rename); a space's Routing… opens the sheet over Settings with a new rule targeting Office.
+- Between the launches the wrapper puts Work's directory back as `Room Profile Office Profile` and Local State's `last_used` with it (a pre-4.4b state).
+- `verify`: **moved at launch** `Room Profile Office Profile → Room Profile <work id>`, Local State updated, `last_used=Room Profile <work id>`, no directory left or re-made under the old name; **the cookie after the relaunch `room_profile=work`**.
+- Clear browsing data, last hour, history + cookies, Work only (the sheet's path): before `fresh=true old=true`, **after `fresh=false old=true`, cookie `""`**, **5 ms dev / 6 ms release**; the toast "Cleared history and cookies from the last hour in “Office Profile”".
+- Permission through Settings' path: `contentSettings` lists `http://127.0.0.1:8766=block`; **permissions.html reads `notifications: denied`**; Reset → listed 0, the page reads `prompt` (geolocation stays `prompt` on both: macOS's location authorization, B-26).
+- Delete: a profile Doomed with a space, a pinned tab and a Today tab, both loaded: counts 1 space, 2 tabs; **deleted in 316 ms dev / 317 ms release** (pages closed, the engine's deletion included), the directory gone, **2 of 2 entries in the Archive** (`spaceDeleted`), profile and space gone, 2 engine profiles left, the shown space Space; deleting Default refused ("the Default profile stays").
+- The palette: 8 "Settings ▸ …" commands; Settings ▸ Privacy's command shows the window with the title Privacy.
+- All Site Data… (the bounded attempt): `chrome://settings/content/all` loads in a Room tab, title "Settings - All sites", alive, `settings-ui` with its shadow root, the viewport drawn (7 grey levels in a 40 × 40 grid); the capture shows "All sites … Sites you visit will appear here" (B-88).
+- `settings`: unchanged lines; `reserved_remap`: ⇧⌘T reaches the page, **⌥⌘T never does and reopens once** with the fresh copy now made by `RoomCoreWebContents` (B-86).
+
+Unit tier with `CI=1`: Engine 66, Store 49, Tabs 71, Model 105, Chrome 55, Omnibox 51, UIKitCore 55, all passing; the engine-free CI build and its tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED in 69 s.
+
+Evidence for the reviewer: `research/screenshots/phase-4.4b/` (Settings ▸ Spaces with the renamed profile, Settings ▸ Privacy with the listed permission and the statements, Chromium's All sites page in a Room tab; light, dev).
