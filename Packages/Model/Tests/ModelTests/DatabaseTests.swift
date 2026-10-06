@@ -5,11 +5,11 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 to v6 apply in order; v6 leaves no Chapter 2 history table behind")
+    @Test("v1 to v7 apply in order; v6 leaves no Chapter 2 history table behind")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
-        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon", "kv"]
+        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon", "kv", "archive"]
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let history = try queue.read { db in
@@ -17,7 +17,7 @@ struct SchemaTests {
         }
         #expect(history.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6, Schema.v7])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }
@@ -157,6 +157,75 @@ struct SchemaTests {
         #expect(try queue.read { db in try Entry.fetchOne(db, key: entry.id) }?.navigationState == Data([0, 1, 2, 255]))
     }
 
+    @Test("v7 adds an empty archive and keeps every entry; an archived row written after it round-trips with its navigation state")
+    func v7Archive() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let queue = try DatabaseQueue(path: directory.url.appending(path: "Room.sqlite").path)
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v6)
+        let profile = Profile(name: "P", position: 0)
+        let space = Space(name: "S", profileID: profile.id, position: 0)
+        let entry = Entry(kind: .today, spaceID: space.id, profileID: profile.id, liveURL: "https://a.example/", liveTitle: "A",
+                          navigationState: Data([1, 2, 3]))
+        try queue.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            try entry.insert(db)
+        }
+        #expect(try queue.read { db in try db.tableExists("archive") } == false)
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+        #expect(try queue.read { db in try Entry.fetchOne(db, key: entry.id) } == entry)
+        #expect(try queue.read { db in try ArchivedEntry.fetchCount(db) } == 0)
+        let columns = try queue.read { db in try db.columns(in: "archive").map(\.name) }
+        #expect(Set(columns) == ["id", "url", "title", "faviconID", "spaceID", "profileID", "archivedAt", "reason", "navigationState"])
+        // A row for a space that no longer exists is allowed (no foreign key: B-15).
+        let row = try #require(ArchivedEntry(entry, reason: .spaceDeleted, at: Timestamp(milliseconds: 9_000)))
+        var gone = row
+        gone.id = UUID()
+        gone.spaceID = UUID()
+        try queue.write { db in
+            try row.insert(db)
+            try gone.insert(db)
+        }
+        let read = try queue.read { db in try ArchivedEntry.fetchOne(db, key: entry.id) }
+        #expect(read == row && read?.navigationState == Data([1, 2, 3]) && read?.reason == .spaceDeleted)
+        #expect(read?.url == "https://a.example/" && read?.title == "A")
+        // The reason is one of the five.
+        #expect(throws: DatabaseError.self) {
+            try queue.write { db in
+                try db.execute(sql: "UPDATE archive SET reason = 'lost' WHERE id = ?", arguments: [entry.id])
+            }
+        }
+    }
+
+    @Test("A folder or an entry without a URL has no archive row")
+    func archiveRowNeedsAURL() {
+        let profile = UUID(), space = UUID()
+        #expect(ArchivedEntry(Entry(kind: .folder, spaceID: space, profileID: profile, customLabel: "F"), reason: .manual, at: .now) == nil)
+        #expect(ArchivedEntry(Entry(kind: .today, spaceID: space, profileID: profile), reason: .manual, at: .now) == nil)
+        let pinned = Entry(kind: .pinned, spaceID: space, profileID: profile, storedURL: "https://s.example/", storedTitle: "S")
+        #expect(ArchivedEntry(pinned, reason: .spaceDeleted, at: .now)?.url == "https://s.example/")
+    }
+
+    @Test("A JSON snapshot from before v7 decodes with an empty archive; snapshots leave the archive out")
+    func snapshotWithoutArchive() throws {
+        var state = sampleState()
+        let entry = try #require(state.entries.first { $0.kind == .today })
+        state.archive = [try #require(ArchivedEntry(entry, reason: .auto, at: Timestamp(milliseconds: 1)))]
+        let encoded = try StateSnapshot(generation: 3, state: state).encoded()
+        var object = try #require(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var inner = try #require(object["state"] as? [String: Any])
+        #expect((inner["archive"] as? [Any])?.isEmpty == true)
+        inner["archive"] = nil
+        object["state"] = inner
+        let decoded = try JSONDecoder().decode(StateSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
+        var expected = state
+        expected.archive = []
+        #expect(decoded.state.canonical() == expected.canonical())
+    }
+
     @Test("A JSON snapshot from before v5 decodes with no navigation state")
     func entryDecodesWithoutNavigationState() throws {
         let entry = Entry(kind: .pinned, spaceID: UUID(), profileID: UUID(), storedURL: "https://a.example/")
@@ -267,6 +336,35 @@ struct StateWriterTests {
         // Settings v0 (ROADMAP 2.8 task 2).
         #expect(loaded.state.settings == state.settings)
         #expect(loaded.state.settings.sidebarSide == .right && loaded.state.settings.appearance == .dark)
+    }
+
+    @Test("The archive is written with the state: rows inserted, updated and deleted in the same transaction as the entries")
+    func archiveDiff() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let database = try RoomDatabase(url: directory.url.appending(path: "Room.sqlite"))
+        let writer = StateWriter(database: database, snapshotURL: nil, committed: RoomState(), generation: 0)
+        var state = sampleState()
+        try writer.writeAndWait(state, generation: 1)
+        // The Today tab leaves the sidebar for the archive in one write.
+        let today = try #require(state.entries.first { $0.kind == .today })
+        state.entries.removeAll { $0.id == today.id }
+        state.splitGroups = []
+        for i in state.windowSpaces.indices where state.windowSpaces[i].selectedEntryID == today.id {
+            state.windowSpaces[i].selectedEntryID = nil
+        }
+        state.archive = [try #require(ArchivedEntry(today, reason: .clear, at: Timestamp(milliseconds: 7_000)))]
+        try writer.writeAndWait(state, generation: 2)
+        var loaded = try database.loadState().state
+        #expect(loaded.entries.contains { $0.id == today.id } == false)
+        #expect(loaded.archive == state.archive)
+        // Restore: the row goes, the entry comes back.
+        state.archive = []
+        state.entries.append(today)
+        state.entries[state.entries.count - 1].splitGroupID = nil
+        try writer.writeAndWait(state, generation: 3)
+        loaded = try database.loadState().state
+        #expect(loaded.archive.isEmpty && loaded.entries.contains { $0.id == today.id })
     }
 
     @Test("Diffs: updates, inserts and deletes land; untouched rows stay")

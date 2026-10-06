@@ -65,7 +65,7 @@ public final class RoomStore {
         RoomState(
             profiles: sidebar.profiles, spaces: sidebar.spaces, entries: sidebar.stateEntries,
             splitGroups: Array(sidebar.splitGroups.values), windows: windows.windows,
-            windowSpaces: windows.stateWindowSpaces, settings: settings.settings)
+            windowSpaces: windows.stateWindowSpaces, settings: settings.settings, archive: Array(sidebar.archive.values))
     }
 
     /// Writes now and waits (window close).

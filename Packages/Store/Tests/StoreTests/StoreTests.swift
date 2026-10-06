@@ -545,6 +545,110 @@ struct SidebarStoreTests {
     }
 }
 
+@Suite("Store: the Archive (schema v7, spec §A.7 and §H)")
+struct ArchiveStoreTests {
+    let test: TestStore
+    var store: RoomStore { test.store }
+    let space: Space
+    let profile: Profile
+    var sidebar: SidebarStore { store.sidebar }
+
+    init() throws {
+        test = try TestStore()
+        space = try #require(test.store.sidebar.spaces.first)
+        profile = try #require(test.store.sidebar.profiles.first)
+    }
+
+    @Test("Archive removes the entry and writes its row with the reason and the navigation state; it survives a relaunch")
+    func archiveWritesRow() throws {
+        sidebar.clock = { Timestamp(milliseconds: 1_000_000) }
+        let tab = try sidebar.addEntry(.today, url: "https://a.example/page", title: "A", space: space.id)
+        try sidebar.setNavigationState(tab.id, Data([9, 8, 7]))
+        let other = try sidebar.addEntry(.today, url: "https://b.example/", space: space.id)
+        let removed = sidebar.archive([tab.id], reason: .manual)
+        #expect(removed.map(\.entry.id) == [tab.id])
+        #expect(sidebar.entry(tab.id) == nil && sidebar.entry(other.id) != nil)
+        let row = try #require(sidebar.archive[tab.id])
+        #expect(row.url == "https://a.example/page" && row.title == "A" && row.reason == .manual && row.spaceID == space.id)
+        #expect(row.archivedAt == Timestamp(milliseconds: 1_000_000) && row.navigationState == Data([9, 8, 7]))
+        #expect(sidebar.archivedCount == 1 && sidebar.archivedCount(reason: .manual) == 1)
+        store.close()
+        let reopened = try test.reopen().sidebar
+        #expect(reopened.archive[tab.id] == row)
+    }
+
+    @Test("Restore puts the row back at the top of its space as a Today tab and deletes the row")
+    func restoreToItsSpace() throws {
+        let first = try sidebar.addEntry(.today, url: "https://first.example/", space: space.id)
+        let tab = try sidebar.addEntry(.today, url: "https://a.example/", title: "A", space: space.id)
+        try sidebar.setNavigationState(tab.id, Data([1]))
+        sidebar.archive([tab.id], reason: .auto)
+        sidebar.clock = { Timestamp(milliseconds: 5_000) }
+        let restored = try sidebar.restore(archived: tab.id, activeSpace: nil)
+        #expect(sidebar.today(space: space.id).map(\.id) == [restored.id, first.id])
+        #expect(restored.kind == .today && restored.liveURL == "https://a.example/" && restored.liveTitle == "A")
+        #expect(restored.navigationState == Data([1]), "back/forward comes back")
+        #expect(restored.lastActiveAt == Timestamp(milliseconds: 5_000), "the next sweep does not take it again")
+        #expect(sidebar.archive.isEmpty)
+        #expect(throws: SidebarError.unknownEntry(tab.id)) { try sidebar.restore(archived: tab.id, activeSpace: nil) }
+    }
+
+    @Test("A row whose space is gone restores to the active space, in that space's profile")
+    func restoreWhenSpaceGone() throws {
+        let work = sidebar.createProfile(name: "Work")
+        let other = try sidebar.createSpace(name: "Other", profile: profile.id)
+        let elsewhere = try sidebar.createSpace(name: "Elsewhere", profile: work.id)
+        let tab = try sidebar.addEntry(.today, url: "https://gone.example/", space: other.id)
+        try sidebar.deleteSpace(other.id)
+        #expect(sidebar.archive[tab.id]?.reason == .spaceDeleted)
+        let restored = try sidebar.restore(archived: tab.id, activeSpace: elsewhere.id)
+        #expect(restored.spaceID == elsewhere.id && restored.profileID == work.id)
+        #expect(sidebar.today(space: elsewhere.id).first?.id == restored.id)
+    }
+
+    @Test("Clear writes its tabs to the Archive (reason clear); Undo puts them back in order and takes the rows out")
+    func clearGoesThroughTheArchive() throws {
+        let tabs = try (0..<4).map { try sidebar.addEntry(.today, url: "https://t.example/\($0)", space: space.id) }
+        let removed = sidebar.clearToday(space: space.id)
+        #expect(sidebar.archivedCount(reason: .clear) == 4)
+        sidebar.restore(removed)
+        #expect(sidebar.today(space: space.id).map(\.id) == tabs.map(\.id))
+        #expect(sidebar.archive.isEmpty)
+    }
+
+    @Test("Deleting a space archives its entries with a page (B-15); its Undo takes them back out")
+    func deleteSpaceArchives() throws {
+        let other = try sidebar.createSpace(name: "Other", profile: profile.id)
+        let folder = try sidebar.addFolder(name: "F", space: other.id)
+        let pinned = try sidebar.addEntry(.pinned, url: "https://p.example/", title: "P", space: other.id, folder: folder.id)
+        let tab = try sidebar.addEntry(.today, url: "https://t.example/", space: other.id)
+        let removed = try sidebar.deleteSpace(other.id)
+        #expect(Set(sidebar.archive.keys) == [pinned.id, tab.id], "the folder has no row")
+        #expect(sidebar.archivedCount(reason: .spaceDeleted) == 2)
+        sidebar.restoreSpace(removed)
+        #expect(sidebar.archive.isEmpty && sidebar.entry(pinned.id) != nil && sidebar.entry(tab.id) != nil)
+    }
+
+    @Test("Archive Below's undo keeps the order; the queries group by day and match text")
+    func archiveBelowAndQueries() throws {
+        let tabs = try (0..<4).map { try sidebar.addEntry(.today, url: "https://site\($0).example/", title: "Tab \($0)", space: space.id) }
+        sidebar.clock = { Timestamp(milliseconds: 86_400_000 * 10 + 3_600_000) }
+        let removed = sidebar.archive([tabs[2].id, tabs[3].id], reason: .manual)
+        sidebar.clock = { Timestamp(milliseconds: 86_400_000 * 11 + 3_600_000) }
+        sidebar.archive([tabs[0].id], reason: .manual)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let days = sidebar.archivedByDay(calendar: utc)
+        #expect(days.map(\.rows.count) == [1, 2], "newest day first")
+        #expect(sidebar.archivedEntries(matching: "SITE3").map(\.id) == [tabs[3].id])
+        #expect(sidebar.archivedEntries(matching: "tab site2").map(\.id) == [tabs[2].id])
+        sidebar.restore(removed)
+        #expect(sidebar.today(space: space.id).map(\.id) == [tabs[1].id, tabs[2].id, tabs[3].id])
+        sidebar.deleteArchived([tabs[0].id])
+        #expect(sidebar.archive.isEmpty)
+    }
+}
+
 @Suite("Store: split groups (spec §D)")
 struct SplitGroupStoreTests {
     let test: TestStore

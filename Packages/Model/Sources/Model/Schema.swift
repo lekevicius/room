@@ -25,6 +25,10 @@ public enum Schema {
     /// `history-archive.json` beside the database first (`HistoryArchive`, B-66).
     public static let v6 = "v6-drop-local-history"
 
+    /// Phase 4.1a: the Archive (spec §A.7, §H): Today tabs the sweep aged
+    /// out, Clear's tabs, a deleted space's entries, manual archiving.
+    public static let v7 = "v7-archive"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
@@ -33,6 +37,7 @@ public enum Schema {
         migrator.registerMigration(v4, migrate: createV4)
         migrator.registerMigration(v5, migrate: createV5)
         migrator.registerMigration(v6, migrate: createV6)
+        migrator.registerMigration(v7, migrate: createV7)
         return migrator
     }
 
@@ -189,6 +194,25 @@ public enum Schema {
         try db.execute(sql: "DROP TABLE IF EXISTS history_visit")
         try db.execute(sql: "DROP TABLE IF EXISTS history_host")
         try db.execute(sql: "DROP TABLE IF EXISTS history_url")
+    }
+
+    /// `archive`: one row per archived tab. `spaceID` and `profileID` carry
+    /// no foreign key: a row outlives its space (B-15: deleting a space
+    /// archives its entries) and, from 4.4b, its profile. `navigationState`
+    /// is the entry's, so a restore keeps back/forward.
+    static func createV7(_ db: Database) throws {
+        try db.create(table: "archive") { t in
+            t.primaryKey("id", .blob)
+            t.column("url", .text).notNull()
+            t.column("title", .text)
+            t.column("faviconID", .integer)
+            t.column("spaceID", .blob)
+            t.column("profileID", .blob).notNull()
+            t.column("archivedAt", .integer).notNull().indexed()
+            t.column("reason", .text).notNull()
+                .check { ["auto", "clear", "spaceDeleted", "windowClosed", "manual"].contains($0) }
+            t.column("navigationState", .blob)
+        }
     }
 
     static func createV1(_ db: Database) throws {

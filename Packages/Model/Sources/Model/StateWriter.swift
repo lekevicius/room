@@ -106,6 +106,7 @@ public final class StateWriter: Sendable {
         try sync(old.entries, new.entries, in: db)
         try sync(old.windows, new.windows, in: db)
         try syncWindowSpaces(old.windowSpaces, new.windowSpaces, in: db)
+        try syncArchive(old.archive, new.archive, in: db)
         if old.settings != new.settings {
             let json = String(decoding: try JSONEncoder().encode(new.settings), as: UTF8.self)
             try db.execute(sql: "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", arguments: [KVKey.settings, json])
@@ -123,6 +124,24 @@ public final class StateWriter: Sendable {
         }
         let removed = before.keys.filter { !seen.contains($0) }
         if !removed.isEmpty { _ = try Record.deleteAll(db, keys: removed) }
+    }
+
+    /// Archive rows are written once and never edited (a restore deletes the
+    /// row; archiving the entry again makes a new one), so rows compare by
+    /// their small columns: the navigation-state blobs of thousands of rows
+    /// are not compared on every write.
+    private static func syncArchive(_ old: [ArchivedEntry], _ new: [ArchivedEntry], in db: Database) throws {
+        let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        var seen = Set<UUID>()
+        for row in new {
+            seen.insert(row.id)
+            if let previous = before[row.id], previous.archivedAt == row.archivedAt, previous.reason == row.reason,
+               previous.url == row.url, previous.title == row.title, previous.spaceID == row.spaceID,
+               previous.profileID == row.profileID, previous.faviconID == row.faviconID { continue }
+            try row.upsert(db)
+        }
+        let removed = before.keys.filter { !seen.contains($0) }
+        if !removed.isEmpty { _ = try ArchivedEntry.deleteAll(db, keys: removed) }
     }
 
     private static func syncWindowSpaces(_ old: [WindowSpace], _ new: [WindowSpace], in db: Database) throws {
@@ -157,7 +176,13 @@ public struct StateSnapshot: Codable, Sendable, Equatable {
     public func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        return try encoder.encode(StateSnapshot(generation: generation, state: state.canonical()))
+        // The archive stays out of the snapshot: it only grows, every row may
+        // carry a navigation state, and the snapshot is rewritten after every
+        // commit (B-73's cost). A recovery from the snapshot starts with an
+        // empty Archive; the database backups (4.1b) keep it.
+        var state = state.canonical()
+        state.archive = []
+        return try encoder.encode(StateSnapshot(generation: generation, state: state))
     }
 
     public static func read(from url: URL) throws -> StateSnapshot {

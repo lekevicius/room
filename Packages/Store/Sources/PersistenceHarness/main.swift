@@ -38,6 +38,14 @@ func hash(_ state: RoomState) -> String {
     return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
 
+/// The JSON snapshot leaves the Archive out (schema v7, 4.1a): it is checked
+/// against the state's hash without it.
+func snapshotHash(_ state: RoomState) -> String {
+    var state = state
+    state.archive = []
+    return hash(state)
+}
+
 /// Deterministic random numbers (SplitMix64).
 struct SeededGenerator: RandomNumberGenerator {
     var state: UInt64
@@ -61,7 +69,7 @@ final class HashLogger: StateWriterObserver {
     private let started = Mutex<ContinuousClock.Instant?>(nil)
 
     func stateWriter(willWrite state: RoomState, generation: Int64) {
-        emit("begin \(generation) \(hash(state))")
+        emit("begin \(generation) \(hash(state)) \(snapshotHash(state))")
         started.withLock { $0 = .now }
     }
 
@@ -136,8 +144,13 @@ final class Mutator {
                     try sidebar.markActive(entry.id)
                     store.windows.select(entry.id, space: entry.spaceID ?? space.id, window: window)
                 }
-            case 72..<84:
+            case 72..<80:
                 if let entry { try sidebar.remove(entry.id) }
+            case 80..<82:
+                // "Archive" (schema v7): the entry leaves for the Archive in the same write.
+                if let entry { sidebar.archive([entry.id], reason: .manual) }
+            case 82..<84:
+                if let row = pick(Array(sidebar.archive.keys)) { try sidebar.restore(archived: row, activeSpace: space.id) }
             case 84..<86:
                 let removed = sidebar.clearToday(space: space.id)
                 if Bool.random(using: &random) { sidebar.restore(removed) }
@@ -191,6 +204,8 @@ final class WriterLog: Sendable {
         var buffer = Data()
         var ready = false
         var begins: [Int64: String] = [:]
+        /// The same state's hash without the Archive (the snapshot's content).
+        var snapshotBegins: [Int64: String] = [:]
         var lastBegin: Int64 = 0
         var lastCommit: Int64?
         var commitMicros: [Int] = []
@@ -209,9 +224,10 @@ final class WriterLog: Sendable {
                 let parts = line.split(separator: " ")
                 switch parts.first {
                 case "ready": state.ready = true
-                case "begin" where parts.count == 3:
+                case "begin" where parts.count == 4:
                     let generation = Int64(parts[1])!
                     state.begins[generation] = String(parts[2])
+                    state.snapshotBegins[generation] = String(parts[3])
                     state.lastBegin = max(state.lastBegin, generation)
                 case "commit" where parts.count == 3:
                     state.lastCommit = max(state.lastCommit ?? 0, Int64(parts[1])!)
@@ -262,7 +278,9 @@ func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outc
         let violations = try opened.database.foreignKeyViolations()
         guard violations == 0 else { return .failure(Failure(description: "\(violations) foreign-key violations")) }
     } catch { return .failure(Failure(description: "check failed: \(error)")) }
-    let (begins, lastCommit, lastBegin) = log.state.withLock { ($0.begins, $0.lastCommit, $0.lastBegin) }
+    let (begins, snapshotBegins, lastCommit, lastBegin) = log.state.withLock {
+        ($0.begins, $0.snapshotBegins, $0.lastCommit, $0.lastBegin)
+    }
     let generation = opened.generation
     if let lastCommit, generation < lastCommit {
         return .failure(Failure(description: "generation \(generation) on disk, but \(lastCommit) was acknowledged", behindAck: true))
@@ -281,7 +299,7 @@ func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outc
         guard snapshot.generation == generation || snapshot.generation == generation - 1 else {
             return .failure(Failure(description: "snapshot generation \(snapshot.generation) vs database \(generation)"))
         }
-        guard begins[snapshot.generation] == hash(snapshot.state) else { return .failure(Failure(description: "snapshot content mismatch")) }
+        guard snapshotBegins[snapshot.generation] == hash(snapshot.state) else { return .failure(Failure(description: "snapshot content mismatch")) }
         snapshotGeneration = snapshot.generation
     }
     return .success(Outcome(dbGeneration: generation, lastAcked: lastCommit, lastBegun: lastBegin,
@@ -361,7 +379,9 @@ func runDriver() -> Never {
     let aheadOfAck = outcomes.filter { $0.dbGeneration > ($0.lastAcked ?? 0) }.count
     let snapshotBehind = outcomes.filter { outcome in outcome.snapshotGeneration.map { $0 < outcome.dbGeneration } ?? false }.count
     let size = ((try? FileManager.default.attributesOfItem(atPath: directory.appending(path: RoomStorage.databaseName).path)[.size]) as? Int) ?? 0
-    let entries = (try? RoomStorage(directory: directory).open().state.entries.count) ?? -1
+    let finalState = try? RoomStorage(directory: directory).open().state
+    let entries = finalState?.entries.count ?? -1
+    let archived = finalState?.archive.count ?? -1
     func percentile(_ p: Double) -> Double {
         micros.isEmpty ? 0 : Double(micros[min(micros.count - 1, Int(Double(micros.count) * p))]) / 1000
     }
@@ -370,7 +390,7 @@ func runDriver() -> Never {
       kills with a transaction in flight: \(midWrite) (rolled back to the previous generation: \(rolledBack))
       reopened ahead of the last ack (committed, ack not yet read; informational): \(aheadOfAck)
       reopened behind the last ack (an acknowledged write lost): \(behindAck)
-      final generation \(outcomes.last?.dbGeneration ?? 0), \(log.state.withLock { $0.commitMicros.count }) commits, \(entries) entries, database \(size / 1024) KB
+      final generation \(outcomes.last?.dbGeneration ?? 0), \(log.state.withLock { $0.commitMicros.count }) commits, \(entries) entries, \(archived) archived, database \(size / 1024) KB
       commit time median \(percentile(0.5)) ms, p95 \(percentile(0.95)) ms, max \(percentile(1)) ms
       snapshots one generation behind the database: \(snapshotBehind)
     """)

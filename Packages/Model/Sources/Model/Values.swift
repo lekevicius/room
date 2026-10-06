@@ -301,6 +301,73 @@ public struct Favicon: Hashable, Sendable, Codable, Identifiable, FetchableRecor
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
+/// Why an entry left the sidebar for the Archive (schema v7, Phase 4.1a).
+public enum ArchiveReason: String, Hashable, Sendable, Codable, CaseIterable, DatabaseValueConvertible {
+    /// The sweep: a Today tab untouched for `Settings.archiveAfterHours` (spec §A.7).
+    case auto
+    /// Clear (⇧⌘K).
+    case clear
+    /// Its space was deleted (B-15).
+    case spaceDeleted
+    /// Its window closed (Today tabs per window, 4.8a).
+    case windowClosed
+    /// "Archive" / "Archive Below" in the context menu.
+    case manual
+}
+
+/// One archived tab (spec §A.7, §H): what the Library lists and Restore
+/// brings back as a Today tab of its space. The id is the entry's id, so an
+/// Undo or ⇧⌘T that puts the entry back finds its row.
+public struct ArchivedEntry: Hashable, Sendable, Codable, Identifiable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "archive"
+
+    public var id: UUID
+    public var url: String
+    public var title: String?
+    /// Row in `favicon` (a cache, as on `Entry`).
+    public var faviconID: Int64?
+    /// The space it was in; `nil` for an essential, or a space that was
+    /// deleted later (restore then goes to the active space).
+    public var spaceID: UUID?
+    public var profileID: UUID
+    public var archivedAt: Timestamp
+    public var reason: ArchiveReason
+    /// The entry's back/forward list (`Entry.navigationState`), so a restore
+    /// goes Back where the tab was.
+    public var navigationState: Data?
+
+    public init(id: UUID = UUID(), url: String, title: String? = nil, faviconID: Int64? = nil, spaceID: UUID?,
+                profileID: UUID, archivedAt: Timestamp, reason: ArchiveReason, navigationState: Data? = nil) {
+        self.id = id
+        self.url = url
+        self.title = title
+        self.faviconID = faviconID
+        self.spaceID = spaceID
+        self.profileID = profileID
+        self.archivedAt = archivedAt
+        self.reason = reason
+        self.navigationState = navigationState
+    }
+
+    /// The row for `entry`, or `nil` when it has nothing to bring back (a
+    /// folder, or an entry that never had a URL).
+    public init?(_ entry: Entry, reason: ArchiveReason, at time: Timestamp) {
+        guard entry.kind != .folder, let url = entry.currentURL, !url.isEmpty else { return nil }
+        self.init(id: entry.id, url: url, title: entry.customLabel ?? entry.liveTitle ?? entry.storedTitle,
+                  faviconID: entry.faviconID, spaceID: entry.spaceID, profileID: entry.profileID, archivedAt: time,
+                  reason: reason, navigationState: entry.navigationState)
+    }
+
+    /// The row's title, else its URL.
+    public var displayTitle: String { title.flatMap { $0.isEmpty ? nil : $0 } ?? url }
+
+    /// The URL's host without "www." (the Library's domain column).
+    public var domain: String {
+        guard let host = URL(string: url)?.host() else { return url }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+}
+
 /// Spec §A.3 `sidebar.permanentCloseBehavior` (Zen's values).
 public enum PermanentCloseBehavior: String, Hashable, Sendable, Codable, CaseIterable {
     case resetUnloadSwitch = "reset-unload-switch"
@@ -409,10 +476,15 @@ public struct RoomState: Hashable, Sendable, Codable {
     public var windows: [WindowState] = []
     public var windowSpaces: [WindowSpace] = []
     public var settings = Settings()
+    /// The Archive (schema v7). Written with the state, so archiving an entry
+    /// and removing it land in one transaction; left out of the JSON
+    /// snapshot (`StateSnapshot.encoded`).
+    public var archive: [ArchivedEntry] = []
 
     public init(
         profiles: [Profile] = [], spaces: [Space] = [], entries: [Entry] = [], splitGroups: [SplitGroup] = [],
-        windows: [WindowState] = [], windowSpaces: [WindowSpace] = [], settings: Settings = Settings()
+        windows: [WindowState] = [], windowSpaces: [WindowSpace] = [], settings: Settings = Settings(),
+        archive: [ArchivedEntry] = []
     ) {
         self.profiles = profiles
         self.spaces = spaces
@@ -421,6 +493,25 @@ public struct RoomState: Hashable, Sendable, Codable {
         self.windows = windows
         self.windowSpaces = windowSpaces
         self.settings = settings
+        self.archive = archive
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case profiles, spaces, entries, splitGroups, windows, windowSpaces, settings, archive
+    }
+
+    /// Snapshots written before v7 (and every snapshot since: the archive is
+    /// left out of them) have no `archive`.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        profiles = try container.decode([Profile].self, forKey: .profiles)
+        spaces = try container.decode([Space].self, forKey: .spaces)
+        entries = try container.decode([Entry].self, forKey: .entries)
+        splitGroups = try container.decode([SplitGroup].self, forKey: .splitGroups)
+        windows = try container.decode([WindowState].self, forKey: .windows)
+        windowSpaces = try container.decode([WindowSpace].self, forKey: .windowSpaces)
+        settings = try container.decode(Settings.self, forKey: .settings)
+        archive = try container.decodeIfPresent([ArchivedEntry].self, forKey: .archive) ?? []
     }
 
     public var isEmpty: Bool { profiles.isEmpty }
@@ -435,6 +526,7 @@ public struct RoomState: Hashable, Sendable, Codable {
         copy.splitGroups.sort { $0.id.uuidString < $1.id.uuidString }
         copy.windows.sort { $0.id.uuidString < $1.id.uuidString }
         copy.windowSpaces.sort { ($0.windowID.uuidString, $0.spaceID.uuidString) < ($1.windowID.uuidString, $1.spaceID.uuidString) }
+        copy.archive.sort { $0.id.uuidString < $1.id.uuidString }
         return copy
     }
 

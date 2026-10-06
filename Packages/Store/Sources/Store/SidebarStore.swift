@@ -39,6 +39,8 @@ public struct SidebarChange: Equatable, Sendable {
     /// Spaces or profiles were added, removed, reordered or edited.
     public var spaces: Set<UUID> = []
     public var removedSpaces: Set<UUID> = []
+    /// The Archive gained or lost rows (the Library and the palette reload).
+    public var archive = false
 
     public var isEmpty: Bool { self == SidebarChange() }
 }
@@ -64,8 +66,9 @@ public struct RemovedEntry: Equatable, Sendable {
     public var index: Int
 }
 
-/// A deleted space with everything it held, for Undo (spec §B; B-15: the
-/// Archive that keeps them is Chapter 4.1, an Undo toast until then).
+/// A deleted space with everything it held, for Undo (spec §B). Its entries
+/// are in the Archive too (reason `spaceDeleted`, B-15); Undo takes them back
+/// out.
 public struct RemovedSpace: Equatable, Sendable {
     public var space: Space
     public var index: Int
@@ -95,17 +98,21 @@ public final class SidebarStore {
     public private(set) var spaces: [Space]
     public private(set) var entries: [UUID: Entry]
     public private(set) var splitGroups: [UUID: SplitGroup]
+    /// The Archive (schema v7, spec §A.7 and §H), by id (the archived entry's id).
+    public private(set) var archive: [UUID: ArchivedEntry]
 
     @ObservationIgnored private var containers: [Container: [UUID]] = [:]
     @ObservationIgnored private var observers: [UUID: (SidebarChange) -> Void] = [:]
     @ObservationIgnored weak var persistence: Persistence?
-    @ObservationIgnored let clock: () -> Timestamp
+    /// The store's clock (tests inject one; DEBUG `-RoomClock` sets it in the app).
+    @ObservationIgnored public var clock: () -> Timestamp
 
     init(state: RoomState, clock: @escaping () -> Timestamp = { .now }) {
         profiles = state.profiles.sorted { $0.position < $1.position }
         spaces = state.spaces.sorted { $0.position < $1.position }
         entries = Dictionary(state.entries.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         splitGroups = Dictionary(state.splitGroups.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        archive = Dictionary(state.archive.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         self.clock = clock
         let grouped = Dictionary(grouping: entries.values, by: \.container)
         for (container, members) in grouped {
@@ -266,9 +273,10 @@ public final class SidebarStore {
         commit(SidebarChange(spaces: Set(spaces.map(\.id))))
     }
 
-    /// Deletes a space with its pinned entries and Today tabs (the Archive
-    /// that keeps them is Chapter 4.1). The last space cannot be deleted.
-    /// Returns what it removed, for `restoreSpace` (Undo).
+    /// Deletes a space with its pinned entries and Today tabs; every entry
+    /// with a page goes to the Archive (reason `spaceDeleted`, B-15). The
+    /// last space cannot be deleted. Returns what it removed, for
+    /// `restoreSpace` (Undo).
     @discardableResult
     public func deleteSpace(_ id: UUID) throws(SidebarError) -> RemovedSpace {
         guard let index = spaces.firstIndex(where: { $0.id == id }) else { throw .unknownSpace(id) }
@@ -277,7 +285,9 @@ public final class SidebarStore {
                                    splitGroups: [])
         let groupsBefore = splitGroups
         var change = SidebarChange()
+        let now = clock()
         for entry in entries.values where entry.spaceID == id {
+            addArchiveRow(entry, reason: .spaceDeleted, at: now, change: &change)
             entries[entry.id] = nil
             change.removedEntries.insert(entry.id)
         }
@@ -320,6 +330,7 @@ public final class SidebarStore {
             change.containers.insert(entry.container)
         }
         for container in change.containers { renumber(container, change: &change) }
+        for entry in removed.entries where archive.removeValue(forKey: entry.id) != nil { change.archive = true }
         normalizeSplitGroups(into: &change)
         commit(change)
     }
@@ -552,7 +563,9 @@ public final class SidebarStore {
         return RemovedEntry(entry: entry, index: index)
     }
 
-    /// Clear (⇧⌘K): removes every Today tab of the space; returns them for Undo.
+    /// Clear (⇧⌘K): every Today tab of the space goes to the Archive (reason
+    /// `clear`, spec §A.7); returns them for Undo (`restore`, which takes
+    /// their rows back out).
     @discardableResult
     public func clearToday(space spaceID: UUID) -> [RemovedEntry] {
         let removed = today(space: spaceID).enumerated().map { RemovedEntry(entry: $0.element, index: $0.offset) }
@@ -560,7 +573,9 @@ public final class SidebarStore {
         var change = SidebarChange()
         containers[.today(space: spaceID)] = nil
         change.containers.insert(.today(space: spaceID))
+        let now = clock()
         for item in removed {
+            addArchiveRow(item.entry, reason: .clear, at: now, change: &change)
             entries[item.entry.id] = nil
             change.removedEntries.insert(item.entry.id)
         }
@@ -569,13 +584,15 @@ public final class SidebarStore {
         return removed
     }
 
-    /// Undo of `remove`/`clearToday`: puts entries back where they were
-    /// (skipping any whose space or parent folder is gone).
+    /// Undo of `remove`/`clearToday`/`archive`: puts entries back where they
+    /// were (skipping any whose space or parent folder is gone); an entry
+    /// that comes back leaves the Archive.
     public func restore(_ removed: [RemovedEntry]) {
         var change = SidebarChange()
         for item in removed.sorted(by: { $0.index < $1.index }) where entries[item.entry.id] == nil {
             var entry = item.entry
             if let spaceID = entry.spaceID, space(spaceID) == nil { continue }
+            if archive.removeValue(forKey: entry.id) != nil { change.archive = true }
             if let folder = entry.folderID, entries[folder] == nil { entry.folderID = nil }
             if let group = entry.splitGroupID, splitGroups[group] == nil { entry.splitGroupID = nil }
             if entry.kind == .essential,
@@ -594,6 +611,77 @@ public final class SidebarStore {
             }
         }
         commit(change)
+    }
+
+    // MARK: Archive (schema v7, spec §A.7 and §H)
+
+    /// Archives entries: each leaves the sidebar and, when it has a page to
+    /// come back to, becomes a row of the Archive with `reason` (the sweep's
+    /// `auto`, "Archive" and "Archive Below"'s `manual`). Folders are
+    /// skipped. Returns what was removed and where, for Undo (`restore`).
+    @discardableResult
+    public func archive(_ ids: [UUID], reason: ArchiveReason) -> [RemovedEntry] {
+        let now = clock()
+        var change = SidebarChange()
+        var removed: [RemovedEntry] = []
+        // Positions before anything moves, so `restore` puts them back in order.
+        let targets = ids.compactMap { entries[$0] }.filter { $0.kind != .folder }
+        var seen = Set<UUID>()
+        let indexed = targets.filter { seen.insert($0.id).inserted }
+            .map { RemovedEntry(entry: $0, index: containers[$0.container]?.firstIndex(of: $0.id) ?? 0) }
+        for item in indexed {
+            detach(item.entry.id, change: &change)
+            addArchiveRow(item.entry, reason: reason, at: now, change: &change)
+            entries[item.entry.id] = nil
+            change.removedEntries.insert(item.entry.id)
+            change.entries.remove(item.entry.id)
+            removed.append(item)
+        }
+        guard !removed.isEmpty else { return [] }
+        normalizeSplitGroups(into: &change)
+        commit(change)
+        return removed
+    }
+
+    /// Restore from the Archive (spec §H): the row becomes a Today tab at
+    /// the top of its space, or of `activeSpace` when its space is gone (then
+    /// in that space's profile); the row is deleted. The tab counts as used
+    /// now, so the next sweep does not take it again. Returns the new entry.
+    @discardableResult
+    public func restore(archived id: UUID, activeSpace: UUID?) throws(SidebarError) -> Entry {
+        guard let row = archive[id] else { throw .unknownEntry(id) }
+        let target = row.spaceID.flatMap { self.space($0) } ?? activeSpace.flatMap { self.space($0) } ?? spaces.first
+        guard let target else { throw .unknownSpace(row.spaceID ?? id) }
+        let now = clock()
+        let entry = Entry(id: entries[row.id] == nil ? row.id : UUID(), kind: .today, spaceID: target.id,
+                          profileID: target.profileID, faviconID: row.faviconID, createdAt: now, lastActiveAt: now,
+                          liveURL: row.url, liveTitle: row.title, navigationState: row.navigationState)
+        var change = SidebarChange()
+        archive[id] = nil
+        change.archive = true
+        insert(entry, at: 0, change: &change)
+        commit(change)
+        return entries[entry.id]!
+    }
+
+    /// The × of a Library row: rows leave the Archive for good.
+    public func deleteArchived(_ ids: [UUID]) {
+        var change = SidebarChange()
+        for id in ids where archive.removeValue(forKey: id) != nil { change.archive = true }
+        commit(change)
+    }
+
+    /// "Clear Archive" (after its confirmation).
+    public func clearArchive() {
+        guard !archive.isEmpty else { return }
+        archive = [:]
+        commit(SidebarChange(archive: true))
+    }
+
+    private func addArchiveRow(_ entry: Entry, reason: ArchiveReason, at time: Timestamp, change: inout SidebarChange) {
+        guard let row = ArchivedEntry(entry, reason: reason, at: time) else { return }
+        archive[row.id] = row
+        change.archive = true
     }
 
     // MARK: Entry edits
@@ -931,4 +1019,23 @@ public final class ObservationToken {
     }
 
     isolated deinit { cancel() }
+}
+
+// MARK: - Archive queries (the Library and the palette)
+
+extension SidebarStore {
+    /// Archived rows matching `text` (every word, in the title or URL), newest first.
+    public func archivedEntries(matching text: String = "") -> [ArchivedEntry] {
+        ArchiveSearch.matching(archive.values, text: text)
+    }
+
+    /// Archived rows matching `text`, grouped by the day they were archived, newest first.
+    public func archivedByDay(matching text: String = "", calendar: Calendar = .current) -> [(day: Date, rows: [ArchivedEntry])] {
+        ArchiveSearch.byDay(archivedEntries(matching: text), calendar: calendar)
+    }
+
+    public var archivedCount: Int { archive.count }
+
+    /// Rows per reason (the tour's counts).
+    public func archivedCount(reason: ArchiveReason) -> Int { archive.values.count { $0.reason == reason } }
 }

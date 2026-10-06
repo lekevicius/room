@@ -326,3 +326,68 @@ struct ValueTests {
         #expect(try state.canonicalJSON() == shuffled.canonicalJSON())
     }
 }
+
+@Suite("Archive policy (spec §A.7)")
+struct ArchivePolicyTests {
+    let space = UUID(), profile = UUID()
+    let hour: Int64 = 3_600_000
+
+    func today(_ hoursAgo: Int64, now: Timestamp) -> Entry {
+        Entry(kind: .today, spaceID: space, profileID: profile, createdAt: Timestamp(milliseconds: 0),
+              lastActiveAt: Timestamp(milliseconds: now.milliseconds - hoursAgo * hour), liveURL: "https://x.example/")
+    }
+
+    @Test("Older than the setting goes; younger stays; createdAt counts when the tab was never selected")
+    func threshold() {
+        let now = Timestamp(milliseconds: 1_000 * hour)
+        let old = today(13, now: now), young = today(11, now: now)
+        var never = today(0, now: now)
+        never.lastActiveAt = nil
+        let entries = Dictionary(uniqueKeysWithValues: [old, young, never].map { ($0.id, $0) })
+        let ids = ArchivePolicy.toArchive(today: [old, young, never], now: now, afterHours: 12, selected: [], exemptions: [:],
+                                          splitGroups: [:], entries: entries)
+        #expect(ids == [old.id, never.id])
+        #expect(ArchivePolicy.toArchive(today: [old], now: now, afterHours: 24, selected: [], exemptions: [:], splitGroups: [:],
+                                        entries: entries).isEmpty)
+    }
+
+    @Test("Never the selected tab (or its split partners), an audible, capturing or dirty-form one")
+    func exemptions() {
+        let now = Timestamp(milliseconds: 1_000 * hour)
+        let tabs = (0..<6).map { _ in today(48, now: now) }
+        var partner = tabs[5]
+        let group = SplitGroup(members: [tabs[0].id, partner.id])
+        var selected = tabs[0]
+        selected.splitGroupID = group.id
+        partner.splitGroupID = group.id
+        let all = [selected, tabs[1], tabs[2], tabs[3], tabs[4], partner]
+        let entries = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        let ids = ArchivePolicy.toArchive(
+            today: all, now: now, afterHours: 12, selected: [selected.id],
+            exemptions: [tabs[1].id: .audible, tabs[2].id: .capturing, tabs[3].id: .dirtyForm],
+            splitGroups: [group.id: group], entries: entries)
+        #expect(ids == [tabs[4].id])
+    }
+
+    @Test("A Today tab in a split with a permanent member stays; one split only with Today tabs goes")
+    func splitWithPermanent() {
+        let now = Timestamp(milliseconds: 1_000 * hour)
+        var tab = today(48, now: now), other = today(48, now: now)
+        var pinned = Entry(kind: .pinned, spaceID: space, profileID: profile, storedURL: "https://p.example/")
+        let withPinned = SplitGroup(members: [tab.id, pinned.id])
+        let todayOnly = SplitGroup(members: [other.id, UUID()])
+        tab.splitGroupID = withPinned.id
+        pinned.splitGroupID = withPinned.id
+        other.splitGroupID = todayOnly.id
+        let entries = Dictionary(uniqueKeysWithValues: [tab, other, pinned].map { ($0.id, $0) })
+        let ids = ArchivePolicy.toArchive(today: [tab, other, pinned], now: now, afterHours: 12, selected: [], exemptions: [:],
+                                          splitGroups: [withPinned.id: withPinned, todayOnly.id: todayOnly], entries: entries)
+        #expect(ids == [other.id])
+    }
+
+    @Test("Settings ▸ General offers 12 h, 24 h, 7 d, 30 d")
+    func options() {
+        #expect(ArchivePolicy.afterHoursOptions == [12, 24, 168, 720])
+        #expect(Settings().archiveAfterHours == 12)
+    }
+}
