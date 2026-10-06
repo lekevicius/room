@@ -2530,3 +2530,92 @@ B-62's TCC crash (3.4b, a shell launch) did not recur under `open`: the process 
 - **Memory is lower for real sites**: ten loaded sites 3.5–4.2 GB against 4.8 GB (release); this laptop's DNS blocker sinks ad hosts (B-3), so the pages load less; not verified per site. The local colour pages (spaces, 5.0 GB for 50) and the baseline (734 vs 559 MB) do not show it.
 - **Quit under load**: 0.62–2.17 s at load1 97–101 (Mac mini 0.24–0.30 s quiet).
 - **The copied Debug app** only half works here (`#filePath` fixtures); the laptop's `build/roomcore` held a stale stage. Both in `docs/laptop-build.md` now.
+
+## Phase 4.1a — the Archive, the sweep, the Library (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+Conditions: the Claude desktop app frontmost; no Chromium build; no other Room running (the tour's new conditions line); the main display as in 3.9-2 (the `display.tsv` of each run). Dev build = `build/roomcore` (component `out/dev`), release = the Debug app over the staged release framework (`build/roomcore-release`, `ROOM_TOUR_APP`).
+
+### Tour step `archive` (group `lifecycle`), light
+
+| Run | Build | load1 at start | Checks | Step time | launch → spike | Minidumps |
+|---|---|---|---|---|---|---|
+| `build/grand-tour/20261006-162023-roomcore` (with `killtest`) | dev, c6c1731 | 6.83 | **28 / 28** | 18.9 s | 8.09 s | 0 |
+| `build/grand-tour/20261006-162512-roomcore` | release framework, c6c1731 | 6.28 | **28 / 28** | 13.6 s | 2.24 s | 0 |
+
+Every check's result line (identical on both builds):
+
+    - pass — exit 0
+    - pass — no crash report
+    - pass — no Room left running
+    - pass — spike reached its end
+    - pass — no error lines
+    - pass — no capture timeouts
+    - pass — window main
+    - pass — the clock is injected (-RoomClock)
+    - pass — launch sweep archives the five old Today tabs
+    - pass — the selected, split-with-pinned and young tabs stay
+    - pass — the archive's rows are reason auto
+    - pass — the rows are in the database
+    - pass — 13 h later the young tabs go
+    - pass — the selected and split tabs still stay
+    - pass — the Library replaces the spaces view
+    - pass — the Library lists the seven rows by reason
+    - pass — Restore from the Library: back at the top of its space, selected, the row gone
+    - pass — Clear writes its tabs to the Archive (reason clear) with the Undo toast
+    - pass — one clear row per Today tab
+    - pass — Clear's Undo puts the tabs back and takes the rows out
+    - pass — the palette's History row has the Archived chip
+    - pass — Enter on it restores the tab to its space, selected
+    - pass — Delete Space
+    - pass — Delete Space archives its entries (B-15)
+    - pass — its Undo brings the space and takes the rows out
+    - pass — ⌘Y opens the Library at History
+    - pass — Esc returns to the spaces
+    - pass — Clear Archive empties the table
+
+The spike's result lines on the release framework (the dev build's differ only in the date, the load and the clock offset, 7192 vs 7197 s):
+
+    clock: injected=true offset_s=7197 store=2026-10-06T15:25:13Z
+    launch_sweep: archived=5 [Old 1,Old 2,Old 3,Two Old A,Two Old B]
+    launch_sweep_kept: Selected=true Split=true Young=true Two Young=true
+    archive_rows: 5 auto=5 clear=0 spaceDeleted=0 windowClosed=0 manual=0
+    database_archive_rows: 5
+    sweep_after_13h: archived=2 [Two Young,Young]
+    sweep_after_13h_kept: Selected=true Split=true
+    library_shown: true
+    library_rows: archive=7 (auto=7 clear=0 spaceDeleted=0 windowClosed=0 manual=0) downloads=0 history=0 history_archived=0 days=2
+    capture_library: phase-4.1a-library.png
+    library_restore: space=Two top=true selected=true row_gone=true library_still_shown=true
+    clear: today_before=2 rows_clear=2 done=true toast=2 tabs closed
+    clear_undo: today=2 rows_clear=0
+    palette_archived_row: title=Archive Fixture Old 1 chip=Archived group=history
+    palette_highlighted: true
+    palette_restore: selected=true space=Space row_gone=true
+    delete_space: entries=2 rows_spaceDeleted=2 space_gone=true toast=Deleted “Two”
+    delete_space_undo: space_back=true rows_spaceDeleted=0
+    cmd_y: library_shown=true history_expanded=true search_has_keyboard=true
+    esc_returns: library_shown=false
+    archive_rows_before_clear_archive: 5 auto=5 clear=0 spaceDeleted=0 windowClosed=0 manual=0
+    clear_archive: rows=0 database_rows=0
+    end: archive
+
+The Library with the seven `auto` rows: `research/screenshots/phase-4.1a/library-light.png` (dev run; evidence, not an assertion).
+
+### Kill test with the Archive (`--only killtest`, dev run above)
+
+    summary: 100 kills in 83.049738375 seconds, 0 failures
+      kills with a transaction in flight: 54 (rolled back to the previous generation: 54)
+      reopened ahead of the last ack (committed, ack not yet read; informational): 0
+      reopened behind the last ack (an acknowledged write lost): 0
+      final generation 106, 106 commits, 70 entries, 18335 archived, database 17752 KB
+      commit time median 11.408 ms, p95 15.672 ms, max 38.675 ms
+
+Checks 7 / 7, including the renamed "no reopen behind the last ack (no acknowledged write lost)" (B-79). The harness now archives (2 % of steps), restores from the Archive (2 %), and Clear and Delete Space write rows, so the Archive grew to 18,335 rows in 100 writers: commit median 11.4 ms against 3.9-2's 5.91–8.31 ms without it (B-80; a fast path for an unchanged Archive measured no change: 11.59 ms, reverted). The failing direction is covered by `scripts/tests/test_tour_checks.py` (3 tests: ahead informational, behind fails, missing line fails) and by `verify`, which already failed a round whose reopened generation is behind the last ack and now counts it.
+
+### B-78
+
+`scripts/run-spike.sh hidden -RoomStateDirectory /tmp/room-b78` (no `-RoomEngineDirectory`, dev build): `/tmp/room-b78/engine` holds the engine root (`Local State`, `Room Profile Default`, `Crashpad`, …); `~/Library/Application Support/Room/RoomCore/RoomCore.log` mtime 1791239540 (Oct 6 01:32:20) before and after.
+
+### Unit tests (`CI=1 swift test`)
+
+Model 83, Store 41, Tabs 63, Sidebar 38, Palette 24, Omnibox 45, UIKitCore 47, Chrome 51, Design 9, Library 2 (new): all pass; `room-persistence-harness` builds (release).

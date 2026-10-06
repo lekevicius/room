@@ -301,3 +301,16 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Card content | SwiftUI leaf, `.controlSize(.small)`: title `.headline`, caption `.caption` secondary; Search with (menu picker), Make Room Your Default Browser (or a check and "Room is your default browser"), two checkboxes with a one-line note, Done trailing (no default-button key: Return belongs to the fields) | chosen |
 | Card dismissal | fades out over `Motion.fast` (0.12 s), then the list takes the space | chosen |
 | Settings ▸ Privacy | symbol `hand.raised`; "Send crash reports", "Check for updates automatically", Check Now beside the version | chosen (system settings conventions) |
+
+## Added in Phase 4.1a (the Library, the archive sweep)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `LibraryMetrics.searchFieldHeight` | 28 pt (`SidebarMetrics.addressFieldHeight`) | chosen: the header's field |
+| `LibraryMetrics.sectionRowHeight` / `dayRowHeight` / `itemRowHeight` | 28 / 22 / 36 pt (`SidebarMetrics.rowHeight`) | chosen |
+| `LibraryMetrics.buttonSize` | 20 pt (Restore, Show in Finder, ×) | chosen |
+| `LibraryMetrics.chipHeight` / `chipPadding` | 16 pt / `Spacing.xs`; fill `Palette.sidebarHover` | chosen (the palette's space chip) |
+| `LibraryMetrics.historyDays` / `historyLimit` / `searchLimit` | 7 days / 500 URLs / 200 matches | chosen |
+| `Timing.archiveSweepInterval` | 10 min | spec §A.7 |
+| `Timing.archiveIdleAfter` | 60 s without a key or mouse press in Room | chosen (4.1a's idle definition) |
+| Library section chevron | `Symbol.disclosure` open, `chevron.right` collapsed | chosen |
