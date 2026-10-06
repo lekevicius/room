@@ -2424,3 +2424,109 @@ Median **0.457 s** (3.1b-2: 0.414 s, first launch 2.715 s).
 ### Sparkle packaging (signed copy)
 
 `ROOM_SPARKLE_UNSIGNED=1 scripts/sparkle-package.sh build/roomcore-release-signed/Room.app build/sparkle-3.9`: **DMG 186,841,560 bytes (178 MiB)** in 8 s (3.1b-2: 184,497,802); the unsigned appcast entry: version 1, short version 0.1.0, minimum system 26.0, enclosure `https://updates.room.invalid/Room-0.1.0-1.dmg` length 186841560. The EdDSA signature (`sign_update` reading the `ed25519` key from the login keychain) and an update delivered through a feed to one machine are the user's (the keychain approval and the feed URL, B-6).
+
+## Laptop (M1 Max, 64 GB), 2026-10-06: Chapter 3's laptop checks — on the 60 Hz external display, not the 120 Hz panel
+
+**Conditions, for every number below.** The laptop drives two displays: the Pro Display XDR (3008 × 1692 @ **60 Hz**, the main display) and the built-in panel (1728 × 1117 @ 120 Hz, not main). A spike's window opens on the main display, so every run measured **60 Hz** (`display_frame_interval` 16.67 ms on every run that reports it); the user was away and chose to measure as is rather than change the display arrangement. The machine was loaded the whole session: load average **70–145** (1 min), 4–5 of 10 cores busy (the Claude desktop app's renderer ~120 %, OrbStack, bun, Zen, Remote Desktop, `avconferenced`), and the user's own Room (`/Applications/Room.app`, the notarized 0.1.0 (1), pid 10481) running on the real state. `window_main: true` on every run. Spikes on `-RoomStateDirectory` and `-RoomEngineDirectory` under `/tmp/room-laptop`. Raw output: `build/evidence-laptop/` and `build/grand-tour/20261006-1{20827,22639}-roomcore` (not committed).
+
+**Apps.** (a) The Mac mini's Debug app over the release framework (155.0.8059.36, `43b3213`), copied by rsync as `docs/laptop-build.md` says; (b) the same app built on the laptop (§A step 3, 28 s, `aa57233` plus this session's chooser spike) over the copied release framework, whose `RoomCore` binary is byte-identical to (a)'s. (a)'s spikes find their `file://` fixtures through `#filePath`, i.e. under `/Users/eve/Code/room`, which does not exist here: its spaces fixture's 50 "loaded" pages were error pages (14 renderers, 1,568 MB against 52 renderers, 5,000 MB on (b)), and its tour run failed 19 checks on missing elements (audio, popups, keys, tabs). Palettemeasure, tabsmeasure and the sidebar snapshots use no file fixtures, so their (a) numbers stand; the space switch and the tour are (b)'s.
+
+**Harness fixes (laptop reasons, said):** the wrappers matched any `Room.app/Contents/MacOS/Room` and any `Room Helper`, so with the user's Room running every wrapper refused to start, `tabs-measure.sh` and the tour would have waited forever for its helpers, and the tour's step cleanup would have sent SIGTERM to it; they now match their own app's path (`room_scope` in `scripts/lib/room-process.sh`; ea4aaa9). `tabs-measure.sh` passed no engine directory, so its spike opened the **real** engine root, which the user's Room holds: Chromium's process singleton ended each of four launches at once, and the launches truncated the user's `~/Library/Application Support/Room/RoomCore/RoomCore.log` (0 bytes at 12:01); it now passes `-RoomEngineDirectory "$STATE/engine"` (aa57233); the app-side default is B-78. `docs/laptop-build.md` §A: the `EngineRoomCore` package compiles against `build/roomcore` whatever `ROOMCORE_STAGE` says, and the laptop had a 2026-10-02 stage there (build failed: "cannot find type 'RoomPermissionRequest'"); moved to `build/roomcore-stale-2026-10-02`, `build/roomcore/RoomCore.framework` is a symlink to the release framework (ca9f4c6).
+
+### Laptop, 2026-10-06: B-20, the palette (`palettemeasure -RoomSidebarFixture 500 -RoomHistoryRows 50000`, app (a), three runs)
+
+| Measure (ms) | run 1 (load 75) | run 2 (88) | run 3 (91) | Mac mini exit tour, 155 dev, light | Bound |
+|---|---|---|---|---|---|
+| Palette open: our call median; to next frame median / p95 | 3.23; 6.66 / 14.45 | 3.84; 7.45 / 14.82 | 2.92; 6.27 / 14.43 | 2.23; 3.74 / — | one frame (16.7 ms at 60 Hz, 8.3 at 120) |
+| First keystroke of a query: turn median / p95 | 14.04 / 22.19 | 17.00 / 27.19 | 15.60 / 24.18 | 21.75 (median) | — |
+| **Later keys' turn, median / p95** | 8.20 / **15.08** | 7.77 / **14.28** | 8.18 / **14.74** | p95 9.79 | **16 ms p95** |
+| Query only (all keys), median / p95 | 4.84 / 8.20 | 4.63 / 8.33 | 4.89 / 7.14 | p95 15.60 | 16 ms p95 |
+| History rows per key (mean); keys completed inline | 2.8; 55 | 2.8; 55 | 2.8; 55 | 2.8; 55 (3.5) | — |
+
+The 16 ms bound holds at 60 Hz on all three runs (later keys p95 14.3–15.1 ms; Chrome's async updates p95 11.0 ms). At 120 Hz one frame is 8.3 ms: the open's median (6.3–7.5 ms to the next frame) would fit, the later keys' median (7.8–8.2 ms) is at the edge and their p95 is not; the 120 Hz reading itself is still open (the window was on the 60 Hz display).
+
+### Laptop, 2026-10-06: B-21, the space switch (`spaces -RoomSidebarFixture spaces500 -ApplePersistenceIgnoreState YES`, app (b), three runs)
+
+| Measure (ms, median / p95) | run 1 (load 112) | run 2 (145) | run 3 (120) | Mac mini exit tour, 155 dev | CEF 2.5 (60 Hz, not key) | Bound |
+|---|---|---|---|---|---|---|
+| ⌃digit key to the switch starting | 6.09 / 7.58 | 5.91 / 7.84 | 5.79 / 8.16 | — | 1.93 / 2.54 | — |
+| The switch's main-thread code | 3.75 / 4.21 | 3.72 / 4.74 | 3.80 / 4.31 | — | 6.37 / 8.70 | — |
+| … the card (`TabController.activate`) | 2.19 / 2.55 | 2.15 / 2.62 | 2.19 / 2.60 | — | 3.47 / 4.56 | — |
+| **⌃digit to the slide's first frame** | **10.84 / 15.12** | **11.67 / 15.47** | **11.54 / 15.84** | 14.90 / 20.49 | 10.85 / 17.10 | one frame at the median |
+| Lists loaded during 60 switches | 0 | 0 | 0 | 0 | 0 | 0 |
+| 50 loaded pages over 5 spaces | 5,000 MB, 52 renderers | 5,001 MB | 4,998 MB | 9,723 MB, 52 | 5.9–6.5 GB | — |
+
+Window key and frontmost this time (2.5's window was never key). At 60 Hz the median first slide frame is within one frame of the key (10.8–11.7 ms); the switch's own code is 3.7–3.8 ms median, so at 120 Hz (8.3 ms) the code fits but the key's ~6 ms before the switch starts does not leave room for the first frame at the median. App (a) on error pages gave the same timings (10.07–11.06 / 15.67–15.85 ms).
+
+### Laptop, 2026-10-06: B-18 and B-53, tab switching (`scripts/tabs-measure.sh`, app (a), three runs; the tour's tabsmeasure on app (b))
+
+| Measure (ms) | run 1 (load 81) | run 2 (86) | run 3 (89) | laptop tour, app (b) | Mac mini, release framework (3.9-2) | Mac mini exit tour, dev | Bound |
+|---|---|---|---|---|---|---|---|
+| `select` call median / p95 | 4.10 / 6.78 | 3.96 / 6.00 | 4.20 / 6.70 | 4.16 / 6.23 | 5.19 / 8.28 | 6.63 / 10.80 | — |
+| **Click → committed (whole turn) median / p95** | 9.29 / **12.41** | 9.37 / **11.44** | 9.59 / **12.24** | 9.06 / **11.10** | 12.88 / **20.87** | 15.38 / 22.97 | **16 ms p95** |
+| Page visible median / p95 | 3.78 / 8.20 | 3.59 / 6.75 | 4.40 / 8.57 | 3.69 / 5.79 | 4.17 (median) | 5.74 | — |
+| Page's first frame median / p95 | 8.62 / 13.77 | 8.93 / 11.59 | 8.83 / 13.41 | — | — | — | — |
+| 10 loaded of 50 entries (summed RSS) | 3,503 MB, 19 renderers | 3,525 MB | 3,630 MB | 4,228 MB, 17 | 4,801 MB, 19 | 5,565 MB | — |
+| Relaunch: load start; selected loaded | 1.05; 1.94 s | 1.04; 1.85 s | 1.26; 2.46 s | 0.90; 1.97 s | 0.56; 1.33 s | 2.08; 4.17 s | — |
+
+B-18's conditions are met (screen unlocked, window key, pages visible: `switch_page_visible` and `switch_page_first_frame` recorded on all 300 switches). **The 16 ms p95 bound holds on the laptop** (11.1–12.4 ms) on the same framework that misses it on the Mac mini by 30 % (20.87 ms), both at 60 Hz: a machine difference, not the panel (below). Max over the 300 switches: 39.0 ms once (run 1); runs 2–3 max 12.3 / 13.5 ms.
+
+### Laptop, 2026-10-06: B-16, the 500-entry scroll (`scripts/sidebar-snapshots.sh 500`, app (a); the tour's sidebar500 on app (b))
+
+| Run (4 s each) | Late frames (> 1.5 × nominal) | Step median / p95 / max (ms) | Steps over 8.33 ms (of 241) | Tour (b): steps over 8.33 ms | Mac mini 2.2b (of 240) |
+|---|---|---|---|---|---|
+| native 1500 pt/s | 0 | 4.23 / 7.47 / 8.72 | 4 | 0 | 2 |
+| proxy120 1500 pt/s | 0 | 5.37 / 8.88 / 19.95 | 19 | 5 | 20 |
+| native 4000 pt/s | 0 | 4.89 / 7.92 / 26.97 | 5 | 3 | 7 |
+| proxy120 4000 pt/s | 0 | 4.39 / 8.09 / 11.67 | 11 | 13 | 4 |
+| native 9000 pt/s | 0 | 6.57 / 9.27 / 19.69 | 65 | 36 | 6 |
+| proxy120 9000 pt/s | 0 | 3.92 / 7.95 / 10.61 | 10 | 16 | 4 |
+
+The display link ran at 60 Hz (the report says "display 60.0 Hz"), so these are 60 Hz frames: 0 late frames of 1,440. The proxy120 rows estimate the 120 Hz step: 4–8 % of steps over 8.33 ms at load ~95 (Mac mini 2–8 %). The native 120 Hz run and the trackpad fling stay the user's (the window has to be on the built-in panel). The same report's update timings are ~2× the Mac mini's: full reload 100.4 ms (Mac mini 44.1), select 7.81 ms (3.53), drop of a 10-tab group 20.3 ms (9.5), insert 9.3 ms (4.7).
+
+### Laptop, 2026-10-06: the exit tour's layout, sidebar and tabs sections (`scripts/grand-tour.sh --no-build --groups layout,sidebar,tabs light`, app (b))
+
+| Run | Wall time | Checks | Failed |
+|---|---|---|---|
+| Mac mini, exit tour 155 dev (same 20 steps, light) | 11.6 min (the steps' sum) | 218 / 223 | memory, open10, quittiming (B-76 dev-build minidumps), tabs (B-56), tabsmeasure (B-53) |
+| Laptop, app (a) (`20261006-120827`) | 11.8 min | 202 / 222 | 19 on missing fixture pages (`#filePath`, above: audio 3, popups 6, keys 7, tabs 3), the scroll mask run 2 at 24.7 fps once |
+| **Laptop, app (b)** (`20261006-122639`) | **10.0 min** | **219 / 222** | quittiming run 2 (2.17 s at load1 98: the load), killtest's ack check (below), tabs (B-56) |
+
+The kill test's failing line is "reopened at a generation committed after the last ack: 2": the database was *ahead* of the last acknowledged commit (`dbGeneration > lastAcked` in `PersistenceHarness`: the commit landed and the kill beat its ack), not behind; 100 kills, 0 failures, every reopen intact. Under load ~100 the ack lost the race twice; the check's label ("no generation lost after its acknowledgement") reads as a loss when it counts the opposite (B-79). No minidump in any step (the release framework; the dev build's B-76 DCHECKs do not exist here).
+
+| Measure | Laptop, app (b) | Mac mini, release (3.9-2) | Mac mini, exit tour dev |
+|---|---|---|---|
+| Memory baseline; 1 / 10 / 30 hidden | 734 MB; 895 / 4,348 / 11,573 MB (5 / 18 / 43 renderers) | 559 MB; 748 / 4,097 / 8,725 MB | 1,241 MB; 1,625 / 4,962 / 11,720 MB |
+| open10: seconds to all loaded | 7 | 5 | 11 |
+| Quit with ten pages (3 runs) | 0.62 / **2.17** / 0.89 s, 0 helpers left (load1 97–101) | 0.24–0.30 s | 0.30–0.37 s |
+| Smoke quit | 0.14 s | 0.10 s | 0.11 s |
+| Audio: first audible edge; later | 426; 149 ms | — | 1,558; 126–157 ms |
+| Kill test: in flight / rolled back; commit median / p95 | 50 / 48; 5.91 / 9.47 ms | — | 44 rolled back; 8.31 / 13.77 ms |
+| 500-entry sidebar: full reload; select | 95.0; 7.52 ms | — | 44.1; 3.53 ms |
+| CDP `Runtime.evaluate` round trip median / p95 | 0.15 / 0.26 ms | — | 0.15 / 0.55 ms (script round trip) |
+
+### Laptop, 2026-10-06: devices (B-26, B-62; app (b), the test servers up)
+
+| Check | What happened |
+|---|---|
+| `chromesurfaces2 -RoomSpikeOnly permissions`: Location ▸ Allow in Room's popover | popover shown, answered; the page reads `geolocation: prompt` before and after a reload (as 3.4a: B-26) |
+| Notifications ▸ Deny | remembered after the reload: no prompt, `denied` |
+| Camera ▸ Allow This Time | **no Room popover within 8 s**; a macOS dialog appeared during this run (a `UserNotificationCenter` window, 260 × 234, window number 16611, created right after the spike's window 16607); its text could not be read (the session has no Screen Recording, and system dialogs are the user's), and it is still on screen |
+| `pageservices -RoomSpikeOnly capture` (`capture.html`, Camera and microphone) | no Room popover within 8 s; the page stayed "idle" for 10 s (`getUserMedia` neither resolved nor failed), capture state 0, the row no indicator; consistent with Chromium waiting on macOS's camera/microphone authorization (Room's ad-hoc Debug build has none), the dialog above. Stopped here; Allow This Time / Allow with real devices and the capture indicator are the user's |
+| `pageservices -RoomSpikeOnly serial` (`chooser.html` ▸ "Connect a serial port", Room launched by `open`) | **the browser's main thread hangs**: no chooser, no new dialog; `sample` (`build/evidence-laptop/serial-hang.sample.txt`): 2,130 of 2,130 main-thread samples in `-[IOBluetoothDeviceInquiry init]` → `+[IOBluetoothCoreBluetoothCoordinator sharedInstance]` → `dispatch_semaphore_wait` (Chromium's Bluetooth start-up, reached through Web Serial's Bluetooth ports). The quit AppleEvent and SIGTERM could not be handled; ~6 min later Chrome's shutdown watchdog ended it (minidump: `shutdown_watchdog_mac.cc`) |
+| `pageservices -RoomSpikeOnly bluetooth` (`requestDevice({acceptAllDevices: true})`) | the same hang (1,412 of 1,412 samples in the same frames, `bluetooth-hang.sample.txt`); killed with SIGKILL after 150 s (a throwaway instance) |
+| The macOS prompts | location: none seen beyond the dialog above; Bluetooth: no prompt window appeared while the main thread waited on CoreBluetooth. Likely, not shown: macOS's Bluetooth authorization for this build is held behind the pending dialog, and Chromium waits for CoreBluetooth synchronously on the UI thread (B-62) |
+
+B-62's TCC crash (3.4b, a shell launch) did not recur under `open`: the process is now its own responsible process, and Web Serial reaches Bluetooth, where it waits instead of crashing.
+
+### Laptop, 2026-10-06: the signed DMG
+
+`~/Downloads/Room-0.1.0-1.dmg` (scp from the Mac mini, sha256 `ddce9376…8317`, 186,841,560 bytes) is byte-identical to the copy the user had already installed from: `/Applications/Room.app` (0.1.0 (1), signed 6 Oct 2026 09:36:47, Developer ID N56PMJ99UT) was installed and **running** (launched 11:41), so it was not overwritten. On it: `codesign --verify --deep --strict`: valid on disk, satisfies its Designated Requirement; `spctl --assess --type execute`: **accepted, source=Notarized Developer ID**; `stapler validate`: worked. The keychain prompt was the user's (already answered: the app is running on the real state).
+
+### Laptop, 2026-10-06: what differed from the Mac mini that is not the panel
+
+- **Tab switching passes here**: click → committed p95 11.1–12.4 ms on the laptop against 20.87 ms on the Mac mini, same release framework, both at 60 Hz, the laptop under 10× the load. The 3.3b profile put a third of a switch in the old page's compositor teardown (a synchronous call to the GPU process) and the display cycle: the M1 Max's GPU (32 cores) and the XDR (6K panel, 3008 × 1692 points) against the M4's (10 cores) and a 4K panel at 1920 × 1080 points are the obvious differences; not profiled.
+- **Main-thread AppKit work is ~2× slower**: the 500-entry sidebar's full reload 95–100 ms (44), select 7.5–7.8 ms (3.5), drops and inserts ~2×; the first space switch per space 13.5–16.4 ms of code. M1 single-core against M4 plus load ~95; the per-key palette costs (later keys p95 14–15 ms vs 9.8) follow.
+- **Memory is lower for real sites**: ten loaded sites 3.5–4.2 GB against 4.8 GB (release); this laptop's DNS blocker sinks ad hosts (B-3), so the pages load less; not verified per site. The local colour pages (spaces, 5.0 GB for 50) and the baseline (734 vs 559 MB) do not show it.
+- **Quit under load**: 0.62–2.17 s at load1 97–101 (Mac mini 0.24–0.30 s quiet).
+- **The copied Debug app** only half works here (`#filePath` fixtures); the laptop's `build/roomcore` held a stale stage. Both in `docs/laptop-build.md` now.
