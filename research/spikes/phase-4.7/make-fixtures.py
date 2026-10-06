@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Phase 4.7a fixtures: sample.pdf (three US-letter pages of text, the word
+"""Phase 4.7a/4.7b fixtures: sample.pdf (three US-letter pages of text, the word
 "zebracorn" twice on page 2 and once on page 3 for find) and swatch.png (a
 240 x 120 orange image with a blue band, for Save Page and the capture
-checks: its pixels are never white). Standard library only; rerun to
+checks: its pixels are never white); 4.7b: field.png (320 x 180, green
+with a yellow band) and articlecsp.html (article1.html with a strict
+script-src CSP). Standard library only; rerun to
 regenerate (the output is deterministic)."""
 import struct
 import zlib
@@ -57,12 +59,12 @@ def pdf() -> bytes:
     return bytes(out)
 
 
-def png(width: int = 240, height: int = 120) -> bytes:
+def png(width: int = 240, height: int = 120, band=(40, 90, 220), fill=(240, 140, 20), rows_band=(50, 70)) -> bytes:
     rows = bytearray()
     for y in range(height):
         rows.append(0)
         for _ in range(width):
-            rows += bytes((40, 90, 220)) if 50 <= y < 70 else bytes((240, 140, 20))
+            rows += bytes(band) if rows_band[0] <= y < rows_band[1] else bytes(fill)
     def chunk(kind: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
@@ -72,4 +74,9 @@ def png(width: int = 240, height: int = 120) -> bytes:
 if __name__ == "__main__":
     (HERE / "sample.pdf").write_bytes(pdf())
     (HERE / "swatch.png").write_bytes(png())
-    print("wrote sample.pdf, swatch.png")
+    # 4.7b: the reader fixtures' second image, and article1 under a strict CSP.
+    (HERE / "field.png").write_bytes(png(320, 180, band=(250, 210, 40), fill=(30, 140, 110), rows_band=(80, 100)))
+    article = (HERE / "article1.html").read_text()
+    csp = '<meta http-equiv="Content-Security-Policy" content="script-src \'self\'">\n'
+    (HERE / "articlecsp.html").write_text(article.replace("<meta charset=\"utf-8\">\n", "<meta charset=\"utf-8\">\n" + csp, 1))
+    print("wrote sample.pdf, swatch.png, field.png, articlecsp.html")

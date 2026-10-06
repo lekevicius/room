@@ -1161,6 +1161,70 @@ def _documents(c):
         c.number(key)
 
 
+@step_check("reader")
+def _reader(c):
+    """ROADMAP 4.7b (`scripts/reader-check.sh`, the `reader` spike): ⌥⇧⌘R on
+    article1 shows Room's reader page in the card (the entry's page not
+    navigated, the row's glyph) with the article's title, the host, the
+    original link and Exit, both images loaded, no sidebar links; the three
+    text sizes change the computed font size; light and dark change the
+    page's background (the token's colour); Back does nothing while the
+    reader shows; Esc returns to the page with its scroll and history, the
+    reader file gone and not in history. article2 once: the menu action
+    exits, a link exits and loads in the entry's page. notarticle: the
+    toast and no reader page. A strict script-src article still distills.
+    Translate: no item in the main or context menu, no offer (B-63); the
+    context menu's Open in Reading Mode is Room's. Print: ⌘P's preview over
+    the window with the keyboard, Return → Print to PDF's save panel, Esc
+    closes it; File ▸ Page Setup… shows its sheet."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("reader_resources", "distiller=111995 B", label="the distiller and the template ship in the app")
+    c.contains("reader_menu_item", 'title="Reader Mode"', "key=⌥⌘R", "enabled=true", label="View ▸ Reader Mode ⌥⇧⌘R, enabled on an article")
+    c.contains("reader_shown", "by ⌥⇧⌘R", "card_shows_reader=true", "focused=true", "entry_page_url=unchanged", "row_glyph=true", "images=2",
+               label="⌥⇧⌘R: the reader page in the card; the entry's page untouched; the row's glyph")
+    c.contains("reader_row", "glyph shown=true", label="the sidebar row draws the reader glyph")
+    c.contains("reader_dom", "Lighthouse Keepers", '\\"host\\":\\"127.0.0.1\\"', '\\"exit\\":true', "article1.html", '\\"asideLinks\\":0',
+               '\\"scripts\\":0', label="the reader page: title, host, the original link, Exit; no sidebar links, no script")
+    imgs = c.first("reader_images") or ""
+    c.check("both images loaded (DOM: complete, natural size)", imgs.count("[true,") == 2 and "swatch.png" in imgs and "field.png" in imgs, imgs or "missing")
+    sizes = c.first("reader_sizes") or ""
+    m = re.findall(r'(small|medium|large)="([\d.]+)px"', sizes)
+    vals = dict(m)
+    c.check("the three text sizes: small < medium < large (computed font size)",
+            len(vals) == 3 and float(vals["small"]) < float(vals["medium"]) < float(vals["large"]), sizes or "missing")
+    light = c.first("reader_light") or ""
+    dark = c.first("reader_dark") or ""
+    bl = re.search(r'background\\":\\"(rgb[^\\]*)', light)
+    bd = re.search(r'background\\":\\"(rgb[^\\]*)', dark)
+    c.check("light: data-appearance light on a white background", '\\"appearance\\":\\"light\\"' in light and bool(bl) and bl.group(1) == "rgb(255, 255, 255)", light or "missing")
+    c.check("dark: data-appearance dark on the token's dark background", '\\"appearance\\":\\"dark\\"' in dark and bool(bd) and bd.group(1) != "rgb(255, 255, 255)", dark or "missing")
+    c.contains("reader_back_ignored", "entry_page_url=unchanged", "still_reader=true", label="Back while reading: the article's page does not move")
+    ex = c.first("reader_exit") or ""
+    sm = re.search(r"scroll (\S+)→(\S+)", ex)
+    c.check("Esc: back to the page, scroll and history intact, the glyph gone, the file removed",
+            "exited" in ex and "card_shows_page=true" in ex and "url=unchanged" in ex and bool(sm) and sm.group(1) == sm.group(2)
+            and "canGoBack true→true" in ex and "row_glyph=false" in ex and "file_removed=true" in ex, ex or "missing")
+    c.check("the reader file's visit is not in history", "file:" not in (c.first("reader_history") or "file:"), c.first("reader_history") or "missing")
+    c.contains("reader_back_after_exit", "url=page.html", label="after Exit, Back moves the article's page")
+    c.contains("reader2_shown", "card_shows_reader=true", "images=1", label="article2: the reader page with its figure's image")
+    c.contains("reader2_images", "[true,320,180", label="article2's image loaded")
+    c.contains("reader2_exit", "exited", "card_shows_page=true", label="View ▸ Exit Reader Mode returns to the page")
+    c.contains("reader2_link", "exits reader mode", "entry_page_url=article1.html", "card_shows_page=true", label="a link in the reader page exits and loads in the entry's page")
+    c.contains("reader_notarticle", "not an article", 'toast="No article found on this page"', "reader_page=false", label="notarticle: the toast, no reader page")
+    c.contains("reader_csp", "shown", label="an article under a strict script-src CSP distills")
+    c.contains("translate_absent", "main_menu_items=[]", "context_menu_translate=[]", "offer_toast=none", "context_menu_opened=true",
+               label="translate is absent without a key: no menu item, no context-menu item, no offer (B-63)")
+    c.contains("translate_context_menu_items", "Open in Reader Mode", label="the context menu's reading-mode item is Room's reader mode")
+    c.contains("print_preview", "NativeWidgetMac", "child of Room's window: true", label="⌘P: Chrome's print preview over the window")
+    c.contains("print_keyboard", "key_is_preview=true", label="the preview has the keyboard after ⌘P")
+    c.contains("print_to_pdf", "save panel", ".pdf", label="Return in the preview: Print to PDF asks where to save (the landing is by hand)")
+    c.contains("print_closed", "closed", label="Esc closes the preview")
+    c.contains("page_setup", 'item="Page Setup…"', "sheet=NSPanel", label="File ▸ Page Setup… shows the page layout sheet")
+    for key in ("reader_shown", "reader2_shown", "reader_notarticle", "reader_exit", "print_preview", "print_to_pdf"):
+        c.number(key)
+
+
 @step_check("extensions")
 def _extensions(c):
     """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the

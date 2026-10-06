@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents; 4.7b: reader), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -272,6 +272,11 @@ for appearance in "${appearances[@]}"; do
   # Download at the next launch; View Source (menu, context menu); Save Page…'s panel; ⇧⌘2's overlay
   # (a rectangle copied, the viewport saved, Open as Tab, Esc, the full page). Own state; :8777.
   run documents scripts/documents-check.sh "$CAPS/documents"
+  # 4.7b: reader mode: article1 by ⌥⇧⌘R (title, host, two images, the three text sizes, light and dark,
+  # Esc back with scroll and history), article2 once (the menu exits, a link exits and loads),
+  # notarticle's toast, a strict-CSP article, translate absent (B-63), ⌘P's preview with the keyboard
+  # (Return → Print to PDF's panel, Esc), Page Setup's sheet. Own state; :8777.
+  run reader scripts/reader-check.sh "$CAPS/reader"
 
   group=layoutmodes
   ROOM_CAPTURE_DIR="$CAPS/layoutmodes" run layoutmodes scripts/layout-modes.sh "$appearance"

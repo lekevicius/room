@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home Dashboard — Room Reader fixture</title>
+<style>
+  body { margin: 0; font: 13px sans-serif; background: #1d2330; color: #eee; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
+  .w { background: #2c3546; border-radius: 8px; padding: 12px; }
+  .big { font-size: 28px; }
+  a { color: #9cf; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="w"><div>Weather</div><div class="big">12°</div><div>Showers</div></div>
+  <div class="w"><div>Clock</div><div class="big">09:41</div></div>
+  <div class="w"><div>Inbox</div><div class="big">3</div><a href="/mail">Open</a></div>
+  <div class="w"><div>Calendar</div><div>Stand-up 10:00</div><div>Lunch 12:30</div></div>
+  <div class="w"><div>Lights</div><button>Kitchen</button> <button>Hall</button></div>
+  <div class="w"><div>Steps</div><div class="big">4,210</div></div>
+  <div class="w"><div>Battery</div><div class="big">87%</div></div>
+  <div class="w"><a href="/settings">Settings</a> · <a href="/help">Help</a></div>
+</div>
+</body>
+</html>

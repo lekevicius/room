@@ -112,8 +112,10 @@ extension TabController {
     /// disposition (⌘-click) goes on as a Today tab under the entry.
     func readerPolicy(for action: NavigationAction, entry: UUID) -> Disposition {
         guard let reader = readers[entry] else { return action.disposition }
+        let outcome = ReaderNavigation.outcome(of: action.url, readerPage: reader.fileURL, original: reader.original)
+        if outcome != .stay { NSLog("Room: reader page navigation (%@, %@) → %@", "\(action.kind)", "\(action.disposition)", "\(outcome)") }
         guard action.disposition == .currentTab else { return action.disposition }
-        switch ReaderNavigation.outcome(of: action.url, readerPage: reader.fileURL, original: reader.original) {
+        switch outcome {
         case .stay:
             return action.disposition
         case .exit:
