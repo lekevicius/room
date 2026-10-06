@@ -3040,3 +3040,55 @@ Translate and generation (B-63, B-72): `//room` sets no API key and enables no t
 Unit tier with `CI=1`: Engine 66, Store 49, Tabs 71, Model 105, Chrome 55, Omnibox 51, UIKitCore 55, all passing; the engine-free CI build and its tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED in 69 s.
 
 Evidence for the reviewer: `research/screenshots/phase-4.4b/` (Settings ▸ Spaces with the renamed profile, Settings ▸ Privacy with the listed permission and the statements, Chromium's All sites page in a Room tab; light, dev).
+
+## Phase 4.5 — extensions UX: site access and Run, commands with the sidebar focused, pin/unpin and the overflow menu, the site panel's Extensions section, extension pages in their profile's space (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+Room.app Debug on the dev framework (`out/dev`, component, `room_enable_spikes=true`, `//room` at `462745e`) and the Debug app over the release framework (`build/roomcore-release`, official, `RoomCoreCommit 462745e`, `ROOM_TOUR_APP`); display 1920 × 1080 @ 60 Hz; the window main in every run (`window_main: true`); the Claude desktop app frontmost between runs. Every run on its own state and engine directory under `/tmp/room-4/extensions.*` (also inside the tour), the test servers on :8770/:8771. Captures in `research/screenshots/phase-4.5/` (evidence, not assertions).
+
+### Baseline after the engine change (`build/evidence-4.5/baseline-1`, embryo host, dev framework)
+
+nav **passed** in 18.3 s; ten-page quits **0.366 / 0.296 / 0.318 s** (load1 14.4 / 14.1 / 18.2: the dev package had just run), 0 helpers left, 0 new crash reports, exit 0 in each. Series "patches: 0 applied, 23 already on the room branch".
+
+### Tour steps `extpopup` (18 checks) and `extensions` (33 checks)
+
+| Run | App | load1 | extpopup | extensions |
+|---|---|---|---|---|
+| `20261006-232920-roomcore` | dev | 5.5 | 18 / 18 | 33 / 33 |
+| `20261006-233155-roomcore` (final code) | dev | 8.4 | 18 / 18 | 33 / 33 |
+| `20261006-233118-roomcore` | release framework | 10.2 | 18 / 18 | 33 / 33 |
+
+0 new crash reports, 0 engine minidumps in the runs' own engine directories, nothing left running, in all three.
+
+| Check (`extux`) | dev (final) | release framework |
+|---|---|---|
+| Default access of the fixture on `http://127.0.0.1:8770/site.html` | on all sites; selectable on click, on this site, on all sites; `canAffect` true; the content script ran | same |
+| `setSiteAccess(.onClick, host: "127.0.0.1")` + reload | set; the content script **did not run** in 3 s; `wantsToRun` true | same |
+| `runAction` (the Run button's member) | ran: the page's mark within **207 ms** (polled every 200 ms); `wantsToRun` false | 210 ms |
+| `setSiteAccess(.onSite)` + two reloads | ran after both; level on this site | same |
+| `commands(for:)` | `_execute_action=⇧⌘Y action room-named=⇧⌘U` (Chrome's "Command+Shift+Y" in Room's notation) | same |
+| ⇧⌘U with the sidebar's `SidebarOutlineView` first responder (`pageHasKeyboard` false) | the router took it, `commands.onCommand` reached the worker in **23 ms** (the action's title read back) | 22 ms |
+| ⇧⌘Y with the sidebar focused | the popover in **79 ms** | 56 ms |
+| ⇧⌘C with the sidebar focused (no extension's key) | `routed=⇧⌘C false`: on to the menu | same |
+| Two pinned actions (the fixture, a second unpacked "Room 4.5 second") | header `[fixture, second]`, no overflow button | same |
+| Unpin the fixture (Settings' path) | header `[second]`; the overflow button shown; menu `["Room 3.6 fixture  T1", "Pin"]` (the page's badge "T1") | same |
+| The overflow item | the popup in **50 ms**, anchored on the overflow button | 37 ms |
+| The overflow menu's Pin | header `[second, fixture]` (`ToolbarActionsModel`'s order: a newly pinned action goes last) | same |
+| Site panel on the page, fixture on click after a reload | the Extensions section lists the fixture: On click, Run shown, the script not run (`site-panel-run.png`) | same |
+| The section's Run | the script ran in **229 ms**; "Ran on this page. Always on 127.0.0.1" offered (`site-panel-after-run.png`) | 229 ms |
+| "Always on 127.0.0.1", then two reloads | ran after both, level on this site, `wantsToRun` false | same |
+| Back to On all sites | set | same |
+| Options with two profiles, Work's "Office" shown | the page opened in "Space" (Default's: the extension's profile), shown; `chrome-extension://…/options.html` in the extension's engine profile wrote its storage ("storage written") | same |
+| An extension page for a profile with no space ("Spare") | an "Extensions" space made for it and shown | same |
+| Keyboard Shortcuts… | `chrome://extensions/shortcuts` ("Extensions") as a tab in the extension's profile's space | same |
+| Settings ▸ Shortcuts' extension rows | "Room 3.6 fixture: Activate the extension ⇧⌘Y", "…: Room fixture named command ⇧⌘U", no conflict with a Room key (`settings-shortcuts.png`) | same |
+| Allow in incognito | stored for the profile, not for Work | same |
+
+`extpopup` (3.6b's checks after the pinned-order change, dev final / release): header button with the page's badge "T1"; click → popup **90.6 / 41.9 / 40.4 ms (median 41.9)** / **54.6 / 35.6 / 36.3 ms (median 36.3)**, 264×65 at load → 384×285 after its own resize; focus loss and Esc ×3 closed it with the page destroyed; `action.openPopup` 44 / 44 ms; ⇧⌘Y in the page 38 / 40 ms; ⇧⌘U reached `onCommand`; `sidePanel.open()` still "No active side panel for tabId: N" (the fixture's new fetch runs after it: the first order lost the command's user gesture, "may only be called in response to a user gesture", fixed before the tour).
+
+### The extension's own request apart from the engine's
+
+The fixture's named command fetches `http://127.0.0.1:8771/room-extension-fetch?command=room-named` (the endpoint server logs every request). In each run: the server's log **1 request** to it during the run; the net-log (`--log-net-log`, capture mode Everything) **9 URL requests, 1 initiated by an extension: `GET http://127.0.0.1:8771/room-extension-fetch?command=room-named · initiator chrome-extension://dibedkfpfkdkkcbjmblmfdbjdhdnlgkp`**; by host (`netlog-summary.py`): `hosts: 1 (0 not page traffic: none)`, i.e. **the engine's own requests 0**. Release framework the same (1 / 1 / 0).
+
+### Unit tier (`CI=1 swift test`)
+
+Engine 70 (+4: on click waits for Run and on this site is per host; a level the extension cannot take is refused; commands run only when the extension has them; Chrome's accelerator text in Room's notation, 8 cases), Chrome 58 (+3: pin/unpin and the overflow; commands by key; the site panel's section; the pages test now checks the profile), Model 108 (+3: the B-67 space choice; the settings round trip with an extension allowed in incognito), UIKitCore 56 (+1: extension rows and their conflicts), Sidebar 39, Tabs 71: all passing. The engine-free CI build and tests locally (`xcodegen/ci.yml`): TEST SUCCEEDED (74 s).
