@@ -27,6 +27,9 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     /// first page and gone when its last page leaves (Chromium closes a
     /// `Browser` whose tab strip empties; the next page makes a new one).
     private var browsers: [(window: Weak<NSWindow>, browser: RoomBrowser)] = []
+    /// Browsers Chrome is closing: no longer handed out, kept alive until
+    /// their `browserDidClose` (B-81).
+    private var closingBrowsers: [RoomBrowser] = []
 
     init(name: String, profile: RoomProfile) {
         self.name = name
@@ -94,13 +97,18 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     /// Chrome has decided to close the browser (its strip emptied) and
     /// deletes it after the current task: retired now, so a page made in the
     /// same turn gets a new Browser instead of joining one whose deletion is
-    /// scheduled (`browser.cc` `!IsDeleteScheduled()`, B-81).
+    /// scheduled (`browser.cc` `!IsDeleteScheduled()`, B-81). The wrapper is
+    /// kept until `browserDidClose`: Chrome's window calls back into it while
+    /// the Browser is destroyed, and a wrapper released earlier would take
+    /// that callback's target with it (found by the `recovery` step, 4.3b).
     public func browserWillClose(_ browser: RoomBrowser) {
         browsers.removeAll { $0.browser === browser }
+        if !closingBrowsers.contains(where: { $0 === browser }) { closingBrowsers.append(browser) }
     }
 
     public func browserDidClose(_ browser: RoomBrowser) {
         browsers.removeAll { $0.browser === browser }
+        closingBrowsers.removeAll { $0 === browser }
     }
 
     func closeAll() {
