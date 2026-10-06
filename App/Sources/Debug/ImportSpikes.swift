@@ -69,7 +69,7 @@ extension SpikeRunner.Context {
         }
 
         // 2. Every fixture read; the counts and times.
-        for (kind, name) in [(BrowserKind.chrome, "chrome"), (.safari, "safari"), (.bookmarksFile, "netscape"), (.arc, "arc")] {
+        for (kind, name) in [(BrowserKind.chrome, "chrome"), (.safari, "safari"), (.bookmarksFile, "netscape"), (.arc, "arc"), (.firefox, "firefox")] {
             guard await pick(kind) else { continue }
             let scan = model.scan
             var parts: [String] = []
@@ -185,6 +185,20 @@ extension SpikeRunner.Context {
             + "work essentials=\(workProfiles.first.map { sidebar.essentials(profile: $0.id).map(\.displayTitle).joined(separator: ",") } ?? "none")")
         _ = (safari, netscape)
 
+        // 3e (4.3b). Firefox's places.sqlite: a new space with its bookmarks, its history.
+        if await pick(.firefox) {
+            _ = await runImport("firefox") {
+                model.targetSpace = nil
+                model.targetProfile = defaultProfile.id
+                model.layout = .oneSpace
+                model.barIntoEssentials = false
+                model.importBookmarks = true
+                model.importHistory = true
+            }
+            let space = sidebar.spaces.last { $0.name == "Firefox" }
+            SpikeRunner.record("firefox_space", space.map { "\($0.name) pinned=\(sidebar.pinned(space: $0.id).map(\.displayTitle).joined(separator: ","))" } ?? "none")
+        }
+
         // 4. History through the engine in the same launch.
         if let engine = await app.engineProfile(for: defaultProfile), let history = engine.history {
             var found: [String] = []
@@ -206,6 +220,167 @@ extension SpikeRunner.Context {
         app.closeImportSheet()
         await settle(400)
         SpikeRunner.record("sheet_closed", app.importSheet == nil && window.attachedSheet == nil)
+
+        await importChecks43b(app: app, window: window, defaultProfile: defaultProfile)
+    }
+
+    /// 4.3b: passwords from a CSV through the sheet, the extensions' store
+    /// pages one at a time (a local page stands for the store:
+    /// `-RoomWebStorePage`), the cookies line, the browsers detected on a fake
+    /// home (`-RoomImportHome`: the fixtures at their real paths), the
+    /// open panel offered when macOS refuses a file, and the sheet reached
+    /// from Settings ▸ General and from the first-run card.
+    private func importChecks43b(app: AppDelegate, window: NSWindow, defaultProfile: Model.Profile) async {
+        guard let store = app.store, let fixtures = UserDefaults.standard.string(forKey: "RoomImportSource") else { return }
+        let sidebar = store.sidebar
+        func settle(_ milliseconds: Int = 300) async { try? await Task.sleep(for: .milliseconds(milliseconds)) }
+        func openSheet() async -> ImportSheetModel? {
+            app.showImportSheet(nil)
+            _ = await waitUntil(3) { app.importModel != nil && window.attachedSheet != nil }
+            return app.importModel
+        }
+        func closeSheet() async {
+            app.closeImportSheet()
+            _ = await waitUntil(3) { app.importSheet == nil && window.attachedSheet == nil }
+        }
+        func capture(_ name: String) async {
+            guard let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"), let sheet = app.importSheet else { return }
+            await settle(300)
+            let url = URL(fileURLWithPath: directory).appending(path: "phase-4.3b-import-\(name).png")
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            sheet.displayIfNeeded()
+            SpikeRunner.record("capture_\(name)", (try? WindowSnapshot.writePNG(sheet, to: url)) != nil ? url.lastPathComponent : "failed")
+        }
+
+        // 6. Passwords: a CSV alone (no source picked), through the engine's importer.
+        guard let model = await openSheet() else { return SpikeRunner.record("error", "import: the sheet did not reopen") }
+        model.choosePasswords(URL(fileURLWithPath: fixtures).appending(path: "passwords.csv"))
+        SpikeRunner.record("passwords_chosen", "line=\(model.passwordsLine ?? "nil") phase=\(model.phase == .choosing ? "choosing" : "other") "
+            + "can_import=\(model.canImport) profile=\(store.sidebar.profiles.first { $0.id == model.passwordsProfile }?.name ?? "?")")
+        await capture("passwords")
+        let passwordsStart = ContinuousClock.now
+        await model.performImport()
+        let result = model.passwordsResult
+        SpikeRunner.record("passwords_sheet", "status=\(result?.status.rawValue ?? "none") imported=\(result?.imported ?? -1) "
+            + "conflicts=\(result?.conflicts ?? -1) skipped=\(result?.skipped ?? -1) line=\(model.passwordsResultLine ?? "nil") "
+            + String(format: "%.0f ms", ms(since: passwordsStart)))
+        if let toast = app.debugToastCenter?.currentToast, toast.id == "imported" { SpikeRunner.record("passwords_toast", "\"\(toast.message)\"") }
+        await closeSheet()
+
+        // 7. Extensions: the Web Store ones listed (the unpacked one with its reason), their pages one at a time.
+        guard let model = await openSheet() else { return }
+        if let source = model.sources.first(where: { $0.kind == .chrome && $0.name.hasSuffix("(fixture)") }) {
+            model.pick(source.id)
+            _ = await waitUntil(20) { model.phase == .ready }
+            await model.settle()
+            model.importBookmarks = false
+            model.importHistory = false
+            model.importExtensions = true
+            model.targetSpace = sidebar.spaces.first?.id
+            await model.settle()
+            let skipped = model.scan?.extensions?.value?.skipped.map { "\($0.item): \($0.reason)" }.joined(separator: "; ") ?? "none"
+            SpikeRunner.record("extensions_row", "web_store=\(model.webStoreExtensions.map(\.name).joined(separator: ",")) "
+                + "chosen=\(model.chosenExtensions.count) skipped=[\(skipped)] can_import=\(model.canImport)")
+            await capture("extensions")
+            let entriesBefore = Set(sidebar.entries.keys)
+            await model.performImport()
+            SpikeRunner.record("extensions_import", "pages_to_open=\(model.storePagesOpened) summary=\"\(model.phase == .ready ? "" : app.debugToastCenter?.currentToast?.message ?? "")\"")
+            await closeSheet()
+            func describePages() -> String {
+                guard let pages = app.extensionStorePages else { return "finished" }
+                let entry = pages.currentEntry.flatMap { sidebar.entry($0) }
+                let space = entry.flatMap { e in sidebar.spaces.first { $0.id == e.spaceID } }?.name ?? "?"
+                return "opened=\(pages.sequence.opened.count) pending=\(pages.sequence.pending.count) current=\(pages.sequence.current ?? "none") "
+                    + "tab=\(entry?.kind == .today ? "today" : "none") space=\(space) url=\(entry?.liveURL ?? "none")"
+            }
+            _ = await waitUntil(5) { app.extensionStorePages?.currentEntry != nil }
+            let newTabs = sidebar.entries.keys.filter { !entriesBefore.contains($0) }.count
+            SpikeRunner.record("store_page_first", describePages() + " new_tabs=\(newTabs)")
+            // The next waits: nothing more opens while the first page is open.
+            await settle(1500)
+            SpikeRunner.record("store_page_waits", "new_tabs=\(sidebar.entries.keys.filter { !entriesBefore.contains($0) }.count) " + describePages())
+            // Closing the page (no install) opens the next.
+            if let first = app.extensionStorePages?.currentEntry {
+                app.sidebar?.close(first)
+                _ = await waitUntil(5) { app.extensionStorePages?.currentEntry.map { $0 != first } ?? true }
+                SpikeRunner.record("store_page_next", describePages() + " first_tab_gone=\(sidebar.entry(first) == nil)")
+            }
+            if let second = app.extensionStorePages?.currentEntry {
+                app.sidebar?.close(second)
+                _ = await waitUntil(5) { app.extensionStorePages == nil }
+                let toast = app.debugToastCenter?.currentToast
+                SpikeRunner.record("store_pages_done", describePages() + " toast=\(toast?.id == "imported-extensions" ? "\"\(toast!.message)\"" : "none")")
+            }
+        } else {
+            SpikeRunner.record("error", "import: no chrome fixture for the extensions")
+            await closeSheet()
+        }
+
+        // 8. The cookies line, 9. the browsers on the fake home, the open panel when macOS refuses a file.
+        guard let model = await openSheet() else { return }
+        SpikeRunner.record("cookies_line", ImportSheetText.cookies)
+        let home = AppDelegate.importHome.path
+        let detected = model.sources.filter { !$0.name.hasSuffix("(fixture)") }
+        SpikeRunner.record("home_detected", "home=\(UserDefaults.standard.string(forKey: "RoomImportHome") != nil ? "fake" : "real") "
+            + detected.map { "\($0.name)=~/\($0.location.path.replacingOccurrences(of: home + "/", with: ""))" }.joined(separator: " "))
+        if UserDefaults.standard.string(forKey: "RoomImportHome") != nil {
+            for kind in [BrowserKind.safari, .arc, .firefox] {
+                guard let source = detected.first(where: { $0.kind == kind }) else {
+                    SpikeRunner.record("home_\(kind.rawValue)", "not detected")
+                    continue
+                }
+                model.pick(source.id)
+                _ = await waitUntil(20) { model.phase == .ready || model.message != nil }
+                await model.settle()
+                let scan = model.scan
+                var parts: [String] = []
+                if let b = scan?.bookmarks?.value { parts.append("bookmarks=\(b.links) folders=\(b.folders)") }
+                if let h = scan?.history?.value { parts.append("history=\(h.urls.count) visits=\(h.visits)") }
+                if let a = scan?.sidebar?.value { parts.append("arc spaces=\(a.spaces.count)") }
+                if !model.profiles.isEmpty { parts.append("profiles=\(model.profiles.map(\.name).joined(separator: "/"))") }
+                parts.append("errors=\(scan?.errors.count ?? -1) needs_access=\(scan?.needsFileAccess ?? false)")
+                SpikeRunner.record("home_\(kind.rawValue)", parts.joined(separator: " "))
+            }
+        }
+        // A Safari folder whose Bookmarks.plist macOS will not open (as without Full Disk Access).
+        let locked = FileManager.default.temporaryDirectory.appending(path: "room-import-locked-\(UUID().uuidString)/Safari", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        let plist = locked.appending(path: "Bookmarks.plist")
+        try? FileManager.default.copyItem(at: URL(fileURLWithPath: fixtures).appending(path: "safari/Bookmarks.plist"), to: plist)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: plist.path)
+        model.addChosen(locked)
+        _ = await waitUntil(20) { model.phase == .ready }
+        await model.settle()
+        await capture("permission")
+        SpikeRunner.record("permission_denied", "needs_access=\(model.scan?.needsFileAccess ?? false) "
+            + "error=\(model.scan?.bookmarks?.failure?.kind == .permissionDenied) message=\(model.message ?? "none")")
+        try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plist.path)
+        try? FileManager.default.removeItem(at: locked.deletingLastPathComponent())
+        await closeSheet()
+
+        // 10. Settings ▸ General ▸ Import… (the button's action).
+        app.showSettings(nil)
+        await settle(500)
+        app.debugSettingsWindow?.services.showImportSheet()
+        _ = await waitUntil(3) { app.importSheet != nil && window.attachedSheet === app.importSheet }
+        SpikeRunner.record("settings_import", "sheet=\(app.importSheet != nil && window.attachedSheet === app.importSheet) key_window=\(NSApp.keyWindow === window ? "browser" : "other")")
+        await closeSheet()
+        app.debugSettingsWindow?.window?.close()
+
+        // 11. The first-run card's "Import from another browser…".
+        let firstRunWasDone = store.settings.settings.firstRunDone
+        app.showWelcomeCard()
+        _ = await waitUntil(3) { app.firstRunCard != nil }
+        if let card = app.firstRunCard {
+            card.onImport()
+            _ = await waitUntil(3) { app.importSheet != nil && window.attachedSheet === app.importSheet }
+            SpikeRunner.record("first_run_import", "card=true sheet=\(app.importSheet != nil && window.attachedSheet === app.importSheet)")
+            await closeSheet()
+        } else {
+            SpikeRunner.record("first_run_import", "card=false")
+        }
+        if firstRunWasDone { store.settings.update { $0.firstRunDone = true } }
+        _ = defaultProfile
     }
 }
 

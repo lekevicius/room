@@ -20,7 +20,7 @@ extension AppDelegate {
             return
         }
         guard let window = windowController?.window else { return }
-        var sources = ImportSources.detectInstalls(home: FileManager.default.homeDirectoryForCurrentUser)
+        var sources = ImportSources.detectInstalls(home: Self.importHome)
         #if DEBUG
         // `-RoomImportSource <directory>`: each source in it listed first, as a detected install (spikes, the tour).
         if let path = UserDefaults.standard.string(forKey: "RoomImportSource") {
@@ -32,9 +32,13 @@ extension AppDelegate {
         model.announce = { [weak self] message in
             self?.toastCenter?.show(Toast(id: "imported", symbol: .importData, message: message))
         }
+        model.openStorePages = { [weak self] ids, space in
+            (self?.openExtensionStorePages(ids, space: space)?.sequence).map { $0.opened.count + $0.pending.count } ?? 0
+        }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: ImportSheetMetrics.width, height: ImportSheetMetrics.height),
                              styleMask: [.titled], backing: .buffered, defer: true)
         let content = ImportSheet(model: model, onChooseFile: { [weak self] in self?.chooseImportFile() },
+                                  onChoosePasswords: { [weak self] in self?.choosePasswordsFile() },
                                   onClose: { [weak self] in self?.closeImportSheet() })
         sheet.contentViewController = NSHostingController(rootView: content)
         importSheet = sheet
@@ -51,6 +55,33 @@ extension AppDelegate {
         sheet.sheetParent?.endSheet(sheet)
     }
 
+    /// Where the browsers' folders are looked for: the user's home, or DEBUG
+    /// `-RoomImportHome <dir>` (a fake home holding fixtures at the real
+    /// relative paths: the tour's detection of Safari, Arc, Firefox and
+    /// Chrome; 4.3b task 9).
+    static var importHome: URL {
+        #if DEBUG
+        if let path = UserDefaults.standard.string(forKey: "RoomImportHome") { return URL(fileURLWithPath: path, isDirectory: true) }
+        #endif
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// "Choose CSV…" in the Passwords box: the file another browser exported.
+    private func choosePasswordsFile() {
+        guard let sheet = importSheet, let model = importModel else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.message = "Choose the passwords file you exported from your other browser (a .csv)."
+        panel.prompt = "Choose"
+        panel.beginSheetModal(for: sheet) { response in
+            guard response == .OK, let url = panel.url else { return }
+            model.choosePasswords(url)
+        }
+    }
+
     /// "Choose a File or Folder…": an open panel over the sheet. A folder
     /// chosen here is readable even where Room has no Full Disk Access
     /// (Safari's `~/Library/Safari`), because the panel grants it.
@@ -63,6 +94,8 @@ extension AppDelegate {
         panel.showsHiddenFiles = true
         panel.message = "Choose a browser's folder (Safari: ~/Library/Safari), a profile folder, or an exported bookmarks file (.html)."
         panel.prompt = "Choose"
+        // Safari's folder when macOS kept Room out of it: the panel opens there, and choosing it grants access.
+        if let source = model.selectedSource, model.scan?.needsFileAccess == true { panel.directoryURL = source.location }
         panel.beginSheetModal(for: sheet) { response in
             guard response == .OK, let url = panel.url else { return }
             model.addChosen(url)
@@ -70,10 +103,16 @@ extension AppDelegate {
     }
 }
 
+/// The sheet's fixed lines.
+enum ImportSheetText {
+    /// 4.3b task 7: cookies are not imported (another browser's keychain key encrypts them).
+    static let cookies = "Cookies and site data are not imported; sign in again on the sites you use."
+}
+
 /// The sheet's size (chosen; looks are Chapter 5's).
 enum ImportSheetMetrics {
     static let width: CGFloat = 580
-    static let height: CGFloat = 640
+    static let height: CGFloat = 760
 }
 
 /// The sheet's state (a SwiftUI leaf's model): the sources, the one picked
@@ -117,6 +156,25 @@ final class ImportSheetModel {
     /// What the last import wrote (the toast's counts; the tour compares them with the preview).
     private(set) var applied: ImportApplied?
     private(set) var historyResult: HistoryImportResult?
+
+    // Passwords (4.3b): a CSV the other browser exported, through the engine's importer.
+    private(set) var passwordsFile: URL?
+    /// Data rows in the chosen file (its lines past the header), or why it cannot be used.
+    private(set) var passwordsLine: String?
+    @ObservationIgnored private var passwordsCSV: String?
+    /// On once a file is chosen.
+    var importPasswords = false
+    /// Asked once for the whole file (spec 4.3b task 5).
+    var passwordConflicts: PasswordImportConflictPolicy = .skip
+    private(set) var passwordsResult: PasswordImportResult?
+
+    // Extensions (4.3b): the other browser's Web Store extensions, opened one at a time on their store pages.
+    /// Off until ticked: it opens pages (each extension under it is chosen by default).
+    var importExtensions = false
+    var chosenExtensions: Set<String> = []
+    private(set) var storePagesOpened = 0
+    /// Opens the store pages in a space (nil: the active one); how many will open.
+    @ObservationIgnored var openStorePages: (([String], UUID?) -> Int)?
 
     /// The engine profile of a Room profile, made if needed (the app's).
     @ObservationIgnored var engineProfile: ((Model.Profile) async -> (any Engine.Profile)?)?
@@ -213,7 +271,11 @@ final class ImportSheetModel {
         #if DEBUG
         debugReadSeconds = seconds
         #endif
-        if scan.bookmarks == nil, scan.history == nil, scan.sidebar == nil, scan.extensions == nil {
+        chosenExtensions = Set(webStoreExtensions.map(\.id))
+        if scan.needsFileAccess {
+            message = "macOS keeps Room out of \(scan.source.name)'s files. Click Choose a File or Folder… and choose its folder "
+                + "(\(scan.source.location.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))): choosing it there lets Room read it."
+        } else if scan.isEmpty {
             message = "Nothing to import was found there."
         }
         phase = .ready
@@ -257,19 +319,59 @@ final class ImportSheetModel {
     /// Waits for the current read or mapping (spikes).
     func settle() async { await work?.value }
 
-    var canImport: Bool { phase == .ready && plan.map { !$0.preview.isEmpty } == true }
+    var canImport: Bool {
+        switch phase {
+        case .ready: plan.map { !$0.preview.isEmpty } == true || wantsPasswords || wantsExtensions
+        // Passwords need no source: a CSV alone imports.
+        case .choosing: wantsPasswords
+        default: false
+        }
+    }
+
+    var wantsPasswords: Bool { importPasswords && passwordsCSV != nil }
+    var wantsExtensions: Bool { importExtensions && !chosenExtensions.isEmpty && scan?.extensions?.value != nil }
+
+    /// The Web Store extensions of the scan (unpacked ones are in its skipped list, with their reason).
+    var webStoreExtensions: [ImportedExtension] { scan?.extensions?.value?.extensions.filter(\.fromWebStore) ?? [] }
+
+    /// The passwords' profile: the chosen space's, else "Into profile".
+    var passwordsProfile: UUID { targetSpace.flatMap { store.sidebar.space($0)?.profileID } ?? targetProfile }
+
+    // MARK: Passwords
+
+    /// A CSV chosen in the Passwords box: read now (Chrome's importer takes at most 1000 KB), its rows counted.
+    func choosePasswords(_ url: URL) {
+        passwordsFile = url
+        passwordsResult = nil
+        guard let data = try? Data(contentsOf: url) else {
+            passwordsCSV = nil
+            passwordsLine = "\(url.lastPathComponent) could not be read."
+            return
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            passwordsCSV = nil
+            passwordsLine = "\(url.lastPathComponent) is not UTF-8 text."
+            return
+        }
+        passwordsCSV = text
+        let rows = max(0, text.split(whereSeparator: \.isNewline).count - 1)
+        passwordsLine = "\(url.lastPathComponent): \(rows) \(rows == 1 ? "row" : "rows")"
+        importPasswords = true
+    }
 
     // MARK: Import
 
     /// Writes the plan: the sidebar in one change (one transaction, flushed
     /// now), then the history in batches with progress, then the toast.
     func performImport() async {
-        guard canImport, let plan, let source = selectedSource else { return }
+        guard canImport else { return }
+        let plan = plan ?? ImportPlan.empty
+        let sourceName = selectedSource?.name ?? passwordsFile?.lastPathComponent ?? "a file"
         phase = .importing
         work?.cancel()
         progress = ImportProgress(fraction: 0, step: "Adding to the sidebar…")
         var applied = ImportApplied()
-        if !plan.batch.isEmpty {
+        if !plan.batch.isEmpty, selectedSource != nil {
             do {
                 applied = try store.sidebar.applyImport(plan.batch)
                 store.flush()
@@ -295,13 +397,32 @@ final class ImportSheetModel {
             }
         }
         historyResult = history
+        // Passwords through the engine's importer (Chrome's PasswordImporter on RoomCore).
+        var passwords: PasswordImportResult?
+        if wantsPasswords, let csv = passwordsCSV, let model = store.sidebar.profiles.first(where: { $0.id == passwordsProfile }) {
+            progress = ImportProgress(fraction: 1, step: "Adding passwords…")
+            if let engine = await engineProfile?(model) {
+                passwords = await engine.importPasswords(csv: csv, conflicts: passwordConflicts)
+            } else {
+                passwords = PasswordImportResult(status: .unavailable)
+            }
+            passwordsResult = passwords
+            if let passwords, passwords.status != .success { message = Self.passwordsFailure(passwords.status) }
+        }
+        // Extensions: their store pages, one at a time, in the space the bookmarks went to (or the active one).
+        storePagesOpened = 0
+        if wantsExtensions {
+            let ids = webStoreExtensions.map(\.id).filter(chosenExtensions.contains)
+            storePagesOpened = openStorePages?(ids, targetSpace ?? applied.spaces.first) ?? 0
+        }
         progress = nil
-        let summary = Self.summary(source: source.name, applied: applied, history: history)
+        let summary = Self.summary(source: sourceName, applied: applied, history: history, passwords: passwords, storePages: storePagesOpened)
         phase = .done(summary)
         announce?(summary)
     }
 
-    static func summary(source: String, applied: ImportApplied, history: HistoryImportResult) -> String {
+    static func summary(source: String, applied: ImportApplied, history: HistoryImportResult, passwords: PasswordImportResult? = nil,
+                        storePages: Int = 0) -> String {
         var parts: [String] = []
         func add(_ count: Int, _ one: String, _ many: String) { if count > 0 { parts.append("\(count) \(count == 1 ? one : many)") } }
         add(applied.spaces.count, "space", "spaces")
@@ -310,7 +431,37 @@ final class ImportSheetModel {
         add(applied.essentials, "essential", "essentials")
         add(applied.today, "Today tab", "Today tabs")
         add(history.urls, "history page", "history pages")
+        if let passwords, passwords.status == .success {
+            add(passwords.imported, "password", "passwords")
+            let kept = passwords.conflicts - passwords.replaced
+            if kept > 0 { parts.append("\(kept) saved \(kept == 1 ? "password" : "passwords") kept") }
+            if passwords.skipped > 0 { parts.append("\(passwords.skipped) password \(passwords.skipped == 1 ? "row" : "rows") skipped") }
+        }
+        if storePages > 0 { parts.append("\(storePages) extension \(storePages == 1 ? "page" : "pages") to open, one at a time") }
         return parts.isEmpty ? "Nothing new to import from \(source)" : "Imported from \(source): " + parts.joined(separator: ", ")
+    }
+
+    static func passwordsFailure(_ status: PasswordImportResult.Status) -> String {
+        switch status {
+        case .badFormat: "Passwords were not imported: the file has no header Room recognises (name, url, username, password)."
+        case .tooLarge: "Passwords were not imported: the file is over 1000 KB."
+        case .tooMany: "Passwords were not imported: the file has more rows than one import takes."
+        case .busy: "Passwords were not imported: another import is still running."
+        case .unavailable: "Passwords were not imported: this profile has no password store."
+        default: "Passwords were not imported: the file could not be read."
+        }
+    }
+
+    /// The Passwords box's result line.
+    var passwordsResultLine: String? {
+        guard let result = passwordsResult else { return nil }
+        guard result.status == .success else { return Self.passwordsFailure(result.status) }
+        var line = "\(result.imported) imported"
+        if result.conflicts > 0 {
+            line += result.replaced > 0 ? ", \(result.replaced) saved replaced" : ", \(result.conflicts) saved kept"
+        }
+        if result.skipped > 0 { line += ", \(result.skipped) skipped" }
+        return line
     }
 
     func cancel() {
@@ -366,6 +517,11 @@ final class ImportSheetModel {
         add(preview.essentials, preview.essentials == 1 ? "essential" : "essentials")
         add(preview.today, "Today tabs")
         add(preview.historyURLs, "history pages")
+        if wantsExtensions {
+            let pages = webStoreExtensions.count { chosenExtensions.contains($0.id) }
+            parts.append("\(pages) extension store \(pages == 1 ? "page" : "pages") (one at a time)")
+        }
+        if wantsPasswords { parts.append("the passwords file") }
         return parts.isEmpty ? "Nothing new to import." : "Will add " + parts.joined(separator: ", ") + "."
     }
 
@@ -385,6 +541,7 @@ final class ImportSheetModel {
 struct ImportSheet: View {
     @Bindable var model: ImportSheetModel
     let onChooseFile: () -> Void
+    let onChoosePasswords: () -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -409,6 +566,10 @@ struct ImportSheet: View {
                 placement
                 preview
             }
+            passwordsBox
+            // 4.3b task 7: one line.
+            Text(ImportSheetText.cookies)
+                .font(.caption).foregroundStyle(.secondary)
             Spacer(minLength: 0)
             HStack {
                 if case .done(let summary) = model.phase {
@@ -461,13 +622,63 @@ struct ImportSheet: View {
                 if let line = model.historyLine() {
                     row("History", line, isOn: $model.importHistory, available: model.scan?.history?.value != nil)
                 }
-                // 4.3b: Chrome's CSV importer (the engine step) and Web Store installs through the consent flow.
-                row("Passwords", "Coming in 4.3b", isOn: .constant(false), available: false)
-                row("Extensions", (model.extensionsLine().map { $0 + "; " } ?? "") + "installing them comes in 4.3b",
-                    isOn: .constant(false), available: false)
+                if let line = model.extensionsLine() {
+                    row("Extensions", line + (model.webStoreExtensions.isEmpty ? "" : "; their Web Store pages open one at a time"),
+                        isOn: $model.importExtensions, available: !model.webStoreExtensions.isEmpty)
+                    extensionsList
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(4)
+        }
+    }
+
+    /// The Web Store extensions with a checkbox each; unpacked ones with their reason.
+    @ViewBuilder private var extensionsList: some View {
+        let skipped = model.scan?.extensions?.value?.skipped ?? []
+        if model.importExtensions, !model.webStoreExtensions.isEmpty || !skipped.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(model.webStoreExtensions, id: \.id) { item in
+                    Toggle(isOn: Binding(get: { model.chosenExtensions.contains(item.id) }, set: { on in
+                        if on { model.chosenExtensions.insert(item.id) } else { model.chosenExtensions.remove(item.id) }
+                    })) {
+                        Text(item.enabled ? item.name : "\(item.name) (disabled there)").font(.callout)
+                    }
+                    .toggleStyle(.checkbox)
+                }
+                ForEach(Array(skipped.enumerated()), id: \.offset) { _, item in
+                    Text("\(item.item): \(item.reason)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .padding(.leading, 20)
+            .disabled(model.phase == .importing)
+        }
+    }
+
+    /// Passwords (4.3b): a CSV exported from the other browser, imported by the engine (Chrome's importer).
+    private var passwordsBox: some View {
+        GroupBox("Passwords") {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Toggle("Passwords", isOn: $model.importPasswords).toggleStyle(.checkbox).disabled(model.passwordsFile == nil)
+                    Text(model.passwordsLine ?? "Export them from your other browser as a CSV file (Chrome: Password Manager ▸ Settings ▸ "
+                         + "Export; Safari: File ▸ Export ▸ Passwords), then choose it.")
+                        .font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    Button("Choose CSV…", action: onChoosePasswords)
+                }
+                if model.passwordsFile != nil {
+                    Picker("When a site already has a saved password", selection: $model.passwordConflicts) {
+                        Text("Keep the saved one").tag(PasswordImportConflictPolicy.skip)
+                        Text("Replace it").tag(PasswordImportConflictPolicy.replace)
+                    }
+                    .fixedSize()
+                }
+                if let line = model.passwordsResultLine { Text(line).font(.callout) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(4)
+            .disabled(model.phase == .importing)
         }
     }
 

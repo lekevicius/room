@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Store page fixture</title>
+<h1>Store page fixture</h1>
+<p>Stands for <code>https://chromewebstore.google.com/detail/<span id="id"></span></code> in the
+<code>import</code> tour step (4.3b), so the sequence of store pages is checked without a request
+leaving the machine.</p>
+<script>document.getElementById("id").textContent = new URLSearchParams(location.search).get("id") || "";
+document.title = "Store page " + document.getElementById("id").textContent;</script>

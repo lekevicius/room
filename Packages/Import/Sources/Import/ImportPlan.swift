@@ -108,6 +108,9 @@ public struct ImportPlan: Sendable {
     /// The profile the history goes to.
     public var historyProfile: UUID?
     public var preview: ImportPreview
+
+    /// Nothing to write (a passwords-only import, 4.3b).
+    public static let empty = ImportPlan(batch: ImportBatch(), history: [], historyProfile: nil, preview: ImportPreview())
 }
 
 /// Maps the readers' values into Room's model (ROADMAP 4.3a task 2), as a

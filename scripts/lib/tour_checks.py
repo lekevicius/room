@@ -879,7 +879,29 @@ def _import(c):
     m = re.findall(r"(\d+) of (\d+)", db)
     c.check("the rows are in the database", len(m) == 3 and all(a == b for a, b in m), db or "missing")
     c.check("the sheet closes", v("sheet_closed") == "true", v("sheet_closed") or "missing")
-    for key in ("read_chrome", "read_safari", "read_netscape", "read_arc", "chrome_applied"):
+    # 4.3b: Firefox, passwords, the extensions' store pages, cookies, the fake home, file access, the two entry points.
+    c.contains("read_firefox", "bookmarks=10 folders=3 skipped=1", "history=4 visits=7", "errors=0", label="Firefox's places.sqlite reader")
+    c.contains("firefox_applied", "equal=true", "history urls=4", label="firefox: the store's rows after the import equal the preview")
+    c.contains("firefox_space", "Firefox pinned=Firefox,MDN,Dev,Python,Recipes,News,Maps,On the phone", label="Firefox: the toolbar first, then the menu and Other Bookmarks, then mobile")
+    c.contains("passwords_chosen", "line=passwords.csv: 4 rows", "phase=choosing", "can_import=true", label="a passwords CSV alone can be imported")
+    c.contains("passwords_sheet", "status=success", "imported=3", "skipped=1", label="the CSV's passwords through the engine's importer (the malformed row skipped)")
+    c.contains("passwords_toast", "3 passwords", "1 password row skipped", label="the toast names the passwords")
+    c.contains("extensions_row", "web_store=uBlock Origin,Bitwarden Password Manager", "chosen=2", "My Unpacked Tool: unpacked", label="the Web Store extensions listed, the unpacked one skipped with its reason")
+    c.contains("extensions_import", "pages_to_open=2", "2 extension pages to open, one at a time", label="the summary names the store pages")
+    c.contains("store_page_first", "opened=1 pending=1", "tab=today", "space=Space", "webstore/detail.html?id=", "new_tabs=1", label="the first store page opens as a Today tab of the target space")
+    c.contains("store_page_waits", "new_tabs=1", "opened=1 pending=1", label="the next page waits while the first is open")
+    c.contains("store_page_next", "opened=2 pending=0", "first_tab_gone=true", label="closing the page opens the next")
+    c.contains("store_pages_done", "finished", 'toast="Extensions from the Web Store: 0 added, 2 not added"', label="the sequence ends with its toast")
+    c.contains("cookies_line", "Cookies and site data are not imported", label="the sheet says cookies are not imported")
+    c.contains("home_detected", "home=fake", "Google Chrome=~/Library/Application Support/Google/Chrome", "Arc=~/Library/Application Support/Arc",
+               "Safari=~/Library/Safari", "Firefox=~/Library/Application Support/Firefox", label="the browsers detected at their real paths (a fake home)")
+    c.contains("home_safari", "bookmarks=10 folders=4", "history=4 visits=6", "errors=0", label="Safari read from ~/Library/Safari")
+    c.contains("home_arc", "arc spaces=3", "errors=0", label="Arc read from ~/Library/Application Support/Arc")
+    c.contains("home_firefox", "bookmarks=10", "profiles=default-release", "errors=0", label="Firefox's profile found under Profiles/")
+    c.contains("permission_denied", "needs_access=true", "error=true", "Choose a File or Folder", label="a file macOS refuses: the sheet offers the open panel")
+    c.contains("settings_import", "sheet=true", label="Settings ▸ General ▸ Import… opens the sheet")
+    c.contains("first_run_import", "card=true", "sheet=true", label="the first-run card's Import from another browser… opens the sheet")
+    for key in ("read_chrome", "read_safari", "read_netscape", "read_arc", "read_firefox", "chrome_applied", "passwords_sheet"):
         c.number(key)
 
 
