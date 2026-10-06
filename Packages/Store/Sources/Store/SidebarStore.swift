@@ -65,6 +65,8 @@ public enum SidebarError: Error, Equatable {
     case unknownRoutingRule(UUID)
     /// A routing rule's pattern cannot be saved (an invalid regex, an empty pattern).
     case routingPattern(RoutingRules.PatternError)
+    /// An `ImportBatch` refers to a new profile or space it does not list.
+    case invalidImport
 }
 
 /// A removed entry and where it was, for Undo (Clear, remove).
@@ -389,6 +391,131 @@ public final class SidebarStore {
         renumberRoutingRules()
         normalizeSplitGroups(into: &change)
         commit(change)
+    }
+
+    // MARK: Import (Phase 4.3a)
+
+    /// Writes an import (`ImportBatch`, planned off the main thread by
+    /// `Import.ImportPlanner`) as one change, so the writer commits it in one
+    /// transaction: new profiles (names made unique, as New Profile… does;
+    /// none is renamed or deleted, B-22), new spaces at the end, pinned
+    /// trees appended to each space's pinned root, Today tabs appended to its
+    /// Today list, essentials appended to each profile's grid. Every
+    /// reference is checked before anything changes. What no longer fits
+    /// when the batch lands is not forced: essentials past the cap are
+    /// refused and folders deeper than `FolderRules.maxDepth` give their
+    /// links to the deepest allowed folder (both counted).
+    @discardableResult
+    public func applyImport(_ batch: ImportBatch) throws(SidebarError) -> ImportApplied {
+        func check(_ ref: ImportBatch.ProfileRef) throws(SidebarError) {
+            switch ref {
+            case .existing(let id): guard profiles.contains(where: { $0.id == id }) else { throw .unknownProfile(id) }
+            case .new(let index): guard batch.newProfiles.indices.contains(index) else { throw .invalidImport }
+            }
+        }
+        for space in batch.newSpaces { try check(space.profile) }
+        for essentials in batch.essentials { try check(essentials.profile) }
+        for items in batch.spaces {
+            switch items.space {
+            case .existing(let id): guard space(id) != nil else { throw .unknownSpace(id) }
+            case .new(let index): guard batch.newSpaces.indices.contains(index) else { throw .invalidImport }
+            }
+        }
+        guard !batch.isEmpty else { return ImportApplied() }
+
+        var applied = ImportApplied()
+        var change = SidebarChange()
+        let now = clock()
+        var newProfileIDs: [UUID] = []
+        for name in batch.newProfiles {
+            let profile = Profile(name: SpaceRules.uniqueName(name, existing: profiles.map(\.name)), position: profiles.count)
+            profiles.append(profile)
+            newProfileIDs.append(profile.id)
+            change.spaces.insert(profile.id)
+        }
+        applied.profiles = newProfileIDs
+        func profileID(_ ref: ImportBatch.ProfileRef) -> UUID {
+            switch ref {
+            case .existing(let id): id
+            case .new(let index): newProfileIDs[index]
+            }
+        }
+        var newSpaceIDs: [UUID] = []
+        for item in batch.newSpaces {
+            let space = Space(name: item.name, icon: item.icon, themeColors: Array(item.themeColors.prefix(ThemePalette.maxColors)),
+                              profileID: profileID(item.profile), position: spaces.count)
+            spaces.append(space)
+            newSpaceIDs.append(space.id)
+        }
+        applied.spaces = newSpaceIDs
+        if !newSpaceIDs.isEmpty { change.spaces.formUnion(spaces.map(\.id)) }
+
+        for items in batch.spaces {
+            let spaceID: UUID = switch items.space {
+            case .existing(let id): id
+            case .new(let index): newSpaceIDs[index]
+            }
+            guard let space = space(spaceID) else { continue }
+            func add(_ nodes: [ImportBatch.Node], folder: UUID?, depth: Int) {
+                for node in nodes {
+                    switch node {
+                    case .link(let link):
+                        let entry = Entry(kind: .pinned, spaceID: spaceID, profileID: space.profileID, folderID: folder,
+                                          storedURL: link.url, storedTitle: link.title, createdAt: now)
+                        appendImported(entry, change: &change)
+                        applied.pinned += 1
+                    case .folder(let name, let children):
+                        guard depth < FolderRules.maxDepth else {
+                            applied.foldersFlattened += 1
+                            add(children, folder: folder, depth: depth)
+                            continue
+                        }
+                        let entry = Entry(kind: .folder, spaceID: spaceID, profileID: space.profileID, folderID: folder,
+                                          customLabel: name, createdAt: now)
+                        appendImported(entry, change: &change)
+                        applied.folders += 1
+                        add(children, folder: entry.id, depth: depth + 1)
+                    }
+                }
+            }
+            add(items.pinned, folder: nil, depth: 0)
+            for link in items.today {
+                let entry = Entry(kind: .today, spaceID: spaceID, profileID: space.profileID, createdAt: now,
+                                  liveURL: link.url, liveTitle: link.title)
+                appendImported(entry, change: &change)
+                applied.today += 1
+            }
+        }
+        for item in batch.essentials {
+            let profile = profileID(item.profile)
+            var count = essentials(profile: profile).count
+            for link in item.links {
+                guard EntryRules.canAddEssential(currentCount: count) else {
+                    applied.essentialsRefused += 1
+                    continue
+                }
+                let entry = Entry(kind: .essential, spaceID: nil, profileID: profile, storedURL: link.url, storedTitle: link.title,
+                                  createdAt: now)
+                appendImported(entry, change: &change)
+                applied.essentials += 1
+                count += 1
+            }
+        }
+        commit(change)
+        return applied
+    }
+
+    /// `insert` at the end without renumbering the container (its positions
+    /// are contiguous): an import of thousands of bookmarks into one folder
+    /// stays linear.
+    private func appendImported(_ entry: Entry, change: inout SidebarChange) {
+        var entry = entry
+        let container = entry.container
+        entry.position = containers[container]?.count ?? 0
+        containers[container, default: []].append(entry.id)
+        entries[entry.id] = entry
+        change.entries.insert(entry.id)
+        change.containers.insert(container)
     }
 
     // MARK: Routing rules (schema v8, spec §B)
