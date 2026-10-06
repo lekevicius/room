@@ -327,6 +327,23 @@ struct SchemaTests {
         ])
     }
 
+    @Test("The profiles are read without opening the store; no file reads as none (4.4b's directory move)")
+    func storedProfiles() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let url = directory.url.appending(path: "Room.sqlite")
+        #expect(try RoomDatabase.storedProfiles(at: url).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: url.path), "nothing created")
+        var state = sampleState()
+        state.profiles.append(Profile(name: "Work", position: 1))
+        do {
+            let database = try RoomDatabase(url: url)
+            let writer = StateWriter(database: database, snapshotURL: nil, committed: RoomState(), generation: 0)
+            try writer.writeAndWait(state, generation: 1)
+        }
+        #expect(try RoomDatabase.storedProfiles(at: url) == state.profiles)
+    }
+
     @Test("Reopening a migrated file migrates nothing and keeps the data")
     func reopen() throws {
         let directory = try TemporaryDirectory()

@@ -67,6 +67,10 @@ public enum SidebarError: Error, Equatable {
     case routingPattern(RoutingRules.PatternError)
     /// An `ImportBatch` refers to a new profile or space it does not list.
     case invalidImport
+    /// The first profile (Default) is never deleted (4.4b).
+    case defaultProfile
+    /// A profile needs a name.
+    case emptyName
 }
 
 /// A removed entry and where it was, for Undo (Clear, remove).
@@ -261,6 +265,67 @@ public final class SidebarStore {
         profiles.append(profile)
         commit(SidebarChange(spaces: [profile.id]))
         return profile
+    }
+
+    /// Renames a profile (Settings ▸ Spaces, 4.4b; B-22): only the label
+    /// changes (the engine keeps its data under the profile's id). Names
+    /// stay unique ignoring case ("Work 2"); returns the name given.
+    @discardableResult
+    public func renameProfile(_ id: UUID, to name: String) throws(SidebarError) -> String {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { throw .unknownProfile(id) }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw .emptyName }
+        guard trimmed != profiles[index].name else { return trimmed }
+        let unique = SpaceRules.uniqueName(trimmed, existing: profiles.filter { $0.id != id }.map(\.name))
+        profiles[index].name = unique
+        commit(SidebarChange(spaces: [id]))
+        return unique
+    }
+
+    /// Deletes a profile (Settings ▸ Spaces, 4.4b): its spaces go as Delete
+    /// Space takes one (every entry with a page to the Archive, reason
+    /// `spaceDeleted`; the rules routing to them removed), its Essentials to
+    /// the Archive too, then the profile. Not the first (Default) profile,
+    /// and not when no space of another profile would remain. No Undo: the
+    /// engine deletes the profile's data after this (the caller).
+    public func deleteProfile(_ id: UUID) throws(SidebarError) {
+        guard let profile = profiles.first(where: { $0.id == id }) else { throw .unknownProfile(id) }
+        guard profile.id != profiles.first?.id else { throw .defaultProfile }
+        let doomed = Set(spaces.filter { $0.profileID == id }.map(\.id))
+        guard spaces.contains(where: { !doomed.contains($0.id) }) else { throw .lastSpace }
+        var change = SidebarChange()
+        let now = clock()
+        for entry in entries.values where entry.profileID == id || entry.spaceID.map(doomed.contains) == true {
+            addArchiveRow(entry, reason: .spaceDeleted, at: now, change: &change)
+            entries[entry.id] = nil
+            change.removedEntries.insert(entry.id)
+        }
+        for container in Array(containers.keys) {
+            switch container {
+            case .essentials(id):
+                containers[container] = nil
+                change.containers.insert(container)
+            case .pinned(let space, _), .today(let space):
+                if doomed.contains(space) {
+                    containers[container] = nil
+                    change.containers.insert(container)
+                }
+            default: break
+            }
+        }
+        normalizeSplitGroups(into: &change)
+        if routingRules.contains(where: { doomed.contains($0.targetSpaceID) }) {
+            routingRules.removeAll { doomed.contains($0.targetSpaceID) }
+            renumberRoutingRules()
+            change.routingRules = true
+        }
+        spaces.removeAll { doomed.contains($0.id) }
+        for i in spaces.indices { spaces[i].position = i }
+        profiles.removeAll { $0.id == id }
+        for i in profiles.indices { profiles[i].position = i }
+        change.removedSpaces = doomed
+        change.spaces = Set(spaces.map(\.id)).union([id])
+        commit(change)
     }
 
     /// A new space at `index` (default: the end), with its look (spec §B form).

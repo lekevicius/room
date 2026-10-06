@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let engine: any EngineApplication
     private(set) var store: RoomStore?
     private(set) var windowController: RoomWindowController?
-    private var settingsWindow: SettingsWindowController?
+    private(set) var settingsWindow: SettingsWindowController?
     private(set) var pageHost: PageHost?
     /// The card's content view (DEBUG spikes read what it shows).
     var pageHostContainer: PageContainerView? { pageHost?.container }
@@ -346,7 +346,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// `~/Library/Application Support/Room/Room.sqlite`. `-RoomStateDirectory`
     /// overrides it; DEBUG snapshot and spike runs use a throwaway directory
     /// so they never touch the user's sidebar.
-    private static func openStore() -> RoomStore? {
+    /// The state directory this launch opens (`-RoomStateDirectory`, a
+    /// DEBUG throwaway, else `~/Library/Application Support/Room`).
+    static var stateDirectory: URL {
         var directory = AppPaths.applicationSupport
         if let override = UserDefaults.standard.string(forKey: "RoomStateDirectory") {
             directory = URL(fileURLWithPath: override, isDirectory: true)
@@ -355,6 +357,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // An explicit `-RoomStateDirectory` wins (the relaunch measurement reuses one).
         if let throwaway = Self.throwawayStateDirectory { directory = throwaway }
         #endif
+        return directory
+    }
+
+    private static func openStore() -> RoomStore? {
+        let directory = stateDirectory
         do {
             let opening = ContinuousClock.now
             let store = try RoomStore.open(directory: directory)
@@ -1140,7 +1147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 extensions: { [weak self] in self?.extensions },
                 sidebar: store.sidebar,
                 showRoutingRules: { [weak self] in self?.showRoutingRules(over: self?.settingsWindow?.window) },
-                showImportSheet: { [weak self] in self?.showImportSheet(nil) })
+                showImportSheet: { [weak self] in self?.showImportSheet(nil) },
+                profiles: profileServices())
             settingsWindow = SettingsWindowController(settings: store.settings, services: services)
         }
         settingsWindow?.showWindow(nil)

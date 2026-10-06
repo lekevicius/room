@@ -83,6 +83,23 @@ struct ExtensionsTests {
         #expect(engine.updateChecks.isEmpty)
     }
 
+    @Test("A renamed profile's section takes the name; a deleted one's leaves, its extensions no longer counted (4.4b)")
+    @MainActor func renameAndRemove() {
+        let time = ManualTime()
+        let (center, _) = makeCenter(time)
+        let personal = UUID(), work = UUID()
+        let engine = FakeProfileExtensions()
+        center.add(profile: personal, name: "Personal", extensions: FakeProfileExtensions())
+        center.add(profile: work, name: "Work", extensions: engine)
+        engine.installed = [InstalledExtension(id: "dark", name: "Dark Reader", isFromWebStore: true)]
+        center.rename(profile: work, to: "Office")
+        #expect(center.sections.map(\.name) == ["Personal", "Office"])
+        #expect(center.installedCount == 1)
+        center.remove(profile: work)
+        #expect(center.sections.map(\.id) == [personal])
+        #expect(center.installedCount == 0)
+    }
+
     @Test("The first install starts the day: no check at once, one a day later, then daily")
     @MainActor func firstInstall() async {
         let time = ManualTime()

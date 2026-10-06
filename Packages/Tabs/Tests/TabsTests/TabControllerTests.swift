@@ -180,11 +180,28 @@ struct ProfileTests {
         #expect(f.display.shown?.url?.absoluteString == "https://later.example")
     }
 
-    @Test("Engine profile names stay one directory deep")
+    @Test("Engine profiles are keyed by the profile's id; the legacy names stay one directory deep (B-22)")
     func engineNames() {
-        #expect(TabController.engineProfileName(for: Model.Profile(name: "Default", position: 0)) == "Default")
-        #expect(TabController.engineProfileName(for: Model.Profile(name: "a/b:c", position: 0)) == "a-b-c")
-        #expect(TabController.engineProfileName(for: Model.Profile(name: "..hidden", position: 0)) == "hidden")
+        let profile = Model.Profile(name: "Default", position: 0)
+        #expect(TabController.engineProfileName(for: profile) == profile.id.uuidString)
+        #expect(TabController.legacyEngineProfileName(for: profile) == "Default")
+        #expect(TabController.legacyEngineProfileName(for: Model.Profile(name: "a/b:c", position: 0)) == "a-b-c")
+        #expect(TabController.legacyEngineProfileName(for: Model.Profile(name: "..hidden", position: 0)) == "hidden")
+    }
+
+    @Test("The one-time move: a legacy directory moves to the id's unless that exists; one claim per directory")
+    func engineDirectoryMoves() {
+        let a = Model.Profile(name: "Default", position: 0)
+        let b = Model.Profile(name: "a/b", position: 1)
+        let c = Model.Profile(name: "a-b", position: 2)
+        let d = Model.Profile(name: "Moved", position: 3)
+        let e = Model.Profile(name: "New", position: 4)
+        let p = "Room Profile "
+        let existing: Set<String> = [p + "Default", p + "a-b", p + "Moved", p + d.id.uuidString, "Default"]
+        let moves = EngineProfileDirectories.moves(profiles: [a, b, c, d, e], existing: existing, prefix: p)
+        #expect(moves == [.init(from: p + "Default", to: p + a.id.uuidString), .init(from: p + "a-b", to: p + b.id.uuidString)])
+        let after = existing.subtracting(moves.map(\.from)).union(moves.map(\.to))
+        #expect(EngineProfileDirectories.moves(profiles: [a, b, c, d, e], existing: after, prefix: p).isEmpty, "once")
     }
 }
 

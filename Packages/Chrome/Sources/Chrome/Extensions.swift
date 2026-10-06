@@ -69,6 +69,26 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
         updates.installedCountChanged(installedCount)
     }
 
+    /// A profile was renamed (4.4b): its section's title follows.
+    public func rename(profile id: UUID, to name: String) {
+        guard let index = sections.firstIndex(where: { $0.id == id }) else { return }
+        let section = sections[index]
+        sections[index] = ProfileSection(id: id, name: name, extensions: section.extensions, installed: section.installed)
+    }
+
+    /// A profile is being deleted (4.4b): its extensions leave the list (a
+    /// popup of theirs closes first).
+    public func remove(profile id: UUID) {
+        guard let index = sections.firstIndex(where: { $0.id == id }) else { return }
+        if let shown = shownPopup, shown.extensions === sections[index].extensions {
+            shownPopup = nil
+            popupPresenter?.closePopup(shown.popup)
+            shown.extensions.closePopup(shown.popup)
+        }
+        sections.remove(at: index)
+        updates.installedCountChanged(installedCount)
+    }
+
     func section(of extensions: any ProfileExtensions) -> Int? {
         sections.firstIndex { $0.extensions === extensions }
     }

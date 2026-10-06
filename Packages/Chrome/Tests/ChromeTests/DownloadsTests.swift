@@ -90,6 +90,23 @@ struct DownloadsTests {
         #expect(list.row(cancelled) == nil && list.rows.count == 2)
     }
 
+    @Test("Clear browsing data's downloads (4.4b): the profile's finished rows in the period go; running ones and older ones stay")
+    func clearFinishedForAProfile() throws {
+        let list = DownloadList()
+        list.folder = { folder }
+        list.fileExists = { _ in false }
+        let profile = try profile()
+        profile.downloadsDelegate = list
+        let done = profile.simulateDownload(url: URL(string: "https://a.example/done.zip")!, totalBytes: 10)
+        profile.advanceDownload(id: done, by: 10)
+        let running = profile.simulateDownload(url: URL(string: "https://a.example/running.zip")!, totalBytes: 10)
+        list.clearFinished(of: profile, since: Date().addingTimeInterval(3600))
+        #expect(list.rows.count == 2, "nothing started in the period")
+        list.clearFinished(of: profile, since: nil)
+        #expect(list.rows.map(\.id) == [running])
+        #expect(profile.downloads[done] == nil)
+    }
+
     @Test("The ring adds up downloads in progress; a finished one bumps the badge until seen; Clear keeps what is running")
     func progressBadgeAndClear() throws {
         let list = DownloadList()

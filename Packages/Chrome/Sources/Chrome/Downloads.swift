@@ -260,6 +260,17 @@ public final class DownloadList: DownloadsDelegate {
         profiles.removeValue(forKey: id)
     }
 
+    /// Clear browsing data's downloads kind (4.4b) for `profile`: its
+    /// finished rows started at or after `start` (`nil`: all) go, as they
+    /// went from the engine's list (`removeDownload` again is harmless).
+    public func clearFinished(of profile: any Profile, since start: Date?) {
+        let gone = rows.filter { row in
+            DownloadRules.isFinished(row.item.state) && profiles[row.id]?.profile === profile
+                && start.map { row.item.startTime >= $0 } ?? true
+        }.map(\.id)
+        for id in gone { forget(id) }
+    }
+
     public var canClear: Bool { rows.contains { DownloadRules.isFinished($0.item.state) } }
 
     /// The popover opened: the badge goes.

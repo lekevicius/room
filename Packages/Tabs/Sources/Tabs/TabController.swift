@@ -166,13 +166,29 @@ public final class TabController: SidebarHost {
         requestEngineProfile?(profile)
     }
 
-    /// The engine profile name of a model profile: its name, with the
-    /// characters a directory name cannot hold replaced (the engine keeps it
-    /// at `<root>/Room Profile <name>`, a direct child of its root, Phase 1.4).
+    /// The engine profile name of a model profile: its id (4.4b, B-22), so a
+    /// rename changes only the label; the engine keeps it at
+    /// `<root>/Room Profile <id>`.
     public static func engineProfileName(for profile: Model.Profile) -> String {
+        profile.id.uuidString
+    }
+
+    /// The name the engine profile had until 4.4b: the profile's name, with
+    /// the characters a directory name cannot hold replaced (Phase 1.4);
+    /// `EngineProfileDirectories` moves those directories once.
+    public static func legacyEngineProfileName(for profile: Model.Profile) -> String {
         var name = String(profile.name.map { "/:\\".contains($0) ? "-" : $0 }).trimmingCharacters(in: .whitespaces)
         while name.hasPrefix(".") { name.removeFirst() }
         return name.isEmpty ? profile.id.uuidString : String(name.prefix(64))
+    }
+
+    /// Forgets a model profile's engine profile (the profile is being
+    /// deleted, 4.4b) and returns it; pages already closed.
+    @discardableResult
+    public func removeEngineProfile(for profileID: UUID) -> (any Engine.Profile)? {
+        requestedProfiles.remove(profileID)
+        waitingLoads.removeAll { id in store.sidebar.entry(id).map { $0.profileID == profileID } ?? true }
+        return engineProfiles.removeValue(forKey: profileID)
     }
 
     /// The page in the card.

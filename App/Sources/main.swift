@@ -39,6 +39,11 @@ do {
         engineDirectory = debugRoot
     }
     #endif
+    #if ROOM_ENGINE_ROOMCORE
+    // B-22 (4.4b): profile directories keyed by id, moved once before Chromium opens any.
+    EngineProfileMigration.run(engineRoot: engineDirectory, stateDirectory: AppDelegate.stateDirectory,
+                               prefix: RoomCoreApplication.profileDirectoryPrefix)
+    #endif
     // RoomCore logs to RoomCore.log in its data root and decides the keychain
     // by the build's code signature: a team-signed build uses "Room Safe
     // Storage" in the login keychain, an ad-hoc build the mock keychain

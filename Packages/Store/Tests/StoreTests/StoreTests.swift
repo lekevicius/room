@@ -450,6 +450,50 @@ struct SidebarStoreTests {
         #expect(sidebar.createProfile(name: "default").name == "default 2")
     }
 
+    @Test("Renaming a profile changes only its name, kept unique; an empty name is refused (B-22)")
+    func renameProfile() throws {
+        let work = sidebar.createProfile(name: "Work")
+        let space = try sidebar.createSpace(name: "Office", profile: work.id)
+        #expect(try sidebar.renameProfile(work.id, to: "  Job ") == "Job")
+        #expect(try sidebar.renameProfile(work.id, to: "default") == "default 2")
+        #expect(sidebar.profiles.first { $0.id == work.id }?.name == "default 2")
+        #expect(sidebar.space(space.id)?.profileID == work.id)
+        #expect(throws: SidebarError.emptyName) { try sidebar.renameProfile(work.id, to: " ") }
+        store.close()
+        #expect(try test.reopen().sidebar.profiles.map(\.name) == ["Default", "default 2"])
+    }
+
+    @Test("Deleting a profile archives its spaces' entries and Essentials and removes its spaces and rules; Default and the last space stay")
+    func deleteProfile() throws {
+        let work = sidebar.createProfile(name: "Work")
+        let office = try sidebar.createSpace(name: "Office", profile: work.id)
+        let lab = try sidebar.createSpace(name: "Lab", profile: work.id)
+        let window = store.windows.restoreOrCreateWindow(defaultSidebarWidth: 240, space: office.id)
+        let tab = try sidebar.addEntry(.today, url: "https://t.example/", space: office.id)
+        let pinned = try sidebar.addEntry(.pinned, url: "https://p.example/", space: lab.id)
+        let essential = try sidebar.addEntry(.essential, url: "https://e.example/", space: office.id)
+        let kept = try sidebar.addEntry(.today, url: "https://kept.example/", space: space.id)
+        let rule = try sidebar.addRoutingRule(.contains, pattern: "work", target: lab.id)
+        #expect(throws: SidebarError.defaultProfile) { try sidebar.deleteProfile(profile.id) }
+        try sidebar.deleteProfile(work.id)
+        #expect(sidebar.profiles.map(\.id) == [profile.id])
+        #expect(sidebar.spaces.map(\.id) == [space.id])
+        for id in [tab.id, pinned.id, essential.id] {
+            #expect(sidebar.entry(id) == nil)
+            #expect(sidebar.archive[id]?.reason == .spaceDeleted)
+        }
+        #expect(sidebar.entry(kept.id) != nil)
+        #expect(!sidebar.routingRules.contains { $0.id == rule.id })
+        #expect(store.windows.window(window.id)?.activeSpaceID == space.id)
+        let alone = sidebar.createProfile(name: "Alone")
+        try sidebar.setSpaceProfile(space.id, to: alone.id)
+        #expect(throws: SidebarError.lastSpace) { try sidebar.deleteProfile(alone.id) }
+        store.close()
+        let reopened = try test.reopen().sidebar
+        #expect(reopened.profiles.map(\.name) == ["Default", "Alone"])
+        #expect(reopened.archive[tab.id]?.profileID == work.id, "a row outlives its profile")
+    }
+
     @Test("Set Profile moves the space's entries to the profile; essentials stay with theirs (spec §B)")
     func setProfile() throws {
         let work = sidebar.createProfile(name: "Work")

@@ -29,6 +29,19 @@ public final class RoomDatabase: Sendable {
         if pages.1 > 256, pages.1 * 2 > pages.0 { try pool.vacuum() }
     }
 
+    /// The profiles stored in the database at `url`, read without migrating
+    /// or writing anything (4.4b: the app moves the engine's profile
+    /// directories before the engine and the store open). Empty when there
+    /// is no file; throws when it cannot be read.
+    public static func storedProfiles(at url: URL) throws -> [Profile] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        var configuration = Configuration()
+        configuration.readonly = true
+        let queue = try DatabaseQueue(path: url.path, configuration: configuration)
+        defer { try? queue.close() }
+        return try queue.read { db in try Profile.order(Column("position")).fetchAll(db) }
+    }
+
     /// `PRAGMA integrity_check` lines; `["ok"]` when the file is sound.
     public func integrityCheck() throws -> [String] {
         try pool.read { db in try String.fetchAll(db, sql: "PRAGMA integrity_check") }

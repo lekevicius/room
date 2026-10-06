@@ -89,6 +89,12 @@ final class SettingsWindowController: NSWindowController {
     }
 }
 
+/// Pages Settings opens as tabs.
+enum SettingsPages {
+    /// Chromium's own list of sites with stored data (4.4b's bounded attempt).
+    static let allSiteData = URL(string: "chrome://settings/content/all")!
+}
+
 /// The window's title follows the chosen section, as in System Settings' panes.
 private final class SettingsTabsController: NSTabViewController {
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
@@ -113,12 +119,15 @@ struct SettingsServices {
     let showRoutingRules: () -> Void
     /// The import sheet over the browser window (4.3b: General ▸ Import…).
     let showImportSheet: () -> Void
+    /// Profiles, permissions and browsing data (4.4b: Spaces, Privacy).
+    let profiles: ProfileServices
 }
 
 private struct SettingsSectionView: View {
     let section: SettingsWindowController.Section
     let settings: SettingsStore
     let services: SettingsServices
+    @State private var clearingData = false
 
     var body: some View {
         Form {
@@ -248,30 +257,34 @@ private struct SettingsSectionView: View {
         return rules.isEmpty ? "No routing rules." : "\(rules.count) rule\(rules.count == 1 ? "" : "s"), \(enabled) enabled."
     }
 
-    // MARK: Spaces (4.2: routing; 4.4b adds profiles and the rest)
+    // MARK: Spaces (4.2: routing; 4.4b: order, profiles)
 
     @ViewBuilder private var spaces: some View {
-        Section("Spaces") {
-            ForEach(services.sidebar.spaces, id: \.id) { space in
-                let rules = services.sidebar.routingRules.count { $0.targetSpaceID == space.id }
-                LabeledContent(space.name) {
-                    Text(rules == 0 ? "no routing rules" : "\(rules) routing rule\(rules == 1 ? "" : "s")").foregroundStyle(.secondary)
-                }
-            }
-        }
-        Section {
-            LabeledContent {
-                Button("Routing Rules…") { services.showRoutingRules() }
-            } label: {
-                Text("Space routing")
-                Text("Rules send links from other apps, and links between spaces when that is on (General ▸ Links), to a space. \(rulesSummary)")
-            }
-        }
+        SpacesSettingsView(sidebar: services.sidebar, profiles: services.profiles, rulesSummary: rulesSummary,
+                           showAllRules: services.showRoutingRules)
     }
 
-    // MARK: Privacy (2.8b)
+    // MARK: Privacy (2.8b; 4.4b: permissions per site, Clear browsing data, site data, the statements)
 
     @ViewBuilder private var privacy: some View {
+        SitePermissionsView(sidebar: services.sidebar, profiles: services.profiles)
+        Section {
+            LabeledContent {
+                Button("Clear Browsing Data…") { clearingData = true }
+            } label: {
+                Text("Browsing data")
+                Text("History, cookies and site data, cached files, download history, autofill and passwords, for a time range.")
+            }
+            LabeledContent {
+                Button("All Site Data…") { services.profiles.openPage(SettingsPages.allSiteData) }
+            } label: {
+                Text("Site data")
+                Text("Chromium's list of every site storing data, in a tab. For one site: the site button in the sidebar's header ▸ Clear Site Data.")
+            }
+        }
+        .sheet(isPresented: $clearingData) {
+            ClearBrowsingDataSheet(sidebar: services.sidebar, profiles: services.profiles) { clearingData = false }
+        }
         Section {
             Toggle(isOn: binding(\.crashReports)) {
                 Text("Send crash reports")
@@ -298,6 +311,16 @@ private struct SettingsSectionView: View {
             Text("Passwords, addresses and cards Room saves stay on this Mac, in Room's profile: no account, no sync, no upload.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        }
+        Section("Notes") {
+            ForEach(PrivacyStatements.lines, id: \.title) { line in
+                LabeledContent {
+                    EmptyView()
+                } label: {
+                    Text(line.title)
+                    Text(line.text)
+                }
+            }
         }
     }
 
