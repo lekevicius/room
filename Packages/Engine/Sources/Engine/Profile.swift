@@ -52,6 +52,14 @@ public protocol Profile: AnyObject {
     /// `{searchTerms}`. Ignored by engines without an omnibox.
     func setDefaultSearchEngine(_ engine: SearchEngineTemplate)
 
+    /// Imports passwords from a CSV in Chrome's export format (a header
+    /// naming `name,url,username,password,note` or Chrome's aliases) into the
+    /// profile's password store (Chromium `PasswordImporter`, 4.3b). A row
+    /// whose site and username are saved with another password is a
+    /// conflict: `conflicts` decides for all of them at once. Engines without
+    /// a password store answer `.unavailable`.
+    func importPasswords(csv: String, conflicts: PasswordImportConflictPolicy) async -> PasswordImportResult
+
     /// Whether the engine saw this profile's previous session end cleanly
     /// (Chromium's exit type: `false` after a crash or a kill), read when the
     /// profile loaded; `nil` when the engine does not track it. The
@@ -142,6 +150,76 @@ nonisolated public struct HistoryImportResult: Hashable, Sendable {
     public static func + (lhs: HistoryImportResult, rhs: HistoryImportResult) -> HistoryImportResult {
         HistoryImportResult(urls: lhs.urls + rhs.urls, visits: lhs.visits + rhs.visits,
                             expiredVisits: lhs.expiredVisits + rhs.expiredVisits, expiredURLs: lhs.expiredURLs + rhs.expiredURLs)
+    }
+}
+
+/// What a password import does with a row whose site and username are
+/// already saved with a different password (asked once for the whole file).
+nonisolated public enum PasswordImportConflictPolicy: Hashable, Sendable {
+    /// The saved password stays.
+    case skip
+    /// The imported password replaces it.
+    case replace
+}
+
+/// What `Profile.importPasswords` did. Never holds a password.
+nonisolated public struct PasswordImportResult: Hashable, Sendable {
+    nonisolated public enum Status: String, Hashable, Sendable {
+        case success
+        /// The text has no header the importer recognises.
+        case badFormat
+        /// Over the importer's size limit (Chromium: 1000 KB).
+        case tooLarge
+        /// More rows than the importer takes at once.
+        case tooMany
+        case unreadable
+        /// Another import is still running in the profile.
+        case busy
+        /// The profile has no password store (off the record, no engine).
+        case unavailable
+        case failed
+    }
+
+    /// Why a row was not added as given.
+    nonisolated public enum Reason: String, Hashable, Sendable {
+        case conflictKept, conflictReplaced
+        case missingURL, invalidURL, missingPassword
+        case longURL, longUsername, longPassword, longNote
+        case malformed
+    }
+
+    nonisolated public struct Row: Hashable, Sendable {
+        public var url: String
+        public var username: String
+        public var reason: Reason
+
+        public init(url: String, username: String, reason: Reason) {
+            self.url = url
+            self.username = username
+            self.reason = reason
+        }
+    }
+
+    public var status: Status
+    /// Rows now saved: added, already saved with the same password, or
+    /// replaced (Chromium's count).
+    public var imported: Int
+    /// Rows that met a saved password for the same site and username.
+    public var conflicts: Int
+    /// Of `conflicts`, how many replaced the saved password.
+    public var replaced: Int
+    /// Every row not added as given (conflicts first), with its reason.
+    public var rows: [Row]
+
+    /// Rows refused for their content (not conflicts).
+    public var skipped: Int { rows.count { $0.reason != .conflictKept && $0.reason != .conflictReplaced } }
+
+    public init(status: Status, imported: Int = 0, conflicts: Int = 0, replaced: Int = 0, rows: [Row] = []) {
+        self.status = status
+        self.imported = imported
+        self.conflicts = conflicts
+        self.replaced = replaced
+        self.rows = rows
     }
 }
 

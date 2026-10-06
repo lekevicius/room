@@ -179,6 +179,19 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         profile.setContentSetting(value, for: RoomContentSettingType(permission), origin: origin)
     }
 
+    // MARK: Passwords (4.3b)
+
+    /// Chromium's `PasswordImporter` over the profile's password stores
+    /// (`-[RoomProfile importPasswordsFromCSV:replaceConflicts:completion:]`;
+    /// the result crosses as Foundation values).
+    public func importPasswords(csv: String, conflicts: PasswordImportConflictPolicy) async -> PasswordImportResult {
+        await withCheckedContinuation { continuation in
+            profile.importPasswords(csv: csv, replaceConflicts: conflicts == .replace) {
+                continuation.resume(returning: PasswordImportResult(roomCore: $0))
+            }
+        }
+    }
+
     // MARK: History and the omnibox (3.5)
 
     private lazy var roomHistory: RoomCoreHistory? = profile.history.map { RoomCoreHistory(history: $0) }
@@ -256,5 +269,21 @@ extension DownloadItem {
                   destination: item.destination, mimeType: item.mimeType, receivedBytes: item.receivedBytes,
                   totalBytes: item.totalBytes >= 0 ? item.totalBytes : nil, currentSpeed: item.currentSpeed,
                   state: state, isPaused: item.isPaused, canResume: item.canResume, startTime: item.startTime)
+    }
+}
+
+extension PasswordImportResult {
+    /// The dictionary `-[RoomProfile importPasswordsFromCSV:…]` answers with
+    /// (keys in `RoomProfile.h`); an unknown status or reason reads as a failure.
+    init(roomCore values: [String: Any]) {
+        let rows = (values["rows"] as? [[String: Any]] ?? []).map { row in
+            Row(url: row["url"] as? String ?? "", username: row["username"] as? String ?? "",
+                reason: (row["reason"] as? String).flatMap(Reason.init(rawValue:)) ?? .malformed)
+        }
+        self.init(status: (values["status"] as? String).flatMap(Status.init(rawValue:)) ?? .failed,
+                  imported: (values["imported"] as? NSNumber)?.intValue ?? 0,
+                  conflicts: (values["conflicts"] as? NSNumber)?.intValue ?? 0,
+                  replaced: (values["replaced"] as? NSNumber)?.intValue ?? 0,
+                  rows: rows)
     }
 }

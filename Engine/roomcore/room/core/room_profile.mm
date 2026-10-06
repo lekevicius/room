@@ -30,6 +30,7 @@
 #import "room/core/room_extensions_internal.h"
 #import "room/core/room_omnibox_internal.h"
 #import "room/core/room_page_ui_internal.h"
+#import "room/core/room_passwords.h"
 #import "room/core/room_web_contents_internal.h"
 
 namespace {
@@ -92,6 +93,8 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   NSHashTable<RoomAutocompleteController*>* _autocompleteControllers;
   // Chrome's extension system (3.6a), made when the host first asks.
   RoomProfileExtensions* _extensions;
+  // The password importer (4.3b), made with the first import.
+  std::unique_ptr<room::PasswordImport> _passwordImport;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -182,6 +185,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
     [controller room_profileWillBeDestroyed];
   }
   _autocompleteControllers = nil;
+  _passwordImport.reset();
   _keepAlive.reset();
   _downloads.reset();
   _faviconTasks.reset();
@@ -339,6 +343,22 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
 
 - (RoomProfileExtensions*)room_existingExtensions {
   return _extensions;
+}
+
+// MARK: Passwords (Phase 4.3b)
+
+- (void)importPasswordsFromCSV:(NSString*)csv
+              replaceConflicts:(BOOL)replaceConflicts
+                    completion:(void (^)(NSDictionary<NSString*, id>*))completion {
+  if (!_profile || _offTheRecord) {
+    completion(@{@"status" : @"unavailable"});
+    return;
+  }
+  if (!_passwordImport) {
+    _passwordImport = std::make_unique<room::PasswordImport>(_profile);
+  }
+  _passwordImport->Start(base::SysNSStringToUTF8(csv), replaceConflicts,
+                         completion);
 }
 
 - (BOOL)searchSuggestEnabled {

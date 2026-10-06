@@ -185,6 +185,81 @@ public final class FakeProfile: Profile {
         defaultSearchEngines.append(engine)
     }
 
+    // MARK: Passwords (4.3b)
+
+    /// A password the fake's store holds.
+    public struct SavedPassword: Hashable, Sendable {
+        /// `scheme://host[:port]` (Chromium's signon realm without the slash).
+        public var site: String
+        public var username: String
+        public var password: String
+
+        public init(site: String, username: String, password: String) {
+            self.site = site
+            self.username = username
+            self.password = password
+        }
+    }
+
+    /// The fake's password store: what imports added, and what a test put
+    /// there to stand for passwords saved before.
+    public var savedPasswords: [SavedPassword] = []
+
+    /// Chromium's importer, reduced: the header names the columns (Chrome's
+    /// aliases), a row needs a URL with a host and a password, a row whose
+    /// site and username are saved with another password is a conflict, one
+    /// saved with the same password counts as imported.
+    public func importPasswords(csv: String, conflicts policy: PasswordImportConflictPolicy) async -> PasswordImportResult {
+        let lines = FakeCSV.records(csv)
+        guard let header = lines.first else { return PasswordImportResult(status: .badFormat) }
+        let names = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        func column(_ aliases: [String]) -> Int? { names.firstIndex { aliases.contains($0) } }
+        guard let urlColumn = column(["url", "website", "origin", "hostname", "login_uri"]),
+              let passwordColumn = column(["password", "login_password"]) else {
+            return PasswordImportResult(status: .badFormat)
+        }
+        let userColumn = column(["username", "user", "login", "account", "login_username"])
+        var result = PasswordImportResult(status: .success)
+        var conflictRows: [PasswordImportResult.Row] = []
+        var skippedRows: [PasswordImportResult.Row] = []
+        for record in lines.dropFirst() where !(record.count == 1 && record[0].isEmpty) {
+            func field(_ index: Int?) -> String { index.flatMap { $0 < record.count ? record[$0] : nil } ?? "" }
+            let rawURL = field(urlColumn), username = field(userColumn), password = field(passwordColumn)
+            guard !rawURL.isEmpty else {
+                skippedRows.append(.init(url: rawURL, username: username, reason: .missingURL))
+                continue
+            }
+            guard let url = URL(string: rawURL), let scheme = url.scheme, ["http", "https"].contains(scheme), let host = url.host(), !host.isEmpty
+            else {
+                skippedRows.append(.init(url: rawURL, username: username, reason: .invalidURL))
+                continue
+            }
+            guard !password.isEmpty else {
+                skippedRows.append(.init(url: rawURL, username: username, reason: .missingPassword))
+                continue
+            }
+            let site = "\(scheme)://\(host)" + (url.port.map { ":\($0)" } ?? "")
+            if let index = savedPasswords.firstIndex(where: { $0.site == site && $0.username == username }) {
+                if savedPasswords[index].password == password {
+                    result.imported += 1
+                    continue
+                }
+                result.conflicts += 1
+                if policy == .replace {
+                    savedPasswords[index].password = password
+                    result.replaced += 1
+                    result.imported += 1
+                }
+                conflictRows.append(.init(url: site, username: username, reason: policy == .replace ? .conflictReplaced : .conflictKept))
+                continue
+            }
+            savedPasswords.append(SavedPassword(site: site, username: username, password: password))
+            result.imported += 1
+        }
+        result.rows = conflictRows + skippedRows
+        return result
+    }
+
     // MARK: Capabilities the fake does not provide
 
     public var bookmarks: (any ProfileBookmarks)? { nil }
@@ -196,4 +271,48 @@ public final class FakeProfile: Profile {
         didSet { fakeExtensions?.profile = self }
     }
     public var extensions: (any ProfileExtensions)? { fakeExtensions }
+}
+
+/// RFC 4180 records: commas, quoted fields with doubled quotes and line
+/// breaks, CRLF or LF.
+enum FakeCSV {
+    static func records(_ text: String) -> [[String]] {
+        var records: [[String]] = []
+        var record: [String] = []
+        var field = ""
+        var quoted = false
+        var iterator = Array(text).makeIterator()
+        var pending: Character?
+        func next() -> Character? {
+            if let character = pending { pending = nil; return character }
+            return iterator.next()
+        }
+        while let character = next() {
+            if quoted {
+                if character == "\"" {
+                    if let following = next() {
+                        if following == "\"" { field.append("\"") } else { quoted = false; pending = following }
+                    } else {
+                        quoted = false
+                    }
+                } else {
+                    field.append(character)
+                }
+                continue
+            }
+            switch character {
+            case "\"": quoted = true
+            case ",": record.append(field); field = ""
+            case "\n", "\r\n", "\r":
+                record.append(field); field = ""
+                records.append(record); record = []
+            default: field.append(character)
+            }
+        }
+        if !field.isEmpty || !record.isEmpty {
+            record.append(field)
+            records.append(record)
+        }
+        return records
+    }
 }

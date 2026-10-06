@@ -186,3 +186,56 @@ struct MenuModelTests {
         #expect(menu.item(withID: 9) == nil)
     }
 }
+
+/// 4.3b: `Profile.importPasswords` as the fake answers it (the shape of
+/// Chromium's `PasswordImporter`: conflicts asked once for all, malformed rows
+/// listed with their reason, a row saved with the same password counted).
+@Suite("Password import")
+struct PasswordImportTests {
+    static let csv = """
+        name,url,username,password,note\r
+        127.0.0.1,http://127.0.0.1:8772/login.html,alice,secret-a2,"conflicts, with a comma"\r
+        localhost,http://localhost:8772/login.html,bob,secret-b1,\r
+        127.0.0.1,https://127.0.0.1:8773/signup.html,carol,secret-c1,"a ""quoted"" note"\r
+        broken,not a url,mallory,secret-m1,malformed\r
+
+        """
+
+    private func profileWithAlice() throws -> FakeProfile {
+        let (_, profile) = try makeProfile()
+        profile.savedPasswords = [.init(site: "http://127.0.0.1:8772", username: "alice", password: "secret-a0")]
+        return profile
+    }
+
+    @Test func conflictsKeptWithSkip() async throws {
+        let profile = try profileWithAlice()
+        let result = await profile.importPasswords(csv: Self.csv, conflicts: .skip)
+        #expect(result.status == .success)
+        #expect(result.imported == 2)
+        #expect(result.conflicts == 1 && result.replaced == 0)
+        #expect(result.skipped == 1)
+        #expect(result.rows.map(\.reason) == [.conflictKept, .invalidURL])
+        #expect(profile.savedPasswords.first { $0.username == "alice" }?.password == "secret-a0")
+        #expect(Set(profile.savedPasswords.map(\.username)) == ["alice", "bob", "carol"])
+    }
+
+    @Test func conflictsReplacedAndDuplicatesCounted() async throws {
+        let profile = try profileWithAlice()
+        _ = await profile.importPasswords(csv: Self.csv, conflicts: .skip)
+        let again = await profile.importPasswords(csv: Self.csv, conflicts: .replace)
+        #expect(again.imported == 3)
+        #expect(again.conflicts == 1 && again.replaced == 1)
+        #expect(again.rows.first?.reason == .conflictReplaced)
+        #expect(profile.savedPasswords.first { $0.username == "alice" }?.password == "secret-a2")
+        #expect(profile.savedPasswords.count == 3)
+    }
+
+    @Test func aliasesAndMissingColumns() async throws {
+        let (_, profile) = try makeProfile()
+        let aliased = await profile.importPasswords(csv: "login_uri,login_username,login_password\nhttps://a.example/,u,p\nhttps://b.example/,v,\n", conflicts: .skip)
+        #expect(aliased.imported == 1)
+        #expect(aliased.rows.map(\.reason) == [.missingPassword])
+        let noHeader = await profile.importPasswords(csv: "title,notes\nx,y\n", conflicts: .skip)
+        #expect(noHeader.status == .badFormat)
+    }
+}

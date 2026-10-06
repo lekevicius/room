@@ -193,6 +193,34 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // off-the-record profile.
 @property(nonatomic, readonly, nullable) RoomProfileExtensions* extensions;
 
+// Imports passwords from `csv` (Chrome's export format: a header naming the
+// columns, `name,url,username,password,note`, with Chrome's aliases such as
+// `login_uri`, `origin`, `login_username`) into this profile's password
+// store through Chrome's PasswordImporter (4.3b). The importer validates and
+// parses the text off the main thread. A row whose site and username are
+// saved with a different password is a conflict: all of them are replaced
+// (`replaceConflicts`) or all kept. `completion` runs once on the main thread
+// with a dictionary of Foundation values (no class of its own):
+//   @"status"    NSString: "success", "badFormat" (no usable header),
+//                "tooLarge" (over 1000 KB), "tooMany" (over Chrome's row
+//                limit), "unreadable", "busy" (an import is running),
+//                "unavailable" (no password store, off the record), "failed";
+//   @"imported"  NSNumber: rows now saved, Chrome's count (a row already
+//                saved with the same password counts, a replaced one too);
+//   @"conflicts" NSNumber: conflicting rows; @"replaced" NSNumber: of those,
+//                replaced;
+//   @"rows"      NSArray of NSDictionary {@"url", @"username", @"reason"}:
+//                each row not added as given, `reason` "conflictKept",
+//                "conflictReplaced", "missingURL", "invalidURL",
+//                "missingPassword", "longURL", "longUsername", "longPassword",
+//                "longNote" or "malformed". Never a password.
+// Absent keys mean 0 or none (a failed import has only @"status").
+- (void)importPasswordsFromCSV:(NSString*)csv
+              replaceConflicts:(BOOL)replaceConflicts
+                    completion:
+                        (void (^)(NSDictionary<NSString*, id>* result))completion
+    NS_SWIFT_NAME(importPasswords(csv:replaceConflicts:completion:));
+
 @end
 
 NS_ASSUME_NONNULL_END
