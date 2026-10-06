@@ -96,6 +96,20 @@ public protocol WebContents: AnyObject, Observable {
     func exitFullscreen()
     /// Ends the page's captures of `kinds`; `captureState` follows.
     func stopCapturing(_ kinds: CaptureKinds)
+
+    // MARK: Media session controls (4.6)
+
+    /// Resumes the media session as the system's play key would: the page's
+    /// "play" action handler when it has one, else its players.
+    func mediaPlay()
+    /// Pauses it (the page's "pause" handler, else its players).
+    func mediaPause()
+    /// The page's "nexttrack" handler (nothing without one).
+    func mediaNextTrack()
+    /// The page's "previoustrack" handler (nothing without one).
+    func mediaPreviousTrack()
+    /// The page's "seekto" handler, else its players seek.
+    func mediaSeek(to seconds: TimeInterval)
 }
 
 public extension WebContents {

@@ -121,17 +121,48 @@ nonisolated public struct MediaSessionInfo: Sendable, Hashable {
         case none, paused, playing
     }
 
+    /// What the page reported about its position (`setPositionState`, or
+    /// the player's own): the position when the engine made this value.
+    nonisolated public struct Position: Sendable, Hashable {
+        public var duration: TimeInterval
+        public var position: TimeInterval
+        /// 0 while paused.
+        public var rate: Double
+
+        public init(duration: TimeInterval, position: TimeInterval, rate: Double) {
+            self.duration = duration
+            self.position = position
+            self.rate = rate
+        }
+    }
+
     public var title: String
     public var artist: String
     public var album: String
     public var artworkURL: URL?
+    /// The artwork image the engine fetched for the page (PNG data, in the
+    /// page's network context); `nil` until it arrives.
+    public var artwork: Data?
     public var playbackState: PlaybackState
+    /// The actions the page supports (its action handlers; play and pause
+    /// for any playing media).
+    public var actions: Set<MediaSessionAction>
+    public var position: Position?
 
-    public init(title: String, artist: String = "", album: String = "", artworkURL: URL? = nil, playbackState: PlaybackState = .none) {
+    public init(title: String, artist: String = "", album: String = "", artworkURL: URL? = nil, artwork: Data? = nil,
+                playbackState: PlaybackState = .none, actions: Set<MediaSessionAction> = [], position: Position? = nil) {
         self.title = title
         self.artist = artist
         self.album = album
         self.artworkURL = artworkURL
+        self.artwork = artwork
         self.playbackState = playbackState
+        self.actions = actions
+        self.position = position
     }
+}
+
+/// A media session action (`navigator.mediaSession.setActionHandler`).
+nonisolated public enum MediaSessionAction: String, Sendable, Hashable, CaseIterable {
+    case play, pause, previousTrack, nextTrack, seekBackward, seekForward, seekTo, stop, skipAd
 }

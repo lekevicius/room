@@ -429,6 +429,21 @@ typedef NS_ENUM(NSInteger, RoomMediaPlaybackState) {
   RoomMediaPlaybackStatePlaying,
 };
 
+// The actions a media session supports (media_session::mojom::
+// MediaSessionAction: the page's action handlers, and play, pause and stop
+// for any playing media).
+typedef NS_OPTIONS(NSUInteger, RoomMediaSessionActions) {
+  RoomMediaSessionActionPlay = 1 << 0,
+  RoomMediaSessionActionPause = 1 << 1,
+  RoomMediaSessionActionPreviousTrack = 1 << 2,
+  RoomMediaSessionActionNextTrack = 1 << 3,
+  RoomMediaSessionActionSeekBackward = 1 << 4,
+  RoomMediaSessionActionSeekForward = 1 << 5,
+  RoomMediaSessionActionSeekTo = 1 << 6,
+  RoomMediaSessionActionStop = 1 << 7,
+  RoomMediaSessionActionSkipAd = 1 << 8,
+};
+
 // The page's media session (content::MediaSession: navigator.mediaSession
 // metadata, or what Chrome infers from the playing media).
 ROOM_EXPORT NS_SWIFT_UI_ACTOR
@@ -439,7 +454,20 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, copy) NSString* album;
 // The first artwork image's URL.
 @property(nonatomic, readonly, copy, nullable) NSURL* artworkURL;
+// That image as Chrome fetched it for the page (MediaSession::
+// GetMediaImageBitmap, in the page's network context); nil until it arrives
+// or when it cannot be decoded.
+@property(nonatomic, readonly, nullable) NSImage* artwork;
 @property(nonatomic, readonly) RoomMediaPlaybackState playbackState;
+// MediaSessionActionsChanged.
+@property(nonatomic, readonly) RoomMediaSessionActions actions;
+// MediaSessionPositionChanged: whether the page (or its player) reported a
+// position; then the duration, the position when this info was made and
+// the playback rate (0 while paused).
+@property(nonatomic, readonly) BOOL hasPosition;
+@property(nonatomic, readonly) NSTimeInterval duration;
+@property(nonatomic, readonly) NSTimeInterval position;
+@property(nonatomic, readonly) double playbackRate;
 @end
 
 // What a page asks of the UI around it. Called on the main thread.
@@ -712,6 +740,18 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // Ends the page's captures of `kinds` (MediaStreamCaptureIndicator::
 // StopMediaCapturing); captureState follows.
 - (void)stopCapturing:(RoomCaptureKinds)kinds;
+
+// The media session's controls (content::MediaSession::Get(contents)): what
+// a system media key or Chrome's own media controls do. Play and pause are
+// Resume/Suspend(kUI), which run the page's "play"/"pause" action handler
+// when it has one; next and previous track run the page's handler (nothing
+// without one); seek runs "seekto" or seeks the players. mediaSession
+// follows.
+- (void)mediaPlay;
+- (void)mediaPause;
+- (void)mediaNextTrack;
+- (void)mediaPreviousTrack;
+- (void)mediaSeekTo:(NSTimeInterval)seconds;
 
 // Runs `script` in RoomCore's isolated world of the page's main frame (the
 // page's DOM is shared; its own JavaScript globals are not visible) and

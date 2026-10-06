@@ -51,8 +51,11 @@
 #include "content/public/browser/web_contents_user_data.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "net/base/apple/url_conversions.h"
+#include "skia/ext/skia_utils_mac.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 #include "services/media_session/public/cpp/media_image.h"
 #include "services/media_session/public/cpp/media_metadata.h"
+#include "services/media_session/public/cpp/media_position.h"
 #include "services/media_session/public/mojom/media_session.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -151,7 +154,13 @@
                        artist:(NSString*)artist
                         album:(NSString*)album
                    artworkURL:(NSURL*)artworkURL
-                playbackState:(RoomMediaPlaybackState)playbackState;
+                      artwork:(NSImage*)artwork
+                playbackState:(RoomMediaPlaybackState)playbackState
+                      actions:(RoomMediaSessionActions)actions
+                  hasPosition:(BOOL)hasPosition
+                     duration:(NSTimeInterval)duration
+                     position:(NSTimeInterval)position
+                 playbackRate:(double)playbackRate;
 @end
 
 @implementation RoomMediaSessionInfo
@@ -160,19 +169,37 @@
 @synthesize artist = _artist;
 @synthesize album = _album;
 @synthesize artworkURL = _artworkURL;
+@synthesize artwork = _artwork;
 @synthesize playbackState = _playbackState;
+@synthesize actions = _actions;
+@synthesize hasPosition = _hasPosition;
+@synthesize duration = _duration;
+@synthesize position = _position;
+@synthesize playbackRate = _playbackRate;
 
 - (instancetype)initWithTitle:(NSString*)title
                        artist:(NSString*)artist
                         album:(NSString*)album
                    artworkURL:(NSURL*)artworkURL
-                playbackState:(RoomMediaPlaybackState)playbackState {
+                      artwork:(NSImage*)artwork
+                playbackState:(RoomMediaPlaybackState)playbackState
+                      actions:(RoomMediaSessionActions)actions
+                  hasPosition:(BOOL)hasPosition
+                     duration:(NSTimeInterval)duration
+                     position:(NSTimeInterval)position
+                 playbackRate:(double)playbackRate {
   if ((self = [super init])) {
     _title = [title copy];
     _artist = [artist copy];
     _album = [album copy];
     _artworkURL = [artworkURL copy];
+    _artwork = artwork;
     _playbackState = playbackState;
+    _actions = actions;
+    _hasPosition = hasPosition;
+    _duration = duration;
+    _position = position;
+    _playbackRate = playbackRate;
   }
   return self;
 }
@@ -187,7 +214,10 @@
          [_album isEqualToString:other.album] &&
          (_artworkURL == other.artworkURL ||
           [_artworkURL isEqual:other.artworkURL]) &&
-         _playbackState == other.playbackState;
+         _artwork == other.artwork && _playbackState == other.playbackState &&
+         _actions == other.actions && _hasPosition == other.hasPosition &&
+         _duration == other.duration && _position == other.position &&
+         _playbackRate == other.playbackRate;
 }
 
 - (NSUInteger)hash {
@@ -196,9 +226,16 @@
 
 - (NSString*)description {
   return [NSString
-      stringWithFormat:@"<RoomMediaSessionInfo \"%@\" by \"%@\" on \"%@\" art=%@ state=%ld>",
+      stringWithFormat:@"<RoomMediaSessionInfo \"%@\" by \"%@\" on \"%@\" "
+                       @"art=%@%@ state=%ld actions=0x%lx position=%@>",
                        _title, _artist, _album, _artworkURL.absoluteString,
-                       (long)_playbackState];
+                       _artwork ? @" (image)" : @"", (long)_playbackState,
+                       (unsigned long)_actions,
+                       _hasPosition
+                           ? [NSString stringWithFormat:@"%.1f/%.1f@%.1f",
+                                                        _position, _duration,
+                                                        _playbackRate]
+                           : @"none"];
 }
 
 @end
@@ -451,20 +488,72 @@ class PageServices : public content::WebContentsUserData<PageServices>,
     Publish();
   }
   void MediaSessionActionsChanged(
-      const std::vector<media_session::mojom::MediaSessionAction>&) override {}
+      const std::vector<media_session::mojom::MediaSessionAction>& actions)
+      override {
+    using Action = media_session::mojom::MediaSessionAction;
+    RoomMediaSessionActions mask = 0;
+    for (Action action : actions) {
+      switch (action) {
+        case Action::kPlay: mask |= RoomMediaSessionActionPlay; break;
+        case Action::kPause: mask |= RoomMediaSessionActionPause; break;
+        case Action::kPreviousTrack:
+          mask |= RoomMediaSessionActionPreviousTrack;
+          break;
+        case Action::kNextTrack: mask |= RoomMediaSessionActionNextTrack; break;
+        case Action::kSeekBackward:
+          mask |= RoomMediaSessionActionSeekBackward;
+          break;
+        case Action::kSeekForward:
+          mask |= RoomMediaSessionActionSeekForward;
+          break;
+        case Action::kSeekTo: mask |= RoomMediaSessionActionSeekTo; break;
+        case Action::kStop: mask |= RoomMediaSessionActionStop; break;
+        case Action::kSkipAd: mask |= RoomMediaSessionActionSkipAd; break;
+        default: break;
+      }
+    }
+    actions_ = mask;
+    Publish();
+  }
   void MediaSessionImagesChanged(
       const base::flat_map<media_session::mojom::MediaSessionImageType,
                            std::vector<media_session::MediaImage>>& images)
       override {
-    artwork_ = GURL();
+    std::optional<media_session::MediaImage> first;
     auto it = images.find(media_session::mojom::MediaSessionImageType::kArtwork);
     if (it != images.end() && !it->second.empty()) {
-      artwork_ = it->second.front().src;
+      first = it->second.front();
+    }
+    const GURL src = first ? first->src : GURL();
+    if (src != artwork_) {
+      artwork_ = src;
+      artwork_image_ = nil;
+      // Chrome's own controls fetch the bitmap the same way: in the page's
+      // network context, decoded off the page.
+      if (first) {
+        content::MediaSession::Get(web_contents())
+            ->GetMediaImageBitmap(*first, /*minimum_size_px=*/0,
+                                  /*desired_size_px=*/96,
+                                  base::BindOnce(&PageServices::ArtworkArrived,
+                                                 weak_factory_.GetWeakPtr(),
+                                                 src));
+      }
     }
     Publish();
   }
   void MediaSessionPositionChanged(
-      const std::optional<media_session::MediaPosition>&) override {}
+      const std::optional<media_session::MediaPosition>& position) override {
+    position_ = position;
+    Publish();
+  }
+
+  void ArtworkArrived(const GURL& src, const SkBitmap& bitmap) {
+    if (src != artwork_ || bitmap.drawsNothing()) {
+      return;
+    }
+    artwork_image_ = skia::SkBitmapToNSImage(bitmap);
+    Publish();
+  }
 
   void Publish() {
     RoomWebContents* wrapper =
@@ -481,7 +570,13 @@ class PageServices : public content::WebContentsUserData<PageServices>,
                  artist:base::SysUTF16ToNSString(metadata_->artist)
                   album:base::SysUTF16ToNSString(metadata_->album)
              artworkURL:artwork_.is_valid() ? net::NSURLWithGURL(artwork_) : nil
-          playbackState:active_ ? playback_ : RoomMediaPlaybackStateNone];
+                artwork:artwork_image_
+          playbackState:active_ ? playback_ : RoomMediaPlaybackStateNone
+                actions:actions_
+            hasPosition:position_.has_value()
+               duration:position_ ? position_->duration().InSecondsF() : 0
+               position:position_ ? position_->GetPosition().InSecondsF() : 0
+           playbackRate:position_ ? position_->playback_rate() : 0];
     }
     [wrapper room_setMediaSession:info];
   }
@@ -497,8 +592,12 @@ class PageServices : public content::WebContentsUserData<PageServices>,
       this};
   std::optional<media_session::MediaMetadata> metadata_;
   GURL artwork_;
+  NSImage* artwork_image_ = nil;
   RoomMediaPlaybackState playback_ = RoomMediaPlaybackStateNone;
+  RoomMediaSessionActions actions_ = 0;
+  std::optional<media_session::MediaPosition> position_;
   bool active_ = false;
+  base::WeakPtrFactory<PageServices> weak_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

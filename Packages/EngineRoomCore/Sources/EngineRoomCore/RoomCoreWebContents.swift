@@ -43,6 +43,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var captureState = CaptureState()
     /// `content::MediaSession` through RoomCore's `mediaSession`.
     public private(set) var mediaSession: MediaSessionInfo?
+    @ObservationIgnored private var roomMediaSession: RoomMediaSessionInfo?
+    @ObservationIgnored private var artworkCache: (image: NSImage, png: Data?)?
     /// `WebContents::SetAudioMuted`; follows `DidUpdateAudioMutingState`.
     /// The delegate hears every change, the host's own included.
     public var isMuted: Bool {
@@ -173,8 +175,12 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             captureState = capture
             uiDelegate?.webContents(self, didChangeCaptureState: capture)
         }
-        let session = page.mediaSession.map(MediaSessionInfo.init)
-        if mediaSession != session { mediaSession = session }
+        // A new RoomMediaSessionInfo for every change (KVO); the artwork's PNG is made once per image.
+        if page.mediaSession !== roomMediaSession {
+            roomMediaSession = page.mediaSession
+            let session = page.mediaSession.map { MediaSessionInfo($0, artwork: artworkPNG(for: $0.artwork)) }
+            if mediaSession != session { mediaSession = session }
+        }
     }
 
     // MARK: Navigation
@@ -398,6 +404,43 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         if kinds.contains(.userMedia) { mask.insert(.userMedia) }
         if kinds.contains(.displayMedia) { mask.insert(.displayMedia) }
         page.stopCapturing(mask)
+    }
+
+    // MARK: Media session controls (`content::MediaSession`, 4.6)
+
+    public func mediaPlay() {
+        guard state != .closed else { return }
+        page.mediaPlay()
+    }
+
+    public func mediaPause() {
+        guard state != .closed else { return }
+        page.mediaPause()
+    }
+
+    public func mediaNextTrack() {
+        guard state != .closed else { return }
+        page.mediaNextTrack()
+    }
+
+    public func mediaPreviousTrack() {
+        guard state != .closed else { return }
+        page.mediaPreviousTrack()
+    }
+
+    public func mediaSeek(to seconds: TimeInterval) {
+        guard state != .closed else { return }
+        page.mediaSeek(to: seconds)
+    }
+
+    /// The artwork image as PNG data, converted once per image RoomCore hands over.
+    private func artworkPNG(for image: NSImage?) -> Data? {
+        guard let image else { return nil }
+        if let cached = artworkCache, cached.image === image { return cached.png }
+        let png = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            .flatMap { NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:]) }
+        artworkCache = (image, png)
+        return png
     }
 
     // MARK: RoomWebContentsDelegate
@@ -853,13 +896,20 @@ extension FileChooserRequest {
 }
 
 extension MediaSessionInfo {
-    init(_ info: RoomMediaSessionInfo) {
+    init(_ info: RoomMediaSessionInfo, artwork: Data?) {
         let state: PlaybackState = switch info.playbackState {
         case .playing: .playing
         case .paused: .paused
         default: .none
         }
-        self.init(title: info.title, artist: info.artist, album: info.album, artworkURL: info.artworkURL, playbackState: state)
+        let map: [(RoomMediaSessionActions, MediaSessionAction)] = [
+            (.play, .play), (.pause, .pause), (.previousTrack, .previousTrack), (.nextTrack, .nextTrack),
+            (.seekBackward, .seekBackward), (.seekForward, .seekForward), (.seekTo, .seekTo), (.stop, .stop), (.skipAd, .skipAd),
+        ]
+        let actions = Set(map.filter { info.actions.contains($0.0) }.map(\.1))
+        let position = info.hasPosition ? Position(duration: info.duration, position: info.position, rate: info.playbackRate) : nil
+        self.init(title: info.title, artist: info.artist, album: info.album, artworkURL: info.artworkURL, artwork: artwork,
+                  playbackState: state, actions: actions, position: position)
     }
 }
 

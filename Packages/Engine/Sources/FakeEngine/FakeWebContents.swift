@@ -39,8 +39,10 @@ public final class FakeWebContents: WebContents {
     public internal(set) var isFullscreen = false
     /// Set by `simulateCapture`; `stopCapturing` clears the kinds it names.
     public internal(set) var captureState = CaptureState()
-    /// Set by `simulateMediaSession`.
+    /// Set by `simulateMediaSession`; the media controls change its state.
     public internal(set) var mediaSession: MediaSessionInfo?
+    /// The media controls the host called, in order.
+    public internal(set) var mediaControls: [FakeMediaControl] = []
     /// Ended by `simulateUnresponsive` answered `.terminate`.
     public internal(set) var terminatedUnresponsiveCount = 0
     /// URLs the UI delegate allowed to open in another application.
@@ -393,6 +395,42 @@ public final class FakeWebContents: WebContents {
         simulateCapture(state)
     }
 
+    // MARK: Media session controls
+
+    /// Play, as a page whose handler resumes its player: the session plays
+    /// and the page is audible. Nothing without a session.
+    public func mediaPlay() {
+        mediaControls.append(.play)
+        guard var session = mediaSession else { return }
+        session.playbackState = .playing
+        if var position = session.position { position.rate = 1; session.position = position }
+        mediaSession = session
+        simulateAudio(true)
+    }
+
+    /// Pause: the session is paused and the page silent.
+    public func mediaPause() {
+        mediaControls.append(.pause)
+        guard var session = mediaSession else { return }
+        session.playbackState = .paused
+        if var position = session.position { position.rate = 0; session.position = position }
+        mediaSession = session
+        simulateAudio(false)
+    }
+
+    /// Recorded; the page's handler (if any) is the test's: `simulateMediaSession`.
+    public func mediaNextTrack() { mediaControls.append(.nextTrack) }
+    public func mediaPreviousTrack() { mediaControls.append(.previousTrack) }
+
+    /// Recorded; a reported position moves there.
+    public func mediaSeek(to seconds: TimeInterval) {
+        mediaControls.append(.seek(seconds))
+        guard var session = mediaSession, var position = session.position else { return }
+        position.position = min(max(0, seconds), position.duration)
+        session.position = position
+        mediaSession = session
+    }
+
     // MARK: Simulated page state (more in FakeWebContents+Simulation.swift)
 
     /// Media starts or stops playing.
@@ -476,4 +514,10 @@ private extension String {
         }
         return count
     }
+}
+
+/// A media session control `FakeWebContents` recorded.
+public enum FakeMediaControl: Hashable, Sendable {
+    case play, pause, nextTrack, previousTrack
+    case seek(TimeInterval)
 }

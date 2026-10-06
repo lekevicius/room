@@ -15,6 +15,7 @@
 #include "base/pickle.h"
 #include "base/process/kill.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/time/time.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -52,6 +53,7 @@
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sessions/core/session_constants.h"
 #include "chrome/common/chrome_version.h"
+#include "content/public/browser/media_session.h"
 #include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/restore_type.h"
@@ -1667,6 +1669,46 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 
 - (void)stopCapturing:(RoomCaptureKinds)kinds {
   room::StopCapturing(_contents, kinds);
+}
+
+// The media session's controls: what Chrome's global media controls and the
+// system's media keys call (content::MediaSession, a UI suspend type).
+- (void)mediaPlay {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media play";
+    content::MediaSession::Get(_contents)->Resume(
+        content::MediaSession::SuspendType::kUI);
+  }
+}
+
+- (void)mediaPause {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media pause";
+    content::MediaSession::Get(_contents)->Suspend(
+        content::MediaSession::SuspendType::kUI);
+  }
+}
+
+- (void)mediaNextTrack {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media next track";
+    content::MediaSession::Get(_contents)->NextTrack();
+  }
+}
+
+- (void)mediaPreviousTrack {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media previous track";
+    content::MediaSession::Get(_contents)->PreviousTrack();
+  }
+}
+
+- (void)mediaSeekTo:(NSTimeInterval)seconds {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media seek to " << seconds;
+    content::MediaSession::Get(_contents)->SeekTo(
+        base::Seconds(std::max(0.0, seconds)));
+  }
 }
 
 - (void)close {
