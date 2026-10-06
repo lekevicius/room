@@ -2693,7 +2693,7 @@ Release framework (`build/evidence-4.1b/discardspaces-release`, load1 3.7; no sp
 
 Least recently seen first across both spaces, one page a second (`Timing.criticalPressureStep`), the selected page and the audible one never; 0 minidumps on both. The first release run called the dev-only `roomSpikeAction:` and crashed on an unrecognized selector (the 3.7b `discardpolicy` spike does the same on the release framework, B-82); the spike now checks the hook first.
 
-### Kill test after B-73 and B-80 (`scripts/grand-tour.sh --no-build --only killtest light`, dev, `build/grand-tour/20261006-172013-roomcore`)
+### Kill test after B-73 and B-80 (`scripts/grand-tour.sh --no-build --only killtest light`, dev, `build/grand-tour/20261006-172052-roomcore`)
 
     summary: 100 kills in 83.113661583 seconds, 0 failures
       kills with a transaction in flight: 54 (rolled back to the previous generation: 54)
