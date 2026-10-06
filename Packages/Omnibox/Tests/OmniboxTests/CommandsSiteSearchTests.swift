@@ -25,6 +25,14 @@ struct CommandsTests {
         #expect(omnibox.result(for: OmniboxInput(field: ">copy mark"), in: context).matches.map(\.title) == ["Copy URL as Markdown"])
     }
 
+    @Test("A command's row carries its current key (4.4a: the palette's hint follows a remap)")
+    func shortcutHint() {
+        let commands = [CommandRegistry.pinTab.with(symbol: nil, shortcut: "⌥⌘P"), CommandRegistry.reload.with(symbol: nil)]
+        let result = Omnibox(providers: Omnibox.localProviders).result(for: OmniboxInput(field: ">"), in: OmniboxContext(commands: commands))
+        #expect(result.matches.first { $0.action == .command(id: CommandRegistry.pinTab.id) }?.shortcut == "⌥⌘P")
+        #expect(result.matches.first { $0.action == .command(id: CommandRegistry.reload.id) }?.shortcut == nil)
+    }
+
     @Test("Without `>`, a command shows only for three letters or more that start its words, in the last group")
     func normalMode() {
         let omnibox = Omnibox(providers: Omnibox.localProviders)

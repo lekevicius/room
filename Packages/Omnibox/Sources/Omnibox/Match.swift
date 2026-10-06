@@ -143,6 +143,8 @@ public struct OmniboxMatch: Hashable, Sendable, Identifiable {
     public var keepsSlot: Bool
     /// 2.4b: history rows can be removed (⇧Delete, ⌘⌥Delete, the × on hover).
     public var isDeletable: Bool
+    /// A command's key equivalent as the menu shows it ("⌥⌘P"), the row's hint (4.4a).
+    public var shortcut: String?
     /// Set by the scorer: the group this match is shown in.
     public internal(set) var group: MatchGroup
     /// Matches that end on the same page are one suggestion (spec §C):

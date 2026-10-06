@@ -38,6 +38,9 @@ final class PageUIDelegate {
     @ObservationIgnored private(set) var keyLog: [String] = []
     /// Keys the page consumed so far (the keyboard spike counts them).
     @ObservationIgnored private(set) var consumedKeyCount = 0
+    /// The keys the page never sees: the reserved actions' current keys
+    /// (`ShortcutTable.reservedKeys`; 4.4a: they follow a remap).
+    @ObservationIgnored var reservedKeys = Set(ReservedShortcuts.all)
 
     init(host: PageHost) {
         self.host = host
@@ -74,7 +77,7 @@ extension PageUIDelegate: WebContentsUIDelegate {
     }
 
     func webContents(_ webContents: any WebContents, isReservedKeyEvent event: NSEvent) -> Bool {
-        let reserved = ReservedShortcuts.matches(event)
+        let reserved = ReservedShortcuts.matches(event, in: reservedKeys)
         if reserved { logKey("reserved", event) }
         return reserved
     }

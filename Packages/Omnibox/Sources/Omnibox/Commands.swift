@@ -9,19 +9,23 @@ public struct OmniboxCommand: Hashable, Sendable, Identifiable {
     public var keywords: [String]
     /// SF Symbol name for the row.
     public var symbol: String?
+    /// Its key equivalent now ("⌥⌘P", from the app's shortcut table; 4.4a), the row's hint.
+    public var shortcut: String?
 
-    public init(id: String, title: String, keywords: [String] = [], symbol: String? = nil) {
+    public init(id: String, title: String, keywords: [String] = [], symbol: String? = nil, shortcut: String? = nil) {
         self.id = id
         self.title = title
         self.keywords = keywords
         self.symbol = symbol
+        self.shortcut = shortcut
     }
 
-    /// The same command with a title for the current state ("Unpin Tab") and a symbol.
-    public func with(title: String? = nil, symbol: String?) -> OmniboxCommand {
+    /// The same command with a title for the current state ("Unpin Tab"), a symbol and its key.
+    public func with(title: String? = nil, symbol: String?, shortcut: String? = nil) -> OmniboxCommand {
         var copy = self
         if let title { copy.title = title }
         copy.symbol = symbol
+        copy.shortcut = shortcut
         return copy
     }
 }
@@ -129,8 +133,10 @@ public struct CommandsProvider: OmniboxProvider {
     }
 
     private func match(_ command: OmniboxCommand, relevance: Int) -> OmniboxMatch {
-        OmniboxMatch(id: "command:\(command.id)", provider: .commands, relevance: relevance, action: .command(id: command.id),
-                     title: command.title, icon: .symbol(command.symbol ?? "command"))
+        var match = OmniboxMatch(id: "command:\(command.id)", provider: .commands, relevance: relevance, action: .command(id: command.id),
+                                 title: command.title, icon: .symbol(command.symbol ?? "command"))
+        match.shortcut = command.shortcut
+        return match
     }
 
     /// 0…1, or `nil` when a word matches nothing: a word start in the title

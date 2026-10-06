@@ -12,7 +12,7 @@ extension AppDelegate {
         guard let sidebar, let tabs else { return [] }
         var commands: [OmniboxCommand] = []
         func add(_ command: OmniboxCommand, _ symbol: Symbol, title: String? = nil, when available: Bool = true) {
-            if available { commands.append(command.with(title: title, symbol: symbol.name)) }
+            if available { commands.append(command.with(title: title, symbol: symbol.name, shortcut: paletteShortcut(for: command.id))) }
         }
         add(CommandRegistry.addToEssentials, .essential, title: sidebar.essentialsCommandTitle, when: sidebar.essentialsCommandTitle != nil)
         add(CommandRegistry.closeTab, .closeTab, when: sidebar.canCloseCommandTargets)

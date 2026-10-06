@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var importModel: ImportSheetModel?
     /// The other browser's extensions' store pages, opening one at a time (4.3b).
     var extensionStorePages: ExtensionStorePages?
+    /// The user's shortcuts (4.4a, `Shortcuts.swift`): defaults plus `Settings.shortcutOverrides`.
+    var shortcutTable = ShortcutTable()
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
@@ -594,6 +596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         self.sidebar = sidebar
         self.tabs = tabs
         self.pageDelegate = pageDelegate
+        observeShortcuts()
         installExtensionPopups()
         toastCenter = toasts
         installFirstRun(sidebar: sidebar, settings: store.settings)

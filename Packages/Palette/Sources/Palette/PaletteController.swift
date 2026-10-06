@@ -629,7 +629,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         let hint: String? = switch match.action {
         case .switchToEntry: "Switch to Tab"
         case .restoreArchived: "Restore"
-        case .command: "Run"
+        // A command's key (4.4a: from the shortcut table, so a remap shows here), else "Run".
+        case .command: match.shortcut ?? "Run"
         default: nil
         }
         return PaletteRow(id: match.id, icon: icon, title: match.title, detail: match.detail, hint: hint, spaceName: match.spaceName,

@@ -344,11 +344,36 @@ extension SidebarController {
 
     // MARK: Item helpers
 
+    /// The main menu's action each default key below names (`docs/shortcuts.md`):
+    /// the item shows that action's current key (`shortcutKey`, 4.4a).
+    static let shortcutIDs: [String: String] = [
+        "t|\(NSEvent.ModifierFlags.command.rawValue)": "newPage:",
+        "+|\(NSEvent.ModifierFlags.command.rawValue)": "newSplitPane:",
+        "d|\(NSEvent.ModifierFlags.command.rawValue)": "togglePin:",
+        "d|\(NSEvent.ModifierFlags([.command, .shift]).rawValue)": "toggleEssentials:",
+        "w|\(NSEvent.ModifierFlags.command.rawValue)": "closeTab:",
+        "c|\(NSEvent.ModifierFlags([.command, .shift]).rawValue)": "copyPageURL:",
+        "c|\(NSEvent.ModifierFlags([.command, .shift, .option]).rawValue)": "copyPageURL:#1",
+        "r|\(NSEvent.ModifierFlags.command.rawValue)": "reloadPage:",
+        "m|\(NSEvent.ModifierFlags([.command, .shift]).rawValue)": "toggleMute:",
+        "-|\(NSEvent.ModifierFlags([.control, .shift]).rawValue)": "removeSplitPane:",
+        "u|\(NSEvent.ModifierFlags([.command, .option]).rawValue)": "unsplit:",
+    ]
+
+    /// The key an item shows: its action's current key when the app supplies the table, else the default.
+    func shownKey(_ key: String, _ modifiers: NSEvent.ModifierFlags) -> (key: String, modifiers: NSEvent.ModifierFlags) {
+        guard !key.isEmpty, let shortcutKey, let id = Self.shortcutIDs["\(key)|\(modifiers.rawValue)"] else {
+            return (key, key.isEmpty ? [] : modifiers)
+        }
+        return shortcutKey(id)
+    }
+
     func action(_ title: String, symbol: Symbol? = nil, key: String = "", modifiers: NSEvent.ModifierFlags = [.command],
                 enabled: Bool = true, _ handler: @escaping @MainActor () -> Void) -> NSMenuItem {
         let target = MenuAction(handler)
-        let item = NSMenuItem(title: title, action: #selector(MenuAction.run), keyEquivalent: key)
-        item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
+        let shown = shownKey(key, modifiers)
+        let item = NSMenuItem(title: title, action: #selector(MenuAction.run), keyEquivalent: shown.key)
+        item.keyEquivalentModifierMask = shown.modifiers
         item.target = target
         item.representedObject = target
         item.image = symbol?.image()
@@ -359,8 +384,9 @@ extension SidebarController {
     /// A command that a later phase implements: shown, disabled, phase in the tooltip.
     func later(_ title: String, symbol: Symbol? = nil, phase: String, key: String = "",
                modifiers: NSEvent.ModifierFlags = [.command]) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: key)
-        item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
+        let shown = shownKey(key, modifiers)
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: shown.key)
+        item.keyEquivalentModifierMask = shown.modifiers
         item.image = symbol?.image()
         item.isEnabled = false
         item.toolTip = "Arrives in Phase \(phase)"

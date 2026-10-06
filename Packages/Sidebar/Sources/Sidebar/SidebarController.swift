@@ -54,6 +54,10 @@ public final class SidebarController: NSObject {
     /// The routing sheet (spec §B, 4.2): "Space Routing Settings…" (`nil`), or
     /// "Add Route for Domain…" with a new rule prefilled for `host` targeting `space`.
     public var onRoutingSettings: ((_ newRule: (host: String, space: UUID)?) -> Void)?
+    /// The key equivalent a menu action has now (4.4a, the app's `ShortcutTable`):
+    /// action id ("togglePin:") → key and modifiers as `NSMenuItem` takes them,
+    /// `("", [])` for none. `nil` (tests) keeps the defaults the menus name.
+    public var shortcutKey: ((String) -> (key: String, modifiers: NSEvent.ModifierFlags))?
     /// The two-finger swipe and ⌃+wheel in progress (`SidebarSwipe`).
     var swipe = SpaceSwipe()
     var wheel = SpaceWheel()

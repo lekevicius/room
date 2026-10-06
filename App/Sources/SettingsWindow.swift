@@ -15,7 +15,7 @@ import SwiftUI
 /// opt-ins.
 final class SettingsWindowController: NSWindowController {
     enum Section: String, CaseIterable {
-        case general, appearance, search, downloads, spaces, extensions, privacy
+        case general, appearance, search, downloads, shortcuts, spaces, extensions, privacy
 
         var title: String {
             switch self {
@@ -23,6 +23,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "Appearance"
             case .search: "Search"
             case .downloads: "Downloads"
+            case .shortcuts: "Shortcuts"
             case .spaces: "Spaces"
             case .extensions: "Extensions"
             case .privacy: "Privacy"
@@ -35,6 +36,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: "paintpalette"
             case .search: "magnifyingglass"
             case .downloads: "arrow.down.circle"
+            case .shortcuts: "keyboard"
             case .spaces: "square.stack"
             case .extensions: "puzzlepiece.extension"
             case .privacy: "hand.raised"
@@ -45,15 +47,24 @@ final class SettingsWindowController: NSWindowController {
     private let tabs = SettingsTabsController()
     /// What the sections reach (the import spike calls `showImportSheet` as General's button does).
     let services: SettingsServices
+    /// Settings ▸ Shortcuts, the AppKit table (4.4a; the settings spike drives it).
+    let shortcuts: ShortcutsSettingsViewController
 
     init(settings: SettingsStore, services: SettingsServices) {
         self.services = services
+        shortcuts = ShortcutsSettingsViewController(settings: settings)
         tabs.tabStyle = .toolbar
         for section in Section.allCases {
-            let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings, services: services))
-            // The window takes each section's height as it is chosen.
-            hosting.sizingOptions = [.preferredContentSize]
-            let item = NSTabViewItem(viewController: hosting)
+            let controller: NSViewController
+            if section == .shortcuts {
+                controller = shortcuts
+            } else {
+                let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings, services: services))
+                // The window takes each section's height as it is chosen.
+                hosting.sizingOptions = [.preferredContentSize]
+                controller = hosting
+            }
+            let item = NSTabViewItem(viewController: controller)
             item.label = section.title
             item.image = NSImage(systemSymbolName: section.symbol, accessibilityDescription: section.title)
             item.identifier = section.rawValue
@@ -116,6 +127,7 @@ private struct SettingsSectionView: View {
             case .appearance: appearance
             case .search: search
             case .downloads: downloads
+            case .shortcuts: EmptyView()
             case .spaces: spaces
             case .extensions: ExtensionsSettingsView(center: services.extensions())
             case .privacy: privacy
