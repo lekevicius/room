@@ -80,3 +80,55 @@ Outcome: accepted. Rebase 1 verified (293 / 5, nothing new), rebase 2 applied by
 
 Outcome: accepted. The full tour on RoomCore for the first time (498 / 7 light, 499 / 6 dark of 505, under build load, every failure attributed), CEF deleted (19 files, 4,124 lines; the entitlements kept for the RoomCore helpers), schema v6 with the archive (the 50k state opens in 12 ms), the review drafted, the by-hand list at 67 items. Decisions: B-76 (renderer DCHECK minidumps on live sites, dev build only) is a condition, not a bug to chase, and the release framework is where crashes are counted; AGENTS.md updated for one engine by the planner. Finding for the user: with Crashpad's dumps counted properly, every RoomCore tour since 3.1a had had 0–10 unseen renderer DCHECK crashes on live sites; none affected the checks' outcomes.
 
+### 3.9-2 — accepted; Phase 3.8 closed; 3.9's implementer part done (2026-10-06 03:51 → 09:46, 355 min, the 155 release build's 4 h 15 min inside it)
+
+Outcome: accepted. The exit tour on 155 (505 / 6 both appearances), 0012 dropped (series 23), the release on 155 built, measured, signed, notarized and packaged; B-77 (the export-order check of the official build) found and fixed in `//room`. Decisions: 3.8 closed with the feed step the user's; 3.9 open for the user; the Chapter 4 spec waits for the user's return.
+
+## Closing (2026-10-06 10:00)
+
+### Sessions
+
+| Session | Outcome | Wall time | Note |
+|---|---|---|---|
+| 3.1a | accepted | 77 min | merge, spike gate, identity, EngineRoomCore, bootstrap, B-42, B-44 |
+| 3.1b | accepted with gaps | 93 min | the official build started; component halves of 7–10; the planner waited 3 h 13 min for the build |
+| 3.1b-2 | accepted; 3.1 closed | 130 min | the build's three release-only fixes, 0 requests, 20/20 quits |
+| 3.2a | accepted | 108 min | `RoomBrowserWindow` real members, `RoomBrowser`, patches 0014–0015 |
+| 3.2b | accepted; 3.2 closed | 104 min | patch 0013, the host's delegate, the quit, keys, `executeJavaScript` |
+| 3.3a | accepted | 94 min | visibility, throttle (0016), page state, discard |
+| 3.3b | accepted; 3.3 closed | 113 min | find, capture, print, DevTools, the numbers table |
+| 3.4a | accepted | 96 min | six delegate hooks (0017–0022) |
+| 3.4b | accepted; 3.4 closed | 111 min | dialogs, hung page, external, infobars, capture, choosers; one hook (0023) |
+| 3.5 | accepted; closed | 77 min | history, omnibox, the migration; no patch |
+| 3.6a | accepted | 130 min | extensions; the Web Store works; 0024–0025 |
+| 3.6b | accepted; 3.6 closed | 78 min | popups in the header, commands; no patch |
+| 3.7a | accepted | 60 min | passwords and autofill bubbles; no patch |
+| 3.7b | accepted; 3.7 closed | 62 min | session state (schema v5), discard policy, translate, spellcheck |
+| 3.8 | accepted | 41 min | the rebase script, rebase 1 by hand; the build (outage at 21:45, restarted 21:56, done 22:29) |
+| 3.8-2 | accepted | 99 min | rebase 1 verified, rebase 2 by the script; the clean build 4 h 34 min |
+| 3.9-1 | accepted | 91 min | the tour preview, CEF deleted, schema v6, the review draft, the by-hand list |
+| 3.9-2 | accepted; 3.8 closed | 355 min | the exit tour on 155, 0012 dropped, the release on 155 |
+
+Loop: 2026-10-04 16:20 → 2026-10-06 10:00, about 41.7 hours; implementer time about 32 hours; the rest builds (four long ones: official 154, rebase 1, rebase 2, official 155) and one power outage.
+
+### The numbers (RoomCore beside CEF)
+
+The full table with conditions is `chapter-3-review.md` "Numbers". The headline rows: memory at ten pages 4.8 GB on the release build (CEF 3.6; at rest 0.56 vs 0.85); tab switch 12.9 / 20.9 ms median / p95 on release (CEF 13.7–14.5 / 17.5–18.2); relaunch to the selected page 1.33 s on release (CEF 1.44); quit with ten pages 0.24–0.30 s (CEF 0.31–0.50); the state open on the 50k state 12 ms (CEF's local tables 151–158 ms); palette later keys p95 9.8–10.0 ms (CEF 11.5); engine requests 0 over launch, idle, browse and quit (CEF 3 hosts); Room.app 386 MB, DMG 178 MiB; cold launch 0.457 s; the exit tour 505 / 6 per appearance (CEF 490 / 1, 489 / 2 of 491).
+
+### The user's decisions (backlog rows owned by the user, each with the planner's provisional choice)
+
+B-46 helper bundle-id suffixes (keep Chromium's; PLAN amended); B-48 disk layout on the Mac mini (sessions keep 10 GB free; the user decides what moves to the SSD); B-63 translate (no key, no offer in Chapter 3; a Chapter 4 Settings item); B-66 the history archive (`history-archive.json` written; an archive view is 4.1's question); B-68 extensions' own requests (theirs; Settings copy says so); B-69 native messaging hosts (none registered); B-72 password generation (none without Sync); B-74 Enhanced Spell Check (hide: Google's service); B-26 location authorization (allow Room in Location Services); B-10 the external drive (APFS when possible); B-16/18/20/21 the laptop's 120 Hz runs; B-32 the card's drag band. Plus the keychain prompt once on the signed build, the EdDSA signature and a feed update, Widevine on a real service, the passkey request, the Sentry DSN and the feed URL (Chapter 2's).
+
+### The by-hand list
+
+`research/notes/chapter-3-by-hand.md`: 70 numbered steps in nine groups (Setup, 3.1 through 3.9) plus the Chapter 2 pass once more on RoomCore (`chapter-2-by-hand.md`, 121 steps) and the week's instructions. One stash of 0012's content sits in the Chromium checkout (droppable).
+
+### What the week should watch
+
+Memory at the user's real tab count; switching on a visible window; which hybrid bubble annoys first; any network request the user did not ask for (`scripts/netlog-check.sh`); the keychain prompt once; the Dock reopen, links from other apps, ⌘Q with a page asking to stay; extensions' popups and badges; the first "Room quit unexpectedly" on the release build, if any (none expected: 0 minidumps on its tour steps).
+
+### Three things to change in the Chapter 4 spec
+
+1. Judge numbers and crashes on the release framework from the first phase (`ROOM_TOUR_APP`, the Debug app over the release framework) and keep the dev-build tour for correctness; run the official build per milestone (`roomcore-rebase.sh --verify --release`), since B-77 hid for two milestones.
+2. End each phase with a by-hand step the user does the same day rather than a chapter-end list: Chapter 3 produced 70 hand-checks plus Chapter 2's 121, more than one pass absorbs; and start Chapter 4 only after the week, so its friction rows are the spec's input.
+3. Freeze the `Engine` protocol's shape at the chapter's start (Chapter 3 changed it ten times, each with its fake), keep hooks at one per phase at most (the series is 23; two rebases showed they do not churn, but every hook is rebase surface), and give the apply script an explicit drop and the tour a load-and-idle check at its start.
