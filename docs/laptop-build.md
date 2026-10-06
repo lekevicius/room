@@ -18,13 +18,19 @@ git pull --ff-only && xcodegen
 mkdir -p build/roomcore-release && rsync -a --delete eve@eve.local:/Users/eve/Code/room/build/roomcore-release/RoomCore.framework build/roomcore-release/
 ```
 
-3. Build Room.app over it. `ROOMCORE_STAGE` points the project at the copied framework; the two empty settings turn off the component-build link flags (a static framework has no `libchrome_dll`). `Debug` gives the DEBUG app with the spike runner, fixtures and `-RoomStateDirectory`; `Release` gives the product app.
+3. Build Room.app over it. `ROOMCORE_STAGE` points the project at the copied framework; the two empty settings turn off the component-build link flags (a static framework has no `libchrome_dll`). `Debug` gives the DEBUG app with the spike runner, fixtures and `-RoomStateDirectory`; `Release` gives the product app. The `EngineRoomCore` package compiles against `build/roomcore/RoomCore.framework` whatever `ROOMCORE_STAGE` says (its `-F` is fixed in `Package.swift`), so that path must be the same framework: on the laptop an old stage from 2026-10-02 was there and the build failed with "cannot find type 'RoomPermissionRequest'" (laptop checks, 2026-10-06). Once:
+
+```bash
+[[ -e build/roomcore ]] && mv build/roomcore build/roomcore-stale-$(date +%F); mkdir -p build/roomcore && ln -s ../roomcore-release/RoomCore.framework build/roomcore/RoomCore.framework
+```
 
 ```bash
 xcodebuild -project Room.xcodeproj -scheme "Room (RoomCore)" -configuration Debug -derivedDataPath build/roomcore-release/DerivedData ROOMCORE_STAGE="$PWD/build/roomcore-release" ROOMCORE_COMPONENT_LDFLAGS= ROOMCORE_LIBRARY_PATH= build
 ```
 
 The app is `build/roomcore-release/DerivedData/Build/Products/Debug/Room.app` (or `Release/Room.app`), ad-hoc signed by the embed phase, so it runs with the mock keychain (no prompt, no access to the login keychain's cookies and passwords: for real accounts use the signed DMG).
+
+A Debug app copied from the Mac mini instead of built here runs, but its spikes find their `file://` fixtures through `#filePath` (`SpikeRunner.pagesDirectory`, the fixtures' `phase25Page`), i.e. under `/Users/eve/Code/room`: on the laptop those pages are error pages (the spaces fixture's 50 "loaded" pages took 14 renderers instead of 52, and the tour's audio, popups, keys and tabs steps failed on missing elements). Spikes on HTTP fixtures or real sites (palettemeasure, tabsmeasure, sidebar snapshots) are unaffected; for the rest build the Debug app here (step 3, 28 s).
 
 4. Launch it on a scratch state, never on the real one unless you mean to:
 
