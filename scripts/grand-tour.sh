@@ -40,7 +40,9 @@ ROOT="$(pwd)"
 ENGINE_NAME=roomcore
 SCHEME="Room (RoomCore)"
 DERIVED="build/roomcore/DerivedData"
-APP="$DERIVED/Build/Products/Debug/Room.app"
+# ROOM_TOUR_APP=<Room.app> runs the steps on another Debug-configured app with --no-build
+# (3.9-2: the Debug app over the release framework, for its crash count).
+APP="${ROOM_TOUR_APP:-$DERIVED/Build/Products/Debug/Room.app}"
 export ROOM_APP="$APP"
 
 build=YES

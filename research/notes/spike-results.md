@@ -2269,7 +2269,7 @@ The database file: 41.8 MB before; after v6 10,163 of 10,215 pages were free (th
 
 ## Phase 3.9 — grand tour on RoomCore 155.0.8059.36 (the exit) (2026-10-06, Mac mini M4, 24 GB, RoomCore, Debug)
 
-The full tour (34 steps, one state and one engine directory per appearance, the four test servers once) on the packaged component build of rebase 2 (`build/roomcore`, framework `Versions/155.0.8059.36`, staged by `roomcore-rebase.sh --verify`, ad hoc, mock keychain), run as `scripts/grand-tour.sh --no-build light dark` at `fa44470` (`build/grand-tour/20261006-041307-roomcore`, binary sha256 `19d7ec6f5e0f`). Conditions: **no build beside it** (the machine quiet but for the tour: load1 7–13 at the quit steps), 60 Hz external display, the Claude desktop app frontmost, console unlocked. Patch series 24 (0012 still in; dropped after this run). The harness is 3.9-1's fixed one (the engine's Crashpad minidumps counted per step, B-76; the popups DOM mark, B-75), so each appearance has **511 checks** (the preview's 505 plus the crash checks the new count adds to steps that had none).
+The full tour (34 steps, one state and one engine directory per appearance, the four test servers once) on the packaged component build of rebase 2 (`build/roomcore`, framework `Versions/155.0.8059.36`, staged by `roomcore-rebase.sh --verify`, ad hoc, mock keychain), run as `scripts/grand-tour.sh --no-build light dark` at `fa44470` (`build/grand-tour/20261006-041307-roomcore`, binary sha256 `19d7ec6f5e0f`). Conditions: **no build beside it** (the machine quiet but for the tour: load1 7–13 at the quit steps), 60 Hz external display, the Claude desktop app frontmost, console unlocked. Patch series 24 (0012 still in; dropped after this run). The harness is 3.9-1's fixed one (the engine's Crashpad minidumps counted per step, B-76; the popups DOM mark, B-75), so each appearance has **511 checks**: the preview's 505, plus the "no helper crash report" check that the harness lists only for a step that left a minidump (4 steps here), plus one check each in chrome26b and palettemeasure from 3.9-1's harness fixes (54 and 14).
 
 | Run | Wall time | Checks | Failed |
 |---|---|---|---|
@@ -2363,3 +2363,59 @@ After the exit tour: `0012-extension-chooser-toolbar-guard.patch` removed from `
 - **Rebuild** (`ROOM_BUILD_JOBS=6 scripts/roomcore-build.sh`, nohup, `build/roomcore-0012-drop-build.log`): **"build done in 59 s"** (one `chrome/browser/ui` file and the relink of its component), load 6.6 → 9.1. Package 38 s.
 - **Baseline** (embryo host): attempt 1 nav passed (17.1 s), the ten-page fixture rejected on Stack Overflow still loading (its challenge; known); attempt 2 **nav passed (10.7 s), quits 0.396 / 0.348 / 0.274 s** (load1 7.3 / 10.2 / 11.6), 0 helpers left, 0 crash reports, exit 0 each.
 - **The chooser without the patch** (`scripts/roomcore-features.sh ui-extension-device`, embryo host, the fixture extension's popup asks `navigator.usb.requestDevice` from `chrome-extension://jkog…`): `extension-device-result: NotFoundError "No device selected."`, `drive-complete`, no FATAL or Check line in the host log, 0 minidumps under the profile's Crashpad: **the same safe rejection as 3.6b's run with 0012** (`build/evidence-3.6b-ui-extension-device.log`). A safe rejection is not a chooser: B-71 keeps the extension-origin chooser's future.
+
+## Phase 3.9 — the release build on 155.0.8059.36: crashes, memory, size, launch, signing, Sparkle (2026-10-06, Mac mini M4, 24 GB, RoomCore release build)
+
+**Build** (`build-log.md` "Phase 3.9-2: the release build on 155.0.8059.36"): the official build of the 23-patch series at `43b3213`, clean after rebase 2's clang roll: 4 h 8 min 29 s to a failure at the export-order check with the framework already linked (B-77: `room_core.exports` was alphabetical; nm lists the 52 class symbols in address order), the list rewritten in nm's order in `//room`, then 423 s (the framework relinked in 328 s at **12.17 GB `max_rss`** from the ThinLTO cache, the rest of the bundle). **4 h 15 min 32 s** of build in all (3.1b-2 on 154.0.8037.58: 4 h 43 min 28 s). Packaged with `scripts/roomcore-package.sh --release` (87 s: Release app and release host) and `CONFIGURATION=Debug … --release --app-only` (24 s). Apps as in 3.1b-2: **Release app** (ad hoc), **Debug app over release** (the spikes and the tour steps), **signed copy** (`build/roomcore-release-signed`, Developer ID, never launched).
+
+### Crashes on the release framework (B-76's question)
+
+`ROOM_TOUR_APP=<Debug app over release> scripts/grand-tour.sh --no-build --only smoke,open10,quittiming,memory light` (`build/grand-tour/20261006-093253-roomcore`; `ROOM_TOUR_APP` added to the tour for this, a harness option; load 4–7): **40 / 40 checks, 0 minidumps** under the engine's `Crashpad/{pending,completed}` (the database exists; the steps' `.crashpad` files are empty), 0 crash reports, 0 helpers left. The same four steps on the 155 dev build left **9 renderer minidumps per appearance** (the exit tour: 8 × `layout_object.h:518`, 1 × `inline_node.cc:2297`, plus one `//net` DCHECK in dark): the live sites that trip the dev build's DCHECKs do not crash the product. B-76 stays a dev-build condition.
+
+From the same steps (release framework, light, the machine quiet but for the session):
+
+| Measure | Release framework (155) | Dev build, exit tour (155, light) | CEF (2.9 tour, light) |
+|---|---|---|---|
+| Memory baseline (summed RSS) | **559 MB** (9 processes) | 1,241 MB | 849 MB |
+| 1 / 10 / 30 hidden pages | 748 / **4,097** / 8,725 MB (4 / 17 / 46 renderers) | 1,625 / 4,962 / 11,720 MB | — / 3,572 (10 loaded) / 7,292 MB |
+| open10: seconds to all loaded | 5 | 11 | — |
+| Quit with ten pages (3 runs) | 0.24 / 0.26 / 0.30 s, 0 helpers left (load1 5.4–6.5) | 0.30–0.37 s | 0.35–0.50 s |
+| Smoke quit | 0.10 s | 0.11 s | — |
+
+### Sizes (Release app, `du -sk`)
+
+| Part | KB | MB | 3.1b-2 (154.0.8037.58) |
+|---|---:|---:|---:|
+| **Room.app** | 395,640 | **386** | 382 |
+| RoomCore.framework | 375,940 | 367 | 364 |
+| framework binary `RoomCore` | 272,196 | 266 | 264 |
+| Resources | 84,300 | 82 | 81 |
+| of which 220 locales | 50,400 | 49 | 49 |
+| Libraries | 15,820 | 15 | 15 |
+| Helpers | 3,428 | 3.3 | 3.4 |
+| Swift app executable | 16,712 | 16 | 15 |
+| Sparkle / Sentry | 2,748 / 48 | 2.7 / 0.05 | same |
+| dSYMs (15; RoomCore.dSYM 2,251,312 KB) | 2,331,268 | 2,277 | 2,263 |
+| signed copy | 395,880 | 387 | 382 |
+
+`nm -jUng` on the framework binary: 55 exports (Chrome's three and the 52 class symbols).
+
+### Cold launch (Release app)
+
+`scripts/roomcore-cold-launch.py <Release app> build/evidence-3.9b/cold-launch 3` (fresh state and engine directory per run, the page on 127.0.0.1, quit by pid; load1 4.1–4.5):
+
+| Run | Launch → page loaded | Navigation → load | Quit | Exit | Helpers left | Minidumps |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 (first launch of this build) | 2.506 s | 68.7 ms | 0.111 s | 0 | 0 | 0 |
+| 2 | **0.456 s** | 45.8 ms | 0.109 s | 0 | 0 | 0 |
+| 3 | **0.457 s** | 51.6 ms | 0.111 s | 0 | 0 | 0 |
+
+Median **0.457 s** (3.1b-2: 0.414 s, first launch 2.715 s).
+
+### Signing and notarization (signed copy)
+
+`ROOM_SIGN_COPY=build/roomcore-release-signed scripts/roomcore-sign.sh <Release app>` (91 s in all): signed in **9.9 s**; `codesign --verify --deep --strict`: valid, satisfies its Designated Requirement; `flags=0x10000(runtime)`, `TeamIdentifier=N56PMJ99UT`; `spctl` before: "rejected, source=Unnotarized Developer ID". Notarization: zip **171,141,853 bytes**, submission **cc579ee0-5121-4ec5-80cf-159cb1cec861**, **Accepted** in 70.2 s; stapled ("The staple and validate action worked!"); `spctl --assess`: "**accepted, source=Notarized Developer ID**". Not launched (its keychain prompt is the user's).
+
+### Sparkle packaging (signed copy)
+
+`ROOM_SPARKLE_UNSIGNED=1 scripts/sparkle-package.sh build/roomcore-release-signed/Room.app build/sparkle-3.9`: **DMG 186,841,560 bytes (178 MiB)** in 8 s (3.1b-2: 184,497,802); the unsigned appcast entry: version 1, short version 0.1.0, minimum system 26.0, enclosure `https://updates.room.invalid/Room-0.1.0-1.dmg` length 186841560. The EdDSA signature (`sign_update` reading the `ed25519` key from the login keychain) and an update delivered through a feed to one machine are the user's (the keychain approval and the feed URL, B-6).
