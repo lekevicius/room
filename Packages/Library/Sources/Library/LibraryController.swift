@@ -231,9 +231,9 @@ public final class LibraryController: NSObject {
     public func openDownload(_ id: String) { downloads.open(id) }
     public func revealDownload(_ id: String) { downloads.reveal(id) }
 
-    /// Remove: the host's list only. Chrome's `DownloadHistory` keeps the row
-    /// and lists it again after a relaunch until 4.1b's engine member
-    /// `Profile.removeDownload` (B-59) removes it there too.
+    /// Remove: out of the host's list and the engine's download history
+    /// (`Profile.removeDownload`, B-59), so a relaunch does not list it; a
+    /// running download is cancelled first.
     public func removeDownload(_ id: String) { downloads.remove(id) }
 
     public func deleteHistory(_ url: URL) {

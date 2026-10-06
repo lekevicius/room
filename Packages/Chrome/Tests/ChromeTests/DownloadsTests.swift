@@ -90,9 +90,28 @@ struct DownloadsTests {
         #expect(list.canClear)
         list.clear()
         #expect(list.rows.map(\.id) == [b])
+        // B-59: Clear removes the finished downloads from the engine's history too.
+        #expect(profile.downloads[a] == nil && profile.downloads[c] == nil)
+        #expect(profile.downloads[b] != nil)
         list.cancel(b)
         #expect(list.row(b)?.item.state == .cancelled)
         #expect(list.progress == nil)
+    }
+
+    @Test("Remove takes a running download out of the list and the engine's history (B-59)")
+    func removeRunning() throws {
+        let list = DownloadList()
+        list.folder = { folder }
+        list.fileExists = { _ in false }
+        let profile = try profile()
+        profile.downloadsDelegate = list
+        let a = profile.simulateDownload(url: URL(string: "https://a.example/a.bin")!, totalBytes: 100)
+        profile.advanceDownload(id: a, by: 10)
+        list.remove(a)
+        #expect(list.rows.isEmpty)
+        #expect(profile.downloads[a] == nil)
+        profile.advanceDownload(id: a, by: 90)
+        #expect(list.rows.isEmpty)
     }
 
     @Test("The row's line: progress with speed and time left, size when done, Cancelled, Failed")

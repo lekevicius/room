@@ -2619,3 +2619,22 @@ Checks 7 / 7, including the renamed "no reopen behind the last ack (no acknowled
 ### Unit tests (`CI=1 swift test`)
 
 Model 83, Store 41, Tabs 63, Sidebar 38, Palette 24, Omnibox 45, UIKitCore 47, Chrome 51, Design 9, Library 2 (new): all pass; `room-persistence-harness` builds (release).
+
+## Phase 4.1b — backups, crash recovery, `Profile.removeDownload`; the incremental official build (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+### The engine step: `//room` incremental, package, baseline (dev, before the official build started)
+
+`ROOM_BUILD_JOBS=6 scripts/roomcore-build.sh` after the `removeDownload` change (4 `//room` files, +23 lines): "patches: 0 applied, 23 already on the room branch", **"build done in 59 s"** (89 s with the apply step; load 2.97 → 4.33). `scripts/roomcore-package.sh` 55 s (host 29.1 s, app 15.7 s). `scripts/roomcore-baseline.sh build/evidence-4.1b/baseline-1` (load 5.5–8.6, no other build): nav **passed** (16.36 s); ten-page quits **0.277 s** (load1 5.47) and **0.283 s** (6.66), helpers left 0, 0 new crash reports, exit 0; run 3 stopped twice at "ten-page fixture incomplete" with stackoverflow.com on Cloudflare's "Just a moment..." (`loading-at-ready 1`; the 3.4a-2 condition), then `quit-timing.sh 1` passed: **0.298 s** (load1 8.60), helpers left 0, 0 crash reports (`baseline-1/quit-run3-rerun2.txt`).
+
+### Download Remove and Clear across a relaunch (B-59)
+
+`scripts/download-remove-check.sh <dir>` (new): `chromesurfaces2 -RoomSpikeOnly downloadremove` on a fresh state (the 2.6 test server; a 20 KB file removed through `LibraryController.removeDownload`, a second through `DownloadList.clear`, a 3 MB file kept), then `-RoomSpikeOnly downloadsrestore` on the same state.
+
+Dev build (`build/evidence-4.1b/download-remove-dev`; the official build compiling beside it, load1 5.68):
+
+    download_remove: library removed=true rows after=0 cleared=true rows before clear=1 after=0 kept=room-2.6b-unknown.bin rows=1
+    download_restored: rows=1 room-2.6b-unknown.bin:complete:canResume=false
+    minidumps: 0
+    result: passed (only the kept download is listed after the relaunch)
+
+Before this change the relaunch listed every download Chrome's `DownloadHistory` held (3.4a's B-28 check: 5 of 5 after Clear).

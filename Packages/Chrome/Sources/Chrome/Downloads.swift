@@ -216,18 +216,23 @@ public final class DownloadList: DownloadsDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    /// "Clear": the finished rows go; downloads in progress stay.
+    /// "Clear": the finished rows go, from the engine's list and its
+    /// download history too (`Profile.removeDownload`, B-59), so a relaunch
+    /// does not list them again; downloads in progress stay.
     public func clear() {
         let finished = rows.filter { DownloadRules.isFinished($0.item.state) }.map(\.id)
-        rows.removeAll { finished.contains($0.id) }
-        finished.forEach { profiles.removeValue(forKey: $0) }
+        for id in finished { forget(id) }
     }
 
-    /// The Library's Remove: one row leaves the list (a download in progress
-    /// is cancelled first). The host's list only: Chrome's `DownloadHistory`
-    /// keeps the row until 4.1b's `Profile.removeDownload` (B-59).
+    /// The Library's Remove: one row leaves the list and the engine's history
+    /// (a download in progress is cancelled first, as Chrome's Clear does).
     public func remove(_ id: DownloadItem.ID) {
         if row(id)?.item.state == .inProgress { cancel(id) }
+        forget(id)
+    }
+
+    private func forget(_ id: DownloadItem.ID) {
+        profiles[id]?.profile?.removeDownload(id: id)
         rows.removeAll { $0.id == id }
         profiles.removeValue(forKey: id)
     }

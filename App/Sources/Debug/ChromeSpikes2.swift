@@ -56,6 +56,7 @@ extension SpikeRunner.Context {
         // 3.4a, on a state an earlier run downloaded into (only when asked):
         // the list a relaunch restores (B-28), and a quit with a download in
         // flight (the host's decision; Chrome's prompt never shows).
+        if only.contains("downloadremove") { await downloadRemoveCheck() }
         if only.contains("downloadsrestore") { await downloadsRestoreCheck() }
         if only.contains("downloadquit") { await downloadQuitCheck() }
         if runs("find") { await findCheck() }
@@ -153,6 +154,37 @@ extension SpikeRunner.Context {
         list.clear()
         SpikeRunner.record("download_clear", "rows=\(list.rows.count)")
         downloads.popover.close()
+    }
+
+    /// 4.1b (B-59), on a fresh state, followed by a relaunch with
+    /// `downloadsrestore` on the same state (`scripts/download-remove-check.sh`):
+    /// one download removed through the Library's Remove, one through the
+    /// popover's Clear, one kept; the relaunch lists only the kept one.
+    private func downloadRemoveCheck() async {
+        guard let app, let downloads = app.downloads, let library = app.library,
+              let page = await openTest("downloads.html") else { return }
+        let list = downloads.list
+        func fetch(_ selector: String, _ name: String, count: Int) async -> DownloadItem.ID? {
+            await click(page, selector)
+            _ = await waitUntil(10) {
+                let rows = list.rows.filter { $0.item.suggestedFilename.contains(name) }
+                return rows.count >= count && rows.allSatisfy { $0.item.state == .complete }
+            }
+            return list.rows.first { $0.item.suggestedFilename.contains(name) && $0.item.state == .complete }?.id
+        }
+        let removed = await fetch("#small", "small", count: 1)
+        if let removed { library.removeDownload(removed) }
+        let afterRemove = list.rows.count
+        let cleared = await fetch("#again", "small", count: 1)
+        let beforeClear = list.rows.count
+        list.clear()
+        let afterClear = list.rows.count
+        let kept = await fetch("#unknown", "unknown", count: 1)
+        // DownloadHistory removes its rows in a posted task; give it a moment before the quit.
+        try? await Task.sleep(for: .milliseconds(1500))
+        SpikeRunner.record("download_remove", "library removed=\(removed != nil) rows after=\(afterRemove) "
+            + "cleared=\(cleared != nil) rows before clear=\(beforeClear) after=\(afterClear) "
+            + "kept=\(kept.flatMap { list.row($0)?.destination?.lastPathComponent } ?? "nil") rows=\(list.rows.count)")
     }
 
     /// B-28: the engine's history replays earlier sessions' downloads into
