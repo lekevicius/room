@@ -293,6 +293,7 @@ enum PrivacyStatements {
         ("Spelling", "Spelling is checked on this Mac by macOS. Enhanced Spell Check, which sends what you type to Google, is not offered."),
         ("Safe Browsing", "Off: Room does not check the pages you open against Google's list of dangerous sites."),
         ("Zoom", "Zoom applies per site, as in Chrome: zooming one page zooms the site's other pages, and the level is remembered."),
+        ("Autoplay", "Autoplay follows Chromium's default: sound may start only after you interact with a site."),
         ("Extensions", "Extensions you install make their own requests (their updates and their own servers): those are the extension's, not Room's."),
     ]
 }
