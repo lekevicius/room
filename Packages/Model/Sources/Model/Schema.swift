@@ -29,6 +29,11 @@ public enum Schema {
     /// out, Clear's tabs, a deleted space's entries, manual archiving.
     public static let v7 = "v7-archive"
 
+    /// Phase 4.2: space routing rules (spec §B): where external links and
+    /// links from other spaces open. (v7 shipped in the Phase 4.1 DMG, so the
+    /// routing table is v8 and 4.8a's `entry.windowID` becomes v9.)
+    public static let v8 = "v8-routing-rules"
+
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(v1, migrate: createV1)
@@ -38,6 +43,7 @@ public enum Schema {
         migrator.registerMigration(v5, migrate: createV5)
         migrator.registerMigration(v6, migrate: createV6)
         migrator.registerMigration(v7, migrate: createV7)
+        migrator.registerMigration(v8, migrate: createV8)
         return migrator
     }
 
@@ -212,6 +218,22 @@ public enum Schema {
             t.column("reason", .text).notNull()
                 .check { ["auto", "clear", "spaceDeleted", "windowClosed", "manual"].contains($0) }
             t.column("navigationState", .blob)
+        }
+    }
+
+    /// `routing_rule`: one row per rule, evaluated in `position` order
+    /// (`RoutingRules`). The target space is a deferred foreign key: deleting
+    /// a space deletes its rules in the same write (spec §B; the store does
+    /// it, nothing cascades).
+    static func createV8(_ db: Database) throws {
+        try db.create(table: "routing_rule") { t in
+            t.primaryKey("id", .blob)
+            t.column("match", .text).notNull()
+                .check { ["contains", "equals", "regex"].contains($0) }
+            t.column("pattern", .text).notNull()
+            t.column("targetSpaceID", .blob).notNull().indexed().references("space", deferred: true)
+            t.column("position", .integer).notNull()
+            t.column("enabled", .boolean).notNull()
         }
     }
 

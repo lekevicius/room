@@ -45,10 +45,17 @@ func sampleState() -> RoomState {
     settings.firstRunDone = true
     settings.crashReports = true
     settings.automaticUpdateChecks = true
+    // 4.2: routing between spaces and the external default.
+    settings.routeLinksBetweenSpaces = true
+    settings.externalLinksSpaceID = home.id
+    let rules = [
+        RoutingRule(match: .contains, pattern: "github", targetSpaceID: work.id, position: 0),
+        RoutingRule(match: .regex, pattern: #"^https://news\."#, targetSpaceID: home.id, position: 1, enabled: false),
+    ]
     return RoomState(
         profiles: [profile], spaces: [work, home], entries: [essential, folder, pinned, today], splitGroups: [group],
         windows: [window], windowSpaces: [WindowSpace(windowID: window.id, spaceID: home.id, selectedEntryID: today.id)],
-        settings: settings
+        settings: settings, routingRules: rules
     )
 }
 

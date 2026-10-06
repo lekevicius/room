@@ -368,6 +368,40 @@ public struct ArchivedEntry: Hashable, Sendable, Codable, Identifiable, Fetchabl
     }
 }
 
+/// How a routing rule matches a URL (spec §B; `RoutingRules`).
+public enum RoutingMatch: String, Hashable, Sendable, Codable, CaseIterable, DatabaseValueConvertible {
+    /// The pattern appears in the full URL string, ignoring case.
+    case contains
+    /// The URL's host is the pattern, ignoring case and a leading "www.".
+    case equals
+    /// `NSRegularExpression` over the full URL string.
+    case regex
+}
+
+/// One space routing rule (schema v8, Phase 4.2; spec §B): a link whose URL
+/// matches opens in `targetSpaceID`. Rules are evaluated in `position` order
+/// and the first enabled match wins.
+public struct RoutingRule: Hashable, Sendable, Codable, Identifiable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "routing_rule"
+
+    public var id: UUID
+    public var match: RoutingMatch
+    public var pattern: String
+    public var targetSpaceID: UUID
+    public var position: Int
+    public var enabled: Bool
+
+    public init(id: UUID = UUID(), match: RoutingMatch, pattern: String, targetSpaceID: UUID, position: Int = 0,
+                enabled: Bool = true) {
+        self.id = id
+        self.match = match
+        self.pattern = pattern
+        self.targetSpaceID = targetSpaceID
+        self.position = position
+        self.enabled = enabled
+    }
+}
+
 /// Spec §A.3 `sidebar.permanentCloseBehavior` (Zen's values).
 public enum PermanentCloseBehavior: String, Hashable, Sendable, Codable, CaseIterable {
     case resetUnloadSwitch = "reset-unload-switch"
@@ -421,13 +455,20 @@ public struct Settings: Hashable, Sendable, Codable {
     /// extension is installed, on the host's timer); kept so a relaunch does
     /// not check again at once. `nil` until the first extension is installed.
     public var extensionsLastUpdateCheck: Date?
+    /// Links ▸ "Route links between spaces" (spec §B): a link opened from a
+    /// page as a new tab goes to the space a routing rule names. Off by default.
+    public var routeLinksBetweenSpaces: Bool = false
+    /// Links ▸ "Open external links in": a space, or `nil` for the Most
+    /// Recent Space (the default; spec §B). Used when no rule matches; a
+    /// space that no longer exists counts as `nil`.
+    public var externalLinksSpaceID: UUID?
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case permanentCloseBehavior, archiveAfterHours, searchSuggestions, searchEngine, crossProfileMoveWarned, downloadDirectory
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
-        case historyImportedProfiles, extensionsLastUpdateCheck
+        case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
     }
 
     public init(from decoder: any Decoder) throws {
@@ -454,6 +495,9 @@ public struct Settings: Hashable, Sendable, Codable {
         historyImportedProfiles = (try? container.decodeIfPresent([UUID].self, forKey: .historyImportedProfiles)).flatMap { $0 }
             ?? defaults.historyImportedProfiles
         extensionsLastUpdateCheck = (try? container.decodeIfPresent(Date.self, forKey: .extensionsLastUpdateCheck)).flatMap { $0 }
+        routeLinksBetweenSpaces = (try? container.decodeIfPresent(Bool.self, forKey: .routeLinksBetweenSpaces)).flatMap { $0 }
+            ?? defaults.routeLinksBetweenSpaces
+        externalLinksSpaceID = (try? container.decodeIfPresent(UUID.self, forKey: .externalLinksSpaceID)).flatMap { $0 }
     }
 }
 
@@ -480,11 +524,13 @@ public struct RoomState: Hashable, Sendable, Codable {
     /// and removing it land in one transaction; left out of the JSON
     /// snapshot (`StateSnapshot.encoded`).
     public var archive: [ArchivedEntry] = []
+    /// Space routing rules (schema v8), in the snapshot too (they are small).
+    public var routingRules: [RoutingRule] = []
 
     public init(
         profiles: [Profile] = [], spaces: [Space] = [], entries: [Entry] = [], splitGroups: [SplitGroup] = [],
         windows: [WindowState] = [], windowSpaces: [WindowSpace] = [], settings: Settings = Settings(),
-        archive: [ArchivedEntry] = []
+        archive: [ArchivedEntry] = [], routingRules: [RoutingRule] = []
     ) {
         self.profiles = profiles
         self.spaces = spaces
@@ -494,10 +540,11 @@ public struct RoomState: Hashable, Sendable, Codable {
         self.windowSpaces = windowSpaces
         self.settings = settings
         self.archive = archive
+        self.routingRules = routingRules
     }
 
     private enum CodingKeys: String, CodingKey {
-        case profiles, spaces, entries, splitGroups, windows, windowSpaces, settings, archive
+        case profiles, spaces, entries, splitGroups, windows, windowSpaces, settings, archive, routingRules
     }
 
     /// Snapshots written before v7 (and every snapshot since: the archive is
@@ -512,6 +559,8 @@ public struct RoomState: Hashable, Sendable, Codable {
         windowSpaces = try container.decode([WindowSpace].self, forKey: .windowSpaces)
         settings = try container.decode(Settings.self, forKey: .settings)
         archive = try container.decodeIfPresent([ArchivedEntry].self, forKey: .archive) ?? []
+        // Snapshots written before v8 have no rules.
+        routingRules = try container.decodeIfPresent([RoutingRule].self, forKey: .routingRules) ?? []
     }
 
     public var isEmpty: Bool { profiles.isEmpty }
@@ -527,6 +576,7 @@ public struct RoomState: Hashable, Sendable, Codable {
         copy.windows.sort { $0.id.uuidString < $1.id.uuidString }
         copy.windowSpaces.sort { ($0.windowID.uuidString, $0.spaceID.uuidString) < ($1.windowID.uuidString, $1.spaceID.uuidString) }
         copy.archive.sort { $0.id.uuidString < $1.id.uuidString }
+        copy.routingRules.sort { $0.id.uuidString < $1.id.uuidString }
         return copy
     }
 

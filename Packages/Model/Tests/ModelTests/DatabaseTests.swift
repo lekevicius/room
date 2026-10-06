@@ -5,11 +5,11 @@ import Testing
 
 @Suite("Schema and migrations")
 struct SchemaTests {
-    @Test("v1 to v7 apply in order; v6 leaves no Chapter 2 history table behind")
+    @Test("v1 to v8 apply in order; v6 leaves no Chapter 2 history table behind")
     func v1Tables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator.migrate(queue)
-        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon", "kv", "archive"]
+        let tables = ["profile", "space", "entry", "split_group", "window", "window_space", "favicon", "kv", "archive", "routing_rule"]
         let missing = try queue.read { db in try tables.filter { try !db.tableExists($0) } }
         #expect(missing.isEmpty)
         let history = try queue.read { db in
@@ -17,7 +17,7 @@ struct SchemaTests {
         }
         #expect(history.isEmpty)
         let applied = try queue.read { db in try Schema.migrator.appliedMigrations(db) }
-        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6, Schema.v7])
+        #expect(applied == [Schema.v1, Schema.v2, Schema.v3, Schema.v4, Schema.v5, Schema.v6, Schema.v7, Schema.v8])
         let completed = try queue.read { db in try Schema.migrator.hasCompletedMigrations(db) }
         #expect(completed)
     }
@@ -198,6 +198,65 @@ struct SchemaTests {
                 try db.execute(sql: "UPDATE archive SET reason = 'lost' WHERE id = ?", arguments: [entry.id])
             }
         }
+    }
+
+    @Test("v8 adds an empty routing_rule table and keeps everything; a rule written after it round-trips; its space must exist")
+    func v8RoutingRules() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let queue = try DatabaseQueue(path: directory.url.appending(path: "Room.sqlite").path)
+        var migrator = Schema.migrator
+        try migrator.migrate(queue, upTo: Schema.v7)
+        let profile = Profile(name: "P", position: 0)
+        let space = Space(name: "S", profileID: profile.id, position: 0)
+        let entry = Entry(kind: .today, spaceID: space.id, profileID: profile.id, liveURL: "https://a.example/")
+        let row = try #require(ArchivedEntry(entry, reason: .manual, at: Timestamp(milliseconds: 5)))
+        try queue.write { db in
+            try profile.insert(db)
+            try space.insert(db)
+            try entry.insert(db)
+            try row.insert(db)
+        }
+        #expect(try queue.read { db in try db.tableExists("routing_rule") } == false)
+        migrator = Schema.migrator
+        try migrator.migrate(queue)
+        #expect(try queue.read { db in try Entry.fetchOne(db, key: entry.id) } == entry)
+        #expect(try queue.read { db in try ArchivedEntry.fetchOne(db, key: row.id) } == row)
+        #expect(try queue.read { db in try RoutingRule.fetchCount(db) } == 0)
+        let columns = try queue.read { db in try db.columns(in: "routing_rule").map(\.name) }
+        #expect(Set(columns) == ["id", "match", "pattern", "targetSpaceID", "position", "enabled"])
+        let rule = RoutingRule(match: .equals, pattern: "example.com", targetSpaceID: space.id, position: 0, enabled: false)
+        try queue.write { db in try rule.insert(db) }
+        #expect(try queue.read { db in try RoutingRule.fetchOne(db, key: rule.id) } == rule)
+        // The match kind is one of the three.
+        #expect(throws: DatabaseError.self) {
+            try queue.write { db in try db.execute(sql: "UPDATE routing_rule SET match = 'prefix' WHERE id = ?", arguments: [rule.id]) }
+        }
+        // A rule for a space that does not exist fails at commit (deferred foreign key).
+        #expect(throws: DatabaseError.self) {
+            try queue.write { db in try RoutingRule(match: .contains, pattern: "x", targetSpaceID: UUID()).insert(db) }
+        }
+    }
+
+    @Test("A JSON snapshot from before v8 decodes with no rules; snapshots keep the rules and the routing settings")
+    func snapshotRoutingRules() throws {
+        let state = sampleState()
+        #expect(!state.routingRules.isEmpty)
+        let encoded = try StateSnapshot(generation: 2, state: state).encoded()
+        let decoded = try JSONDecoder().decode(StateSnapshot.self, from: encoded)
+        #expect(decoded.state.canonical().routingRules == state.canonical().routingRules)
+        #expect(decoded.state.settings.routeLinksBetweenSpaces && decoded.state.settings.externalLinksSpaceID == state.settings.externalLinksSpaceID)
+        var object = try #require(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var inner = try #require(object["state"] as? [String: Any])
+        inner["routingRules"] = nil
+        var settings = try #require(inner["settings"] as? [String: Any])
+        settings["routeLinksBetweenSpaces"] = nil
+        settings["externalLinksSpaceID"] = nil
+        inner["settings"] = settings
+        object["state"] = inner
+        let old = try JSONDecoder().decode(StateSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(old.state.routingRules.isEmpty)
+        #expect(!old.state.settings.routeLinksBetweenSpaces && old.state.settings.externalLinksSpaceID == nil)
     }
 
     @Test("A folder or an entry without a URL has no archive row")

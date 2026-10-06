@@ -43,6 +43,8 @@ public struct SidebarChange: Equatable, Sendable {
     public var archive = false
     /// The whole state was replaced (Restore Sidebar…): rebuild, do not diff.
     public var reloaded = false
+    /// The routing rules changed (schema v8; the routing sheet reloads).
+    public var routingRules = false
 
     public var isEmpty: Bool { self == SidebarChange() }
 }
@@ -60,6 +62,9 @@ public enum SidebarError: Error, Equatable {
     /// A split has 2…4 panes (spec §D: "Can't add more panes").
     case splitFull
     case unknownSplitGroup(UUID)
+    case unknownRoutingRule(UUID)
+    /// A routing rule's pattern cannot be saved (an invalid regex, an empty pattern).
+    case routingPattern(RoutingRules.PatternError)
 }
 
 /// A removed entry and where it was, for Undo (Clear, remove).
@@ -70,12 +75,14 @@ public struct RemovedEntry: Equatable, Sendable {
 
 /// A deleted space with everything it held, for Undo (spec §B). Its entries
 /// are in the Archive too (reason `spaceDeleted`, B-15); Undo takes them back
-/// out.
+/// out. The routing rules that targeted it were deleted with it (spec §B) and
+/// come back with Undo.
 public struct RemovedSpace: Equatable, Sendable {
     public var space: Space
     public var index: Int
     public var entries: [Entry]
     public var splitGroups: [SplitGroup]
+    public var routingRules: [RoutingRule] = []
 }
 
 /// One node of a space's pinned tree.
@@ -102,6 +109,8 @@ public final class SidebarStore {
     public private(set) var splitGroups: [UUID: SplitGroup]
     /// The Archive (schema v7, spec §A.7 and §H), by id (the archived entry's id).
     public private(set) var archive: [UUID: ArchivedEntry]
+    /// Space routing rules (schema v8, spec §B), in position order.
+    public private(set) var routingRules: [RoutingRule]
 
     @ObservationIgnored private var containers: [Container: [UUID]] = [:]
     @ObservationIgnored private var observers: [UUID: (SidebarChange) -> Void] = [:]
@@ -115,6 +124,7 @@ public final class SidebarStore {
         entries = Dictionary(state.entries.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         splitGroups = Dictionary(state.splitGroups.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         archive = Dictionary(state.archive.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        routingRules = state.routingRules.sorted { $0.position < $1.position }
         self.clock = clock
         rebuildContainers()
     }
@@ -130,8 +140,8 @@ public final class SidebarStore {
         normalizeSplitGroups(into: &ignored)
     }
 
-    /// Restore Sidebar… (spec §H, 4.1b): the spaces, entries, split groups and
-    /// the Archive become `state`'s. Profiles only grow (B-22): the current
+    /// Restore Sidebar… (spec §H, 4.1b): the spaces, entries, split groups,
+    /// the Archive and the routing rules become `state`'s. Profiles only grow (B-22): the current
     /// ones stay and the backup's missing ones come back. One change with
     /// `reloaded` set: views rebuild instead of applying it row by row.
     public func replace(with state: RoomState) {
@@ -144,9 +154,11 @@ public final class SidebarStore {
         entries = Dictionary(state.entries.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         splitGroups = Dictionary(state.splitGroups.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         archive = Dictionary(state.archive.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        routingRules = state.routingRules.sorted { $0.position < $1.position }
         rebuildContainers()
         var change = SidebarChange(archive: true)
         change.reloaded = true
+        change.routingRules = true
         change.entries = Set(entries.keys)
         change.removedEntries = oldEntries.subtracting(entries.keys)
         change.spaces = Set(spaces.map(\.id))
@@ -314,7 +326,7 @@ public final class SidebarStore {
         guard let index = spaces.firstIndex(where: { $0.id == id }) else { throw .unknownSpace(id) }
         guard spaces.count > 1 else { throw .lastSpace }
         let removed = RemovedSpace(space: spaces[index], index: index, entries: entries.values.filter { $0.spaceID == id },
-                                   splitGroups: [])
+                                   splitGroups: [], routingRules: routingRules.filter { $0.targetSpaceID == id })
         let groupsBefore = splitGroups
         var change = SidebarChange()
         let now = clock()
@@ -332,6 +344,11 @@ public final class SidebarStore {
             }
         }
         normalizeSplitGroups(into: &change)
+        if !removed.routingRules.isEmpty {
+            routingRules.removeAll { $0.targetSpaceID == id }
+            renumberRoutingRules()
+            change.routingRules = true
+        }
         spaces.removeAll { $0.id == id }
         for i in spaces.indices { spaces[i].position = i }
         change.removedSpaces = [id]
@@ -363,8 +380,71 @@ public final class SidebarStore {
         }
         for container in change.containers { renumber(container, change: &change) }
         for entry in removed.entries where archive.removeValue(forKey: entry.id) != nil { change.archive = true }
+        // The space's rules back at their places (their positions as they were before the deletion).
+        for rule in removed.routingRules.sorted(by: { $0.position < $1.position })
+        where !routingRules.contains(where: { $0.id == rule.id }) {
+            routingRules.insert(rule, at: min(max(rule.position, 0), routingRules.count))
+            change.routingRules = true
+        }
+        renumberRoutingRules()
         normalizeSplitGroups(into: &change)
         commit(change)
+    }
+
+    // MARK: Routing rules (schema v8, spec §B)
+
+    /// A new rule at `index` (default: the end). The pattern is checked
+    /// first: an invalid regex or an empty pattern is refused and nothing is
+    /// saved; the target must be a space.
+    @discardableResult
+    public func addRoutingRule(_ match: RoutingMatch, pattern: String, target: UUID, enabled: Bool = true,
+                               at index: Int? = nil) throws(SidebarError) -> RoutingRule {
+        if let error = RoutingRules.validate(match, pattern: pattern) { throw .routingPattern(error) }
+        guard space(target) != nil else { throw .unknownSpace(target) }
+        let rule = RoutingRule(match: match, pattern: pattern.trimmingCharacters(in: .whitespacesAndNewlines),
+                               targetSpaceID: target, enabled: enabled)
+        routingRules.insert(rule, at: min(max(index ?? routingRules.count, 0), routingRules.count))
+        renumberRoutingRules()
+        commit(SidebarChange(routingRules: true))
+        return routingRules.first { $0.id == rule.id }!
+    }
+
+    /// Edits a rule's match kind, pattern, target or enabled flag (not its id
+    /// or position); the pattern is checked as in `addRoutingRule`.
+    public func updateRoutingRule(_ id: UUID, _ body: (inout RoutingRule) -> Void) throws(SidebarError) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { throw .unknownRoutingRule(id) }
+        var rule = routingRules[index]
+        body(&rule)
+        rule.id = id
+        rule.position = routingRules[index].position
+        rule.pattern = rule.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let error = RoutingRules.validate(rule.match, pattern: rule.pattern) { throw .routingPattern(error) }
+        guard space(rule.targetSpaceID) != nil else { throw .unknownSpace(rule.targetSpaceID) }
+        guard rule != routingRules[index] else { return }
+        routingRules[index] = rule
+        commit(SidebarChange(routingRules: true))
+    }
+
+    public func removeRoutingRule(_ id: UUID) {
+        guard let index = routingRules.firstIndex(where: { $0.id == id }) else { return }
+        routingRules.remove(at: index)
+        renumberRoutingRules()
+        commit(SidebarChange(routingRules: true))
+    }
+
+    /// Reorders: the rule moves to `index` in the list (earlier wins).
+    public func moveRoutingRule(_ id: UUID, to index: Int) throws(SidebarError) {
+        guard let from = routingRules.firstIndex(where: { $0.id == id }) else { throw .unknownRoutingRule(id) }
+        let before = routingRules.map(\.id)
+        let rule = routingRules.remove(at: from)
+        routingRules.insert(rule, at: min(max(index, 0), routingRules.count))
+        renumberRoutingRules()
+        guard routingRules.map(\.id) != before else { return }
+        commit(SidebarChange(routingRules: true))
+    }
+
+    private func renumberRoutingRules() {
+        for i in routingRules.indices where routingRules[i].position != i { routingRules[i].position = i }
     }
 
     // MARK: Entries

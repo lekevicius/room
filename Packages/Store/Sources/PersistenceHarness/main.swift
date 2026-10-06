@@ -160,8 +160,15 @@ final class Mutator {
                 try sidebar.createSpace(name: "Space \(roll)", profile: space.profileID)
             case 88:
                 try sidebar.deleteSpace(space.id)
-            case 89..<91:
+            case 89:
                 try sidebar.updateSpace(space.id) { $0.pinnedCollapsed.toggle(); $0.themeColors = ["#\(roll)\(roll)\(roll)"] }
+            case 90:
+                // Routing rules (schema v8): added up to a few, else one removed or toggled.
+                if sidebar.routingRules.count < 4 {
+                    try sidebar.addRoutingRule(pick(RoutingMatch.allCases)!, pattern: "site\(roll)", target: space.id, at: 0)
+                } else if let rule = pick(sidebar.routingRules) {
+                    if Bool.random(using: &random) { sidebar.removeRoutingRule(rule.id) } else { try sidebar.updateRoutingRule(rule.id) { $0.enabled.toggle() } }
+                }
             case 91..<95:
                 store.windows.setSidebarWidth(Double(Int.random(in: 180...500, using: &random)), window: window)
                 store.windows.setSidebarVisible(Bool.random(using: &random), window: window)

@@ -107,6 +107,7 @@ public final class StateWriter: Sendable {
         try sync(old.windows, new.windows, in: db)
         try syncWindowSpaces(old.windowSpaces, new.windowSpaces, in: db)
         try syncArchive(old.archive, new.archive, in: db)
+        try sync(old.routingRules, new.routingRules, in: db)
         if old.settings != new.settings {
             let json = String(decoding: try JSONEncoder().encode(new.settings), as: UTF8.self)
             try db.execute(sql: "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", arguments: [KVKey.settings, json])

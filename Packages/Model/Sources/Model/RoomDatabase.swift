@@ -82,6 +82,7 @@ public final class RoomDatabase: Sendable {
             state.windows = try WindowState.order(Column("position")).fetchAll(db)
             state.windowSpaces = try WindowSpace.fetchAll(db)
             state.archive = try ArchivedEntry.order(Column("archivedAt").desc).fetchAll(db)
+            state.routingRules = try RoutingRule.order(Column("position")).fetchAll(db)
             if let json = try String.fetchOne(db, sql: "SELECT value FROM kv WHERE key = ?", arguments: [KVKey.settings]) {
                 state.settings = (try? JSONDecoder().decode(Settings.self, from: Data(json.utf8))) ?? Settings()
             }

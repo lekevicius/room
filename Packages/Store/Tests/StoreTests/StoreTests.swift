@@ -629,6 +629,46 @@ struct ArchiveStoreTests {
         #expect(sidebar.archive.isEmpty && sidebar.entry(pinned.id) != nil && sidebar.entry(tab.id) != nil)
     }
 
+    @Test("Routing rules (spec §B): added, edited, reordered and enabled; an invalid regex is refused and nothing is saved; they survive a relaunch")
+    func routingRules() throws {
+        let other = try sidebar.createSpace(name: "Other", profile: profile.id)
+        let a = try sidebar.addRoutingRule(.contains, pattern: " github ", target: other.id)
+        let b = try sidebar.addRoutingRule(.equals, pattern: "example.com", target: space.id)
+        #expect(a.pattern == "github" && a.enabled)
+        #expect(throws: SidebarError.routingPattern(RoutingRules.validate(.regex, pattern: "([a-z")!)) {
+            try sidebar.addRoutingRule(.regex, pattern: "([a-z", target: space.id)
+        }
+        #expect(throws: SidebarError.self) { try sidebar.updateRoutingRule(a.id) { $0.match = .regex; $0.pattern = "(" } }
+        #expect(sidebar.routingRules.map(\.id) == [a.id, b.id] && sidebar.routingRules[0].match == .contains, "the refused edit left the rule as it was")
+        #expect(throws: SidebarError.unknownSpace(a.id)) { try sidebar.updateRoutingRule(a.id) { $0.targetSpaceID = a.id } }
+        try sidebar.moveRoutingRule(b.id, to: 0)
+        #expect(sidebar.routingRules.map(\.id) == [b.id, a.id] && sidebar.routingRules.map(\.position) == [0, 1])
+        try sidebar.updateRoutingRule(a.id) { $0.enabled = false }
+        let c = try sidebar.addRoutingRule(.regex, pattern: #"^https://docs\."#, target: other.id)
+        sidebar.removeRoutingRule(b.id)
+        #expect(sidebar.routingRules.map(\.id) == [a.id, c.id] && sidebar.routingRules.map(\.position) == [0, 1])
+        store.close()
+        let reopened = try test.reopen().sidebar
+        #expect(reopened.routingRules.map(\.id) == [a.id, c.id])
+        #expect(reopened.routingRules.first?.enabled == false && reopened.routingRules.last?.match == .regex)
+    }
+
+    @Test("Deleting a space deletes the rules targeting it (spec §B); its Undo brings them back in place")
+    func deleteSpaceDeletesItsRules() throws {
+        let other = try sidebar.createSpace(name: "Other", profile: profile.id)
+        let first = try sidebar.addRoutingRule(.contains, pattern: "one", target: space.id)
+        let gone = try sidebar.addRoutingRule(.contains, pattern: "two", target: other.id)
+        let last = try sidebar.addRoutingRule(.equals, pattern: "three.example", target: space.id)
+        let removed = try sidebar.deleteSpace(other.id)
+        #expect(removed.routingRules.map(\.id) == [gone.id])
+        #expect(sidebar.routingRules.map(\.id) == [first.id, last.id] && sidebar.routingRules.map(\.position) == [0, 1])
+        sidebar.restoreSpace(removed)
+        #expect(sidebar.routingRules.map(\.id) == [first.id, gone.id, last.id] && sidebar.routingRules.map(\.position) == [0, 1, 2])
+        _ = try sidebar.deleteSpace(other.id)
+        store.close()
+        #expect(try test.reopen().sidebar.routingRules.map(\.id) == [first.id, last.id], "the deletion was written with the space's")
+    }
+
     @Test("Archive Below's undo keeps the order; the queries group by day and match text")
     func archiveBelowAndQueries() throws {
         let tabs = try (0..<4).map { try sidebar.addEntry(.today, url: "https://site\($0).example/", title: "Tab \($0)", space: space.id) }
