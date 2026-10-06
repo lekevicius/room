@@ -42,6 +42,24 @@ public final class RoomDatabase: Sendable {
         return try queue.read { db in try Profile.order(Column("position")).fetchAll(db) }
     }
 
+    /// The settings stored in the database at `url`, read without migrating
+    /// or writing anything (4.7a: the app passes the engine's launch-time
+    /// switches before the store opens). The defaults when there is no file
+    /// or no settings row; throws when the file cannot be read.
+    public static func storedSettings(at url: URL) throws -> Settings {
+        guard FileManager.default.fileExists(atPath: url.path) else { return Settings() }
+        var configuration = Configuration()
+        configuration.readonly = true
+        let queue = try DatabaseQueue(path: url.path, configuration: configuration)
+        defer { try? queue.close() }
+        return try queue.read { db in
+            guard try db.tableExists("kv"),
+                  let json = try String.fetchOne(db, sql: "SELECT value FROM kv WHERE key = ?", arguments: [KVKey.settings])
+            else { return Settings() }
+            return (try? JSONDecoder().decode(Settings.self, from: Data(json.utf8))) ?? Settings()
+        }
+    }
+
     /// `PRAGMA integrity_check` lines; `["ok"]` when the file is sound.
     public func integrityCheck() throws -> [String] {
         try pool.read { db in try String.fetchAll(db, sql: "PRAGMA integrity_check") }

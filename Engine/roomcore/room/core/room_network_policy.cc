@@ -6,6 +6,7 @@
 
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/invalidation/profile_invalidation_provider_factory.h"
@@ -14,6 +15,7 @@
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_paths_internal.h"
+#include "chrome/common/pref_names.h"
 #include "components/component_updater/update_scheduler.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -27,6 +29,11 @@ extern std::unique_ptr<component_updater::UpdateScheduler>
     (*g_create_component_update_scheduler_hook)();
 
 namespace {
+// Settings ▸ Downloads ▸ PDFs: Download (4.7a). The host passes
+// --enable-features=RoomPdfsDownload at launch when the setting says so;
+// Chrome's own pref then turns a PDF navigation into a download.
+BASE_FEATURE(kRoomPdfsDownload, base::FEATURE_DISABLED_BY_DEFAULT);
+
 class OnDemandOnlyScheduler : public component_updater::UpdateScheduler {
  public:
   void Schedule(base::TimeDelta, base::TimeDelta, const UserTask&,
@@ -138,6 +145,11 @@ base::CallbackListSubscription InstallNetworkPolicy() {
             profile->GetPrefs()->SetDefaultPrefValue(
                 spellcheck::prefs::kSpellCheckUseSpellingService,
                 base::Value(false));
+            // PDFs download instead of opening in Chrome's viewer
+            // (plugins.always_open_pdf_externally) when the host asked.
+            profile->GetPrefs()->SetDefaultPrefValue(
+                prefs::kPluginsAlwaysOpenPdfExternally,
+                base::Value(base::FeatureList::IsEnabled(kRoomPdfsDownload)));
             ChromeSigninClientFactory::GetInstance()->SetTestingFactory(
                 context, base::BindRepeating(
                     [](content::BrowserContext* context) -> std::unique_ptr<KeyedService> {

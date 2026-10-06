@@ -391,7 +391,7 @@ private struct SettingsSectionView: View {
                 Text("Download").tag(false)
             } label: {
                 Text("PDFs")
-                Text("Applies from Phase 4.7, which brings the PDF viewer's checks: until then PDFs open in Room.")
+                Text("Open in Room shows a PDF in Chrome's viewer (find, zoom, print, save); Download saves it to the folder above. Applies at the next launch.")
             }
         }
     }

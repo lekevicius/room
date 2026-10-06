@@ -110,6 +110,19 @@ public protocol WebContents: AnyObject, Observable {
     func mediaPreviousTrack()
     /// The page's "seekto" handler, else its players seek.
     func mediaSeek(to seconds: TimeInterval)
+
+    // MARK: Documents (4.7a)
+
+    /// Saves the page to `url` (a file URL) in `format`; returns once the
+    /// file is written. `.completeHTML` also writes the page's resources into
+    /// "<name>_files" beside it. Throws when the page cannot be saved.
+    func savePage(as format: SavePageFormat, to url: URL) async throws
+    /// Sends one DevTools protocol command to the page and returns its
+    /// `result` object (JSON values: `String`, `NSNumber`, arrays,
+    /// dictionaries, `NSNull`). Bounded to the host's own commands (the
+    /// full-page capture); throws the protocol's error, or when the engine
+    /// cannot attach.
+    func sendDevToolsCommand(_ method: String, params: [String: Any]) async throws -> [String: Any]
 }
 
 public extension WebContents {
@@ -119,6 +132,32 @@ public extension WebContents {
 
     func find(_ text: String) {
         find(text, forward: true, matchCase: false)
+    }
+}
+
+/// What `WebContents.savePage(as:to:)` writes.
+nonisolated public enum SavePageFormat: String, Sendable, Hashable, CaseIterable {
+    /// The page's HTML only.
+    case html
+    /// The HTML and its resources in "<name>_files" beside it.
+    case completeHTML
+    /// One MHTML web archive.
+    case mhtml
+
+    /// The file name extension for the format.
+    public var fileExtension: String {
+        switch self {
+        case .html, .completeHTML: "html"
+        case .mhtml: "mhtml"
+        }
+    }
+
+    /// The resources directory `.completeHTML` writes beside `file`
+    /// ("Page.html" → "Page_files"); `nil` for the others.
+    public func resourcesDirectory(for file: URL) -> URL? {
+        guard self == .completeHTML else { return nil }
+        return file.deletingPathExtension().deletingLastPathComponent()
+            .appending(path: file.deletingPathExtension().lastPathComponent + "_files", directoryHint: .isDirectory)
     }
 }
 

@@ -344,6 +344,23 @@ struct SchemaTests {
         #expect(try RoomDatabase.storedProfiles(at: url) == state.profiles)
     }
 
+    @Test("The settings are read without opening the store; no file reads as the defaults (4.7a's launch switches)")
+    func storedSettings() throws {
+        let directory = try TemporaryDirectory()
+        defer { directory.cleanup() }
+        let url = directory.url.appending(path: "Room.sqlite")
+        #expect(try RoomDatabase.storedSettings(at: url).pdfsOpenInRoom)
+        #expect(!FileManager.default.fileExists(atPath: url.path), "nothing created")
+        var state = sampleState()
+        state.settings.pdfsOpenInRoom = false
+        do {
+            let database = try RoomDatabase(url: url)
+            let writer = StateWriter(database: database, snapshotURL: nil, committed: RoomState(), generation: 0)
+            try writer.writeAndWait(state, generation: 1)
+        }
+        #expect(try RoomDatabase.storedSettings(at: url) == state.settings)
+    }
+
     @Test("Reopening a migrated file migrates nothing and keeps the data")
     func reopen() throws {
         let directory = try TemporaryDirectory()

@@ -827,4 +827,45 @@ typedef NS_ENUM(NSInteger, RoomDevToolsTool) {
 
 @end
 
+// What -savePageAs:toPath:completion: writes (content::SavePageType).
+typedef NS_ENUM(NSInteger, RoomSavePageFormat) {
+  // The page's HTML only (SAVE_PAGE_TYPE_AS_ONLY_HTML).
+  RoomSavePageFormatHTML = 0,
+  // The HTML with its resources in "<name>_files" beside it
+  // (SAVE_PAGE_TYPE_AS_COMPLETE_HTML).
+  RoomSavePageFormatCompleteHTML,
+  // One MHTML web archive (WebContents::GenerateMHTML).
+  RoomSavePageFormatMHTML,
+};
+
+// Saving the page and the DevTools protocol (Phase 4.7a).
+@interface RoomWebContents (Documents)
+
+// Saves the page to `path` (an absolute file path; complete HTML also
+// writes "<path without extension>_files"). HTML and complete HTML go
+// through Chrome's SavePackage (WebContents::SavePage), which shows as a
+// download item through the downloads delegate; MHTML is
+// WebContents::GenerateMHTML. The completion runs on the main thread once
+// the file is written, with an error when the page cannot be saved (not
+// savable, cancelled, interrupted, closed) or no answer came in 120 s.
+- (void)savePageAs:(RoomSavePageFormat)format
+            toPath:(NSString*)path
+        completion:(void (^)(NSError* _Nullable error))completion
+    NS_SWIFT_NAME(savePage(as:toPath:completion:));
+
+// Sends one DevTools protocol command to the page (a DevToolsAgentHost
+// client attached for this command and detached after its answer) and
+// delivers its "result" object as Foundation values parsed from the JSON.
+// `params` must be JSON-serialisable. An error when the protocol answers
+// one, when the client cannot attach, or after 30 s. For the host's own
+// commands (a full-page capture), never a debugging port.
+- (void)sendDevToolsCommand:(NSString*)method
+                     params:(NSDictionary<NSString*, id>*)params
+                 completion:(void (^)(NSDictionary<NSString*, id>* _Nullable
+                                          result,
+                                      NSError* _Nullable error))completion
+    NS_SWIFT_NAME(sendDevToolsCommand(_:params:completion:));
+
+@end
+
 NS_ASSUME_NONNULL_END

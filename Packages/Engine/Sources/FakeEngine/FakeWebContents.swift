@@ -43,6 +43,13 @@ public final class FakeWebContents: WebContents {
     public internal(set) var mediaSession: MediaSessionInfo?
     /// The media controls the host called, in order.
     public internal(set) var mediaControls: [FakeMediaControl] = []
+    /// The pages `savePage(as:to:)` wrote, in order.
+    public internal(set) var savedPages: [FakeSavedPage] = []
+    /// The DevTools protocol methods the host sent, in order.
+    public internal(set) var devToolsCommands: [String] = []
+    /// Answers `sendDevToolsCommand`; without one the fake throws
+    /// `EngineError.notSupported` (an engine that cannot attach).
+    @ObservationIgnored public var devToolsCommandHandler: ((String, [String: Any]) throws -> [String: Any])?
     /// Ended by `simulateUnresponsive` answered `.terminate`.
     public internal(set) var terminatedUnresponsiveCount = 0
     /// URLs the UI delegate allowed to open in another application.
@@ -431,6 +438,36 @@ public final class FakeWebContents: WebContents {
         mediaSession = session
     }
 
+    // MARK: Documents
+
+    /// Writes a small stub of the page in `format`: an HTML document naming
+    /// the URL and title, the "_files" directory for `.completeHTML`, or an
+    /// MHTML header. Throws when the page is closed or has no document.
+    public func savePage(as format: SavePageFormat, to url: URL) async throws {
+        guard state != .closed else { throw EngineError.closed }
+        guard let pageURL = self.url else { throw EngineError.failed("the page has no document to save") }
+        let title = self.title ?? ""
+        let text: String
+        switch format {
+        case .html, .completeHTML:
+            text = "<!DOCTYPE html><html><head><title>\(title)</title></head><body>\(pageURL.absoluteString)</body></html>\n"
+        case .mhtml:
+            text = "From: <Saved by FakeEngine>\r\nSnapshot-Content-Location: \(pageURL.absoluteString)\r\nSubject: \(title)\r\nMIME-Version: 1.0\r\nContent-Type: text/html\r\n\r\n<html><body>\(pageURL.absoluteString)</body></html>\r\n"
+        }
+        if let directory = format.resourcesDirectory(for: url) {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        try Data(text.utf8).write(to: url)
+        savedPages.append(FakeSavedPage(format: format, url: url))
+    }
+
+    public func sendDevToolsCommand(_ method: String, params: [String: Any]) async throws -> [String: Any] {
+        guard state != .closed else { throw EngineError.closed }
+        devToolsCommands.append(method)
+        guard let devToolsCommandHandler else { throw EngineError.notSupported("sendDevToolsCommand(\(method))") }
+        return try devToolsCommandHandler(method, params)
+    }
+
     // MARK: Simulated page state (more in FakeWebContents+Simulation.swift)
 
     /// Media starts or stops playing.
@@ -514,6 +551,12 @@ private extension String {
         }
         return count
     }
+}
+
+/// A page `FakeWebContents.savePage(as:to:)` wrote.
+public struct FakeSavedPage: Hashable, Sendable {
+    public var format: SavePageFormat
+    public var url: URL
 }
 
 /// A media session control `FakeWebContents` recorded.

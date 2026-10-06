@@ -433,6 +433,56 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         page.mediaSeek(to: seconds)
     }
 
+    // MARK: Documents (4.7a)
+
+    /// `WebContents::SavePage` (HTML, complete HTML: Chrome's SavePackage,
+    /// which also appears as a download item) or `GenerateMHTML`.
+    public func savePage(as format: SavePageFormat, to url: URL) async throws {
+        guard state != .closed else { throw EngineError.closed }
+        guard url.isFileURL else { throw EngineError.failed("savePage: not a file URL: \(url)") }
+        let roomFormat: RoomSavePageFormat = switch format {
+        case .html: .HTML
+        case .completeHTML: .completeHTML
+        case .mhtml: .MHTML
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            page.savePage(as: roomFormat, toPath: url.path) { error in
+                if let error {
+                    continuation.resume(throwing: EngineError.failed(error.localizedDescription))
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    /// One DevTools protocol command through a `DevToolsAgentHost` client
+    /// `//room` attaches for it and detaches after the answer.
+    public func sendDevToolsCommand(_ method: String, params: [String: Any]) async throws -> [String: Any] {
+        guard state != .closed else { throw EngineError.closed }
+        guard JSONSerialization.isValidJSONObject(params) else {
+            throw EngineError.failed("sendDevToolsCommand: the parameters are not JSON")
+        }
+        let box = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UncheckedResult, any Error>) in
+            page.sendDevToolsCommand(method, params: params) { result, error in
+                if let result {
+                    // Made by RoomCore on the main thread and read only there.
+                    nonisolated(unsafe) let answer = result
+                    continuation.resume(returning: UncheckedResult(value: answer))
+                } else {
+                    continuation.resume(throwing: EngineError.failed(error?.localizedDescription ?? "sendDevToolsCommand: no answer"))
+                }
+            }
+        }
+        return box.value
+    }
+
+    /// The protocol's answer handed through the continuation (JSON values,
+    /// made and read on the main thread).
+    private struct UncheckedResult: @unchecked Sendable {
+        let value: [String: Any]
+    }
+
     /// The artwork image as PNG data, converted once per image RoomCore hands over.
     private func artworkPNG(for image: NSImage?) -> Data? {
         guard let image else { return nil }

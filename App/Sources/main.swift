@@ -1,6 +1,7 @@
 import AppKit
 import Engine
 import Infra
+import Model
 #if ROOM_ENGINE_ROOMCORE
 import EngineRoomCore
 #endif
@@ -50,7 +51,8 @@ do {
     // (PLAN §4 Keychain).
     let configuration = EngineConfiguration(
         userDataDirectory: try AppPaths.ensureDirectory(engineDirectory),
-        usesSystemKeychain: true
+        usesSystemKeychain: true,
+        features: LaunchSettings.engineFeatures(stateDirectory: AppDelegate.stateDirectory)
     )
     try engine.initialize(configuration)
 } catch {

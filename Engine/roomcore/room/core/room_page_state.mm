@@ -228,7 +228,12 @@
   return [NSString
       stringWithFormat:@"<RoomMediaSessionInfo \"%@\" by \"%@\" on \"%@\" "
                        @"art=%@%@ state=%ld actions=0x%lx position=%@>",
-                       _title, _artist, _album, _artworkURL.absoluteString,
+                       _title, _artist, _album,
+                       // B-90: a data: URL as its scheme and length, not kilobytes per line.
+                       [_artworkURL.scheme isEqualToString:@"data"]
+                           ? [NSString stringWithFormat:@"data:(%lu chars)",
+                                                        (unsigned long)_artworkURL.absoluteString.length]
+                           : _artworkURL.absoluteString,
                        _artwork ? @" (image)" : @"", (long)_playbackState,
                        (unsigned long)_actions,
                        _hasPosition
