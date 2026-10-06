@@ -34,6 +34,29 @@ public enum SpaceRules {
     }
 }
 
+/// Where an extension's page opens (B-67, ROADMAP 4.5): its options page,
+/// `chrome://extensions`, its shortcuts page and the Web Store pages belong to
+/// the extension's profile, so they open in a space of that profile.
+public enum ExtensionPageSpace {
+    public enum Choice: Equatable, Sendable {
+        /// Open in this space (and select it when it is not the shown one).
+        case existing(UUID)
+        /// The profile has no space: make one with this name, then open there.
+        case create(name: String)
+    }
+
+    /// The name of the space made for a profile without one.
+    public static let newSpaceName = "Extensions"
+
+    /// The shown space when it is the profile's; else the profile's first
+    /// space in the footer's order; else a new "Extensions" space.
+    public static func choose(profile: UUID, shownSpace: UUID?, spaces: [Space]) -> Choice {
+        if let shown = spaces.first(where: { $0.id == shownSpace }), shown.profileID == profile { return .existing(shown.id) }
+        if let first = spaces.filter({ $0.profileID == profile }).min(by: { $0.position < $1.position }) { return .existing(first.id) }
+        return .create(name: SpaceRules.uniqueName(newSpaceName, existing: spaces.map(\.name)))
+    }
+}
+
 /// Cookies belong to a profile (spec §B "Containers").
 public enum ProfileRules {
     /// A page made in `pageProfile`'s engine profile cannot keep showing

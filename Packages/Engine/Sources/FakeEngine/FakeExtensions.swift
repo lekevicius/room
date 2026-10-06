@@ -72,9 +72,18 @@ public final class FakeProfileExtensions: ProfileExtensions {
         installed.first { $0.id == id }?.optionsPageURL
     }
 
+    /// RoomCore's order (`ToolbarActionsModel`): pinned first in their pinned
+    /// order, a newly pinned action at the end of them; the rest by name.
     public func setPinned(_ pinned: Bool, extension id: InstalledExtension.ID) {
-        guard let index = index(id) else { return }
-        installed[index].isPinned = pinned
+        guard let index = index(id), installed[index].isPinned != pinned else { return }
+        var item = installed[index]
+        item.isPinned = pinned
+        var list = installed
+        list.remove(at: index)
+        let pinnedItems = list.filter(\.isPinned)
+        let others = list.filter { !$0.isPinned }
+        installed = pinned ? pinnedItems + [item] + others
+            : pinnedItems + (others + [item]).sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     public func action(for id: InstalledExtension.ID, in webContents: (any WebContents)?) -> ExtensionActionState? {

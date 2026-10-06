@@ -45,12 +45,14 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
     }
 
     @ObservationIgnored private let consent: any ExtensionConsentPresenting
-    @ObservationIgnored private let openTab: (URL) -> Void
+    /// Opens an extension page (options, `chrome://extensions`, its
+    /// shortcuts page) as a tab in a space of the extension's profile (B-67, 4.5).
+    @ObservationIgnored private let openTab: (URL, UUID) -> Void
     @ObservationIgnored private let updates: ExtensionUpdateTimer
 
     /// `lastUpdateCheck`/`setLastUpdateCheck` persist the time in Settings;
     /// `clock` and `schedule` are injected for the unit tests.
-    public init(consent: any ExtensionConsentPresenting, openTab: @escaping (URL) -> Void,
+    public init(consent: any ExtensionConsentPresenting, openTab: @escaping (URL, UUID) -> Void,
                 lastUpdateCheck: @escaping () -> Date?, setLastUpdateCheck: @escaping (Date) -> Void,
                 clock: @escaping () -> Date = Date.init,
                 schedule: @escaping ExtensionUpdateTimer.Schedule = ExtensionUpdateTimer.dispatchSchedule) {
@@ -113,15 +115,23 @@ public final class ExtensionsCenter: ProfileExtensionsDelegate {
         _ = try await section.extensions.loadUnpacked(at: folder)
     }
 
-    /// The options page as a Today tab.
+    /// The options page as a Today tab in a space of the extension's profile (B-67).
     public func openOptions(_ item: InstalledExtension, in section: ProfileSection) {
         guard let url = section.extensions.optionsPageURL(for: item.id) ?? item.optionsPageURL else { return }
-        openTab(url)
+        openTab(url, section.id)
     }
 
-    /// `chrome://extensions` as a Today tab (Chrome's management page, the fallback of PLAN §7 risk 7).
+    /// `chrome://extensions` as a Today tab of the profile (Chrome's management page, the fallback of PLAN §7 risk 7).
     public func openManagementPage(in section: ProfileSection) {
-        openTab(section.extensions.managementPageURL)
+        openTab(section.extensions.managementPageURL, section.id)
+    }
+
+    /// Chrome's keyboard-shortcuts page for the profile's extensions (4.5):
+    /// where a command's key is changed (Room's table lists them read-only).
+    public static let shortcutsPageURL = URL(string: "chrome://extensions/shortcuts")!
+
+    public func openShortcutsPage(in section: ProfileSection) {
+        openTab(Self.shortcutsPageURL, section.id)
     }
 
     public func setPinned(_ pinned: Bool, _ item: InstalledExtension, in section: ProfileSection) {

@@ -147,3 +147,37 @@ struct SwipeRulesTests {
         #expect(large > -SwipeRules.rubberBandLimit && large < small)
     }
 }
+
+@Suite("Extension pages open in a space of the extension's profile (B-67, 4.5)")
+struct ExtensionPageSpaceTests {
+    let personal = UUID()
+    let work = UUID()
+    let spare = UUID()
+    let spaces: [Space]
+
+    init() {
+        spaces = [Space(name: "Home", profileID: personal, position: 0),
+                  Space(name: "Office", profileID: work, position: 2),
+                  Space(name: "Clients", profileID: work, position: 1)]
+    }
+
+    @Test("The shown space when it is the extension's profile's")
+    func shownSpace() {
+        let shown = spaces[1].id
+        #expect(ExtensionPageSpace.choose(profile: work, shownSpace: shown, spaces: spaces) == .existing(shown))
+    }
+
+    @Test("Another profile's space shown: the extension's profile's first space in the footer's order")
+    func firstSpaceOfTheProfile() {
+        let clients = spaces[2].id
+        #expect(ExtensionPageSpace.choose(profile: work, shownSpace: spaces[0].id, spaces: spaces) == .existing(clients))
+        #expect(ExtensionPageSpace.choose(profile: work, shownSpace: nil, spaces: spaces) == .existing(clients))
+    }
+
+    @Test("A profile without spaces gets a new \"Extensions\" space (a unique name)")
+    func newSpace() {
+        #expect(ExtensionPageSpace.choose(profile: spare, shownSpace: spaces[0].id, spaces: spaces) == .create(name: "Extensions"))
+        let taken = spaces + [Space(name: "Extensions", profileID: personal, position: 3)]
+        #expect(ExtensionPageSpace.choose(profile: spare, shownSpace: nil, spaces: taken) == .create(name: "Extensions 2"))
+    }
+}

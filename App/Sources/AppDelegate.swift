@@ -943,7 +943,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let sheets = ExtensionConsentSheets { [weak self] in self?.windowController?.window }
         let center = ExtensionsCenter(
             consent: sheets,
-            openTab: { [weak self] url in self?.tabs?.openNewTab(url: url.absoluteString, transition: .link) },
+            openTab: { [weak self] url, profile in self?.openExtensionPage(url, profile: profile) },
             lastUpdateCheck: { [weak self] in self?.store?.settings.settings.extensionsLastUpdateCheck },
             setLastUpdateCheck: { [weak self] date in self?.store?.settings.update { $0.extensionsLastUpdateCheck = date } })
         extensionConsent = sheets
@@ -962,6 +962,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             pageHasKeyboard: { [weak self] in self?.pageHasKeyboard ?? false },
             profile: { [weak sidebar] in sidebar?.activeSpace?.profileID },
             page: { [weak tabs] in tabs?.focusedPage })
+    }
+
+    /// An extension's page (its options, `chrome://extensions`, its shortcuts
+    /// page) as a Today tab in a space of the extension's profile, shown
+    /// (B-67, 4.5): the shown space when it is that profile's, else the
+    /// profile's first space, else a new "Extensions" space for it.
+    func openExtensionPage(_ url: URL, profile: UUID) {
+        guard let store, let sidebar, let tabs else { return }
+        let spaceID: UUID
+        switch ExtensionPageSpace.choose(profile: profile, shownSpace: sidebar.activeSpaceID, spaces: store.sidebar.spaces) {
+        case .existing(let id):
+            spaceID = id
+        case .create(let name):
+            guard let space = try? store.sidebar.createSpace(name: name, profile: profile) else { return }
+            spaceID = space.id
+        }
+        if spaceID != sidebar.activeSpaceID { sidebar.showSpace(spaceID, animated: false) }
+        tabs.openNewTab(url: url.absoluteString, inSpace: spaceID, transition: .link)
+        windowController?.window?.makeKeyAndOrderFront(nil)
     }
 
     /// The keyboard is in a page (the card's panes or the Peek's): the

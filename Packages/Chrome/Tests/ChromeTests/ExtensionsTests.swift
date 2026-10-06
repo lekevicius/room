@@ -48,7 +48,7 @@ private final class Consent: ExtensionConsentPresenting {
 
 @MainActor
 private func makeCenter(_ time: ManualTime, lastCheck: Date? = nil, consent: Consent = Consent(),
-                        opened: @escaping (URL) -> Void = { _ in }) -> (ExtensionsCenter, () -> Date?) {
+                        opened: @escaping (URL, UUID) -> Void = { _, _ in }) -> (ExtensionsCenter, () -> Date?) {
     var stored = lastCheck
     let center = ExtensionsCenter(consent: consent, openTab: opened, lastUpdateCheck: { stored },
                                   setLastUpdateCheck: { stored = $0 }, clock: { time.now }, schedule: time.schedule)
@@ -202,18 +202,24 @@ struct ExtensionsTests {
         #expect(center.sections[0].installed.map(\.id) == ["dark"])
     }
 
-    @Test("Options and the management page open as tabs")
+    @Test("Options, the management page and the shortcuts page open as tabs of the extension's profile")
     @MainActor func pagesAsTabs() {
         let time = ManualTime()
         var opened: [URL] = []
-        let (center, _) = makeCenter(time, opened: { opened.append($0) })
+        var profiles: [UUID] = []
+        let (center, _) = makeCenter(time, opened: { opened.append($0); profiles.append($1) })
         let options = URL(string: "chrome-extension://abc/options.html")!
         let engine = FakeProfileExtensions(installed: [InstalledExtension(id: "abc", name: "Fixture", optionsPageURL: options)])
-        center.add(profile: UUID(), name: "Personal", extensions: engine)
-        let section = center.sections[0]
+        let work = UUID()
+        center.add(profile: UUID(), name: "Personal", extensions: FakeProfileExtensions())
+        center.add(profile: work, name: "Work", extensions: engine)
+        let section = center.sections[1]
         center.openOptions(section.installed[0], in: section)
         center.openManagementPage(in: section)
-        #expect(opened == [options, URL(string: "chrome://extensions/")!])
+        center.openShortcutsPage(in: section)
+        #expect(opened == [options, URL(string: "chrome://extensions/")!, URL(string: "chrome://extensions/shortcuts")!])
+        // B-67 (4.5): every page is for the extension's own profile, not the first one's.
+        #expect(profiles == [work, work, work])
     }
 
     // MARK: 3.6b: the header's buttons and the popups
@@ -294,5 +300,87 @@ struct ExtensionsTests {
         // An action without a popup opens none (the engine sends onClicked).
         #expect(!center.runAction("n", profile: profile, page: page))
         #expect(popovers.shown.count == 2)
+    }
+}
+
+// MARK: 4.5: pin/unpin and the overflow menu, commands, the site panel's section
+
+@Suite("Extensions UX (ROADMAP 4.5)")
+struct ExtensionsUXTests {
+    @MainActor private func setUp(_ installed: [InstalledExtension]) throws
+        -> (ExtensionsCenter, FakeProfileExtensions, UUID, FakeWebContents) {
+        let application = FakeApplication()
+        try application.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+        let profile = try application.profile(named: "Personal")
+        let extensions = FakeProfileExtensions(installed: installed)
+        profile.fakeExtensions = extensions
+        let center = ExtensionsCenter(consent: Consent(), openTab: { _, _ in }, lastUpdateCheck: { nil }, setLastUpdateCheck: { _ in },
+                                      schedule: { _, _ in {} })
+        let id = UUID()
+        center.add(profile: id, name: "Personal", extensions: extensions)
+        let page = profile.makeWebContents()
+        page.load(URL(string: "http://127.0.0.1:8770/site.html")!, transition: .typed, fromAddressBar: true)
+        return (center, extensions, id, page)
+    }
+
+    private static let action = ExtensionActionState(title: "Act", hasPopup: true)
+
+    @Test("Unpinning moves an action to the overflow menu with its badge; pinning it again puts it at the header's end")
+    @MainActor func pinUnpinReordersTheHeader() throws {
+        let (center, engine, profile, page) = try setUp([
+            InstalledExtension(id: "a", name: "A", action: Self.action, isPinned: true),
+            InstalledExtension(id: "b", name: "B", action: Self.action, isPinned: true),
+            InstalledExtension(id: "n", name: "No action", isPinned: false),
+        ])
+        #expect(center.headerActions(profile: profile, page: page).map(\.id) == ["a", "b"])
+        #expect(center.overflowActions(profile: profile, page: page).isEmpty)
+        let section = try #require(center.section(profile: profile))
+        center.setPinned(false, section.installed[0], in: section)
+        engine.actions["a"] = ExtensionActionState(title: "Act", badgeText: "T1", hasPopup: true)
+        #expect(center.headerActions(profile: profile, page: page).map(\.id) == ["b"])
+        #expect(center.overflowActions(profile: profile, page: page).map(\.id) == ["a"])
+        #expect(center.overflowActions(profile: profile, page: page).first?.badgeText == "T1")
+        let unpinned = try #require(center.section(profile: profile)?.installed.first { $0.id == "a" })
+        center.setPinned(true, unpinned, in: try #require(center.section(profile: profile)))
+        #expect(center.headerActions(profile: profile, page: page).map(\.id) == ["b", "a"])
+        #expect(center.overflowActions(profile: profile, page: page).isEmpty)
+    }
+
+    @Test("A key that is an extension's command runs it for the page; another key is left to the menu")
+    @MainActor func commandsByShortcut() throws {
+        let (center, engine, profile, page) = try setUp([
+            InstalledExtension(id: "a", name: "A", action: Self.action, isPinned: true),
+            InstalledExtension(id: "off", name: "Off", isEnabled: false),
+        ])
+        engine.commandsByExtension["a"] = [ExtensionCommand(name: "_execute_action", shortcut: "⇧⌘Y"),
+                                           ExtensionCommand(name: "room-named", description: "Named", shortcut: "⇧⌘U")]
+        engine.commandsByExtension["off"] = [ExtensionCommand(name: "x", shortcut: "⇧⌘X")]
+        #expect(center.command(forShortcut: "⇧⌘U", profile: profile)?.name == "room-named")
+        #expect(center.performCommand(forShortcut: "⇧⌘U", profile: profile, page: page))
+        #expect(engine.performedCommands.map(\.name) == ["room-named"])
+        #expect(!center.performCommand(forShortcut: "⇧⌘X", profile: profile, page: page))
+        #expect(!center.performCommand(forShortcut: "⇧⌘C", profile: profile, page: page))
+        #expect(!center.performCommand(forShortcut: "⇧⌘U", profile: UUID(), page: page))
+        #expect(center.shortcutRows().map(\.shortcut) == ["⇧⌘Y", "⇧⌘U"])
+        #expect(center.shortcutRows().map(\.title) == ["Activate the extension", "Named"])
+    }
+
+    @Test("The site panel lists the extensions that want the site; Run runs the blocked one; On this site is kept")
+    @MainActor func sitePanelSection() throws {
+        let (center, engine, profile, page) = try setUp([
+            InstalledExtension(id: "a", name: "A", action: Self.action, isPinned: true),
+            InstalledExtension(id: "elsewhere", name: "Elsewhere"),
+        ])
+        engine.requestedHosts["elsewhere"] = ["example.com"]
+        #expect(center.extensionsWantingSite(profile: profile, page: page).map(\.item.id) == ["a"])
+        #expect(center.setSiteAccess(.onClick, "a", profile: profile, host: "127.0.0.1"))
+        engine.simulatePageLoad(page, extension: "a")
+        #expect(center.extensionsWantingSite(profile: profile, page: page).first?.access.wantsToRun == true)
+        #expect(center.runBlocked("a", profile: profile, page: page))
+        #expect(center.siteAccess("a", profile: profile, page: page)?.wantsToRun == false)
+        #expect(center.setSiteAccess(.onSite, "a", profile: profile, host: "127.0.0.1"))
+        engine.simulatePageLoad(page, extension: "a")
+        #expect(center.siteAccess("a", profile: profile, page: page)?.level == .onSite)
+        #expect(center.siteAccess("a", profile: profile, page: page)?.wantsToRun == false)
     }
 }
