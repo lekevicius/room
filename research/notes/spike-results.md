@@ -2964,3 +2964,34 @@ The generated profile (`research/spikes/phase-4.3/generated/large`, 17,212,909 b
 | Summed RSS before → after (6 processes, no renderer) | **334 → 497 MB** | 335 → 497 MB | 596 → 736 MB |
 
 Every URL and visit reached the engine (`history urls=50000 visits=100000 expired=0/0`); `ProfileHistory.search("Large history page 49999")` finds it in the same launch; the database holds 5,200 of 5,200 entries (reloaded in 35 ms). Against the bounds (100 ms of main thread per step, 10 s in all): the whole import is 2.0 s (inside), reading and planning stay off the main thread (stalls ≤ 51 ms), **the sidebar's write blocks the main thread for ~570 ms** (5.7× the bound: B-85), and the reload of a 5,200-row sidebar is 80–90 ms (inside 100 ms, over a frame: the 2.2a number scaled).
+
+## Phase 4.4a — shortcut remapping, Settings ▸ General, Search, Downloads (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+App work only (no `//room`, no `EngineRoomCore`, series 23): the Debug app on the dev framework (`build/roomcore`, `roomcore-package.sh --app-only`, 29–43 s) and the Debug app over the release framework (`build/roomcore-release`, `docs/laptop-build.md` §A step 3, 30 s). Display 1920 × 1080 @ 60 Hz; the Claude app frontmost (Room activated by `run-spike.sh`; every key press of the spike went through `NSApp.sendEvent`, "via=app"). Tour step `settings` = `scripts/settings-check.sh`: two launches on one state (`-RoomSpikeOnly set`, then `verify`), the 2.6 server on :8766 for the downloads.
+
+| Run | Build | load1 at start | Checks | Tour directory |
+|---|---|---|---|---|
+| `settings` | dev | 7.61 | **32 / 32** | `build/grand-tour/20261006-211728-roomcore` |
+| `settings` | release framework (`ROOM_TOUR_APP`) | 7.34 | **32 / 32** | `build/grand-tour/20261006-211823-roomcore` |
+| `keys` (1.4's spike, no overrides) | dev | 10.31 | **19 / 19** | `build/grand-tour/20261006-211104-roomcore` |
+
+The `settings` result lines (identical on both builds but for the timings):
+
+- `defaults`: overrides 0, Pin Tab ⌘D, Reopen Closed Tab ⇧⌘T, 17 reserved keys, ⇧⌘T among them.
+- `remap_pin` (a real ⌥⌘P key event into Pin Tab's recorder in Settings ▸ Shortcuts): recording=true, stored `togglePin:=⌥⌘P`, **menu ⌥⌘P, the palette's command ⌥⌘P, the sidebar's context menu ⌥⌘P**; `palette_hint`: the drawn row "Pin Tab" with hint **⌥⌘P** (`>pin`).
+- `old_key`: **the page's keydown log `["⌘d/KeyD"]`: the old ⌘D reaches the page**, the tab stays a Today tab (`kind=today`).
+- `new_key`: ⌥⌘P → the page saw `⌘⌥π/KeyP` first (Pin is page-first), then the menu: **pinned=true**; again: unpinned=true. The delegate's log: `unhandled keyCode=35 … | unhandled sent fresh handled=true` (B-86 below).
+- `conflict`: ⌘P (Print's) for Pin → `conflict(["printPage:"])`, pending, **both rows marked** (`printPage:`, `togglePin:`), "⌘P is Print…'s shortcut. Use it for Pin Tab instead?"; `conflict_cancel`: Pin ⌥⌘P, Print ⌘P, nothing marked; `conflict_resolved` (Use for Pin Tab): **Pin ⌘P, Print none**, 0 conflicts.
+- `refused`: ⌘Q ("⌘Q is Quit: it belongs to macOS."), ⌘H, K (no ⌘ or ⌃), Quit to ⌥⌘T refused; Pin and Print unchanged.
+- `reserved_set`: Reopen Closed Tab under ⌥⌘T → the reserved set has ⌥⌘T, not ⇧⌘T, still 17 keys; `reserved_remap`: **⇧⌘T reaches the page** (`["⌘⇧T/KeyT"]`) and reopens nothing; **⌥⌘T never reaches the page** (`[]`) and **reopens the closed tab once** (`tabs reopened=1`).
+- `applied`: toolbar shown, sidebar right, the palette's engine "Spike Search" (the profile's default), the keyword `spk` offers its Tab row, suggestions off.
+- `save_panel`: a save panel as a sheet on the browser window, proposed `spike-ask.bin` in the chosen folder; ended with OK: the download completes at the panel's file (`complete=true file=true`); a second panel cancelled: the download is cancelled and **not listed** (rows 1 → 1).
+- After the relaunch: `relaunch_equal` **13 of 13** settings read back (⌘W behaviour, archive hours, Peek, routing between spaces, toolbar, sidebar side, appearance, suggestions, the engines list, the per-profile default, the download folder, ask where, PDFs), applied again at launch (toolbar, side, engine); `relaunch_keys`: Pin ⌥⌘P, Reopen ⌥⌘T, Print ⌘P, ⌥⌘T reserved and ⇧⌘T not; `reset_all`: 0 overrides, ⌘D and ⇧⌘T back, the reserved set equal to `ReservedShortcuts.all`.
+
+Timings (`remap_timing`): key press in the recorder → stored and on the menu item **76.9 ms dev / 78.2 ms release** (one main-queue hop for the reload, one observation `Task` hop for the app, the spike polling every 20 ms); `MainMenuBuilder.apply` (walk the bar, ~150 items, set the changed keys in place) **0.31 / 0.30 ms**.
+
+`keys` with no overrides (the reserved set from the table): ABC, Colemak, Lithuanian, Lithuanian Colemak as before (`20261005-042014`): 2 reserved calls per layout, ⌘C/⌘V/⌘Z through the page to the menu, page saw ⌘c ⌘v ⌘z o, consumed 1.
+
+Evidence for the reviewer: `research/screenshots/phase-4.4a/` (Settings ▸ Shortcuts during the conflict, General, Search, Downloads; light, dev).
+
+Found on the way: an ⌥ key whose character ⌥ changed (⌥⌘P arrives with `characters` "π") no longer matched its menu item once the page's view had handled the event: `NSApp.mainMenu.performKeyEquivalent` returned false for the original `NSEvent` and true for a fresh `NSEvent` with the same type, flags, characters and key code (and for the same constructed event sent straight to the menu). The host now retries with a fresh copy, on the unhandled path and, for reserved keys, in `isReservedKeyEvent` (RoomCore's own call with the original then fails as measured, so the action runs once: `tabs reopened=1`). B-86.
