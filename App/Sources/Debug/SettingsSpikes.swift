@@ -119,6 +119,19 @@ extension SpikeRunner.Context {
         return (try? JSONSerialization.jsonObject(with: Data(inner.utf8)) as? [String]) ?? []
     }
 
+    /// Settings at `section` as a PNG in the capture directory (evidence, not an assertion).
+    func captureSettings(_ app: AppDelegate, _ section: SettingsWindowController.Section, _ name: String) async {
+        guard let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"),
+              let settingsWindow = app.debugSettingsWindow, let window = settingsWindow.window else { return }
+        settingsWindow.select(section)
+        window.orderFront(nil)
+        try? await Task.sleep(for: .milliseconds(400))
+        let url = URL(fileURLWithPath: directory).appending(path: "phase-4.4a-settings-\(name).png")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        window.displayIfNeeded()
+        SpikeRunner.record("capture_\(name)", (try? WindowSnapshot.writePNG(window, to: url)) != nil ? url.lastPathComponent : "failed")
+    }
+
     func pageKeyCount(_ page: any WebContents) async -> Int {
         Int(await js(page, "JSON.parse(document.documentElement.dataset.keys || '[]').length")) ?? 0
     }
@@ -202,6 +215,10 @@ extension SpikeRunner.Context {
         let check = shortcuts.propose(Shortcut(.character("p"), .command), for: pin)
         let marked = shortcuts.markedIDs.sorted()
         SpikeRunner.record("conflict", "check=\(check) pending=\(shortcuts.pending != nil) marked=\(marked) message=\(shortcuts.message)")
+        shortcuts.reveal(pin)
+        await captureSettings(app, .shortcuts, "shortcuts-conflict")
+        app.debugSettingsWindow?.window?.orderOut(nil)
+        self.window.makeKeyAndOrderFront(nil)
         shortcuts.cancelPending()
         SpikeRunner.record("conflict_cancel", "pin=\(menuKey(pin)) print=\(menuKey(print)) marked=\(shortcuts.markedIDs.count)")
         shortcuts.propose(Shortcut(.character("p"), .command), for: pin)
@@ -266,6 +283,12 @@ extension SpikeRunner.Context {
             keyword = palette.result.matches.first { $0.title == "Search Spike Search" }?.detail ?? "none"
             palette.toggleNew()
         }
+        app.showSettings(nil)
+        for (section, name) in [(SettingsWindowController.Section.general, "general"), (.search, "search"), (.downloads, "downloads")] {
+            await captureSettings(app, section, name)
+        }
+        app.debugSettingsWindow?.window?.orderOut(nil)
+        self.window.makeKeyAndOrderFront(nil)
         SpikeRunner.record("applied", "toolbar=\(app.windowController?.showsToolbar ?? false) sidebar=\(app.windowController?.rootView.sidebarEdge == .right ? "right" : "left") "
             + "palette engine=\(engine?.name ?? "nil") keyword row=\(keyword) suggestions=\(store.settings.settings.searchSuggestions)")
 

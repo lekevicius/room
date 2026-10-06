@@ -10,10 +10,11 @@
 # setting and key back, then Reset All and the settings put back. Prints both
 # launches' lines. Standalone it runs on a throwaway state under /tmp with the
 # test servers; in the grand tour (ROOM_TOUR_SERVERS=1) on the tour's state.
-# Usage: scripts/settings-check.sh
+# Usage: scripts/settings-check.sh [capture-dir]
 # ROOM_APP=<Room.app> picks the app (the release framework's Debug app for numbers).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+CAPS="${1:-}"
 mkdir -p /tmp/room-4
 server=""
 args=()
@@ -31,6 +32,7 @@ if [[ -z "${ROOM_TOUR_SERVERS:-}" ]]; then
   args=(-RoomStateDirectory "$state/state" -RoomEngineDirectory "$state/engine" -RoomSpikeAppearance light)
   echo "state: $state"
 fi
+[[ -n "$CAPS" ]] && args+=(-RoomSpikeCaptureDirectory "$CAPS")
 echo "conditions: app=${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app} load=$(sysctl -n vm.loadavg)"
 scripts/run-spike.sh settings -RoomSpikeOnly set -ApplePersistenceIgnoreState YES ${args[@]+"${args[@]}"}
 scripts/run-spike.sh settings -RoomSpikeOnly verify -ApplePersistenceIgnoreState YES ${args[@]+"${args[@]}"}

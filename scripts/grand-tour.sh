@@ -251,7 +251,7 @@ for appearance in "${appearances[@]}"; do
   ROOM_CAPTURE_DIR="$CAPS/chrome-2.6b" run chrome26b scripts/chrome-surfaces.sh --session 2.6b "$appearance"
   # 4.4a: Settings: ⌘D remapped in Settings ▸ Shortcuts (the menu, the palette, the sidebar, the keys
   # page), a conflict, a reserved action remapped, every setting through a relaunch, the save panel, Reset All.
-  run settings scripts/settings-check.sh
+  run settings scripts/settings-check.sh "$CAPS/settings"
 
   group=layoutmodes
   ROOM_CAPTURE_DIR="$CAPS/layoutmodes" run layoutmodes scripts/layout-modes.sh "$appearance"

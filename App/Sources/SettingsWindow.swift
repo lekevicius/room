@@ -134,7 +134,8 @@ private struct SettingsSectionView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
+        // 560 pt (480 until 4.4a): eight sections fit the toolbar without its overflow menu.
+        .frame(width: ShortcutsSettingsMetrics.width)
         .fixedSize(horizontal: false, vertical: true)
     }
 

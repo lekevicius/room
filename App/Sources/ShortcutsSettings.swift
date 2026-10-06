@@ -3,9 +3,9 @@ import Design
 import Store
 import UIKitCore
 
-/// Settings ▸ Shortcuts sizes (4.4a; chosen, the other sections' 480 pt width).
+/// Settings ▸ Shortcuts sizes (4.4a; chosen: the sections' width, 560 pt since eight sections fit the toolbar at it).
 enum ShortcutsSettingsMetrics {
-    static let width: CGFloat = 480
+    static let width: CGFloat = 560
     static let tableHeight: CGFloat = 380
     static let keyColumnWidth: CGFloat = 120
     static let resetColumnWidth: CGFloat = 28
@@ -76,7 +76,9 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         scroll.documentView = tableView
         scroll.hasVerticalScroller = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.heightAnchor.constraint(equalToConstant: ShortcutsSettingsMetrics.tableHeight).isActive = true
+        // At least this tall; the table takes whatever height the window has (it keeps the last section's).
+        scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: ShortcutsSettingsMetrics.tableHeight).isActive = true
+        scroll.setContentHuggingPriority(.defaultLow - 1, for: .vertical)
 
         messageLabel.font = Typography.secondary
         confirmButton.target = self
@@ -96,6 +98,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         let stack = NSStackView(views: [intro, scroll, prompt, footer])
         stack.orientation = .vertical
         stack.alignment = .leading
+        stack.distribution = .fill
         stack.spacing = Spacing.s
         stack.edgeInsets = NSEdgeInsets(top: Spacing.l, left: Spacing.l, bottom: Spacing.l, right: Spacing.l)
         for view in [intro, scroll, prompt, footer] {
@@ -105,6 +108,16 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         view = stack
         refresh()
         observeSettings()
+    }
+
+    /// The window keeps the last section's height otherwise (the SwiftUI sections size it themselves).
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        guard let window = view.window else { return }
+        let content = window.contentRect(forFrameRect: window.frame)
+        let size = preferredContentSize
+        let frame = window.frameRect(forContentRect: NSRect(x: content.minX, y: content.maxY - size.height, width: size.width, height: size.height))
+        window.setFrame(frame, display: true)
     }
 
     /// Another writer (the palette, a spike, a second window) changes the overrides: the rows follow.
@@ -191,6 +204,12 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         guard let recorder = tableView.view(atColumn: 1, row: row, makeIfNecessary: true) as? ShortcutRecorderButton else { return false }
         recorder.beginRecording()
         return recorder.isRecording
+    }
+
+    /// Scrolls `id`'s row into view (the settings spike's capture).
+    func reveal(_ id: String) {
+        guard let row = actions.firstIndex(where: { $0.id == id }) else { return }
+        tableView.scrollRowToVisible(min(actions.count - 1, row + 3))
     }
 
     /// A recorder took the keyboard: nothing reloads (that would take the first responder away).
