@@ -327,8 +327,14 @@ def _killtest(c):
         mm = re.search(pattern, text)
         if mm:
             c.number(label, " / ".join(mm.groups()))
-    mm = re.search(r"reopened at a generation committed after the last ack: (\d+)", text)
-    c.check("no generation lost after its acknowledgement", mm and mm.group(1) == "0", mm.group(0) if mm else "missing")
+    # B-79: a reopen ahead of the last ack (the commit landed, the kill beat
+    # its acknowledgement) is informational; only one behind it is a loss.
+    mm = re.search(r"reopened ahead of the last ack[^:]*: (\d+)", text)
+    if mm:
+        c.number("reopened ahead of the last ack (informational)", mm.group(1))
+    mm = re.search(r"reopened behind the last ack[^:]*: (\d+)", text)
+    c.check("no reopen behind the last ack (no acknowledged write lost)", mm and mm.group(1) == "0",
+            mm.group(0) if mm else "missing")
     if m:
         c.number("wall time", m.group(2))
 

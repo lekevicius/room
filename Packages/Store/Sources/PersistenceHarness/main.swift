@@ -242,6 +242,9 @@ struct Outcome {
 
 struct Failure: Error, CustomStringConvertible {
     let description: String
+    /// The reopen found a generation older than the last acknowledged one:
+    /// an acknowledged write was lost (the one real failure B-79 counts).
+    var behindAck = false
 }
 
 func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outcome, Failure> {
@@ -262,7 +265,7 @@ func verify(directory: URL, log: WriterLog, killedMidWrite: Bool) -> Result<Outc
     let (begins, lastCommit, lastBegin) = log.state.withLock { ($0.begins, $0.lastCommit, $0.lastBegin) }
     let generation = opened.generation
     if let lastCommit, generation < lastCommit {
-        return .failure(Failure(description: "generation \(generation) on disk, but \(lastCommit) was acknowledged"))
+        return .failure(Failure(description: "generation \(generation) on disk, but \(lastCommit) was acknowledged", behindAck: true))
     }
     if generation > lastBegin { return .failure(Failure(description: "generation \(generation) on disk was never begun (last \(lastBegin))")) }
     if generation == 0 {
@@ -297,6 +300,7 @@ func runDriver() -> Never {
     let log = WriterLog()
     var outcomes: [Outcome] = []
     var failures: [String] = []
+    var behindAck = 0
     let start = ContinuousClock.now
     print("directory \(directory.path), \(kills) kills, debounce \(debounceMS) ms")
 
@@ -341,6 +345,7 @@ func runDriver() -> Never {
             let suffix = inFlight ? ", killed mid-write" : ""
             print("kill \(round): generation \(outcome.dbGeneration) (\(note))\(suffix)")
         case .failure(let message):
+            if message.behindAck { behindAck += 1 }
             failures.append("kill \(round): \(message)")
             print("kill \(round): FAIL \(message)")
         }
@@ -350,7 +355,10 @@ func runDriver() -> Never {
     let micros = log.state.withLock { $0.commitMicros }.sorted()
     let midWrite = outcomes.filter(\.killedMidWrite).count
     let rolledBack = outcomes.filter { $0.killedMidWrite && $0.dbGeneration < $0.lastBegun }.count
-    let ackLost = outcomes.filter { $0.dbGeneration > ($0.lastAcked ?? 0) }.count
+    // Ahead of the last ack: the commit landed and the kill beat its
+    // acknowledgement (informational, B-79). Behind it: a lost write (counted
+    // in `verify`, which also fails the round).
+    let aheadOfAck = outcomes.filter { $0.dbGeneration > ($0.lastAcked ?? 0) }.count
     let snapshotBehind = outcomes.filter { outcome in outcome.snapshotGeneration.map { $0 < outcome.dbGeneration } ?? false }.count
     let size = ((try? FileManager.default.attributesOfItem(atPath: directory.appending(path: RoomStorage.databaseName).path)[.size]) as? Int) ?? 0
     let entries = (try? RoomStorage(directory: directory).open().state.entries.count) ?? -1
@@ -360,7 +368,8 @@ func runDriver() -> Never {
     print("""
     summary: \(kills) kills in \(elapsed), \(failures.count) failures
       kills with a transaction in flight: \(midWrite) (rolled back to the previous generation: \(rolledBack))
-      reopened at a generation committed after the last ack: \(ackLost)
+      reopened ahead of the last ack (committed, ack not yet read; informational): \(aheadOfAck)
+      reopened behind the last ack (an acknowledged write lost): \(behindAck)
       final generation \(outcomes.last?.dbGeneration ?? 0), \(log.state.withLock { $0.commitMicros.count }) commits, \(entries) entries, database \(size / 1024) KB
       commit time median \(percentile(0.5)) ms, p95 \(percentile(0.95)) ms, max \(percentile(1)) ms
       snapshots one generation behind the database: \(snapshotBehind)
