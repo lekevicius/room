@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Media row</title>
+<!-- Phase 4.6: two "tracks" (generated tones in an <audio>), navigator.
+     mediaSession metadata with a PNG artwork made on a canvas (a data: URL,
+     no request), position state, and action handlers for play, pause,
+     nexttrack, previoustrack and seekto. Each handler call is appended to
+     #log (host scripts run in an isolated world and read the DOM); #state
+     holds the track, paused and the time. #play starts track 0 (a click: the
+     autoplay policy wants a gesture). ?quiet=1 lowers the volume to 0.02. -->
+<style>body { font: 16px -apple-system, sans-serif; margin: 40px; } button { font-size: 18px; padding: 8px 16px; }</style>
+<h1>Media row</h1>
+<button id="play">Play</button>
+<p id="log"></p>
+<p id="state">idle</p>
+<audio id="audio" loop></audio>
+<script>
+const tracks = [
+  { title: 'Room Tone A', artist: 'Phase 4.6', album: 'Fixtures', hz: 440, color: '#2a6' },
+  { title: 'Room Tone B', artist: 'Phase 4.6', album: 'Fixtures', hz: 660, color: '#a26' },
+];
+const audio = document.getElementById('audio');
+const logLine = document.getElementById('log'), stateLine = document.getElementById('state');
+const quiet = new URLSearchParams(location.search).has('quiet');
+let index = 0;
+const log = (s) => { logLine.textContent = (logLine.textContent ? logLine.textContent + ',' : '') + s; };
+const state = () => { stateLine.textContent = `track=${index} paused=${audio.paused} time=${audio.currentTime.toFixed(1)}`; };
+function tone(hz) {
+  const rate = 8000, seconds = 30, n = rate * seconds;
+  const buffer = new ArrayBuffer(44 + n * 2), v = new DataView(buffer);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin(i / rate * 2 * Math.PI * hz) * 3000, true);
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+function artwork(color, label) {
+  const c = document.createElement('canvas'); c.width = c.height = 96;
+  const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, 96, 96);
+  g.fillStyle = '#fff'; g.font = 'bold 48px sans-serif'; g.fillText(label, 30, 64);
+  return c.toDataURL('image/png');
+}
+function position() {
+  if (!isFinite(audio.duration)) return;
+  try { navigator.mediaSession.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate }); } catch (e) { log('position error ' + e.name); }
+}
+async function load(i, play) {
+  index = (i + tracks.length) % tracks.length;
+  const t = tracks[index];
+  audio.src = tone(t.hz);
+  audio.volume = quiet ? 0.02 : 0.2;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: t.title, artist: t.artist, album: t.album,
+    artwork: [{ src: artwork(t.color, 'AB'[index]), sizes: '96x96', type: 'image/png' }],
+  });
+  if (play) await audio.play();
+  state();
+}
+navigator.mediaSession.setActionHandler('play', async () => { log('play'); await audio.play(); state(); });
+navigator.mediaSession.setActionHandler('pause', () => { log('pause'); audio.pause(); state(); });
+navigator.mediaSession.setActionHandler('nexttrack', () => { log('nexttrack'); load(index + 1, !audio.paused); });
+navigator.mediaSession.setActionHandler('previoustrack', () => { log('previoustrack'); load(index - 1, !audio.paused); });
+navigator.mediaSession.setActionHandler('seekto', (d) => { log('seekto ' + d.seekTime.toFixed(1)); audio.currentTime = d.seekTime; position(); state(); });
+audio.addEventListener('loadedmetadata', position);
+audio.addEventListener('play', () => { navigator.mediaSession.playbackState = 'playing'; position(); state(); });
+audio.addEventListener('pause', () => { navigator.mediaSession.playbackState = 'paused'; position(); state(); });
+document.getElementById('play').onclick = async () => { log('click'); await load(0, true); };
+</script>

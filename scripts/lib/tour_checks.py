@@ -1031,6 +1031,55 @@ def _extpopup(c):
         c.number(key)
 
 
+@step_check("media")
+def _media(c):
+    """ROADMAP 4.6 (`scripts/media-check.sh`, the `media` spike): the media
+    session's controls through the engine's members (play, pause, next,
+    previous, seek, each read back from the fixture's log); the footer's
+    media row for the fixture playing in a second space: title and artist,
+    pause and play from the row reach the page, next retitles the row, a
+    click on the row selects its entry (the row hides), × hides it until the
+    page plays again; Chrome's Now Playing info; document picture-in-picture
+    in a floating panel of the requested size that closes with its page, with
+    the user's close and with its opener; video picture-in-picture's overlay
+    window. The synthetic media key and MediaRemote's command are result lines."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("engine_session", 'title="Room Tone A"', 'artist="Phase 4.6"', "state=playing", "nextTrack", "seekTo", "artwork_png=",
+               label="the session: metadata, playing, its actions, the artwork Chrome fetched")
+    c.check("the artwork arrived as an image", "artwork_png=0B" not in (c.first("engine_session") or "artwork_png=0B"), c.first("engine_session") or "missing")
+    c.contains("engine_pause", "page_logged=true", "state=paused", label="mediaPause reaches the page's pause handler")
+    c.contains("engine_play", "page_logged=true", "state=playing", label="mediaPlay reaches the page's play handler")
+    c.contains("engine_next", "page_logged=true", 'title="Room Tone B"', label="mediaNextTrack: the page's next track, the session retitled")
+    c.contains("engine_previous", "page_logged=true", 'title="Room Tone A"', label="mediaPreviousTrack: back to the first track")
+    c.contains("engine_seek", "page_logged=true", "settled=true", "position=12.0/", label="mediaSeek(to: 12) reaches seekto; the position follows")
+    c.contains("row_while_selected", "hidden", label="no row while the playing entry is selected")
+    c.contains("row_shown", "true in", 'title="Room Tone A"', 'subtitle="Phase 4.6"', "playing=true", "next=true", "image=96x96",
+               label="another space: the row shows the session's title, artist and artwork")
+    c.check("the row's pause reached the page", "page_logged -1" not in (c.first("row_pause") or "page_logged -1") and "session paused" in (c.first("row_pause") or ""),
+            c.first("row_pause") or "missing")
+    c.check("the row's play reached the page", "page_logged -1" not in (c.first("row_play") or "page_logged -1") and "session playing" in (c.first("row_play") or ""),
+            c.first("row_play") or "missing")
+    c.contains("row_next", 'title="Room Tone B"', label="the row's next retitles the row")
+    c.contains("row_select", "selected=true", "space=Media", "row_hidden=true", label="a click on the row selects its entry in its space; the row hides")
+    c.contains("row_dismiss", "hidden=true", "still_hidden_after_500ms=true", "page_playing=true", label="× hides the row while the page plays")
+    c.check("the row returns when the page plays again", "-1 ms" not in (c.first("row_next_session") or "-1 ms"), c.first("row_next_session") or "missing")
+    c.contains("nowplaying_playing", 'title="Room Tone A"', 'artist="Phase 4.6"', "rate=1.0", label="Chrome's system media controls fill Now Playing")
+    c.contains("docpip_panel", "opened=true", "requested={320, 180}", "content=320x180", "level_floating=true", "nonactivating=true",
+               "hides_on_deactivate=false", "Room document picture-in-picture", label="document PiP: a floating panel of the requested size with the page")
+    c.contains("docpip_viewport", "320x180", "visible_in_panel=true", "hidden=false",
+               label="the engine paints the PiP page at the panel's size (its own capture; the window server's shows Chromium's layers white)")
+    c.contains("docpip_opener", "opener_alive=alive", "blockers=pictureInPicture", label="the opener stays loaded and is kept from discarding")
+    c.contains("docpip_page_close", "panel_closed=true", "opener_alive=alive", "entry_kept=true", label="the page's window.close() closes the panel")
+    c.contains("docpip_user_close", "page_closed=true", "opener_alive=alive", label="closing the panel closes the page")
+    c.contains("docpip_opener_close", "panel_closed=true", label="closing the opener closes the panel")
+    c.contains("videopip_window", "overlay=true", 'log="video pip"', "NativeWidgetMac", label="video PiP: Chrome's overlay window")
+    c.contains("videopip_exit", "overlay_gone=true", 'log="video pip left"', label="exitPictureInPicture() closes it")
+    for key in ("row_shown", "row_pause", "row_play", "row_next", "nowplaying_commands", "nowplaying_media_key",
+                "nowplaying_mediaremote_pause", "nowplaying_paused", "docpip_panel", "videopip_window"):
+        c.number(key)
+
+
 @step_check("extensions")
 def _extensions(c):
     """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the

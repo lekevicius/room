@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -262,6 +262,11 @@ for appearance in "${appearances[@]}"; do
   # state and engine directories (an unpacked extension must not reach the later steps).
   run extpopup scripts/extensions-check.sh --spike extpopup "$CAPS/extpopup"
   run extensions scripts/extensions-check.sh "$CAPS/extensions"
+  # 4.6: media: the session's controls through the engine, the footer's media row with the fixture in a
+  # second space (pause, play, next from the row; a click selects its entry; × hides it), Chrome's Now
+  # Playing info and a play/pause command, document PiP in its floating panel, video PiP's overlay window.
+  # On its own state and engine directories; serves research/spikes on :8776.
+  run media scripts/media-check.sh "$CAPS/media"
 
   group=layoutmodes
   ROOM_CAPTURE_DIR="$CAPS/layoutmodes" run layoutmodes scripts/layout-modes.sh "$appearance"
