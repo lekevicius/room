@@ -2715,3 +2715,60 @@ Least recently seen first across both spaces, one page a second (`Timing.critica
 ### Unit tests (`CI=1 swift test`)
 
 Model 92 (+9: the backup planner ×6, the backup file, the snapshot without states, the retention rule), Store 43 (+2: restore, retention), Tabs 64 (+1: crash recovery), Chrome 52 (+1: Remove), Engine 59 (+1: FakeEngine's remove), Sidebar 38, UIKitCore 47, Design 9, Library 2: all pass; `scripts/tests/test_tour_checks.py` OK.
+
+## Phase 4.2 — space routing, the routing sheet, Peek's last gaps (2026-10-06, Mac mini M4, 24 GB, RoomCore 155.0.8059.36)
+
+No engine step: `//room`, `Engine/roomcore` and `Packages/EngineRoomCore` untouched; every app build is `xcodebuild` over the staged frameworks (the dev framework `build/roomcore`, `RoomCoreCommit ccb9ff0`; the release framework `build/roomcore-release`, restaged in 4.1b). Display: the Mac mini's 3840 × 2160 main display, the window at its spike size; the Claude app frontmost during the runs (`window_main: true` in every run below). Evidence in `build/evidence-4.2/` (the four tour runs' summaries and step files under `tours/`).
+
+### B-82: spike hooks on the release framework
+
+`ROOM_APP=<the Debug app over build/roomcore-release> ROOM_SL_ONLY=discard scripts/session-lifecycle.sh` (3.7b's `discardpolicy`, which calls `roomSpikeAction:` five times; load1 8.7): the spike ran to `end: discardpolicy` with no crash; `spike_hooks: spike hooks unavailable (roomSpikeAction: on RoomBrowser)` once, the hook results `-98` (`auto_discardable_pages`, `pm_urgent_discard`, `pressure_policy_off`), the host-side parts unchanged (`idle_discarded: plain3,plain2,plain1`, `b56_renderers: before 10 (1452 MB) … discarded 3`). Before the guard this run crashed on the unrecognized selector (4.1b). `build/evidence-4.2/b82-discardpolicy-release.txt`.
+
+### Tour step `routing` (group `appintegration`; `scripts/routing-check.sh`, fixture `routing`)
+
+External links are handed to Room by calling `AppDelegate.application(_:open:)` in the spike with the URL: the delegate method AppKit calls for `open -a`, AppleScript's `open location` and another app's link, which hands them to `URLInbox` (2.8b measured those three hand-overs into the same method). Fixture: spaces Space (shown), Work, Play in one profile; rules 1. `contains` "route=work" → Work, 2. `equals` "localhost" → Play, 3. `contains` "site.html" → Work, disabled.
+
+**25 / 25 on the dev build** (`build/grand-tour/20261006-182329-roomcore`, 26 s, load1 4.17, no other Room, no Chromium build, 0 minidumps) and **25 / 25 on the release framework** (`20261006-182433-roomcore`, 16 s, load1 7.35, 0 minidumps). The release run's lines (the dev run's are the same):
+
+    rules: 1. contains route=work → Work | 2. equals localhost → Play | 3. contains site.html → Work (disabled)
+    invalid_regex: refused=true rules 3 → 3 message=Not a valid regular expression (The value “([a-z” is invalid).
+    external_rule_contains: space=Work selected in its space=true shown space=Space in the card=false page=http://127.0.0.1:8770/other.html?route=work toast="Opened in Work" button=Switch
+    external_rule_equals: space=Play selected in its space=true shown space=Space in the card=false page=http://localhost:8770/other.html?n=1 toast="Opened in Play" button=Switch
+    external_no_rule: space=Space selected in its space=true shown space=Space in the card=true page=http://127.0.0.1:8770/site.html?plain toast=none
+    toast_switch: shown space=Work card=the routed tab page=http://127.0.0.1:8770/other.html?route=work&n=2
+    external_most_recent: space=Work selected in its space=true shown space=Work in the card=true page=http://127.0.0.1:8770/other.html?recent toast=none
+    external_chosen_default: space=Play selected in its space=true shown space=Work in the card=false page=http://127.0.0.1:8770/other.html?chosen toast="Opened in Play" button=Switch
+    cross_space_off_blank: space=Space … in the card=true page=…?route=work&from=page1 toast=none under its opener=true
+    cross_space_on_blank: space=Work selected in its space=true shown space=Space in the card=false page=…?route=work&from=page2 toast="Opened in Work" button=Switch under its opener=false
+    cross_space_on_command_click: space=Work selected in its space=true shown space=Space in the card=false page=…?route=work&from=page3 toast="Opened in Work" button=Switch
+    cross_space_on_no_rule: space=Space … in the card=true page=…?from=page4 toast=none under its opener=true
+    sheet: shown=true editing=true match=contains pattern=127.0.0.1 target=Space rules listed=3
+    sheet_try_url: localhost:8770/anything → Opens in Play (rule 2); example.com → Opens in the default: Space
+    sheet_invalid_regex: inline=Not a valid regular expression (The value “([a-z” is invalid). save refused=true rules=3
+    sheet_save: saved=true rules=4 last=contains 127.0.0.1:8770/sheet → Space
+    sheet_closed: true
+    rules_in_database: 3 of 3
+
+The routed tabs load behind the card (`page=` is the loaded page's URL). The sheet's capture: `captures/routing/phase-4.2-routing-sheet.png` in each run (eyes only).
+
+### The Peek table (2.7a's `layoutmodes`, `--only layoutmodes light`)
+
+**35 / 35 on the dev build** (`20261006-182456-roomcore`, 78 s, load1 7.12) and **35 / 35 on the release framework** (`20261006-182620-roomcore`, 71 s, load1 4.47); 0 minidumps in both. Five checks are new (Open as Tab's selection, its placement under a pinned and under a Today parent, B-35's fullscreen and its exit).
+
+| Number (n=5, local page, from the Peek decision) | dev build | release framework |
+|---|---|---|
+| to the overlay's first committed frame | median 24.47 ms, p95 25.02 ms | median 24.18 ms, p95 26.63 ms |
+| to the Peek page's first contentful paint (B-57) | median 454.49 ms, p95 503.10 ms | **median 69.54 ms, p95 70.89 ms** |
+
+B-57 is closed as a dev-build condition (69.54 ms against 150 ms; the dev build's cost is the component framework's renderer launch, 3.3b).
+
+    peek_open_as_tab_placement: parent=pinned index in Today=0 under the parent=true
+    peek_open_as_tab_today_parent: parent index=1 new tab index=2 directly under=true today=5
+    peek_fullscreen: request="ok" Peek gone=true today 1 → 2 card page is the Peek's=true index in Today=0 window fullscreen=true page fullscreen=true document.fullscreenElement="true" entered=true
+    peek_fullscreen_exit: window back=true the tab stays=true
+
+(the same lines on both builds). Before the fix's second part (the card taking the page before the Peek overlay lets go of it), the same check read `window fullscreen=true page fullscreen=false document.fullscreenElement="false"`, then `window back=false`: the host's events were `cardDidShow, enter, exit` — Chromium ended the page's fullscreen at once while its view was out of the window, and the window stayed fullscreen (B-83).
+
+### Unit tier and the kill test
+
+`CI=1 swift test`: Model 104 (92 before: the v8 migration, the snapshot's rules, 9 routing rule and decision tests), Store 45 (43: rules CRUD and refusal; deletion with Undo), Tabs 70 (64: four routed-link tests, B-35's expansion, Open as Tab under a Today parent), Sidebar 38, Integration 10; all passing. The engine-free CI build and tests (`xcodegen/ci.yml`, `CI=1`): BUILD and TEST SUCCEEDED in 49 s. The kill test with routing-rule mutations in the writer's mix (`scripts/persistence-kill-test.sh 20 300 4201`): 20 kills, 0 failures, commit median 10.38 ms, p95 15.13 ms.

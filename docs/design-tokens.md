@@ -325,3 +325,11 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Retention.archiveNavigationState` | 7 days: older Archive rows keep their URL, not their back/forward list | B-80 (provisional; no setting) |
 | Restore Sidebar… sheet | SwiftUI leaf: a list of the backups (date, entries, spaces, Archive rows; "before restore" marked), Cancel, Restore (default) | chosen |
 | Crash toast | "Room restarted after a crash" (`Timing.toast`) once, the card's empty state in place of the selected page | spec §H; ROADMAP 4.1b task 7 |
+
+## Added in Phase 4.2 (space routing)
+
+| Token / surface | Value | Source |
+|---|---|---|
+| Routing toast | `Symbol.routing`, "Opened in {space}" with the button "Switch" (`Timing.toastWithAction`, 5 s), id `routed` (a newer one replaces it) | spec §B, §F |
+| Routing sheet (`RoutingSheetMetrics.width` / `height`) | 560 × 520 pt: a SwiftUI leaf in an `NSHostingController` as a sheet on the browser window (or the Settings window when opened from there): the explanation, the rules list (enabled checkbox, number, "URL contains" / "Domain is" / "URL matches regex", pattern, "→ space", move up and down, edit, remove; a disabled rule at 50 % opacity), Add Rule, the editor box (kind popup, pattern field, "Open in" popup, Cancel, Save; the pattern's refusal inline in system red), "Try a URL" with its answer, Done | chosen; looks are Chapter 5's |
+| Menu items | "Space Routing Settings…" (space menu), "Add Route for Domain…" (Today and pinned tab menus), both with `Symbol.routing` | spec §B (title case as the other menu items) |
