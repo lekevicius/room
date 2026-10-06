@@ -27,8 +27,8 @@
 # Needs the screen unlocked, Room frontmost-able, Screen Recording for the
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
-# layout, sidebar, spaces, palette, tabs, chrome, layoutmodes, appintegration,
-# netlog. `--only` takes step names, `--from` a step to start at.
+# layout, sidebar, lifecycle (4.1a: archive), spaces, palette, tabs, chrome,
+# layoutmodes, appintegration, netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -90,9 +90,9 @@ done
 # 1-minute load, the Room processes that are not this tour's (the user's own
 # Room, another wrapper's) and whether a Chromium build runs. Recorded, never
 # refused; printed in summary.md's header.
-other_rooms=$(ps -axo pid=,command= | grep -E '/Contents/MacOS/Room( |$)' | grep -v 'Room Helper' \
-  | grep -vF "${APP#./}/Contents/MacOS/Room" | grep -cv grep || true)
-chromium_builds=$(pgrep -f 'autoninja|/siso |siso_|siso ninja' | wc -l | tr -d ' ')
+other_rooms=$( (ps -axo pid=,command= | grep -E '/Contents/MacOS/Room( |$)' | grep -v 'Room Helper' \
+  | grep -vF "${APP#./}/Contents/MacOS/Room" | grep -v grep || true) | wc -l | tr -d ' ')
+chromium_builds=$( (pgrep -f 'autoninja|/siso |siso_|siso ninja' || true) | wc -l | tr -d ' ')
 {
   printf 'load1\t%s\n' "$(sysctl -n vm.loadavg | awk '{print $2}')"
   printf 'other_room_processes\t%s\n' "$other_rooms"
@@ -215,6 +215,12 @@ for appearance in "${appearances[@]}"; do
   run killtest scripts/persistence-kill-test.sh 100 300 2101
   run sidebardemo scripts/sidebar-snapshots.sh demo "$CAPS/sidebar-demo" "$APP"
   run sidebar500 scripts/sidebar-snapshots.sh 500 "$CAPS/sidebar-500" "$APP"
+
+  # Chapter 4's lifecycle (4.1a): the archive sweep on aged fixture tabs with the clock injected
+  # (two hours ahead), the Library, Restore, Clear, the palette's chip, Delete Space, ⌘Y, Esc.
+  group=lifecycle
+  run archive spike archive -RoomSidebarFixture archive -RoomClock "$(date -u -v+2H +%Y-%m-%dT%H:%M:%SZ)" \
+    -RoomSpikeCaptureDirectory "$CAPS/archive"
 
   group=spaces
   run spaces spike spaces -RoomSidebarFixture spaces500
