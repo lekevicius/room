@@ -4,6 +4,7 @@ What the Chapter 4 sessions could not check without a click, a device, an accoun
 
 ## The current DMG
 
+- **Phase 4.1 (2026-10-06 17:49): `build/sparkle-4.1/Room-0.1.0-2.dmg`** (build 2; RoomCore 155.0.8059.36, series 23, `//room` with `removeDownload`; schema v7: the Archive, backups under `Application Support/Room/Backups/`, crash recovery). Install by hand (the appcast entry is unsigned). Schema v6 → v7 is additive and the migration ran on a v6 state in the tour, so your sidebar carries over; run `scripts/reset-state.sh` first only if you want a clean start or to be able to go back to 3.9's DMG afterwards (an older app cannot open a v7 database). The first launch takes a backup.
 - **3.9-2's** `build/sparkle-3.9/` DMG (155.0.8059.36, series 23, schema v6) is what the user runs on 2026-10-06. The Chapter 4 DMGs are listed here as each phase ends, newest first, with "run `scripts/reset-state.sh` first" when the schema moved on.
 
 ## Setup
