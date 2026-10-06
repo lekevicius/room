@@ -19,3 +19,6 @@ Engine/roomcore/out/
 
 # Per-machine script settings (see local.env.example)
 local.env
+
+# Generated import fixtures (make-large.py, B-84): ~17 MB, made on demand
+research/spikes/phase-4.3/generated/

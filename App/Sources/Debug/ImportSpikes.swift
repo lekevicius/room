@@ -384,6 +384,109 @@ extension SpikeRunner.Context {
     }
 }
 
+/// B-84 (4.3b, `scripts/import-large.sh`): the generated large profile
+/// (`research/spikes/phase-4.3/make-large.py`: 5,000 bookmarks in 200
+/// folders, 50,000 URLs with 100,000 visits) through the sheet's model: the
+/// read, the plan, the sidebar's write, the history batches, the sidebar's
+/// reload after, the summed RSS before and after, and the longest stretch the
+/// main thread did not answer (a 5 ms tick on the main actor) during each.
+extension SpikeRunner.Context {
+    func importLargeChecks() async {
+        guard let app = AppDelegate.current, let store = app.store, let window = app.windowController?.window else {
+            return SpikeRunner.record("error", "importlarge: no store or window")
+        }
+        let sidebar = store.sidebar
+        /// The main actor's longest gap between 5 ms ticks while `body` runs.
+        final class Stall { var max: Double = 0; var running = true }
+        func measured(_ label: String, _ body: () async -> Void) async {
+            let stall = Stall()
+            let ticker = Task { @MainActor in
+                var last = ContinuousClock.now
+                while stall.running {
+                    try? await Task.sleep(for: .milliseconds(5))
+                    let now = ContinuousClock.now
+                    stall.max = max(stall.max, (now - last) / .milliseconds(1))
+                    last = now
+                }
+            }
+            // The ticker takes its first tick before the body runs (a body's synchronous start would otherwise go unseen).
+            try? await Task.sleep(for: .milliseconds(20))
+            let start = ContinuousClock.now
+            await body()
+            stall.running = false
+            await ticker.value
+            SpikeRunner.record("\(label)_time", String(format: "%.0f ms, main thread's longest stall %.0f ms", ms(since: start), stall.max))
+        }
+        try? await Task.sleep(for: .seconds(2))
+        SpikeRunner.record("rss_before", ProcessMemory.snapshot().summary)
+        app.showImportSheet(nil)
+        _ = await waitUntil(3) { app.importModel != nil && window.attachedSheet != nil }
+        guard let model = app.importModel, let source = model.sources.first(where: { $0.name == "large (fixture)" }) else {
+            return SpikeRunner.record("error", "importlarge: no large (fixture) source; run make-large.py")
+        }
+        await measured("read_and_plan") {
+            model.pick(source.id)
+            _ = await waitUntil(120) { model.phase == .ready }
+            await model.settle()
+            _ = await waitUntil(60) { model.plan != nil }
+        }
+        let scan = model.scan
+        SpikeRunner.record("read", "bookmarks=\(scan?.bookmarks?.value?.links ?? -1) folders=\(scan?.bookmarks?.value?.folders ?? -1) "
+            + "history=\(scan?.history?.value?.urls.count ?? -1) visits=\(scan?.history?.value?.visits ?? -1) errors=\(scan?.errors.count ?? -1) "
+            + String(format: "read %.0f ms (%@), plan %.0f ms", model.debugReadSeconds * 1000,
+                     (scan?.seconds ?? [:]).sorted { $0.key < $1.key }.map { String(format: "%@ %.0f ms", $0.key, $0.value * 1000) }.joined(separator: ", "),
+                     model.debugPlanSeconds * 1000))
+        // A replan on an option change (the sheet remakes the plan off the main thread every time).
+        await measured("replan") {
+            model.barIntoEssentials = true
+            await model.settle()
+            model.barIntoEssentials = false
+            await model.settle()
+        }
+        SpikeRunner.record("replan", String(format: "the last plan %.0f ms", model.debugPlanSeconds * 1000))
+        model.targetSpace = nil
+        model.targetProfile = sidebar.profiles.first?.id ?? model.targetProfile
+        model.layout = .oneSpace
+        await model.settle()
+        if let p = model.plan?.preview {
+            SpikeRunner.record("preview", "spaces=\(p.spaces) folders=\(p.folders) pinned=\(p.pinned) history=\(p.historyURLs) visits=\(p.historyVisits) "
+                + "duplicates=\(p.duplicates) flattened=\(p.foldersFlattened) batches=\(model.plan?.history.count ?? 0)")
+        }
+        let entriesBefore = sidebar.entries.count
+        await measured("import") { await model.performImport() }
+        let history = model.historyResult ?? HistoryImportResult()
+        SpikeRunner.record("import", "entries \(entriesBefore) → \(sidebar.entries.count) applied=\(model.applied.map { "folders=\($0.folders) pinned=\($0.pinned)" } ?? "none") "
+            + String(format: "sidebar write %.0f ms, history %d batches %.0f ms", model.debugApplySeconds * 1000, model.debugHistoryBatches,
+                     model.debugHistorySeconds * 1000)
+            + " history urls=\(history.urls) visits=\(history.visits) expired=\(history.expiredVisits)/\(history.expiredURLs)")
+        app.closeImportSheet()
+        try? await Task.sleep(for: .milliseconds(300))
+        // The sidebar's full reload with the imported space shown.
+        if let space = sidebar.spaces.last(where: { $0.name == "Google Chrome" }) { app.sidebar?.showSpace(space.id) }
+        try? await Task.sleep(for: .milliseconds(500))
+        var reloads: [Double] = []
+        for _ in 0..<5 {
+            let start = ContinuousClock.now
+            app.sidebar?.reloadFromStore()
+            window.contentView?.layoutSubtreeIfNeeded()
+            reloads.append(ms(since: start))
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        SpikeRunner.record("sidebar_reload", reloads.map { String(format: "%.1f", $0) }.joined(separator: ", ") + " ms")
+        if let engine = await app.engineProfile(for: sidebar.profiles[0]), let engineHistory = engine.history {
+            let found = await engineHistory.search("Large history page 49999", limit: 3)
+            SpikeRunner.record("history_found", found.first.map { "\($0.url.absoluteString) visits=\($0.visitCount)" } ?? "none")
+        }
+        try? await Task.sleep(for: .seconds(2))
+        SpikeRunner.record("rss_after", ProcessMemory.snapshot().summary)
+        store.flush()
+        let start = ContinuousClock.now
+        let persisted = try? store.persistence.writer.database.loadState().state
+        SpikeRunner.record("database", "entries \(persisted?.entries.count ?? -1) of \(sidebar.entries.count) "
+            + String(format: "(load %.0f ms)", ms(since: start)))
+    }
+}
+
 private extension String {
     var nonEmpty: String? { isEmpty ? nil : self }
 }

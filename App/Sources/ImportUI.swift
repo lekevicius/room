@@ -185,6 +185,10 @@ final class ImportSheetModel {
     /// Seconds of the last read and the last mapping (spike-results).
     @ObservationIgnored private(set) var debugReadSeconds: Double = 0
     @ObservationIgnored private(set) var debugPlanSeconds: Double = 0
+    /// The last import's sidebar write (apply and flush) and its history batches (B-84).
+    @ObservationIgnored private(set) var debugApplySeconds: Double = 0
+    @ObservationIgnored private(set) var debugHistorySeconds: Double = 0
+    @ObservationIgnored private(set) var debugHistoryBatches = 0
     #endif
 
     init(store: RoomStore, sources: [ImportSource]) {
@@ -371,10 +375,16 @@ final class ImportSheetModel {
         work?.cancel()
         progress = ImportProgress(fraction: 0, step: "Adding to the sidebar…")
         var applied = ImportApplied()
+        #if DEBUG
+        let applyStart = ContinuousClock.now
+        #endif
         if !plan.batch.isEmpty, selectedSource != nil {
             do {
                 applied = try store.sidebar.applyImport(plan.batch)
                 store.flush()
+                #if DEBUG
+                debugApplySeconds = (ContinuousClock.now - applyStart) / .seconds(1)
+                #endif
             } catch {
                 NSLog("Room: import refused: \(error)")
                 message = "The sidebar changed while the preview was made; nothing was imported. Pick the source again."
@@ -387,6 +397,13 @@ final class ImportSheetModel {
         var history = HistoryImportResult()
         if let profileID = plan.historyProfile, let model = store.sidebar.profiles.first(where: { $0.id == profileID }), !plan.history.isEmpty {
             if let engine = await engineProfile?(model), let profileHistory = engine.history {
+                #if DEBUG
+                let historyStart = ContinuousClock.now
+                defer {
+                    debugHistorySeconds = (ContinuousClock.now - historyStart) / .seconds(1)
+                    debugHistoryBatches = plan.history.count
+                }
+                #endif
                 for (index, batch) in plan.history.enumerated() {
                     progress = ImportProgress(fraction: Double(index) / Double(plan.history.count),
                                               step: "Adding history (\(index * ImportPlanner.historyBatchSize) of \(plan.preview.historyURLs))…")
