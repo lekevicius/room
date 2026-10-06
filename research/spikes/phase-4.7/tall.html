@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Room tall page</title>
+<style>
+  body { margin: 0; font: 20px -apple-system, sans-serif; }
+  .band { height: 500px; display: flex; align-items: center; justify-content: center; color: #fff; }
+</style>
+</head>
+<body>
+<script>
+  // Eight 500 px bands (4,000 px): a full-page capture is taller than any viewport.
+  const colours = ['#1d4ed8', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#4d7c0f', '#be185d'];
+  colours.forEach((colour, i) => {
+    const band = document.createElement('div');
+    band.className = 'band';
+    band.style.background = colour;
+    band.textContent = 'Band ' + (i + 1) + ' of ' + colours.length;
+    document.body.appendChild(band);
+  });
+  document.documentElement.dataset.height = String(document.documentElement.scrollHeight);
+</script>
+</body>
+</html>

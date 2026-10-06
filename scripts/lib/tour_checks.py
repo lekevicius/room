@@ -1080,6 +1080,87 @@ def _media(c):
         c.number(key)
 
 
+@step_check("documents")
+def _documents(c):
+    """ROADMAP 4.7a (`scripts/documents-check.sh`, the `documents` spike and the
+    PDFs setting's two launches): Save Page as HTML, complete HTML (the swatch
+    and the stylesheet in `_files`) and MHTML through the engine's member, the
+    MHTML reopened as a file:// page with its image (the DOM and the engine's
+    pixels at the image); a full-page capture through the DevTools protocol
+    taller than the viewport, with DevTools closed and open, the viewport
+    unchanged after; Chrome's PDF viewer: rendered, the host's find (3
+    matches, stepping), zoom, print preview closed by Esc, the toolbar's
+    Download opening Chrome's save panel; PDFs ▸ Download at the next launch
+    turns a PDF navigation into a download; View Source from the menu and from
+    the page's context menu under the page; File ▸ Save Page…'s panel with
+    its formats writing the MHTML that reopens, a PDF refused with a toast;
+    ⇧⌘2: a dragged rectangle copied as a PNG of its pixel size, Return's
+    viewport saved to the downloads folder with a toast and Show, Open as Tab,
+    Esc, the full page."""
+    spike_from_out(c)
+    _no_dumps(c)
+    for fmt in ("html", "completeHTML", "mhtml"):
+        c.contains(f"engine_save_{fmt}", "ok in", label=f"savePage(as: .{fmt}) wrote its file")
+    c.contains("engine_save_completeHTML", "swatch.png 322", "page.css", label="complete HTML keeps the image and the stylesheet in _files")
+    c.contains("engine_mhtml_reopened", "url=file:", "image=[true,240,120", label="the MHTML reopens as a file:// page with its image loaded")
+    reopened = c.first("engine_mhtml_reopened") or ""
+    m = re.search(r"pixel\(orange part\)=\((\d+), (\d+), (\d+)\)", reopened)
+    c.check("the engine's pixels at the image are not white", bool(m) and min(int(x) for x in m.groups()) < 200, reopened[-160:] or "missing")
+
+    def taller(key):
+        v = c.first(key) or ""
+        png = re.search(r"png=(\d+)x(\d+)", v)
+        vp = re.search(r"viewport=([\d.]+)x([\d.]+) pt scale=([\d.]+)", v)
+        return bool(png and vp) and int(png.group(2)) > float(vp.group(2)) * float(vp.group(3)), v
+    ok, v = taller("engine_fullpage")
+    c.check("sendDevToolsCommand: a full-page PNG taller than the viewport", ok, v or "missing")
+    ok, v = taller("engine_fullpage_devtools_open")
+    c.check("the same with DevTools' front-end open", ok, v or "missing")
+    after = c.first("engine_fullpage_viewport_after") or ""
+    m = re.match(r"before=(\S+) after=(\S+)", after)
+    c.check("the page's viewport is unchanged after the capture", bool(m) and m.group(1) == m.group(2), after or "missing")
+    c.contains("engine_devtools_unknown", "error", "wasn", label="an unknown protocol method answers an error")
+    c.contains("pdf_opened", "application", "pdf", label="a PDF opens in Chrome's viewer on a Room page")
+    m = re.search(r"([\d.]+) % not white", c.first("pdf_rendered") or "")
+    c.check("the viewer painted (the engine's capture is not blank)", bool(m) and float(m.group(1)) > 5, c.first("pdf_rendered") or "missing")
+    c.contains("pdf_find", "matches=3", "final=true", "next → active=2", label="⌘F's find in the PDF: three matches, stepping")
+    c.contains("pdf_zoom", "zoomFactor=1.5", "drawing_changed=true", label="zoom redraws the PDF")
+    c.contains("pdf_print", "NativeWidgetMac", label="print: Chrome's preview over the window")
+    c.contains("pdf_print_closed", "closed by Esc", label="Esc closes the preview")
+    c.contains("pdf_toolbar_save", "save panel", 'proposed "sample.pdf"', label="the viewer's Download opens Chrome's save panel for sample.pdf (the landing is by hand)")
+    c.contains("pdf_download_launch", "pdfsOpenInRoom=false", '"RoomPdfsDownload"', label="PDFs ▸ Download passes RoomPdfsDownload at the next launch")
+    c.contains("pdf_download", "downloaded=true", ".pdf complete", label="then a PDF navigation downloads the file")
+    c.contains("viewsource_menu", "below_entry=true", "selected=true", "url=view-source:", '\\"mentions\\":true', label="View Source: view-source: under the entry, shown, the page's source")
+    c.contains("viewsource_context_menu", "offered=true", "position_from_page=1", "url=view-source:", label="the context menu's View Page Source opens it under the page")
+    c.contains("savepage_panel", "Web Page, Complete", "Web Archive (MHTML)", ".mhtml\"", label="Save Page…: the panel with the formats; MHTML renames the file")
+    c.contains("savepage_written", "true in", 'toast="Saved', "action=Show", label="the panel's Save writes the file; a toast with Show")
+    c.contains("savepage_reopened", "image=[true,240,120]", label="the saved MHTML reopens with its image")
+    c.contains("savepage_pdf", "cannot be saved", label="a page Chromium cannot save says so")
+    c.contains("screenshot_overlay", "shown=true", "first_responder=true", label="⇧⌘2: the overlay over the page with the keyboard")
+    drag = c.first("screenshot_drag") or ""
+    m = re.search(r"image=(\d+)x(\d+) px \(expected ([\d.]+)x([\d.]+)", drag)
+    c.check("a dragged rectangle: the capture cut to it at the backing scale (±1 px)",
+            bool(m) and abs(int(m.group(1)) - float(m.group(3))) <= 1 and abs(int(m.group(2)) - float(m.group(4))) <= 1 and "bar=true" in drag, drag or "missing")
+    copy = c.first("screenshot_copy") or ""
+    mp = re.search(r"png=(\d+)x(\d+)", copy)
+    c.check("Copy: the pasteboard holds a PNG of the selection's size", bool(m and mp) and (mp.group(1), mp.group(2)) == (m.group(1), m.group(2)) and "overlay_closed=true" in copy,
+            copy or "missing")
+    px = re.search(r"pixel@\(1/2,1/4\)=\((\d+), (\d+), (\d+)\)", copy)
+    c.check("the copied pixels are the swatch's, not white", bool(px) and min(int(x) for x in px.groups()) < 200, copy[-120:] or "missing")
+    save = c.first("screenshot_save") or ""
+    mi = re.search(r"image=(\d+)x(\d+) px", save)
+    mf = re.search(r"png=(\d+)x(\d+)", save)
+    c.check("Return then Save: the viewport's PNG in the downloads folder, a toast with Show",
+            "return_captured=true" in save and "file=Screenshot " in save and bool(mi and mf) and mi.groups() == mf.groups() and "show=Show" in save, save or "missing")
+    c.contains("screenshot_open_as_tab", "url=Screenshot", "selected=true", "image=[", label="Open as Tab: a file:// Today tab under the page, shown")
+    c.contains("screenshot_escape", "closed=true", label="Esc cancels the overlay")
+    c.contains("screenshot_full_page", "true in", "taller=true", label="Full Page: the whole page, taller than the viewport")
+    c.contains("screenshot_full_page_saved", "png=", label="the full page saved")
+    for key in ("engine_save_completeHTML", "engine_save_mhtml", "engine_fullpage", "pdf_opened", "pdf_find", "pdf_print",
+                "viewsource_menu", "viewsource_context_menu", "savepage_written", "screenshot_drag", "screenshot_full_page"):
+        c.number(key)
+
+
 @step_check("extensions")
 def _extensions(c):
     """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the

@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -267,6 +267,11 @@ for appearance in "${appearances[@]}"; do
   # Playing info and a play/pause command, document PiP in its floating panel, video PiP's overlay window.
   # On its own state and engine directories; serves research/spikes on :8776.
   run media scripts/media-check.sh "$CAPS/media"
+  # 4.7a: documents: Save Page (HTML, complete, MHTML reopened with its image) and a full-page capture
+  # through the engine; Chrome's PDF viewer (render, find, zoom, print, its Download's panel) and PDFs ▸
+  # Download at the next launch; View Source (menu, context menu); Save Page…'s panel; ⇧⌘2's overlay
+  # (a rectangle copied, the viewport saved, Open as Tab, Esc, the full page). Own state; :8777.
+  run documents scripts/documents-check.sh "$CAPS/documents"
 
   group=layoutmodes
   ROOM_CAPTURE_DIR="$CAPS/layoutmodes" run layoutmodes scripts/layout-modes.sh "$appearance"

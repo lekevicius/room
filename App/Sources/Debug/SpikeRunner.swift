@@ -87,6 +87,7 @@ enum SpikeRunner {
         case "extpopup": await context.extensionPopupChecks()
         case "extux": await context.extensionsUXChecks()
         case "media": await context.mediaChecks()
+        case "documents": await context.documentsChecks()
         case "passwords": await context.passwordsChecks()
         case "autofill": await context.autofillChecks()
         case "session": await context.sessionChecks()
