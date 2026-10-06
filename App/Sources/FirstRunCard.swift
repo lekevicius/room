@@ -5,7 +5,7 @@ import Omnibox
 import SwiftUI
 
 /// The first-run card (ROADMAP 2.8 task 4, `macos-ui-stack.md` §7.4: an
-/// in-sidebar card, never a modal): the default search engine, the
+/// in-sidebar card, never a modal): import from another browser (4.3b), the default search engine, the
 /// default-browser offer and the two opt-ins, in the sidebar above its
 /// footer (`SidebarBodyView.accessoryView`), so it shows docked on either
 /// side and in the hidden sidebar's overlay. An AppKit surface with a
@@ -14,9 +14,15 @@ final class FirstRunCardView: NSView {
     /// A controller for its `sizeThatFits(in:)` (the height at the sidebar's width).
     private let hosting: NSHostingController<FirstRunCardContent>
 
-    init(firstRun: FirstRun, defaultBrowser: DefaultBrowser, crashReportsUnavailable: Bool, onDone: @escaping () -> Void) {
+    /// "Import from another browser…" (4.3b): the import sheet.
+    let onImport: () -> Void
+
+    init(firstRun: FirstRun, defaultBrowser: DefaultBrowser, crashReportsUnavailable: Bool, onImport: @escaping () -> Void,
+         onDone: @escaping () -> Void) {
+        self.onImport = onImport
         hosting = NSHostingController(rootView: FirstRunCardContent(firstRun: firstRun, defaultBrowser: defaultBrowser,
-                                                              crashReportsUnavailable: crashReportsUnavailable, onDone: onDone))
+                                                              crashReportsUnavailable: crashReportsUnavailable, onImport: onImport,
+                                                              onDone: onDone))
         super.init(frame: .zero)
         setAccessibilityIdentifier("first-run-card")
         wantsLayer = true
@@ -58,6 +64,7 @@ private struct FirstRunCardContent: View {
     let firstRun: FirstRun
     let defaultBrowser: DefaultBrowser
     let crashReportsUnavailable: Bool
+    let onImport: () -> Void
     let onDone: () -> Void
 
     var body: some View {
@@ -69,6 +76,7 @@ private struct FirstRunCardContent: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Button("Import from another browser…", action: onImport)
             Picker("Search with", selection: Binding(get: { firstRun.searchEngine }, set: { firstRun.searchEngine = $0 })) {
                 ForEach(SearchEngine.all) { engine in Text(engine.name).tag(engine.id) }
             }

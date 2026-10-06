@@ -43,8 +43,11 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private let tabs = SettingsTabsController()
+    /// What the sections reach (the import spike calls `showImportSheet` as General's button does).
+    let services: SettingsServices
 
     init(settings: SettingsStore, services: SettingsServices) {
+        self.services = services
         tabs.tabStyle = .toolbar
         for section in Section.allCases {
             let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings, services: services))
@@ -97,6 +100,8 @@ struct SettingsServices {
     let sidebar: SidebarStore
     /// The routing sheet over the Settings window.
     let showRoutingRules: () -> Void
+    /// The import sheet over the browser window (4.3b: General ▸ Import…).
+    let showImportSheet: () -> Void
 }
 
 private struct SettingsSectionView: View {
@@ -175,6 +180,15 @@ private struct SettingsSectionView: View {
                 Text("Archive tabs after")
                 Text("Today tabs you have not used for this long move to the Archive (⇧⌘L); the selected one and tabs playing sound, "
                      + "using the camera or holding unsaved form input stay.")
+            }
+        }
+        Section("Import") {
+            LabeledContent {
+                Button("Import…") { services.showImportSheet() }
+            } label: {
+                Text("Import from another browser")
+                Text("Bookmarks, history, Arc's sidebar, passwords from an exported CSV and extensions from the Chrome Web Store. "
+                     + "Cookies and site data are not imported.")
             }
         }
         Section {

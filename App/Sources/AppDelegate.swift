@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The import sheet while it shows (`ImportUI.swift`, 4.3a).
     var importSheet: NSWindow?
     var importModel: ImportSheetModel?
+    /// The other browser's extensions' store pages, opening one at a time (4.3b).
+    var extensionStorePages: ExtensionStorePages?
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
@@ -284,7 +286,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let body = sidebar.bodyView
         if showing, firstRunCard == nil, let firstRun {
             let card = FirstRunCardView(firstRun: firstRun, defaultBrowser: defaultBrowser,
-                                        crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true) { [weak firstRun] in
+                                        crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
+                                        onImport: { [weak self] in self?.showImportSheet(nil) }) { [weak firstRun] in
                 firstRun?.finish()
             }
             firstRunCard = card
@@ -1120,7 +1123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
                 extensions: { [weak self] in self?.extensions },
                 sidebar: store.sidebar,
-                showRoutingRules: { [weak self] in self?.showRoutingRules(over: self?.settingsWindow?.window) })
+                showRoutingRules: { [weak self] in self?.showRoutingRules(over: self?.settingsWindow?.window) },
+                showImportSheet: { [weak self] in self?.showImportSheet(nil) })
             settingsWindow = SettingsWindowController(settings: store.settings, services: services)
         }
         settingsWindow?.showWindow(nil)
