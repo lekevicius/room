@@ -1,0 +1,194 @@
+# Chapter 4 review — a complete browser
+
+Date: 2026-10-07. **Draft** by the implementer (Phase 4.9, one session), written while the full tour ran on the dev build and then on the release framework; sections 2 and 3 filled in from those runs. The planner's columns and closing are left empty, and the Chapter 5 spec (section 9) is the planner's to confirm or amend. Phases 4.1–4.8 are done (reviews in `docs/progress.md`); numbers come from `research/notes/spike-results.md` ("Phase 4.1a" … "Phase 4.9 — the full tour"), the build costs from `research/notes/build-log.md`, the planner's per-session decisions from `research/notes/chapter-4-loop.md`.
+
+## 1. End state against the ROADMAP
+
+Chapter 4's end state: "Nothing you need from Arc or Chrome is missing for everyday use: Today tabs archive themselves and come back from a Library, the sidebar has rolling backups and a Restore, external links route to spaces, another browser's bookmarks, history, passwords and Arc's sidebar import, every setting and every shortcut is in one Settings window, extensions are managed, pinned and scoped per site the way Chrome allows, media has a row and the media keys, PDFs, reader mode, screenshots and saved pages work, and Room runs several windows and an incognito one. The chapter ends with the full tour on one build, the review, and a signed DMG."
+
+| Part of the end state (ROADMAP Chapter 4) | Status | Evidence | Open |
+|---|---|---|---|
+| Today tabs archive themselves and come back from a Library (4.1a) | done | schema v7 `archive`; the sweep at launch and every 10 min idle with the engine's blockers; ⇧⌘L / ⌘Y Library in the sidebar (Archive, Downloads, History with `history-archive.json`); the palette's Archived chip; tour step `archive` 28 / 28 on both builds (4.1a); retention 30 days / navigation states 7 days (B-80); kill test 100 / 0 with 18k rows, commit median 11.41–11.67 ms, p95 15.67–16.65 ms (3.9-2 without an Archive: 5.91–8.31 / 9.47–13.77) | by-hand 1–7; the writer's per-commit diff of the Archive (B-80's rest, 5.4) |
+| Rolling backups and a Restore; a crash costs nothing (4.1b) | done | `VACUUM INTO` on Arc's schedule (`BackupPlanner` tests on a fake clock), Help ▸ Restore Sidebar…, the JSON snapshot without navigation states (5.76 MB → 157 KB, B-73), crash relaunch with every entry unloaded and the toast; `recovery` 18 / 18 on both builds; `removeDownload` holds across a relaunch on both builds (B-59) | by-hand 8–10 (is the 2 s crash toast long enough?) |
+| External links route to spaces; Peek's last gaps (4.2) | done | schema v8 `routing_rule`, `contains` / `equals` / regex (refused at entry), the default "most recent space", the toast with Switch, the sheet from three entry points; `routing` 25 / 25 and the Peek table 35 / 35 on both builds; a Peek page's fullscreen expands it first (B-35); Peek's first paint on the release framework 69.54 ms median (B-57 closed as the dev build's) | B-83 (fullscreen restore during the enter animation, 5.6); by-hand 11–19 (a link from Mail needs the DMG as the default browser) |
+| Another browser's bookmarks, history, passwords and Arc's sidebar import (4.3) | done on fixtures | `Packages/Import` (Chrome-family, Safari, Netscape, Firefox, Arc), the preview equal to what lands (`equal=true` ×4), passwords through Chrome's own `PasswordImporter` filling after a relaunch on both builds, extensions through their store pages one at a time; `import` 51 / 51 on both builds; 5,000 bookmarks + 50,000 URLs in 2.0 s on release (B-84) | the user's real Chrome, Arc, Safari and a CSV (by-hand 25–28; the first real `StorableSidebar.json` is Chapter 4 risk 4); B-85 (604 ms main-thread stall in the sidebar write, 5.4) |
+| Every setting and every shortcut in one Settings window (4.4) | done | `ShortcutTable` remapping (menu, palette hints, the reserved set following), Settings ▸ General, Search per profile, Downloads, Spaces & Profiles (rename keyed by id, B-22; delete), Privacy (permissions per site, Clear Browsing Data, the Google-service statements), palette commands per section; `settings` 32 / 32 and `settings2` 26 / 26 on both builds; net-log 0 engine requests over launch + 600 s idle + browse + quit | B-86's real ⌥ keys (by-hand 30); B-87 (Chrome's best-effort work waits 3 min, 5.4); B-88 (Chrome's Settings WebUI for site data, 5.6); by-hand 30–39 |
+| Extensions managed, pinned and scoped per site (4.5) | done | site access per extension (On click, On this site, On all sites), Run from the site panel, commands with the sidebar focused (B-70), the overflow menu with badges, details, extension pages in their profile's space (B-67); `extpopup` 18 / 18 and `extensions` 33 / 33 on both builds; the extension's own request attributed to `chrome-extension://…`, the engine's 0 | the three store extensions by hand (40–44); B-89 (two puzzle glyphs, 5.2); tracking protection in the site panel (B-30's rest); no native messaging hosts (B-69, decided) |
+| Media has a row and the media keys (4.6) | done (the physical key by hand) | five `mediaSession` controls, the row above the footer, document PiP in a floating panel (B-51), video PiP's overlay; Now Playing filled by Chrome's own `SystemMediaControls` with no host code (MediaRemote's pause reached the page in 23–30 ms); `media` 32 / 32 on both builds | the physical play/pause key and Control Center (by-hand 48); B-62 (Web Serial / Bluetooth hang) waits for the user's laptop run |
+| PDFs, reader mode, screenshots and saved pages work (4.7) | done | Chrome's PDF viewer with Room's find bar (no host fix), Save Page… (HTML, complete, MHTML reopened with its images), ⇧⌘2 crop with Copy, Save, Open as Tab and Full Page (2068 × 8000 px in 151–168 ms), View Source, reader mode (the distiller in the isolated world, 107 ms to the reader page on release, under a strict CSP too), Page Setup, ⌘P by keyboard; `documents` 42 / 42 and `reader` 34 / 34 on both builds; translate absent without a key, as decided (B-63) | the save panels' landings (by-hand 55, 62: out of process on macOS 26); live articles (60); B-91, B-94 (5.6), B-95 (5.7); B-92 done in 4.9 |
+| Several windows and an incognito one (4.8) | done | schema v9 `entry.windowID`, a `WindowSession` per window, shared spaces / pinned / essentials, Today tabs per window archived on close, restore of every window, the drag out; the page moved between windows through Chrome's strip in 6 ms as the same page (4.8a's unload path 82 ms); incognito on the profile's off-the-record twin with an ephemeral store, no save bubble, extensions per "Allow in incognito", 0 engine hosts; `windows` 31 / 31 and `incognito` 20 / 20 on the release framework | B-96 (slide-back, 5.5), B-97 (rows no longer drag URLs out, **user**), B-98 (one incognito window per profile, **user**, 5.6); by-hand 65–74 |
+| The full tour on one build (4.9) | **done for what Chapter 4 owns** | 47 steps per appearance on the dev build (light 893 / 15, dark 894 / 14 of 908; 61.6 min) and on the release framework (light 899 / 5, dark 897 / 7 of 904; 45.9 min); every failure attributed (section 2): four harness faults fixed and rerun, one product line fixed (`1555793`), the rest B-53, B-56, B-76, B-82's design or a run condition with a passing standalone rerun; 0 minidumps on the release framework | B-99 (a cookie left by Clear in the shared state, not reproduced), B-100 (`import`'s history check in the shared state) |
+| The review (4.9) | this draft | — | the planner's columns, closing and the Chapter 5 confirmation |
+| A signed DMG (4.9) | build 10 stands unless the planner builds 11 | `build/sparkle-4.8/Room-0.1.0-10.dmg` (188,415,784 B; the 4.8b framework, `RoomCoreCommit 5c039c3`, notarized and stapled by the planner's loop); `//room` unchanged since, so no official build in 4.9; this session's only product change is B-92 (`App/`, `Packages/Chrome`, `Packages/Design`) | the planner's call: build 11 (`--release --app-only`, sign, DMG) for B-92, or build 10 as the chapter's DMG |
+| "Nothing you need from Arc or Chrome is missing for everyday use" | not judged by any session | no "3.9 week" row arrived during the chapter (`chapter-4-loop.md`: "No '3.9 week' rows yet" at every fold-in), so the spec's choices were never tested against the user's use | the user's pass of the by-hand list (74 steps) on build 10 and the week's rows |
+
+What the chapter built, in size: section 4.
+
+## 2. The grand tour
+
+`scripts/grand-tour.sh` runs **47 steps** per appearance on one state: Chapter 3's 34 (every Chapter 1–2 spike, the kill test, the snapshot runners, the net-log) and the chapter's 13 (`archive`, `recovery`, `routing`, `import`, `settings`, `settings2`, `extpopup`, `extensions`, `media`, `documents`, `reader`, `windows`, `incognito`; the last ten on their own state and engine directories inside the tour). Through the chapter each phase ran its own steps on both builds; 4.9 ran the whole tour once per build (`spike-results.md` "Phase 4.9 — the full tour"). Conditions: the Mac mini at 1920 × 1080 @ 60 Hz, the Claude desktop app frontmost, no Chromium build, load1 7.13 (dev) and 8.85 (release) at the start.
+
+| Run | Wall time | Light | Dark | Minidumps per appearance |
+|---|---|---|---|---|
+| Dev build (`20261007-045544`) | 61.6 min (31.6 + 30.0) | **893 / 15** of 908 | **894 / 14** of 908 | 11 DCHECKs (B-76) + `chrome26b`'s intended crash |
+| Dev build, the same outputs with the three fixed checks | — | 896 / 12 | 897 / 11 | — |
+| Release framework (`20261007-060609`, the app with this session's fixes) | 45.9 min (22.8 + 23.1) | **899 / 5** of 904 | **897 / 7** of 904 | **0** + `chrome26b`'s intended crash |
+| Chapter 3's exit tour (3.9-2, dev) | 41.4 min | 505 / 6 of 511 | 505 / 6 of 511 | 9–10 DCHECKs |
+
+| Step | Build | Light / dark | Cause | Row |
+|---|---|---|---|---|
+| memory, open10, quittiming, palette, windows | dev | both | the dev build's Blink DCHECKs on live sites (4 + 1 + 3 + 1 + 2 minidumps, `layout_object.h:518` and `inline_node.cc:2297`); 0 on release | B-76 (condition) |
+| cookies | dev | both | harness: the check wanted name-keyed engine directories; 4.4b keyed them by id (B-22); fixed, rerun 14 / 14 | `e1d91e1` |
+| palette2 (`>re`) | dev | both | harness: 4.7's Capture Screenshot and Reader Mode also match `>re`; fixed, rerun 26 / 26 | `e1d91e1` |
+| app28b | dev | both | harness: the spike read the window it had closed; 4.8a reopens the kept row as a new window; fixed, rerun 25 / 25, passes in the release tour | `e1d91e1` |
+| app28a | dev | both | **product**: 4.4b's Room ▸ Settings Section items had no menu validator; one line, rerun 29 / 29, passes in the release tour | `1555793` |
+| import (history search) | both | both | harness, partly fixed: the shared state's generated history outranks the imported row; the title match passes with palettemeasure's rows (65 / 65) but not in the full tour | B-100 |
+| tabs | both | both | renderers 15 → 16 after seven discards | B-56 |
+| tabsmeasure | dev / release | both | switching: dev 16.23–17.13 / 19.02–19.47 ms; release median passes (14.20 / 15.72), p95 17.27 / 18.26 ms | B-53 |
+| settings2 (Clear, last hour) | dev | light only | a cookie survived the clear in the shared state; standalone, dark and release passed | B-99 |
+| palette2 (the chip vs Chrome's `LocationBarModel`) | release | both | the check needs a spike hook the official framework does not have (B-82's guard); the host half passed; dev passed | B-82 (by design) |
+| layoutmodes (reveal slide) | release | dark only | one frame of 72 at 26.2 ms: condition; rerun 55 / 55 with `incognito` | — |
+| incognito (Open Link in Incognito Window) | release | dark only | the menu item not found with another app key: activation condition; rerun found it, 52 ms | — |
+
+**Green for what Chapter 4 owns**: every failure in a Chapter 4 step is a harness fault fixed and rerun (`cookies`' and `app28b`'s checks met Chapter 4's id-keyed directories and windows; `palette2`'s met 4.7's commands), a product line fixed and rerun (`app28a`), a run condition with a passing rerun, or a row (B-99, B-100); the rest are Chapter 3's known rows (B-53, B-56) and the dev build's stated condition (B-76). On the release framework the 47 steps leave **0 minidumps**. Not green: B-99 (a privacy expectation that held in three of four runs) and B-100 (a check that cannot yet pass in the shared state) stay open.
+
+## 3. Numbers
+
+The Chapter 3 review's table, with Chapter 4's release-framework rows beside 3.9-2's release rows. "Chapter 4 phase" is the phase's own standalone measurement on the release framework; "4.9 tour" the full tour on the release framework (light / dark; the dev build's in `spike-results.md`). Conditions: Mac mini M4, 24 GB, 60 Hz, window key unless the Claude app held it, load1 6–9 on the release tour.
+
+| Measure | 3.9-2 release on 155 | Chapter 4 phase (release framework) | 4.9 tour, release framework (light / dark) |
+|---|---|---|---|
+| Memory, baseline (summed RSS) | 559 MB | 568 / 565 MB (4.8a, a fresh state) | 731 / 745 MB (the tour's state) |
+| 10 hidden pages (memory) | 4,097 MB, 17 renderers | — | 4,641 / 4,433 MB, 21 / 18 renderers |
+| 10 loaded of 50 entries (tabsmeasure) | 4,801 MB, 19 renderers | — | 4,448 / 4,499 MB, 17 renderers |
+| Ten live pages, one window → two windows | — | 4,628 → 4,653 MB, 20 → 20 renderers (4.8a); 4,178 → 4,555 MB, 16 → 20 (4.8b) | 3,046 → 4,633 and 3,293 → 4,664 MB, 16–17 → 20 renderers |
+| Tab switch: click → committed, median / p95 | 12.88 / 20.87 ms | — | 14.20 / 17.27 and 15.72 / 18.26 ms (B-53: the p95) |
+| Relaunch: load start; selected loaded | 0.56 s; 1.33 s | — | 0.65 s; 0.78 s and 0.65 s; 1.26 s |
+| Quit with ten pages | 0.24–0.30 s | embryo baselines 0.277–0.387 s (seven engine steps, dev) | 0.31–0.37 and 0.29–0.30 s, 0 helpers |
+| Peek decision → first paint (median) | — (dev 110–469 ms) | **69.54 ms** (4.2; B-57 closed) | 76.5 / 76.9 ms |
+| The state open | 11.9–12.1 ms on the 50k state (3.9-1, dev) | — | 5.1 / 5.2 ms (a fresh state's first launch) |
+| Kill test, 100 kills: commit median / p95 | 5.91–8.31 / 9.47–13.77 ms (3.9-2, dev, no Archive) | 11.41 / 15.67 ms with 18k Archive rows (4.1a, dev), 11.67 / 16.65 ms after the retention (4.1b) | 16.54 / 24.32 and 16.17 / 24.62 ms, 0 failures (the tour's state, Archive and windows) |
+| Import 5,000 bookmarks + 50,000 URLs | — | 2.0 s, the main thread's longest stall 604 ms (4.3b, B-85) | — |
+| ⌘N; the page moved to another window; ⇧⌘N | — | 62.2 ms; 82 ms by unload (4.8a) → **6 ms** by `move(toHostWindow:)` (4.8b); 49.6 ms | 68.6 / 67.6 ms; 6 / 6 ms; 53.3 / 47.5 ms |
+| ⌥⇧⌘R → reader page; the PDF fixture loaded | — | 107 ms (4.7b); 349 ms (4.7a) | 104 / 106 ms; 340 / 340 ms |
+| Incremental official build after a `//room` change | — (clean: 4 h 15 min) | **444–543 s of build, 8 min 5 s – 9 min 47 s wall**, seven builds (4.1b, 4.3b, 4.4b, 4.5, 4.6, 4.7a, 4.8b) | none (no `//room` change in 4.9) |
+| `roomcore-package.sh --release` | 87 s | 79–173 s | — |
+| DMG | 186,841,560 B (178 MiB) | builds 2–10: 187,137,971 → 188,415,784 B (178.5 → 179.7 MiB; build 7 never built) | build 10 stands (the planner's call on 11) |
+| Cold launch to a page (Release app) | 0.457 s | — | not measured (no release app built in 4.9) |
+| Engine requests (net-log) | 0 | 0 over launch + 600 s idle + browse + quit (4.4b); 0 with an incognito window (4.8b); the extension's own request attributed apart (4.5) | 0 / 0 hosts |
+
+What the rows say: the chapter's features added no engine request and no crash on the release framework; the new interactions are fast on the release framework (a window move 6 ms, ⌘N 68 ms, reader mode 105 ms, Peek's first paint 70–77 ms); memory and switching are where Chapter 3 left them (B-53's p95 17–18 ms in the tour, B-56 unchanged, the per-day live-site spread ~0.4 GB at ten pages); the kill test's commit time has roughly doubled since 3.9-2 (5.9–8.3 → 16.2–16.5 ms median on a state with Archive rows and windows, B-80's diff, 5.4).
+
+## 4. What Chapter 4 built, in size
+
+**The engine steps and the `//room` surface they cost.** Seven engine steps, each one `//room` incremental of `out/dev`, `scripts/roomcore-package.sh`, the baseline, then one incremental official build from bash with nohup beside the app work and a DMG after it (the rule 4.1b's measurement set). Lines are the session entries' counts (the files' diffs against the step's parent; `git diff --shortstat` over `Engine/roomcore/room` for the chapter: 25 files, +2,092 / −26).
+
+| Step | Members (the `Engine` protocol) | `//room` lines | Dev incremental | Official incremental: build / wall; `//room` objects; framework link | `--release` | DMG |
+|---|---|---|---|---|---|---|
+| 4.1b | `Profile.removeDownload(id:)` | +23 (4 files) | 59 s | 404 s / 8 min 5 s; 13; 353.4 s at 8.58 GiB | 79 s | build 2, 187,137,971 B |
+| 4.3b | `Profile.importPasswords(csv:conflicts:)` | +314 (5 files; `BUILD.gn` +8) | 91 s | 538 s / 9 min 39 s; 14; 407 s at 7.95 GiB | 125 s | build 4, 187,630,569 B |
+| 4.4b | `EngineApplication.deleteProfile`, `Profile.clearBrowsingData(_:since:)`, `Profile.contentSettings(ofType:)`; the spelling default and B-74's item; B-86's copy | +455 / −3 (10 files) | 98 s (+54 s) | 543 s / 9 min 47 s; 15; 408.1 s at 7.36 GiB | 117 s | build 5, 187,951,482 B |
+| 4.5 | `siteAccess(for:extension:)`, `setSiteAccess(_:for:host:)`, `runAction(for:in:)`, `commands(for:)`, `performCommand(_:for:in:)`; `InstalledExtension.directory` | +425 (4 files) | 65 s | 444 s / 8 min 6 s; 6; 387.4 s at 7.75 GiB | 153 s | build 6, 188,111,569 B |
+| 4.6 | `mediaPlay`, `mediaPause`, `mediaNextTrack`, `mediaPreviousTrack`, `mediaSeek(to:)`; `MediaSessionInfo.actions`, `.position`, `.artwork` | +191 / −10 (3 files) | 71 s | 495 s / 8 min 58 s; 14; 425.1 s at 7.95 GiB | 126 s | build 7 **never built** (Apple's queue) |
+| 4.7a | `savePage(as:to:)`, `sendDevToolsCommand(_:params:)`; the PDFs default through a feature; B-90 | +324 / −2 (4 files) | 78 s | 486 s / 8 min 48 s; 15; 421.6 s at 7.47 GiB | 173 s | build 8, 188,211,438 B (4.7b: build 9 app-only, 188,328,381 B) |
+| 4.8b | `move(toHostWindow:)`, `Profile.offTheRecord()` / `closeOffTheRecord()`, `setAllowedInIncognito(_:extension:)`; patch 0014's hook answering the twin's Browser | +364 / −15 (12 files) | 66 s | 472 s / 8 min 36 s; 19; 407.5 s at 8.21 GiB | 135.5 s | build 10, 188,415,784 B |
+| **Chapter** | twelve members as the planner counts them (the spec's eleven named plus `setAllowedInIncognito`; `engine-api.md` numbered the named ones 1–12 because `offTheRecord` and the move are two rows), plus the small off-list additions accepted at the fold-ins (`runAction`, `closeOffTheRecord`, `InstalledExtension.directory`, the session fields) | **+2,096 / −30** in the session counts | 59–98 s | **444–543 s of build, 8 min 5 s – 9 min 47 s wall** (3.9-2's clean official build: 4 h 15 min) | 79–173 s | eight DMGs (builds 2–10, 7 lost) |
+
+Every member is a method or property on an existing RoomCore class with Foundation answers (dictionaries, `NS_ENUM`s, an `NSError` in a literal domain): **no new exported class**, so `room_core.exports` and the official build's export-order check (B-77) never moved, and all seven official builds passed it. **No patch: the series is 23 at the end as at the start** (the one exception the user allowed, incognito, went unused: patch 0014's existing disposition hook answers the twin's Browser). `Packages/EngineRoomCore` +373 / −9 in the chapter (two Swift-only lifetime fixes after an official build had started, B-81's second form and 4.8b's closed twin, both accepted because the framework did not change).
+
+**The app.** `App/` and `Packages/` +23,045 / −502 lines in 186 files since 4.1a's first commit (`d0f3e82^..HEAD`, this session's B-92 included), of which the DEBUG spikes in `App/Sources/Debug` +4,601 and the packages' tests +1,718; `scripts/` +2,220 (the tour steps' wrappers and `tour_checks.py`). Two packages added: **Library** (863 lines of sources, 2 tests) and **Import** (2,045 lines, 32 tests over its fixtures). Schema v6 → **v9** (the Archive, routing rules, Today tabs per window), each migration additive.
+
+**Tests by package** (the unit tier with `CI=1`, from the last local CI spec run, `build/ci-local-4.8b-after-push.log`, 647 tests; 4.9's run after the push adds B-92's test to Chrome: see section 6): Model 111, Tabs 85, Engine 80, Chrome 72 (73 after 4.9), Store 58, UIKitCore 56, Omnibox 51, Sidebar 43, Import 32, Palette 24, Card 14, Integration 10, Design 9, Library 2. Chapter 3 ended at 465 in 12 packages: **+182**, Import and Library new; the largest growth Model +36, Tabs +23, Engine +22, Chrome +21, Store +23, Omnibox +8.
+
+## 5. What surprised us
+
+1. **Chrome holds its best-effort work until a startup signal Room never sends.** `ProfileManager`'s directory deletion (and every `BEST_EFFORT` / after-startup task) waited 177 s in Room because Chrome marks startup complete on its first browser window's paint, which a Room window never is (4.4b, B-87). `deleteProfile` deletes the directory itself at user-visible priority; what else Chrome defers that way is 5.4's question.
+2. **Chrome forbids a keep-alive on an off-the-record profile.** `ProfileManager::AddKeepAlive` CHECKs that the profile is not off the record, so 3.4b's lesson (a profile dies with its last Browser) came back in another form: RoomCore holds the twin with a headless Browser of its own (4.8b). A closed twin's Browser wrappers then outlived nothing they should: freed while Chrome's window still called into them (EXC_BAD_ACCESS at the quit; Swift-only fix `cf75d97`).
+3. **Incognito needed no patch.** The user allowed one; patch 0014's hook already sees `OFF_THE_RECORD` before Chrome picks a Browser and may answer any Browser, so "Open Link in Incognito Window" lands in Room's incognito window with the series still at 23 (4.8b).
+4. **Moving a page between windows is Chrome's own tab drag.** `DetachTabAtForInsertion` + `InsertDetachedTabAt` between two Room Browsers moved the page with its renderer and history in 6 ms on release (8 ms on dev), the same `WebContentsViewCocoa`, where 4.8a's unload-and-reload took 82 ms on release and 1,582 ms on dev.
+5. **Now Playing worked with no host code.** Chrome's `SystemMediaControls` fills macOS's Now Playing from a Room window and answers MediaRemote's commands (pause reached the page in 23–30 ms); the planned `MPRemoteCommandCenter` handlers would have competed with it (4.6).
+6. **macOS 26's save panels are out of process.** `-[NSSavePanel ok:]` raises "not implemented" and a panel's folder or name cannot be set while it shows (ViewBridge), so no session can land a file from Chrome's or Room's save panel (4.4a, 4.7a, 4.7b); every landing went onto the by-hand list (34, 55, 57, 62). Together with `AXIsProcessTrusted` false (no synthetic media key, 4.6), the machine's limits, not the code, set the by-hand list's size.
+7. **A DMG can be lost to Apple's notarization queue.** Submissions took 70–85 s all night until one did not return within 30 minutes (4.6, 00:35); build 7 was abandoned and build 8 carried its work. GitHub Actions stopped the same night on a billing hold (B-93): since 4.7a "CI green" means the CI spec built and tested locally.
+8. **The official build is cheap after a `//room` change.** Seven incremental official builds took 444–543 s of build (8–10 min wall: 6–19 `//room` objects and the framework's ThinLTO link, 353–425 s at 7.4–8.6 GiB) against 4 h 15 min clean, so a signed DMG followed every engine step instead of waiting for 4.9 (4.1b's measurement decided the rule). The constraint that kept it cheap was B-77's: no new exported class, every answer a Foundation value.
+9. **A second window costs almost nothing; the sites do.** Ten live pages over two windows 4,653 MB against 4,628 MB in one on the release framework, 20 renderers both (4.8a: +25 MB for the per-window `RoomBrowser`s and host objects); 4.8b's rerun on fresh launches read 4,178 MB (16 renderers) and 4,555 MB (20): the renderer count follows the live sites' process allocation, not the window count.
+10. **A Browser emptied by the host is scheduled for deletion in the same turn.** Restore Sidebar unloaded every page and Chrome scheduled the window's `Browser` for deletion while RoomCore handed it out again (`browser.cc:645 !IsDeleteScheduled()`, 4.1b); the first engine-side fix crashed with SIGBUS, the second (retire at `browserWillClose`, hold until `browserDidClose`) held (4.3b, B-81).
+11. **An ⌥ shortcut stops matching its menu item once the page has handled the event** (B-86, 4.4a): AppKit's `performKeyEquivalent` fails on the original `NSEvent` for a key whose character ⌥ changes ("π" for ⌥⌘P); a fresh copy of the event matches. Found by the remapping tests, fixed host-side and on RoomCore's reserved path.
+12. **Chrome's own surfaces needed less than planned.** The PDF viewer needed no host fix (find is Room's bar over `FindTabHelper`, 4.7a); the DevTools member works beside DevTools' own front-end (two clients, 4.7a); the distiller ran in the isolated world even under a strict page CSP, but only through Chrome's current wrapper (the older `Object.create(window)` wrapper throws "Illegal invocation", 4.7b); `chrome://settings/content/all` renders in a Room tab (with all of Chrome's Settings around it, B-88).
+13. **The week's notes never arrived.** Every fold-in recorded "No '3.9 week' rows yet"; the chapter ran on the spec written before the week (Chapter 4 risk 1 in full), and the only user input was the decisions of 2026-10-06.
+
+## 6. Test tiers
+
+Unit tier (CI, blocking): **647 tests in 14 packages** at 4.8b's push (section 4), **648** after this session's B-92 test (Chrome 73); the CI spec (`xcodegen/ci.yml`, the engine-free Room target, `CI=1`) built and tested locally after every push since 4.7a because GitHub runs nothing (B-93): 621 (4.7b), 640 (4.8a), 647 (4.8b), 4.9's in section 2's paragraph and the progress log. Chapter 3 ended at 465.
+
+Window tier (local, `.window` suites with `CI` unset): UIKitCore 56, Sidebar 43, Tabs 85, all passing (4.8b, 1920 × 1080 display). No window-tier test added in 4.9.
+
+Engine tier (local): the embryo baseline (`scripts/roomcore-baseline.sh`: nav, three ten-page quits) after each of the seven engine steps, all passing: quits 0.277–0.387 s, 0 helpers left, 0 crash reports (two runs repeated behind Stack Overflow's Cloudflare challenge, known); the engine probes per step (`-RoomSpikeOnly engine`) before each official build started; the net-log at 4.4b (600 s idle) and 4.8b (an incognito window open): 0 engine hosts.
+
+Eyes tier: `research/screenshots/phase-4.4a` … `phase-4.8b`; the tour's captures per appearance under `build/grand-tour/` (not committed).
+
+The tour (local): **47 steps** in eleven groups (Chapter 3's 34 plus `archive`, `recovery`, `routing`, `import`, `settings`, `settings2`, `extpopup`, `extensions`, `media`, `documents`, `reader`, `windows`, `incognito`), **908 checks per appearance on the dev build and 904 on the release framework** (3.9-2: 511); 61.6 min for both appearances on the dev build and 45.9 min on the release framework (3.9-2: 41.4 min, dev).
+
+## 7. Open user items
+
+Every open backlog row owned by the user, with the planner's provisional choice (P) where one exists, and the by-hand list. The "3.9 week" rows: **none exist** (no row arrived during the chapter), so none are listed for the iteration after Chapter 5.
+
+| Item | What it needs | Provisional choice | Backlog |
+|---|---|---|---|
+| The by-hand pass | `research/notes/chapter-4-by-hand.md`: **74 steps in nine groups** on build 10 (and a throwaway state per group), reconciled in 4.9; Chapter 3's 70 and Chapter 2's 121 are still listed as the user's (their state is not recorded) | — | — |
+| GitHub CI | fix the billing hold (Settings ▸ Billing & plans), re-run the latest workflow once | the sessions run the CI spec locally until then | B-93 |
+| 120 Hz numbers on the laptop | the sidebar scroll with a fling, the palette, the space switch, on the built-in panel as the main display (every laptop number so far is 60 Hz) | Chapter 5.1b and 5.4 take them through the laptop prompt | B-16, B-20, B-21 |
+| Web Serial / Bluetooth hang | a laptop run with macOS's Bluetooth dialogs answered: does the browser still hang? | if it reproduces, one bounded attempt in the next engine step (5.4b), else close | B-62 |
+| Location authorization | allow Room in Location Services; the page then reads "granted" | by hand, then close | B-26 |
+| The card's drag band | try a text selection in the top 5% of a card with the sidebar hidden | the heuristic stays; 5.6 (B-32's line there) | B-32 |
+| Helper bundle-id suffixes | object if PLAN's names should come back | (P) keep Chromium's suffixes | B-46 |
+| Disk layout on the Mac mini | what moves to the external SSD | (P) sessions keep 10 GB free | B-48 |
+| The external drive | reformat to APFS when possible | (P) when possible | B-10 |
+| History older than 90 days | — | (P) keep `history-archive.json`; the Library's History search reads it (done in 4.1a): close the row | B-66 |
+| Rows dragging URLs into other apps | say whether the drag out or the URL drag should win | (P) the drag out wins; a URL drag returns in 5.5 through a modifier or the address field | B-97 |
+| Several incognito windows | one per profile (Chrome allows several) | (P) one per profile until the user says otherwise; 5.6 | B-98 |
+| Decided at the start, stated in Settings | translate without a key (B-63), extensions' own requests (B-68), no native messaging hosts (B-69), no password generation without Sync (B-72), Enhanced Spell Check hidden (B-74): confirmed 2026-10-06 | stand | B-63, B-68, B-69, B-72, B-74 |
+| Signing, keychain, Sparkle signature | the keychain prompt once on build 10; `scripts/sparkle-package.sh` with the EdDSA key from the login keychain; a feed URL and an update to one machine (optional per "Before the loop") | the DMG by hand until then | — |
+| Widevine on a real service | Netflix or Spotify with an account | — | — |
+| The passkey entitlement, the Sentry DSN, the update feed URL | Chapter 2's items, unchanged | Sentry and the feed are Chapter 6 | — |
+
+## 8. Risks, re-ranked
+
+Against PLAN §7 (re-ranked at the end of Chapter 3) and ROADMAP's "Chapter 4 risks". "Implementer" is what Chapter 4 showed; "Proposed" the implementer's ranking; the planner's column is the planner's.
+
+| # (PLAN §7) | Risk | Chapter 4 evidence (implementer) | Proposed | Planner |
+|---|---|---|---|---|
+| 1 | Rebase and build cost | No rebase in the chapter (the user's rule); the fork stays on 155.0.8059.36 with 23 patches. Seven incremental official builds 444–543 s of build (8–10 min wall), all passing B-77's check; but `//room` grew by +2,096 lines of twelve members over Chrome internals (`PasswordImporter`, `BrowsingDataRemover`, `PermissionsManager`, `CommandService`, `MediaSession`, `SavePackage`, `DevToolsAgentHost`, `TabStripModel`, `GetPrimaryOTRProfile`, `SitePermissionsHelper`'s steps), each rebase surface (Chapter 4 risk 6); Chapter 3's milestone rebase cost five `//room` API fixes for less | #1, now as **the fork's age plus the members' surface**: the first rebase after Chapter 5 pays for every member at once and a security release can force it; a clean build is still a night | |
+| 2 | Memory | Not Chapter 4's work; a second window +25 MB (4.8a, release, 20 renderers both), 4.8b's rerun 4,178 / 4,555 MB (16 / 20 renderers, live sites), the 4.9 tour 3,046–3,293 / 4,633–4,664 MB (16–17 / 20); ten loaded of 50 entries 4,448–4,499 MB on release (3.9-2: 4,801), the baseline in the tour's state 731–745 MB (559 on a fresh one); closed pages' renderers linger again (4.8a's first measurement, `tabs` 15 → 16 in 4.9: B-56) | #2, unchanged; 5.4's levers unchanged (renderers per page, B-56) | |
+| 3 | Main-thread budget | B-53 untouched (switching p95 20.87 ms on release, 3.9-2); new stalls found and assigned: a large import's sidebar write 604 ms (B-85), the Archive's per-commit diff (B-80's rest); reader mode 107 ms, ⌘N 49.6–62 ms, the page move 6 ms on release | #3, unchanged; 5.4 with B-85 and B-87 added | |
+| new | **The specs run ahead of the user's use** | No "3.9 week" row in the whole chapter; the user's last hands-on build was 3.9's; the by-hand list is 74 steps (plus Chapters 2–3's), every Chapter 4 surface unjudged by the person it is for; Chapter 5 is the taste chapter and 5.7 orders its work "by measured annoyance" | **#4, new**: Chapter 5's first input should be a user pass of build 10 (or 11) and its rows | |
+| 4 | Hybrid Views bubbles | Unchanged; Chapter 4 added more Chrome UI in Room: Chrome's site-data Settings page (B-88), Chrome's Save As dialog (B-91), the print preview's keyboard (B-95); the save-password bubble correctly absent in incognito | #5 (one down, behind the use risk); 5.7 unchanged | |
+| 5 | `BrowserWindow` / `BrowserView` assumptions | Three more Chrome lifetime rules met without a patch: an emptied Browser scheduled for deletion (B-81), no keep-alive on an OTR profile, a closed twin's wrappers outliving Chrome's window (`cf75d97`); none needed a `BrowserWindow` member | #6, reworded "Chrome's lifetime rules and `BrowserView` assumptions": each found by a tour step's first run, each a small EngineRoomCore or `//room` fix | |
+| 7 | Dev-build renderer DCHECKs on live sites | Unchanged: `windows`' memory launches fail on the dev build with 2 × `layout_object.h:518` (4.8a, 4.8b); 0 on the release framework; this session's attribution in section 2 | #7, unchanged (a dev-build condition) | |
+| 6 | Unrequested network calls | 0 engine requests in every net-log: 4.4b over launch + 600 s idle + browse + quit, 4.5 (the extension's own request attributed apart), 4.8b with an incognito window, the tour's netlog step (section 2); the media artwork fetched by Chrome in the page's context, not by Room | #8 (one down): every Chapter 4 feature checked with a net-log and none added a request | |
+| 9 | Widevine on a real service | Unchanged (by hand) | #9 | |
+| 10 | Keychain and signing identity | Eight signed DMGs, signing and notarization scripted (82–85 s when Apple answers); one notarization never returned (build 7) | #10, plus "Apple's queue can stall a DMG: the planner moves on to the next build" | |
+| 11 | Passkey entitlement lead time | Unchanged | #11 | |
+| 12 | Sparkle update size | DMG 187,137,971 → 188,415,784 B over the chapter (+1.3 MB, 178 → 180 MiB) | #12, unchanged | |
+| 13 | Crashpad → Sentry | Unchanged; the tour counts the engine's minidumps per step | #13 | |
+| 14 | Shutdown watchdog | Not reproduced: seven baselines' quits 0.277–0.387 s, 0 helpers | #14, low | |
+| 8 | Google-service dependencies | All decided and stated in Settings ▸ Privacy / Extensions (B-63, B-68, B-72, B-74 hidden in `//room`); no key, no Sync | **retire** as decided (the statements stay; a later key is a new decision) | |
+| new | Automation limits of the machine | macOS 26's out-of-process save panels, `AXIsProcessTrusted` false, the window server showing Chromium's layers white: each moved a check to the by-hand list | add, low (a cost on the by-hand list, not a product risk) | |
+| (Ch. 4 risk 4) | Import formats | Arc's reader only ever ran on Room's own fixture; Safari's files need the open panel (handled) | stays until by-hand 25 runs Arc's real file; then retire or a fixture case | |
+
+## 9. Chapter 5
+
+The spec as written (ROADMAP Chapter 5, 2026-10-06), phase by phase, with what Chapter 4 changed under each. **Confirmed or amended by the planner:** ______
+
+- **5.1 Motion.** Everything per window now (`WindowSession`: toasts, Peek, the switcher, the Library swap, PiP panels): the motion harness must name its window (`RoomWindows.active`) and run with two windows once; new animated surfaces to add to the §I.1 audit: the Library's swap of the sidebar body, the media row's appearance above the footer (toasts sit above it), the reader page's swap in the card, the screenshot overlay, the incognito window's label. B-96 (the drag out's slide-back) is assigned to 5.5.
+- **5.2 Visual audit.** The matrix grows by Chapter 4's surfaces: the Library (three sections), the routing and import sheets, Settings' new sections (Shortcuts table, Spaces & Profiles, Privacy, Extensions details), the media row, the PiP panel, the screenshot overlay and its bar, the reader page in both appearances and three sizes, the incognito window (dark in both), the restore sheet; B-89 (two puzzle glyphs) is 5.2's.
+- **5.3 Accessibility.** New custom AppKit views to label: the Library's rows and sections, the media row's buttons, the Shortcuts table's recorder, the screenshot overlay (keyboard-only Return / Esc exists), the overflow menu; the reader page is HTML from Room's template (headings and landmarks are Room's to set).
+- **5.4 Performance and memory.** B-87 (Chrome's best-effort and after-startup tasks wait ~3 min for a startup signal: what else waits), B-85 (a large import's 604 ms stall), B-80's rest (the Archive's diff per commit), B-56 seen again in 4.8a; memory with two windows recorded (4,628 / 4,653 and 4,178 / 4,555 MB on release); B-62's bounded attempt if the user's laptop run reproduces the hang (the proposal in section 7); B-53 unchanged.
+- **5.5 Input.** B-96 and B-97 (the drag out against URL drags into other apps: the user's choice first), drops across two windows' sidebars, the mouse drag out (by-hand 65).
+- **5.6 Details.** B-83 (fullscreen restore), B-88 (a Room-owned site-data list or a line), B-91 (Chrome's Save As…), B-94 (the reader title twice), B-98 (several incognito windows, the user's), B-49 and B-58 as written.
+- **5.7 Native bubbles.** B-95 (the keyboard after Print to PDF's panel) with the print preview row (B-29); the password bubbles' order still waits for the week's rows (none so far).
+- **5.8 Integration.** The full tour is now 47 steps (908 checks per appearance on dev) and costs ~62 min on the dev build and ~46 min on the release framework for both appearances, plus its reruns; B-100 (the `import` check in the shared state) is the harness row to fix before it.
+
+Three things the implementer would change in the Chapter 5 spec are in the 4.9 log entry ("For the planner").
+
+## 10. Planner's closing
+
