@@ -23,36 +23,49 @@ import EngineRoomCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let engine: any EngineApplication
     private(set) var store: RoomStore?
-    private(set) var windowController: RoomWindowController?
+    /// Every browser window (4.8a): each with its controller, sidebar, tab
+    /// controller and per-window pieces (`RoomWindows.swift`). The properties
+    /// below that name one window's object are the active window's.
+    let windows = RoomWindows()
+    /// The window the menu commands act on: the key browser window, else the last key one.
+    var activeWindow: WindowSession? { windows.active }
+    var windowController: RoomWindowController? { activeWindow?.controller }
     private(set) var settingsWindow: SettingsWindowController?
-    private(set) var pageHost: PageHost?
+    var pageHost: PageHost? { activeWindow?.pageHost }
     /// The card's content view (DEBUG spikes read what it shows).
     var pageHostContainer: PageContainerView? { pageHost?.container }
     #if DEBUG
     /// The card's host (split spikes read its panes and time focus changes).
     var debugPageHost: PageHost? { pageHost }
     #endif
-    private(set) var pageDelegate: PageUIDelegate?
+    var pageDelegate: PageUIDelegate? { activeWindow?.pageDelegate }
     #if DEBUG
     /// Launch lines the spikes report (the state open time, the history migration).
     static var launchLog: [String] = []
     #endif
     private(set) var overlays: OverlaySpike?
-    private(set) var sidebar: SidebarController?
+    var sidebar: SidebarController? { activeWindow?.sidebar }
     /// The window's pages: entries on the engine (Phase 2.3).
-    private(set) var tabs: TabController?
+    var tabs: TabController? { activeWindow?.tabs }
+    /// The engine profile of each model profile (one per app, delivered to every window's tab controller).
+    private(set) var engineProfiles: [UUID: any Engine.Profile] = [:]
+    private var requestedEngineProfiles: Set<UUID> = []
+    /// Every engine profile's downloads delegate (one list for every window's footer button, 4.8a).
+    let downloadList = DownloadList()
     /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil without an engine.
     private(set) var extensions: ExtensionsCenter?
     private var extensionConsent: ExtensionConsentSheets?
     /// The header's action buttons and popups (3.6b), once the center and the window exist.
-    private(set) var extensionPopups: ExtensionPopups?
+    var extensionPopups: ExtensionPopups? { activeWindow?.extensionPopups }
+    /// The engine's popups go to the window whose page asked (4.8a).
+    private(set) lazy var extensionPopupRouter = ExtensionPopupRouter(windows: windows)
     /// Extension commands while the sidebar or the palette has the keyboard (4.5, B-70).
-    private(set) var extensionKeys: ExtensionKeyRouter?
-    private(set) var switcher: TabSwitcher?
+    var extensionKeys: ExtensionKeyRouter? { activeWindow?.extensionKeys }
+    var switcher: TabSwitcher? { activeWindow?.switcher }
     /// Document picture-in-picture panels (4.6).
-    private(set) var pictureInPicture: PictureInPicturePanels?
+    var pictureInPicture: PictureInPicturePanels? { activeWindow?.pictureInPicture }
     /// The Library in the sidebar (⇧⌘L, ⌘Y; 4.1a, `LibraryUI.swift`).
-    var library: LibraryController?
+    var library: LibraryController? { activeWindow?.library }
     /// The archive sweep: at launch and every 10 min while idle (spec §A.7, 4.1a).
     private(set) var archiveSweeper: ArchiveSweeper?
     /// Rolling backups: at launch and every 30 min while the state changes (spec §H, 4.1b).
@@ -73,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Save Page…'s format popup while its panel is up.
     var savePanelFormats: SavePageFormatPopup?
     /// Reader mode (4.7b, `ReaderMode.swift`).
-    var reader: ReaderController?
+    var reader: ReaderController? { activeWindow?.reader }
     /// The user's shortcuts (4.4a, `Shortcuts.swift`): defaults plus `Settings.shortcutOverrides`.
     var shortcutTable = ShortcutTable()
     /// How long the last table took to reach the menu bar (the settings spike reads it).
@@ -81,24 +94,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The previous session crashed: every entry was restored unloaded and the toast shown (spec §H, 4.1b).
     private(set) var crashRecovered = false
     /// ⌘T / ⌘L (Phase 2.4).
-    private(set) var palette: PaletteController?
-    private(set) var toastCenter: ToastCenter?
-    private(set) var promptPresenter: PagePromptPresenter?
+    var palette: PaletteController? { activeWindow?.palette }
+    var toastCenter: ToastCenter? { activeWindow?.toasts }
+    var promptPresenter: PagePromptPresenter? { activeWindow?.promptPresenter }
     /// Downloads across the window's profiles: the footer button and its popover (2.6b).
-    private(set) var downloads: DownloadsUI?
+    var downloads: DownloadsUI? { activeWindow?.downloads }
     /// Over the card's page (2.6b): find, the zoom indicator, the status pill.
-    private(set) var find: FindController?
-    private(set) var zoom: ZoomIndicator?
-    private(set) var statusPill: StatusPill?
+    var find: FindController? { activeWindow?.find }
+    var zoom: ZoomIndicator? { activeWindow?.zoom }
+    var statusPill: StatusPill? { activeWindow?.statusPill }
     /// The site panel on the header's site button (2.6b).
     let sitePanel = SitePanel()
     /// Peek over the card (2.7a).
-    private(set) var peek: PeekPresenter?
-    /// The last press in the window: Peek's 2 s gesture window and where its open animation starts.
-    private var inputMonitor: Any?
-    private var lastClick: (point: CGPoint, time: TimeInterval)?
+    var peek: PeekPresenter? { activeWindow?.peek }
     /// The hidden sidebar's overlay header, keep-open checks and toasts (2.7a).
-    private(set) var hiddenSidebar: HiddenSidebar?
+    var hiddenSidebar: HiddenSidebar? { activeWindow?.hiddenSidebar }
+    /// The first-run card in the active window's sidebar (spikes read it).
+    var firstRunCard: FirstRunCardView? { activeWindow?.firstRunCard }
     /// Links from the system, held until the store and the engine are up (ROADMAP 2.8 task 3).
     let inbox = URLInbox()
     /// Whether Room is the default browser, and the request (2.8b).
@@ -107,7 +119,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var optIns: OptInServices?
     /// The first run over Settings and its card in the sidebar (ROADMAP 2.8 task 4).
     private(set) var firstRun: FirstRun?
-    private(set) var firstRunCard: FirstRunCardView?
     #if DEBUG
     /// URL ingestion as it happens (the 2.8b spike reads it): each event, whether it was queued, each tab opened.
     private(set) var debugIncomingLog: [(event: String, url: URL, at: Date)] = []
@@ -126,6 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var previousExitWasClean: Bool?
     /// The line `logPreviousExit` wrote (the 3.2b quit spikes read it).
     private(set) var previousExitSummary: String?
+    /// The launch's windows were restored (a later `restoreWindows` is a reopen).
+    private var windowsRestored = false
     /// A quit is waiting for the engine (`applicationShouldTerminate`).
     private var quitInProgress = false
     private var finalStateWritten = false
@@ -159,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Before anything else runs: crash reports start here when the user opted in, and only then.
         optIns = makeOptIns()
         applyOptIns()
-        showWindow()
+        restoreWindows()
         NSApp.activate()
         Task { await startSession() }
     }
@@ -171,18 +184,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
         do {
             let profiles = store?.sidebar.profiles ?? []
-            for model in profiles where tabs.engineProfiles[model.id] == nil {
+            for model in profiles where engineProfiles[model.id] == nil {
+                requestedEngineProfiles.insert(model.id)
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
-                prepare(profile, for: model)
-                holdSelectionAfterCrash(profile, tabs: tabs)
-                if tabs.engineProfiles[model.id] == nil { tabs.setEngineProfile(profile, for: model.id) }
+                if engineProfiles[model.id] == nil {
+                    prepare(profile, for: model)
+                    holdSelectionAfterCrash(profile)
+                    deliver(profile, for: model.id)
+                }
             }
             // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
-            await migrateHistory(tabs: tabs)
+            await migrateHistory()
             #if DEBUG
             // `-RoomHistoryRows N`: the engine's history filled to N URLs (the palette's 50k measurement).
             if let rows = HistoryFixture.requestedRows, let model = store?.sidebar.profiles.first,
-               let history = tabs.engineProfiles[model.id]?.history,
+               let history = engineProfiles[model.id]?.history,
                let result = await HistoryFixture.populate(history, rows: rows) {
                 Self.launchLog.append("history fixture: \(result.urls) URLs, \(result.visits) visits into the engine's history")
             }
@@ -192,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let start = UserDefaults.standard.string(forKey: "RoomStartURL") {
                 tabs.openNewTab(url: URLFixup.url(from: start) ?? URLFixup.searchURL(for: start))
             }
-            logPreviousExit(tabs.engineProfiles.values.map { $0 })
+            logPreviousExit(engineProfiles.values.map { $0 })
             if previousExitWasClean == false { announceCrashRecovery() }
         } catch {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
@@ -215,8 +231,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #endif
     }
 
+    /// The Dock's icon with no window showing: a window on the last state (4.8a: the last window closed keeps the app).
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { showWindow() }
+        if !flag { ensureWindow() }
         return true
     }
 
@@ -243,10 +260,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// default, the most recent space by default), with the toast when that is
     /// not the shown space; with no window showing (after ⇧⌘W) the window comes back first.
     private func openIncoming(_ urls: [URL]) {
-        guard let tabs else { return NSLog("Room: no sidebar to open \(urls.count) link(s) in") }
-        if windowController?.window?.isVisible != true { newRoomWindow(nil) }
+        guard store != nil else { return NSLog("Room: no sidebar to open \(urls.count) link(s) in") }
+        if !windows.all.contains(where: { $0.window?.isVisible == true }) { ensureWindow() }
         for url in urls {
-            if let spaceRouter { spaceRouter.openExternal(url) } else { tabs.openNewTab(url: url.absoluteString, transition: .link) }
+            if let spaceRouter { spaceRouter.openExternal(url) } else { tabs?.openNewTab(url: url.absoluteString, transition: .link) }
             #if DEBUG
             debugIncomingLog.append(("requested", url, Date()))
             #endif
@@ -281,34 +298,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: First run (ROADMAP 2.8 task 4)
 
-    private func installFirstRun(sidebar: SidebarController, settings: SettingsStore) {
-        firstRun = FirstRun(read: { [weak settings] in settings?.settings ?? Settings() },
-                            write: { [weak settings] body in settings?.update(body) })
-        updateFirstRunCard(sidebar: sidebar, settings: settings)
+    private func installFirstRun(_ session: WindowSession, settings: SettingsStore) {
+        if firstRun == nil {
+            firstRun = FirstRun(read: { [weak settings] in settings?.settings ?? Settings() },
+                                write: { [weak settings] body in settings?.update(body) })
+        }
+        updateFirstRunCard(session, settings: settings)
     }
 
-    /// The card shows while the first run is not done: at the first launch and after Settings ▸ Show Welcome Card.
-    private func updateFirstRunCard(sidebar: SidebarController, settings: SettingsStore) {
+    /// The card shows while the first run is not done: at the first launch and after Settings ▸ Show Welcome Card
+    /// (in every window's sidebar, 4.8a).
+    private func updateFirstRunCard(_ session: WindowSession, settings: SettingsStore) {
+        guard let sidebar = session.sidebar else { return }
         let showing = withObservationTracking {
             !settings.settings.firstRunDone
-        } onChange: { [weakSelf = MainActorWeak(self), weakSidebar = MainActorWeak(sidebar), weakSettings = MainActorWeak(settings)] in
+        } onChange: { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session), weakSettings = MainActorWeak(settings)] in
             Task { @MainActor in
-                guard let sidebar = weakSidebar.value, let settings = weakSettings.value else { return }
-                weakSelf.value?.updateFirstRunCard(sidebar: sidebar, settings: settings)
+                guard let session = weakSession.value, let settings = weakSettings.value else { return }
+                weakSelf.value?.updateFirstRunCard(session, settings: settings)
             }
         }
         let body = sidebar.bodyView
-        if showing, firstRunCard == nil, let firstRun {
+        if showing, session.firstRunCard == nil, let firstRun {
             let card = FirstRunCardView(firstRun: firstRun, defaultBrowser: defaultBrowser,
                                         crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
                                         onImport: { [weak self] in self?.showImportSheet(nil) }) { [weak firstRun] in
                 firstRun?.finish()
             }
-            firstRunCard = card
+            session.firstRunCard = card
             body.accessoryHeight = { [weak card] width in card?.height(forWidth: width) ?? 0 }
             body.accessoryView = card
-        } else if !showing, let card = firstRunCard {
-            firstRunCard = nil
+        } else if !showing, let card = session.firstRunCard {
+            session.firstRunCard = nil
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = Motion.fast
                 card.animator().alphaValue = 0
@@ -323,7 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Settings ▸ General ▸ Show Welcome Card: the card again, in sight (the hidden sidebar's overlay is pinned for it).
     func showWelcomeCard() {
         firstRun?.showAgain()
-        newRoomWindow(nil)
+        ensureWindow()
         if windowController?.isSidebarOpen == false { hiddenSidebar?.revealForSpaceForm() }
     }
 
@@ -337,18 +358,169 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         defaultBrowser.setAsDefault()
     }
 
-    private func showWindow() {
-        if windowController == nil {
-            let controller = RoomWindowController()
-            windowController = controller
-            let pageHost = PageHost(controller: controller)
-            self.pageHost = pageHost
-            if let store {
-                let windowID = bind(controller, to: store)
-                installSidebar(in: controller, store: store, windowID: windowID, pageHost: pageHost)
-            }
+    // MARK: Windows (4.8a)
+
+    /// Launch, and a reopen after the last window closed: every stored window
+    /// with its frame, active space, sidebar and selection (spec §H); only
+    /// the front window's selection loads now, another's when it first
+    /// becomes key.
+    private func restoreWindows() {
+        guard let store else {
+            // No state (the open failed and the user went on): one window without a sidebar.
+            let session = openWindow(record: nil)
+            session.controller.showWindow(nil)
+            return
         }
-        windowController?.showWindow(nil)
+        store.windows.restoreOrCreateWindow(defaultSidebarWidth: Double(SidebarMetrics.defaultWidth), space: store.sidebar.spaces.first?.id)
+        let records = store.windows.windows
+        // Today tabs of no window (a v9 migration without a window row) or of a window not
+        // restored join the first window's lists.
+        if let first = records.first {
+            let adopted = store.sidebar.adoptTodayOrphans(into: first.id, open: Set(records.map(\.id)))
+            if adopted > 0 { NSLog("Room: %ld Today tab(s) of no open window joined the first window", adopted) }
+        }
+        // A Today list without a window is the active window's (the palette, links from other apps, spikes).
+        store.sidebar.defaultWindow = { [weakSelf = MainActorWeak(self), weak store] in
+            weakSelf.value?.windows.active?.id ?? store?.windows.windows.first?.id
+        }
+        windows.onBecameKey = { [weakSelf = MainActorWeak(self)] session in
+            guard !session.selectionShown else { return }
+            weakSelf.value?.showSelection(of: session)
+        }
+        // A reopen after the last window closed is not a launch (no fixture, no crash hold).
+        let launching = !windowsRestored
+        windowsRestored = true
+        let sessions = records.enumerated().map { index, record in
+            openWindow(record: record, launch: launching ? (index == 0 ? .front : .restored) : .new)
+        }
+        // Back to front, ordered without becoming key (a key window loads its selection): the
+        // first ends up key, in front, and the only one loaded.
+        for session in sessions.reversed().dropLast() { session.window?.orderFront(nil) }
+        if let front = sessions.first {
+            showSelection(of: front)
+            windows.focus(front)
+        }
+        NSLog("Room: %ld window(s) restored", sessions.count)
+    }
+
+    /// How a window is opened: the launch's front window (fixtures run in it,
+    /// a crash holds its selection), another restored one, or a new one.
+    enum WindowOpening {
+        case front, restored, new
+    }
+
+    /// One window's controller, card, sidebar and tab controller for `record`.
+    @discardableResult
+    private func openWindow(record: WindowState?, launch: WindowOpening = .new) -> WindowSession {
+        let controller = RoomWindowController()
+        let pageHost = PageHost(controller: controller)
+        let session = WindowSession(id: record?.id ?? UUID(), controller: controller, pageHost: pageHost)
+        if let store, let record {
+            bind(session, record: record, store: store)
+            installSidebar(session, store: store, launch: launch)
+        }
+        windows.add(session)
+        return session
+    }
+
+    /// The window's selected entry loads (at launch only the front window's, spec §H).
+    func showSelection(of session: WindowSession) {
+        session.selectionShown = true
+        session.tabs?.showSelection()
+    }
+
+    /// A window on screen: the existing ones come forward, or (none open:
+    /// after the last window closed) the stored ones open again (4.8a).
+    func ensureWindow() {
+        if windows.all.isEmpty {
+            restoreWindows()
+        } else if let session = activeWindow {
+            windows.focus(session)
+        }
+        NSApp.activate()
+    }
+
+    /// ⌘N (spec §J): a new window on the key window's active space with an
+    /// empty Today list, cascaded from it; with no window open, the stored
+    /// ones open again.
+    @objc func newRoomWindow(_ sender: Any?) {
+        guard let store else { return }
+        guard let key = activeWindow, let keyRecord = store.windows.window(key.id) else { return ensureWindow() }
+        let base = key.window?.frame ?? NSRect(origin: .zero, size: RoomWindow.defaultContentSize)
+        let screen = key.window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let record = store.windows.createWindow(frame: DragOutRule.cascaded(from: base, screen: screen),
+                                                sidebarWidth: keyRecord.sidebarWidth, sidebarVisible: keyRecord.sidebarVisible,
+                                                space: key.sidebar?.activeSpaceID ?? keyRecord.activeSpaceID)
+        let session = openWindow(record: record)
+        showSelection(of: session)
+        windows.focus(session)
+        NSApp.activate()
+        NSLog("Room: new window (%ld open)", windows.all.count)
+    }
+
+    /// "Open in New Window" and the drag out of the sidebar (spec §A.9, 4.8a):
+    /// a new window at `screenPoint` (the drop point; else cascaded from the
+    /// source) on the entry's space, with the entry selected there. A Today
+    /// tab moves to the new window's list; a shared entry's page moves with
+    /// the selection (`PageOwnership`). The source window's selection falls
+    /// to its most recent other entry first.
+    @discardableResult
+    func openInNewWindow(_ id: UUID, at screenPoint: NSPoint?, from source: WindowSession?) -> WindowSession? {
+        guard let store, let entry = store.sidebar.entry(id), entry.kind != .folder else { return nil }
+        let source = source ?? activeWindow
+        let sourceRecord = source.flatMap { store.windows.window($0.id) }
+        let base = source?.window?.frame ?? NSRect(origin: .zero, size: RoomWindow.defaultContentSize)
+        let frame: NSRect
+        if let screenPoint {
+            let screen = NSScreen.screens.first { $0.frame.contains(screenPoint) } ?? source?.window?.screen ?? NSScreen.main
+            frame = DragOutRule.frame(droppedAt: screenPoint, size: base.size, screen: screen?.visibleFrame ?? .zero)
+        } else {
+            frame = DragOutRule.cascaded(from: base, screen: source?.window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero)
+        }
+        guard let space = entry.spaceID ?? source?.sidebar?.activeSpaceID ?? store.sidebar.spaces.first?.id else { return nil }
+        if let source, source.sidebar?.selectedEntryID == id { selectFallback(in: source, losing: id) }
+        let record = store.windows.createWindow(frame: frame, sidebarWidth: sourceRecord?.sidebarWidth ?? Double(SidebarMetrics.defaultWidth),
+                                                sidebarVisible: sourceRecord?.sidebarVisible ?? true, space: space)
+        if entry.kind == .today { try? store.sidebar.moveToday(id, toWindow: record.id) }
+        let session = openWindow(record: record)
+        session.selectionShown = true
+        session.sidebar?.select(id)
+        windows.focus(session)
+        NSApp.activate()
+        NSLog("Room: entry opened in a new window (%@, %ld open)", screenPoint == nil ? "cascaded" : "at the drop point", windows.all.count)
+        return session
+    }
+
+    /// `session`'s selection leaves `entry` for its most recent other entry, or the empty state.
+    private func selectFallback(in session: WindowSession, losing entry: UUID) {
+        guard let store, let sidebar = session.sidebar, let tabs = session.tabs else { return }
+        let next = PageOwnership.fallback(mru: store.sidebar.mruOrder(space: sidebar.activeSpaceID, window: session.id), losing: entry,
+                                          visibleElsewhere: windows.owners.entriesVisible(besides: tabs))
+        sidebar.select(next)
+    }
+
+    /// A window closed (⇧⌘W, its close button; not a quit, which keeps every
+    /// window for the next launch): its pages unload with their back/forward
+    /// lists saved, its Today tabs go to the Archive (`windowClosed`,
+    /// restorable from the Library) and its row goes, except the last
+    /// window's, which ⌘N and the Dock reopen (spec §J; the app keeps running).
+    private func windowWillClose(_ session: WindowSession) {
+        guard let store, windows.session(id: session.id) === session else { return }
+        if quitInProgress || finalStateWritten {
+            store.flush()
+            return
+        }
+        let last = windows.all.count == 1
+        if let tabs = session.tabs {
+            for id in tabs.loadedEntryIDs { tabs.unload(id) }
+            tabs.deactivate()
+        }
+        let archived = store.sidebar.archiveToday(window: session.id)
+        if !last { store.windows.removeWindow(session.id) }
+        session.tearDown()
+        windows.remove(session)
+        store.flush()
+        NSLog("Room: window closed: %ld Today tab(s) archived (windowClosed); %ld window(s) open", archived.count, windows.all.count)
     }
 
     // MARK: Store
@@ -458,12 +630,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// Restores the window's saved sidebar width/visibility and frame and
     /// keeps the store up to date as the user changes them.
-    @discardableResult
-    private func bind(_ controller: RoomWindowController, to store: RoomStore) -> UUID {
-        let firstSpace = store.sidebar.spaces.first
-        let record = store.windows.restoreOrCreateWindow(defaultSidebarWidth: Double(SidebarMetrics.defaultWidth),
-                                                         space: firstSpace?.id)
+    private func bind(_ session: WindowSession, record: WindowState, store: RoomStore) {
+        let controller = session.controller
         let windowID = record.id
+        let firstSpace = store.sidebar.spaces.first
         controller.sidebarWidth = CGFloat(record.sidebarWidth)
         controller.isSidebarOpen = record.sidebarVisible
         if let frame = record.frame { controller.restoreFrame(frame) }
@@ -473,40 +643,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             store?.windows.setSidebarVisible(isOpen, window: windowID)
         }
         controller.onFrameChange = { [weak store] frame in store?.windows.setFrame(frame, window: windowID) }
-        controller.onWillClose = { [weak store] in store?.flush() }
-        return windowID
+        controller.onWillClose = { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] in
+            guard let session = weakSession.value else { return }
+            weakSelf.value?.windowWillClose(session)
+        }
+        // A new window keeps its first frame (the cascade, the drop point) even before it moves.
+        if record.frame == nil, let frame = controller.window?.frame { store.windows.setFrame(frame, window: windowID) }
     }
 
     /// The sidebar tree (Phase 2.2), the tab controller behind it (2.3), the
     /// ⌃Tab switcher and toasts.
-    private func installSidebar(in controller: RoomWindowController, store: RoomStore, windowID: UUID, pageHost: PageHost) {
+    private func installSidebar(_ session: WindowSession, store: RoomStore, launch: WindowOpening) {
+        let controller = session.controller
+        let pageHost = session.pageHost
+        let windowID = session.id
         #if DEBUG
-        if let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
+        if launch == .front, let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID)
         let tabs = TabController(store: store)
         tabs.engine = engine
         let pageDelegate = PageUIDelegate(host: pageHost)
-        // A profile made after launch (a new space's "New Profile…") gets its engine profile on first use.
-        tabs.requestEngineProfile = { [weak self, weak tabs] model in
-            Task { @MainActor in
-                guard let self, let tabs else { return }
-                do {
-                    let profile = try await self.engine.createProfile(name: TabController.engineProfileName(for: model))
-                    self.prepare(profile, for: model)
-                    self.holdSelectionAfterCrash(profile, tabs: tabs)
-                    tabs.setEngineProfile(profile, for: model.id)
-                } catch {
-                    NSLog("Room: no engine profile for \(model.name): \(error)")
-                }
-            }
-        }
+        session.sidebar = sidebar
+        session.tabs = tabs
+        session.pageDelegate = pageDelegate
+        // A profile made after launch (a new space's "New Profile…") gets its engine profile on first use (once per app).
+        tabs.requestEngineProfile = { [weakSelf = MainActorWeak(self)] model in weakSelf.value?.requestEngineProfile(model) }
         tabs.display = pageHost
         tabs.window = controller.window
         tabs.sidebar = sidebar
         tabs.pageUIDelegate = pageDelegate
         #if DEBUG
-        if SidebarFixtures.requested != nil, SnapshotRunner.directory != nil {
+        if launch == .front, SidebarFixtures.requested != nil, SnapshotRunner.directory != nil {
             do {
                 try fakeEngine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
                 tabs.profile = try fakeEngine.profile(named: "Default")
@@ -543,11 +711,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
+        session.toasts = toasts
         // Space routing (spec §B, 4.2): links a page opens as new tabs follow the rules when the setting is on.
-        let router = SpaceRouter(store: store, sidebar: sidebar, tabs: tabs, toasts: toasts)
+        // One router for the app (4.8a): the target space's window, else the key window.
+        let router = spaceRouter ?? SpaceRouter(store: store, windows: windows)
         spaceRouter = router
         tabs.routeLink = { [weak router] url, source in router?.routePageLink(url, from: source) }
-        tabs.onLinkRouted = { [weak router] _, space in router?.announce(space) }
+        tabs.onLinkRouted = { [weak router, weakSession = MainActorWeak(session)] _, space in
+            router?.announce(space, in: weakSession.value)
+        }
         sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
         // The footer's media row (4.6): its buttons call the page's media session controls.
         sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
@@ -561,16 +733,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.presentPictureInPicture = { [weak pictureInPicture] contents, opener, entry in
             pictureInPicture?.present(contents, opener: opener, entry: entry)
         }
-        self.pictureInPicture = pictureInPicture
+        session.pictureInPicture = pictureInPicture
         // The engine's notices (infobars, the translate offer) as toasts (3.4b).
         pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }
         pageDelegate.chrome.dismissNotice = { [weak toasts] id in toasts?.dismiss(id: id) }
         pageDelegate.toasts = toasts
-        let downloads = DownloadsUI(button: sidebar.downloadsButton, rootView: rootView, toasts: toasts, settings: store.settings)
+        let downloads = DownloadsUI(list: downloadList, button: sidebar.downloadsButton, rootView: rootView, toasts: toasts)
         downloads.pageFavicon = { [weak tabs] in tabs?.current?.favicon }
-        self.downloads = downloads
-        installLibrary(sidebar: sidebar, tabs: tabs, store: store)
-        installPagePrompts(pageDelegate, pageHost: pageHost, sidebar: sidebar, tabs: tabs, rootView: rootView)
+        session.downloads = downloads
+        configureDownloadList(store.settings)
+        installLibrary(session, store: store)
+        installPagePrompts(session, rootView: rootView)
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
         palette.contentRect = { [weak rootView, weak pageHost] in
             // In a split, over the focused pane (⇧⌘= "focuses the palette inside it", spec §D).
@@ -616,30 +789,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         observeSuggestionsSwitch(settings, palette: palette)
         tabs.onNewTab = { [weak palette] in palette?.toggleNew() }
         tabs.onEditAddress = { [weak palette] docked in palette?.toggleEdit(docked: docked) }
-        rootView.onLayout = { [weak self, weak toasts, weak palette] in
+        rootView.onLayout = { [weak toasts, weak palette, weakSession = MainActorWeak(session)] in
             toasts?.updateAnchor()
             palette?.layout()
-            self?.peek?.layout()
+            weakSession.value?.peek?.layout()
         }
-        self.palette = palette
-        hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
+        session.palette = palette
+        session.hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
         installSplit(pageHost: pageHost, sidebar: sidebar, tabs: tabs, palette: palette, store: store)
         installToolbar(controller, tabs: tabs, settings: store.settings)
-        applyLookSettings()
-        trackFocusedPage(tabs)
+        // The first window starts the observation (it reaches every window); each window applies now.
+        if windows.all.isEmpty { applyLookSettings() }
+        applyLook(to: session)
+        trackFocusedPage(session)
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
         if let window = controller.window {
-            switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
+            session.switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
         }
-        self.sidebar = sidebar
-        self.tabs = tabs
-        self.pageDelegate = pageDelegate
-        observeShortcuts()
-        installExtensionPopups()
-        toastCenter = toasts
-        installReader(tabs: tabs, settings: store.settings, toasts: toasts)
-        installFirstRun(sidebar: sidebar, settings: store.settings)
+        // "Open in New Window" and the drag out (spec §A.9).
+        sidebar.onOpenInNewWindow = { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] id, point in
+            weakSelf.value?.openInNewWindow(id, at: point, from: weakSession.value)
+        }
+        if windows.all.isEmpty { observeShortcuts() }
+        applyShortcutKeys(to: session)
+        installExtensionPopups(session)
+        installReader(session, settings: store.settings)
+        installFirstRun(session, settings: store.settings)
+        // Every engine profile the app has (a window opened after launch).
+        for (id, profile) in engineProfiles where tabs.engineProfiles[id] == nil { tabs.setEngineProfile(profile, for: id) }
         // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
         // without an engine the tab controller listens to macOS's events.
         #if ROOM_ENGINE_ROOMCORE
@@ -647,19 +825,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #else
         tabs.startLifecycle(systemMemoryPressure: true)
         #endif
-        // The launch sweep (spec §A.7) before anything loads: the selection is never taken.
-        let sweeper = ArchiveSweeper(tabs: tabs, store: store)
-        archiveSweeper = sweeper
-        sweeper.start()
-        // Rolling backups (spec §H): one now if the state moved since the last, then every 30 min.
-        let backups = BackupScheduler(store: store)
-        backupScheduler = backups
-        backups.start()
-        // Only the selected entry loads at launch (spec §H); it waits for the profile. After a
-        // crash (the store's running flag here, the engine's exit type when its profiles arrive)
-        // not even that one: every entry is restored unloaded.
-        if store.uncleanExit { tabs.holdsSelectionUnloaded = true }
-        tabs.showSelection()
+        // Once per app (4.8a): the archive sweep over every window's Today tabs (the launch
+        // sweep runs before anything loads: no selection is taken) and the rolling backups.
+        if archiveSweeper == nil {
+            let sweeper = ArchiveSweeper(store: store) { [weakSelf = MainActorWeak(self)] in
+                weakSelf.value?.windows.all.compactMap(\.tabs) ?? []
+            }
+            archiveSweeper = sweeper
+            // After this window joins the list (the launch sweep sees its tabs).
+            DispatchQueue.main.async { sweeper.start() }
+        }
+        if backupScheduler == nil {
+            // Rolling backups (spec §H): one now if the state moved since the last, then every 30 min.
+            let backups = BackupScheduler(store: store)
+            backupScheduler = backups
+            backups.start()
+        }
+        // Only the front window's selected entry loads at launch (spec §H; `showSelection(of:)`); it
+        // waits for the profile. After a crash (the store's running flag here, the engine's exit
+        // type when its profiles arrive) not even that one: every entry is restored unloaded.
+        if launch != .new, store.uncleanExit { tabs.holdsSelectionUnloaded = true }
         // The other spaces' lists are built after the first frame, one per turn,
         // so a switch never waits on a list (ROADMAP 2.5 exit).
         DispatchQueue.main.async { [weak sidebar] in sidebar?.prepareSpaces() }
@@ -667,10 +852,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// The page's prompts in the card, the permission popover on the header's
     /// site button, and Room's context-menu items (ROADMAP 2.6 task 2).
-    private func installPagePrompts(_ pageDelegate: PageUIDelegate, pageHost: PageHost, sidebar: SidebarController, tabs: TabController,
-                                    rootView: BrowserWindowView) {
+    private func installPagePrompts(_ session: WindowSession, rootView: BrowserWindowView) {
+        guard let pageDelegate = session.pageDelegate, let sidebar = session.sidebar, let tabs = session.tabs else { return }
+        let pageHost = session.pageHost
         let chrome = pageDelegate.chrome
-        promptPresenter = PagePromptPresenter(
+        session.promptPresenter = PagePromptPresenter(
             prompts: chrome.prompts, crashes: chrome.crashes, host: pageHost.container.promptLayer,
             permissionAnchor: { [weak rootView, weak sidebar] in
                 // The site button while the sidebar shows it; otherwise the card's corner.
@@ -694,10 +880,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let card = rootView.currentLayout.card
             return rootView.convert(NSRect(x: card.minX + 12, y: card.minY, width: 24, height: 1), to: nil)
         }
-        let fullscreen = windowController.map(PageFullscreen.init)
+        let fullscreen: PageFullscreen? = PageFullscreen(controller: session.controller)
         fullscreen?.host = pageHost
         pageDelegate.fullscreen = fullscreen
-        windowController?.onFullscreenChange = { [weak fullscreen] isFullscreen in
+        session.fullscreen = fullscreen
+        session.controller.onFullscreenChange = { [weak fullscreen] isFullscreen in
             if !isFullscreen { fullscreen?.windowDidExitFullscreen() }
         }
         // Find, zoom and the status pill over the page (ROADMAP 2.6 task 3).
@@ -716,28 +903,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         tools.onLayout = layoutTools
         pageHost.splitView.onNewPane = { pane in pane.container.toolLayer.onLayout = layoutTools }
-        installPeek(tabs: tabs, pageHost: pageHost, rootView: rootView, tools: { [weak statusPill, weak zoom] in
+        installPeek(session, rootView: rootView, tools: { [weak statusPill, weak zoom] in
             statusPill?.layout()
             zoom?.layout()
         })
         pageDelegate.onStatusText = { [weak statusPill] text in statusPill?.setStatus(text) }
         pageDelegate.onPageClosed = { [weak find] page in find?.pageClosed(page) }
-        self.find = find
-        self.zoom = zoom
-        self.statusPill = statusPill
-        pageHost.onShow = { [weak self, weak fullscreen] contents in
+        session.find = find
+        session.zoom = zoom
+        session.statusPill = statusPill
+        pageHost.onShow = { [weakSelf = MainActorWeak(self), weak fullscreen, weakSession = MainActorWeak(session)] contents in
             fullscreen?.cardDidShow(contents)
-            self?.focusPageSurfaces()
+            weakSelf.value?.focusPageSurfaces(weakSession.value)
         }
         find.setPage(pageHost.contents)
         sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.isPeekAvailable = true
-        chrome.performMenuAction = { [weak self, weak tabs] action, page in
+        chrome.performMenuAction = { [weak tabs, weakSession = MainActorWeak(session)] action, page in
             switch action {
             case .readerMode:
                 // The page's own entry (the menu came from the card's page).
-                if tabs?.entryID(for: page) == tabs?.currentEntryID { self?.reader?.toggle() }
+                if tabs?.entryID(for: page) == tabs?.currentEntryID { weakSession.value?.reader?.toggle() }
             case .openLinkInNewTab(let url), .openImageInNewTab(let url):
                 tabs?.openLink(url, from: page)
             case .openLinkInPeek(let url):
@@ -784,9 +971,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             case .dark: NSAppearance(named: .darkAqua)
             }
         }
-        windowController?.rootView.sidebarEdge = side == .right ? .right : .left
+        for session in windows.all { applyLook(to: session, side: side, toolbar: toolbar) }
+    }
+
+    /// The sidebar's side and the toolbar in one window (every window follows Settings ▸ Appearance).
+    private func applyLook(to session: WindowSession, side: SidebarSide? = nil, toolbar: Bool? = nil) {
+        guard let settings = store?.settings.settings else { return }
+        let side = side ?? settings.sidebarSide
+        let toolbar = toolbar ?? settings.showsToolbar
+        session.controller.rootView.sidebarEdge = side == .right ? .right : .left
         // Settings ▸ General ▸ Show the toolbar (4.4a) as View ▸ Show Toolbar.
-        if let controller = windowController, controller.showsToolbar != toolbar { controller.showsToolbar = toolbar }
+        if session.controller.showsToolbar != toolbar { session.controller.showsToolbar = toolbar }
     }
 
     /// ⌘S, View ▸ Hide Sidebar / Show Sidebar (spec §E).
@@ -808,19 +1003,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// Back/Forward/Reload in the overlay's header (and the toolbar) follow the focused page.
-    private func trackFocusedPage(_ tabs: TabController) {
+    private func trackFocusedPage(_ session: WindowSession) {
+        guard let tabs = session.tabs else { return }
         let page = withObservationTracking {
             let page = tabs.focusedPage
             _ = (page?.canGoBack, page?.canGoForward, page?.isLoading, page?.url)
             return page
-        } onChange: { [weak self, weak tabs] in
+        } onChange: { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] in
             Task { @MainActor in
-                guard let self, let tabs else { return }
-                self.trackFocusedPage(tabs)
+                guard let self = weakSelf.value, let session = weakSession.value, self.windows.session(id: session.id) != nil else { return }
+                self.trackFocusedPage(session)
             }
         }
-        hiddenSidebar?.update(page)
-        if let toolbar = windowController?.rootView.toolbarView {
+        session.hiddenSidebar?.update(page)
+        do {
+            let toolbar = session.controller.rootView.toolbarView
             toolbar.navigation.update(canGoBack: page?.canGoBack ?? false, canGoForward: page?.canGoForward ?? false,
                                       isLoading: page?.isLoading ?? false, hasPage: page != nil)
             toolbar.setURL(page?.url?.absoluteString)
@@ -829,29 +1026,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// Peek over the card (spec §A.4, §I.6): the presenter, its page's own
     /// tool and prompt layers, and the input monitor its rules read.
-    private func installPeek(tabs: TabController, pageHost: PageHost, rootView: BrowserWindowView, tools: @escaping () -> Void) {
+    private func installPeek(_ session: WindowSession, rootView: BrowserWindowView, tools: @escaping () -> Void) {
+        guard let tabs = session.tabs else { return }
+        let pageHost = session.pageHost
         let peek = PeekPresenter(rootView: rootView)
         peek.overlay.container.toolLayer.onLayout = tools
         peek.onClose = { [weak tabs] in tabs?.closeShownPeek() }
         peek.onExpand = { [weak tabs] in tabs?.expandShownPeek() }
         peek.onSplit = { [weak tabs] in tabs?.splitShownPeek() }
-        peek.onFocus = { [weak self, weak pageHost] contents, _ in
-            self?.focusPageSurfaces()
+        peek.onFocus = { [weakSelf = MainActorWeak(self), weak pageHost, weakSession = MainActorWeak(session)] contents, _ in
+            weakSelf.value?.focusPageSurfaces(weakSession.value)
             if contents == nil { pageHost?.focusPage() }
         }
-        peek.recentClick = { [weak self] in
-            guard let click = self?.lastClick, ProcessInfo.processInfo.systemUptime - click.time < Timing.peekGestureWindow else { return nil }
+        peek.recentClick = { [weakSession = MainActorWeak(session)] in
+            guard let click = weakSession.value?.lastClick, ProcessInfo.processInfo.systemUptime - click.time < Timing.peekGestureWindow else {
+                return nil
+            }
             return click.point
         }
         tabs.peekDisplay = peek
         let settings = store?.settings
         tabs.isPeekEnabled = { [weak settings] in settings?.settings.peekOffSiteLinks ?? true }
-        self.peek = peek
-        inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) {
-            [weak self, weak tabs, weak rootView] event in
+        session.peek = peek
+        session.inputMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) {
+            [weakSession = MainActorWeak(session), weak tabs, weak rootView] event in
             tabs?.lastUserInput = event.timestamp
             if event.type == .leftMouseDown, let rootView, event.window === rootView.window {
-                self?.lastClick = (rootView.convert(event.locationInWindow, from: nil), event.timestamp)
+                weakSession.value?.lastClick = (rootView.convert(event.locationInWindow, from: nil), event.timestamp)
             }
             return event
         }
@@ -935,28 +1136,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The focused page (Peek's if it shows, else the card's) owns the
     /// prompts, the find bar, the zoom indicator and the status pill, in its
     /// own container (2.7b: the focused split pane).
-    private func focusPageSurfaces() {
-        guard let pageHost else { return }
-        let (page, container): ((any WebContents)?, PageContainerView) = if let peek, let contents = peek.contents {
+    private func focusPageSurfaces(_ session: WindowSession?) {
+        guard let session else { return }
+        let pageHost = session.pageHost
+        let (page, container): ((any WebContents)?, PageContainerView) = if let peek = session.peek, let contents = peek.contents {
             (contents, peek.overlay.container)
         } else {
             (pageHost.contents, pageHost.container)
         }
-        promptPresenter?.setHost(container.promptLayer)
-        pageDelegate?.chrome.prompts.setCurrentPage(page)
-        find?.setHost(container.toolLayer)
-        find?.setPage(page)
-        zoom?.setHost(container.toolLayer)
-        zoom?.setPage(page)
-        statusPill?.setHost(container.toolLayer)
-        statusPill?.reset()
+        session.promptPresenter?.setHost(container.promptLayer)
+        session.pageDelegate?.chrome.prompts.setCurrentPage(page)
+        session.find?.setHost(container.toolLayer)
+        session.find?.setPage(page)
+        session.zoom?.setHost(container.toolLayer)
+        session.zoom?.setPage(page)
+        session.statusPill?.setHost(container.toolLayer)
+        session.statusPill?.reset()
     }
 
     /// A new engine profile's host services: downloads, Room's search engine,
     /// and (RoomCore, 3.6a) its extensions in Settings with their consent
     /// sheets and the daily update check.
     private func prepare(_ profile: any Engine.Profile, for model: Model.Profile) {
-        profile.downloadsDelegate = downloads?.list
+        profile.downloadsDelegate = downloadList
         applySearchSettings(to: profile, profileID: model.id)
         if let engineExtensions = profile.extensions {
             extensionsCenter().add(profile: model.id, name: model.name, extensions: engineExtensions)
@@ -974,18 +1176,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             setLastUpdateCheck: { [weak self] date in self?.store?.settings.update { $0.extensionsLastUpdateCheck = date } })
         extensionConsent = sheets
         extensions = center
-        installExtensionPopups()
+        center.popupPresenter = extensionPopupRouter
+        for session in windows.all { installExtensionPopups(session) }
         return center
     }
 
-    /// The header's action buttons and their popovers (3.6b): made once both the
-    /// extensions center (the first profile with extensions) and the window exist.
-    private func installExtensionPopups() {
-        guard extensionPopups == nil, let extensions, let sidebar, let tabs, let rootView = windowController?.rootView else { return }
-        extensionPopups = ExtensionPopups(center: extensions, sidebar: sidebar, tabs: tabs, rootView: rootView)
-        extensionKeys = ExtensionKeyRouter(
+    /// The header's action buttons and their popovers (3.6b) and the key router
+    /// (4.5), per window (4.8a): made once both the extensions center (the
+    /// first profile with extensions) and the window exist.
+    private func installExtensionPopups(_ session: WindowSession) {
+        guard session.extensionPopups == nil, let extensions, let sidebar = session.sidebar, let tabs = session.tabs else { return }
+        let rootView = session.controller.rootView
+        session.extensionPopups = ExtensionPopups(center: extensions, sidebar: sidebar, tabs: tabs, rootView: rootView)
+        session.extensionKeys = ExtensionKeyRouter(
             center: extensions, window: { [weak rootView] in rootView?.window },
-            pageHasKeyboard: { [weak self] in self?.pageHasKeyboard ?? false },
+            pageHasKeyboard: { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] in
+                weakSelf.value?.pageHasKeyboard(in: weakSession.value) ?? false
+            },
             profile: { [weak sidebar] in sidebar?.activeSpace?.profileID },
             page: { [weak tabs] in tabs?.focusedPage })
     }
@@ -1011,10 +1218,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// The keyboard is in a page (the card's panes or the Peek's): the
     /// engine's own key path sees the key first there.
-    var pageHasKeyboard: Bool {
-        guard let responder = windowController?.window?.firstResponder as? NSView else { return false }
-        if let pageHost, responder.isDescendant(of: pageHost.splitView) { return true }
-        if let peek, responder.isDescendant(of: peek.overlay) { return true }
+    var pageHasKeyboard: Bool { pageHasKeyboard(in: activeWindow) }
+
+    func pageHasKeyboard(in session: WindowSession?) -> Bool {
+        guard let session, let responder = session.window?.firstResponder as? NSView else { return false }
+        if responder.isDescendant(of: session.pageHost.splitView) { return true }
+        if let peek = session.peek, responder.isDescendant(of: peek.overlay) { return true }
         return false
     }
 
@@ -1030,7 +1239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             Task { @MainActor in
                 guard let self, let settings, let palette else { return }
                 palette.suggestionsSettingChanged()
-                for (id, profile) in self.tabs?.engineProfiles ?? [:] { self.applySearchSettings(to: profile, profileID: id) }
+                for (id, profile) in self.engineProfiles { self.applySearchSettings(to: profile, profileID: id) }
                 self.observeSuggestionsSwitch(settings, palette: palette)
             }
         }
@@ -1062,7 +1271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// history service, once (the flag is in Settings); since schema v6 from
     /// the rows v6 archived for a profile never imported (`HistoryMigration`).
     /// A no-op without an engine history.
-    private func migrateHistory(tabs: TabController) async {
+    private func migrateHistory() async {
         guard let store else { return }
         #if DEBUG
         // `-RoomHistoryMigration NO`: the launch measurement's "before" runs (3.5).
@@ -1072,7 +1281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         #endif
         for model in store.sidebar.profiles {
-            guard let history = tabs.engineProfiles[model.id]?.history else { continue }
+            guard let history = engineProfiles[model.id]?.history else { continue }
             let line: String
             if let report = await HistoryMigration.run(store: store, profile: model.id, into: history) {
                 line = String(format: "history migration: profile %@: %ld archived URLs -> %ld URLs, %ld visits imported "
@@ -1094,25 +1303,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// `model`'s engine profile, made now when it has none yet (a profile an
     /// import just created, whose history goes in before any page loads; 4.3a).
     func engineProfile(for model: Model.Profile) async -> (any Engine.Profile)? {
-        guard let tabs else { return nil }
-        if let profile = tabs.engineProfiles[model.id] { return profile }
+        if let profile = engineProfiles[model.id] { return profile }
         do {
+            requestedEngineProfiles.insert(model.id)
             let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
-            if tabs.engineProfiles[model.id] == nil {
+            if engineProfiles[model.id] == nil {
                 prepare(profile, for: model)
-                holdSelectionAfterCrash(profile, tabs: tabs)
-                tabs.setEngineProfile(profile, for: model.id)
+                holdSelectionAfterCrash(profile)
+                deliver(profile, for: model.id)
             }
-            return tabs.engineProfiles[model.id]
+            return engineProfiles[model.id]
         } catch {
+            requestedEngineProfiles.remove(model.id)
             NSLog("Room: no engine profile for \(model.name): \(error)")
             return nil
         }
     }
 
-    private func holdSelectionAfterCrash(_ profile: any Engine.Profile, tabs: TabController) {
+    /// A tab controller asked for a profile's engine profile (a profile made
+    /// after launch): made once for the app and delivered to every window.
+    private func requestEngineProfile(_ model: Model.Profile) {
+        guard engineProfiles[model.id] == nil, requestedEngineProfiles.insert(model.id).inserted else { return }
+        Task { @MainActor in _ = await engineProfile(for: model) }
+    }
+
+    /// One engine profile to every window's tab controller (the selection and loads waiting for it load now).
+    private func deliver(_ profile: any Engine.Profile, for profileID: UUID) {
+        engineProfiles[profileID] = profile
+        for session in windows.all {
+            guard let tabs = session.tabs, tabs.engineProfiles[profileID] == nil else { continue }
+            tabs.setEngineProfile(profile, for: profileID)
+        }
+    }
+
+    /// A profile was deleted (4.4b): every window forgets its engine profile; the app's is returned.
+    func forgetEngineProfile(_ profileID: UUID) -> (any Engine.Profile)? {
+        requestedEngineProfiles.remove(profileID)
+        for session in windows.all { session.tabs?.removeEngineProfile(for: profileID) }
+        return engineProfiles.removeValue(forKey: profileID)
+    }
+
+    /// The downloads list's window-facing parts follow the active window (one list per app, 4.8a).
+    private func configureDownloadList(_ settings: SettingsStore) {
+        guard downloadList.chooseDestination == nil else { return }
+        DownloadsUI.configure(downloadList, settings: settings) { [weakSelf = MainActorWeak(self)] in weakSelf.value?.activeWindow?.downloads }
+    }
+
+    private func holdSelectionAfterCrash(_ profile: any Engine.Profile) {
         guard !crashRecovered, profile.lastExitWasClean == false else { return }
-        tabs.holdsSelectionUnloaded = true
+        for session in windows.all { session.tabs?.holdsSelectionUnloaded = true }
     }
 
     /// The toast, once per launch, after either count said the last session
@@ -1145,6 +1384,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func shutdown() {
         guard !finalStateWritten else { return }
         finalStateWritten = true
+        // The key window goes first: the next launch puts it in front and loads only its selection (spec §H).
+        if let active = activeWindow { store?.windows.moveToFront(active.id) }
         store?.close()
         NSLog("Room: final state written")
     }
@@ -1408,8 +1649,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // Debug menu: the lifecycle checks (spec §H), results in the log.
 
     @objc func simulateMemoryPressure(_ sender: Any?) {
-        let ids = tabs?.handleMemoryPressure(.moderate) ?? []
-        tabs?.handleMemoryPressure(.none)
+        let ids = windows.all.flatMap { $0.tabs?.handleMemoryPressure(.moderate) ?? [] }
+        for session in windows.all { session.tabs?.handleMemoryPressure(.none) }
         NSLog("Room: simulated memory pressure discarded \(ids.count) page(s)")
     }
 
@@ -1419,12 +1660,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     // MARK: Added with the full menu (2.8a)
-
-    /// ⌘N: the window again after ⇧⌘W; a second window is Chapter 4.8 (multi-window).
-    @objc func newRoomWindow(_ sender: Any?) {
-        showWindow()
-        NSApp.activate()
-    }
 
     /// File ▸ Open File… (menu-only: ⌘O is Peek's, docs/shortcuts.md): a new Today tab on the file.
     @objc func openFileInTab(_ sender: Any?) {
@@ -1501,11 +1736,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(newPage(_:)): { app, _ in app.tabs != nil },
         // Help
         #selector(showRestoreSidebar(_:)): { app, _ in app.store != nil && app.backupScheduler != nil && app.restoreSheet == nil },
-        #selector(newRoomWindow(_:)): { app, item in
-            let shows = app.windowController?.window?.isVisible == true
-            item.toolTip = shows ? "A second window comes in Chapter 4.8" : nil
-            return !shows && app.store != nil
-        },
+        #selector(newRoomWindow(_:)): { app, _ in app.store != nil },
         #selector(newSpace(_:)): { app, _ in app.sidebar != nil },
         #selector(openLocation(_:)): { app, _ in app.tabs != nil },
         #selector(openFileInTab(_:)): { app, _ in app.tabs?.profile != nil },
@@ -1645,6 +1876,7 @@ extension AppDelegate: EngineApplicationDelegate {
     /// decides what goes (spec §H; RoomCore discards no Room page itself).
     func engineApplication(_ application: any EngineApplication, didChangeMemoryPressure level: MemoryPressureLevel) {
         NSLog("Room: engine memory pressure \(level)")
-        tabs?.handleMemoryPressure(level)
+        // Each window's policy over its own pages (a page lives in one window, 4.8a).
+        for session in windows.all { session.tabs?.handleMemoryPressure(level) }
     }
 }

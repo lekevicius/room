@@ -58,6 +58,15 @@ public final class WindowStore {
         persistence?.scheduleWrite()
     }
 
+    /// The key window at quit goes first (4.8a): the next launch makes it key
+    /// and loads only its selection (spec §H).
+    public func moveToFront(_ id: UUID) {
+        guard let index = windows.firstIndex(where: { $0.id == id }), index > 0 else { return }
+        windows.insert(windows.remove(at: index), at: 0)
+        for i in windows.indices { windows[i].position = i }
+        persistence?.scheduleWrite()
+    }
+
     public func setSidebarWidth(_ width: Double, window: UUID) { update(window) { $0.sidebarWidth = width } }
 
     public func setSidebarVisible(_ visible: Bool, window: UUID) { update(window) { $0.sidebarVisible = visible } }

@@ -99,6 +99,17 @@ final class PictureInPicturePanels: NSObject, WebContentsUIDelegate, NSWindowDel
 
     func item(for contents: any WebContents) -> Item? { items.first { $0.contents === contents } }
 
+    /// Its window closed (4.8a): every panel and its page go.
+    func closeAll() {
+        let closing = items
+        items = []
+        for item in closing {
+            item.panel.delegate = nil
+            item.panel.close()
+            item.contents.close()
+        }
+    }
+
     // MARK: WebContentsUIDelegate
 
     /// The page closed (its `window.close()`, the opener closing): its panel goes.

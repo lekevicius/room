@@ -92,15 +92,16 @@ extension AppDelegate {
     /// engine profile not loaded this session is loaded to be deleted (its
     /// directory is from an earlier one).
     func deleteProfile(_ id: UUID) async -> ProfileDeletionOutcome {
-        guard let store, let tabs else { return .refused("no state") }
+        guard let store, !windows.all.isEmpty else { return .refused("no state") }
         guard let model = store.sidebar.profiles.first(where: { $0.id == id }) else { return .refused("no such profile") }
         guard model.id != store.sidebar.profiles.first?.id else { return .refused("the Default profile stays") }
         let spaces = Set(store.sidebar.spaces.filter { $0.profileID == id }.map(\.id))
         guard store.sidebar.spaces.contains(where: { !spaces.contains($0.id) }) else {
             return .refused("every space uses it; give one space another profile first")
         }
+        // In every window (4.8a: a page lives in the window that shows it).
         for entry in store.sidebar.entries.values where entry.profileID == id || entry.spaceID.map(spaces.contains) == true {
-            tabs.unload(entry.id)
+            for session in windows.all { session.tabs?.unload(entry.id) }
         }
         do {
             try store.sidebar.deleteProfile(id)
@@ -109,7 +110,7 @@ extension AppDelegate {
         }
         store.settings.update { $0.searchEngineByProfile[id.uuidString] = nil }
         extensions?.remove(profile: id)
-        var engineProfile = tabs.removeEngineProfile(for: id)
+        var engineProfile = forgetEngineProfile(id)
         if engineProfile == nil {
             engineProfile = try? await engine.createProfile(name: TabController.engineProfileName(for: model))
         }

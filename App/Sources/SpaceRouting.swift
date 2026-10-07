@@ -16,9 +16,10 @@ import Tabs
 @MainActor
 final class SpaceRouter {
     private let store: RoomStore
-    private weak var sidebar: SidebarController?
-    private weak var tabs: TabController?
-    private weak var toasts: ToastCenter?
+    /// Every window (4.8a): one router for the app.
+    private let windows: RoomWindows
+    /// The key window's (or the last key one's) sidebar.
+    private var sidebar: SidebarController? { windows.active?.sidebar }
     /// The rules compiled once per rule set (regexes included): rebuilt only when the store's rules change.
     private var compiled: (rules: [RoutingRule], evaluator: RoutingRules.Evaluator)?
 
@@ -27,11 +28,9 @@ final class SpaceRouter {
     private(set) var debugLog: [(url: String, origin: RoutingRules.Origin, decision: RoutingRules.Decision?)] = []
     #endif
 
-    init(store: RoomStore, sidebar: SidebarController, tabs: TabController, toasts: ToastCenter) {
+    init(store: RoomStore, windows: RoomWindows) {
         self.store = store
-        self.sidebar = sidebar
-        self.tabs = tabs
-        self.toasts = toasts
+        self.windows = windows
     }
 
     var evaluator: RoutingRules.Evaluator {
@@ -43,9 +42,8 @@ final class SpaceRouter {
     }
 
     /// "Most Recent Space" (spec §B; v1 has no Little Arc): the space most
-    /// recently activated in the key window, i.e. that window's active space.
-    /// Room has one window until 4.8a, whose active space it is; with several
-    /// windows this becomes the key window's (or the last key one's).
+    /// recently activated in the key window, i.e. that window's active space
+    /// (with several windows, 4.8a: the key window's, else the last key one's).
     var mostRecentSpace: UUID? { sidebar?.activeSpaceID }
 
     func decide(_ url: String, from origin: RoutingRules.Origin) -> RoutingRules.Decision? {
@@ -58,18 +56,24 @@ final class SpaceRouter {
     }
 
     /// A link from another app: the rules, then Settings ▸ Links' default. The
-    /// target's window is the one showing that space, else the key window;
-    /// with one window (until 4.8a) both are this one, so the tab opens in it
-    /// as a selected Today tab of the target space, and the toast offers the
-    /// switch when that space is not the shown one.
+    /// target's window is the one showing that space, else the key window
+    /// (4.8a); the tab opens in it as a selected Today tab of the target
+    /// space, and the toast offers the switch when that space is not the one
+    /// it shows.
     @discardableResult
     func openExternal(_ url: URL) -> UUID? {
-        guard let tabs, let sidebar else { return nil }
-        let space = decide(url.absoluteString, from: .external)?.space ?? sidebar.activeSpaceID
+        guard let key = windows.active, let keySidebar = key.sidebar else { return nil }
+        let space = decide(url.absoluteString, from: .external)?.space ?? keySidebar.activeSpaceID
+        let target = windows.showing(space: space) ?? key
+        guard let tabs = target.tabs, let sidebar = target.sidebar else { return nil }
         let id = tabs.openNewTab(url: url.absoluteString, inSpace: space, transition: .link)
-        if space != sidebar.activeSpaceID { announce(space) }
+        if target !== key { windows.focus(target) }
+        if space != sidebar.activeSpaceID { announce(space, in: target) }
         return id
     }
+
+    /// The window an external link would open in for `space` (the routing spike reads it).
+    func targetWindow(for space: UUID) -> WindowSession? { windows.showing(space: space) ?? windows.active }
 
     /// `TabController.routeLink`: the space a link from a page in `source` belongs in.
     func routePageLink(_ url: String, from source: UUID) -> UUID? {
@@ -77,11 +81,13 @@ final class SpaceRouter {
         return decision.space
     }
 
-    /// "Opened in {space} · Switch" (spec §F; 5 s with its button, `Timing.toastWithAction`).
-    func announce(_ space: UUID) {
-        guard let name = store.sidebar.space(space)?.name else { return }
-        toasts?.show(Toast(id: "routed", symbol: .routing, message: "Opened in \(name)",
-                           action: Toast.Action(title: "Switch") { [weak self] in self?.sidebar?.showSpace(space) }))
+    /// "Opened in {space} · Switch" (spec §F; 5 s with its button, `Timing.toastWithAction`) in
+    /// `session`'s window (the active one by default).
+    func announce(_ space: UUID, in session: WindowSession? = nil) {
+        guard let name = store.sidebar.space(space)?.name, let session = session ?? windows.active else { return }
+        let sidebar = session.sidebar
+        session.toasts?.show(Toast(id: "routed", symbol: .routing, message: "Opened in \(name)",
+                                   action: Toast.Action(title: "Switch") { [weak sidebar] in sidebar?.showSpace(space) }))
     }
 
     /// The routing sheet's "Try a URL": where a link from another app with

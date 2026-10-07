@@ -65,8 +65,13 @@ extension AppDelegate {
         }
         let elapsed = ContinuousClock.now - start
         lastShortcutsApplyMilliseconds = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
-        pageDelegate?.reservedKeys = table.reservedKeys
-        sidebar?.shortcutKey = { [weakSelf = MainActorWeak(self)] id in
+        for session in windows.all { applyShortcutKeys(to: session) }
+    }
+
+    /// One window's share of the table (4.8a: each window's key router and sidebar menus).
+    func applyShortcutKeys(to session: WindowSession) {
+        session.pageDelegate?.reservedKeys = shortcutTable.reservedKeys
+        session.sidebar?.shortcutKey = { [weakSelf = MainActorWeak(self)] id in
             guard let key = weakSelf.value?.shortcutTable.key(for: id) else { return ("", []) }
             return MenuKey.equivalent(for: key)
         }

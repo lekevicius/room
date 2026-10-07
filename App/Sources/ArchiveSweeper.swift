@@ -15,7 +15,8 @@ import Tabs
 /// `Retention` tokens).
 @MainActor
 final class ArchiveSweeper {
-    private weak var tabs: TabController?
+    /// Every window's tab controller (4.8a): each sweeps its own Today tabs.
+    private let tabs: () -> [TabController]
     private let store: RoomStore
     private var timer: Timer?
     private var lastSweep: TimeInterval
@@ -24,7 +25,7 @@ final class ArchiveSweeper {
     /// What the last sweep's retention did (B-80; DEBUG spikes read it).
     private(set) var lastRetention = ArchiveRetention.Plan()
 
-    init(tabs: TabController, store: RoomStore) {
+    init(store: RoomStore, tabs: @escaping () -> [TabController]) {
         self.tabs = tabs
         self.store = store
         lastSweep = ProcessInfo.processInfo.systemUptime
@@ -47,7 +48,7 @@ final class ArchiveSweeper {
     private func tick() {
         let uptime = ProcessInfo.processInfo.systemUptime
         guard uptime - lastSweep >= Timing.archiveSweepInterval else { return }
-        if let input = tabs?.lastUserInput, uptime - input < Timing.archiveIdleAfter { return }
+        if let input = tabs().compactMap(\.lastUserInput).max(), uptime - input < Timing.archiveIdleAfter { return }
         sweep()
     }
 
@@ -56,7 +57,7 @@ final class ArchiveSweeper {
     func sweep() -> [UUID] {
         lastSweep = ProcessInfo.processInfo.systemUptime
         let now = store.sidebar.clock()
-        let archived = tabs?.sweepArchive(now: now) ?? []
+        let archived = tabs().flatMap { $0.sweepArchive(now: now) }
         // The Archive's retention (B-80): old rows go, older than a week lose their back/forward list.
         let retention = store.sidebar.applyArchiveRetention(now: now, rows: Retention.archiveRows,
                                                             navigationState: Retention.archiveNavigationState)

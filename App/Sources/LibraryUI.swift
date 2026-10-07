@@ -11,13 +11,13 @@ import Tabs
 /// Downloads. Restores and History opens go through the sidebar and the tab
 /// controller like any other selection.
 extension AppDelegate {
-    func installLibrary(sidebar: SidebarController, tabs: TabController, store: RoomStore) {
-        guard let downloads else { return }
-        let library = LibraryController(store: store, downloads: downloads.list)
+    func installLibrary(_ session: WindowSession, store: RoomStore) {
+        guard let sidebar = session.sidebar, let tabs = session.tabs else { return }
+        let library = LibraryController(store: store, downloads: downloadList)
         library.historyArchiveURL = store.historyArchiveURL
-        library.history = { [weak sidebar, weak tabs, weak store] in
+        library.history = { [weak sidebar, weakSelf = MainActorWeak(self), weak store] in
             guard let sidebar, let profile = store?.sidebar.space(sidebar.activeSpaceID)?.profileID else { return nil }
-            return tabs?.engineProfiles[profile]?.history
+            return weakSelf.value?.engineProfiles[profile]?.history
         }
         library.profileID = { [weak sidebar, weak store] in
             guard let sidebar else { return nil }
@@ -27,8 +27,9 @@ extension AppDelegate {
         library.onRestore = { [weak self] id in self?.restoreArchived(id) }
         library.onClose = { [weak self] in self?.hideLibrary() }
         sidebar.onFooterSpaceSelected = { [weak self] in self?.hideLibrary() }
-        downloads.onOpenLibrary = { [weak self] in self?.showLibrary(section: .downloads) }
-        self.library = library
+        session.downloads?.onOpenLibrary = { [weak self] in self?.showLibrary(section: .downloads) }
+        session.library = library
+        _ = tabs
     }
 
     var isLibraryShown: Bool { library.map { sidebar?.bodyView.replacementView === $0.view } ?? false }
@@ -44,8 +45,8 @@ extension AppDelegate {
     }
 
     func showLibrary(section: LibrarySection?) {
+        ensureWindow()
         guard let sidebar, let library else { return }
-        newRoomWindow(nil)
         // With the sidebar hidden, its overlay is pinned open for the Library (spec §E).
         if windowController?.isSidebarOpen == false { hiddenSidebar?.revealForSpaceForm() }
         sidebar.bodyView.replacementView = library.view
@@ -66,7 +67,8 @@ extension AppDelegate {
     func restoreArchived(_ id: UUID) -> UUID? {
         guard let store, let sidebar else { return nil }
         do {
-            let entry = try store.sidebar.restore(archived: id, activeSpace: sidebar.activeSpaceID)
+            // Into the window that asked (its Today list, 4.8a).
+            let entry = try store.sidebar.restore(archived: id, activeSpace: sidebar.activeSpaceID, window: sidebar.windowID)
             if let space = entry.spaceID, space != sidebar.activeSpaceID { sidebar.showSpace(space) }
             sidebar.select(entry.id)
             return entry.id

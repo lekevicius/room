@@ -8,11 +8,12 @@ import Store
 import UIKitCore
 
 /// The window's downloads (ROADMAP 2.6 task 1, spec §F): `list` is every
-/// engine profile's downloads delegate; the footer button mirrors it (ring,
+/// engine profile's downloads delegate (one per app, shared by every
+/// window's button since 4.8a); the footer button mirrors it (ring,
 /// bounce, badge); a click or ⇧⌘J opens the popover; a new download flies
-/// in from the click that started it.
+/// in from the click that started it, in the active window.
 final class DownloadsUI {
-    let list = DownloadList()
+    let list: DownloadList
     let popover: DownloadsPopover
     private weak var button: DownloadsButton?
     private weak var rootView: BrowserWindowView?
@@ -25,34 +26,14 @@ final class DownloadsUI {
     private var lastClick: (point: NSPoint, time: Date)?
     private var clickMonitor: Any?
 
-    init(button: DownloadsButton, rootView: BrowserWindowView, toasts: ToastPresenting?, settings: SettingsStore) {
+    init(list: DownloadList, button: DownloadsButton, rootView: BrowserWindowView, toasts: ToastPresenting?) {
+        self.list = list
         self.button = button
         self.rootView = rootView
         self.toasts = toasts
         popover = DownloadsPopover(list: list)
-        list.folder = { [weak settings] in
-            DownloadRules.folder(setting: settings?.settings.downloadDirectory,
-                                 downloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0])
-        }
-        // Settings ▸ Downloads ▸ Ask where to save (4.4a): a save panel on the window per download.
-        list.askWhereToSave = { [weak settings] in settings?.settings.askWhereToSave ?? false }
-        list.chooseDestination = { [weak rootView] proposed, answer in
-            let panel = NSSavePanel()
-            panel.directoryURL = proposed.deletingLastPathComponent()
-            panel.nameFieldStringValue = proposed.lastPathComponent
-            panel.canCreateDirectories = true
-            panel.message = "Where should Room save this download?"
-            let done: (NSApplication.ModalResponse) -> Void = { response in answer(response == .OK ? panel.url : nil) }
-            if let window = rootView?.window {
-                panel.beginSheetModal(for: window, completionHandler: done)
-            } else {
-                panel.begin(completionHandler: done)
-            }
-        }
         button.onClick = { [weak self] in self?.togglePopover() }
         button.menuProvider = { [weak self] in self?.buttonMenu() }
-        list.onBegin = { [weak self] row in self?.flyIn(row) }
-        list.onComplete = { [weak self] row in self?.completed(row) }
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .otherMouseDown]) { [weak self] event in
             if let self, let rootView = self.rootView, event.window === rootView.window {
                 self.lastClick = (rootView.convert(event.locationInWindow, from: nil), Date())
@@ -64,6 +45,33 @@ final class DownloadsUI {
 
     isolated deinit {
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+    }
+
+    /// The list's settings and its window-facing callbacks, once per app: the
+    /// folder and Ask where to save from Settings ▸ Downloads; the save panel,
+    /// the fly-in and the completion bounce in the active window's UI.
+    static func configure(_ list: DownloadList, settings: SettingsStore, active: @escaping () -> DownloadsUI?) {
+        list.folder = { [weak settings] in
+            DownloadRules.folder(setting: settings?.settings.downloadDirectory,
+                                 downloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0])
+        }
+        // Settings ▸ Downloads ▸ Ask where to save (4.4a): a save panel on the window per download.
+        list.askWhereToSave = { [weak settings] in settings?.settings.askWhereToSave ?? false }
+        list.chooseDestination = { proposed, answer in
+            let panel = NSSavePanel()
+            panel.directoryURL = proposed.deletingLastPathComponent()
+            panel.nameFieldStringValue = proposed.lastPathComponent
+            panel.canCreateDirectories = true
+            panel.message = "Where should Room save this download?"
+            let done: (NSApplication.ModalResponse) -> Void = { response in answer(response == .OK ? panel.url : nil) }
+            if let window = active()?.rootView?.window {
+                panel.beginSheetModal(for: window, completionHandler: done)
+            } else {
+                panel.begin(completionHandler: done)
+            }
+        }
+        list.onBegin = { row in active()?.flyIn(row) }
+        list.onComplete = { row in active()?.completed(row) }
     }
 
     /// The ring and the badge follow the list.
@@ -106,7 +114,7 @@ final class DownloadsUI {
         return menu
     }
 
-    private func flyIn(_ row: DownloadList.Row) {
+    func flyIn(_ row: DownloadList.Row) {
         guard let rootView, let button, button.window != nil, !button.isHiddenOrHasHiddenAncestor else { return }
         let card = rootView.currentLayout.card
         let start: NSPoint
@@ -119,7 +127,7 @@ final class DownloadsUI {
         DownloadFlyIn.run(image: image, from: start, to: button.target(in: rootView), in: rootView) {}
     }
 
-    private func completed(_ row: DownloadList.Row) {
+    func completed(_ row: DownloadList.Row) {
         button?.bounce()
         if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) }
         // With the sidebar hidden the button cannot be seen: a toast says so (spec §E, §F).

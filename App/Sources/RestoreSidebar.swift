@@ -15,7 +15,7 @@ import SwiftUI
 extension AppDelegate {
     @objc func showRestoreSidebar(_ sender: Any?) {
         guard let store, let window = windowController?.window, restoreSheet == nil else { return }
-        newRoomWindow(nil)
+        ensureWindow()
         let backups = store.backups
         let infos = backups.list().compactMap { try? backups.info($0) }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 400), styleMask: [.titled], backing: .buffered,
@@ -39,11 +39,14 @@ extension AppDelegate {
     /// The restore itself (the sheet's Restore; DEBUG spikes call it).
     @discardableResult
     func restoreSidebar(from file: BackupFile) -> Bool {
-        guard let store, let tabs, let sidebar, let backupScheduler else { return false }
+        guard let store, let active = activeWindow, let tabs = active.tabs, let sidebar = active.sidebar, let backupScheduler else { return false }
         hideLibrary()
-        // Every page goes; their back/forward lists land in the state being backed up.
-        for id in tabs.loadedEntryIDs { tabs.unload(id) }
-        tabs.deactivate()
+        // Every page in every window goes; their back/forward lists land in the state being backed up.
+        for session in windows.all {
+            guard let pages = session.tabs else { continue }
+            for id in pages.loadedEntryIDs { pages.unload(id) }
+            pages.deactivate()
+        }
         store.flush()
         let backup: RoomState
         do {
@@ -58,9 +61,13 @@ extension AppDelegate {
             tabs.showSelection()
             return false
         }
-        store.restoreSidebar(from: backup, window: sidebar.windowID)
-        // The sidebar rebuilt itself on the store's change; the card shows the restored selection, as at launch.
-        tabs.showSelection()
+        // The backup's windows map onto the open ones, the active first (4.8a).
+        let open = [active.id] + windows.all.map(\.id).filter { $0 != active.id }
+        store.restoreSidebar(from: backup, window: sidebar.windowID, open: open)
+        // The sidebars rebuilt themselves on the store's change; the active window's card shows its
+        // restored selection, as at launch; the others load theirs when they are next key.
+        for session in windows.all where session !== active { session.selectionShown = false }
+        showSelection(of: active)
         let date = file.date.formatted(date: .abbreviated, time: .shortened)
         toastCenter?.show(Toast(id: "sidebar-restored", symbol: .restore, message: "Sidebar restored from \(date)"))
         NSLog("Room: sidebar restored from %@ (%ld spaces, %ld entries, %ld archived)", file.url.lastPathComponent,

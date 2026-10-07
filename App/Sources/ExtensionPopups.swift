@@ -33,7 +33,7 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         self.sidebar = sidebar
         self.tabs = tabs
         self.rootView = rootView
-        center.popupPresenter = self
+        // The center's presenter is the app's router (one per app; it picks this window for its pages, 4.8a).
         sidebar.addressField.onExtensionAction = { [weak self] id in self?.run(id) }
         sidebar.addressField.onExtensionPin = { [weak self] id in self?.pin(id) }
         observe()

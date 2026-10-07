@@ -115,6 +115,8 @@ struct WindowsTests {
         windows.select(pinned.id, space: space, window: second)
         windows.select(pinned.id, space: space, window: first)
         #expect(Set(windows.windows(selecting: pinned.id)) == [first, second])
+        windows.moveToFront(second)
+        #expect(windows.windows.map(\.id) == [second, first] && windows.windows.map(\.position) == [0, 1])
         windows.removeWindow(first)
         #expect(windows.windows.map(\.id) == [second] && windows.windows[0].position == 0)
         #expect(windows.windows(selecting: pinned.id) == [second])
