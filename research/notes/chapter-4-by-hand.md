@@ -6,7 +6,7 @@ What the Chapter 4 sessions could not check without a click, a device, an accoun
 
 ## The current DMG
 
-- **The chapter's DMG, build 11: `build/sparkle-4.9/Room-0.1.0-11.dmg`** (the 4.8b framework plus 4.9's two app changes: the Screenshots folder pruned at launch, the Settings Section menu items validated). Install this one; everything below that says build 10 applies to it. (The planner started its signing at 07:05; if the file is missing, Apple's queue had not returned and build 10 stands.)
+- **The chapter's DMG, build 11: `build/sparkle-4.9/Room-0.1.0-11.dmg`** (the 4.8b framework plus 4.9's two app changes: the Screenshots folder pruned at launch, the Settings Section menu items validated). Install this one; everything below that says build 10 applies to it. Landed 2026-10-07 07:05, 188,436,895 B, notarized and stapled; Room.app 391 MB.
 
 - **First, GitHub (B-93):** CI has not run on GitHub since 2026-10-07 01:35 (a billing hold on the account: Settings ▸ Billing & plans). The sessions built and tested the CI spec locally meanwhile (4.9: the last run's line is in the progress log); after the fix, re-run the latest workflow run once.
 

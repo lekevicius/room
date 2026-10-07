@@ -115,7 +115,7 @@ The form's "Chapter 4" section: B-97 (the drag out against URL drags), B-98 (one
 
 ### The by-hand list
 
-`research/notes/chapter-4-by-hand.md`: 74 steps in nine groups, build 11 at the top (build 10 if Apple's queue failed again). DMGs the chapter made: builds 2, 3, 4, 5, 6, 8, 9, 10, 11 (7 never returned from notarization).
+`research/notes/chapter-4-by-hand.md`: 74 steps in nine groups, build 11 at the top (`build/sparkle-4.9/Room-0.1.0-11.dmg`, 188,436,895 B, notarized 07:05). DMGs the chapter made: builds 2, 3, 4, 5, 6, 8, 9, 10, 11 (7 never returned from notarization).
 
 ### What the week should watch
 
