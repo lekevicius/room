@@ -45,7 +45,10 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
-        excludes: ["Reader/**"]
+        excludes: ["Reader/**", "AppIcon.icon/**"]
+      # The app icon (Icon Composer; actool compiles it into Assets.car and AppIcon.icns).
+      - path: App/Resources/AppIcon.icon
+        buildPhase: resources
       # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
       - path: App/Resources/Reader
         type: folder

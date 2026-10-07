@@ -15,7 +15,7 @@ settings:
     # Apple silicon only: the fork build is arm64.
     ARCHS: arm64
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "12"
+    CURRENT_PROJECT_VERSION: "13"
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
@@ -73,6 +73,8 @@ settingGroups:
     # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
     # key is in that Mac's login keychain, account "ed25519").
     SPARKLE_PUBLIC_ED_KEY: z1WE/kOA/sLq7Ou7T/lQ19moA5XdXnXOPkf1Gqxqh5Q=
+    # App/Resources/AppIcon.icon (the user's Room.icon, 2026-10-08).
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_STRICT_CONCURRENCY: complete
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
@@ -90,7 +92,10 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
-        excludes: ["Reader/**"]
+        excludes: ["Reader/**", "AppIcon.icon/**"]
+      # The app icon (Icon Composer; actool compiles it into Assets.car and AppIcon.icns).
+      - path: App/Resources/AppIcon.icon
+        buildPhase: resources
       # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
       - path: App/Resources/Reader
         type: folder
