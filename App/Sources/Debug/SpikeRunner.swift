@@ -89,6 +89,7 @@ enum SpikeRunner {
         case "media": await context.mediaChecks()
         case "documents": await context.documentsChecks()
         case "reader": await context.readerChecks()
+        case "windows": await context.windowsChecks()
         case "passwords": await context.passwordsChecks()
         case "autofill": await context.autofillChecks()
         case "session": await context.sessionChecks()

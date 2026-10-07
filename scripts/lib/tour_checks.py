@@ -1225,6 +1225,71 @@ def _reader(c):
         c.number(key)
 
 
+@step_check("windows")
+def _windows(c):
+    """ROADMAP 4.8a (`scripts/windows-check.sh`, the `windows` spike, three
+    launches): ⌘N opens a second window cascaded from the first on its space
+    with an empty Today list, key; a pinned entry renamed in window 1 shows in
+    window 2's row in the same turn; a Today tab belongs to its window (listed
+    there, not in the other); a pinned page navigated in window 1 and selected
+    in window 2 moves (window 1's page closed, its selection on its MRU shown in
+    its card) with its history (the second page, canGoBack, Back works); ⌘1 in
+    window 2 selects its first entry and leaves window 1 alone; ⌃Tab's list is
+    the window's; Open in New Window from the context menu makes a third
+    window with the Today tab moved and selected; a drag ending 20 pt past the
+    edge makes nothing, 100 pt past makes a window whose top-left is the drop
+    point. Relaunch: every window back with its frame and active space, the
+    Today tab in its own window, only the front window loaded; closing a
+    window archives its Today tab with `windowClosed` (the Library's row;
+    restorable); closing the last window keeps the app, ⌘N reopens the kept
+    window, so does the Dock. Memory: ten pages over two windows beside one
+    window's (numbers; judged on the release framework)."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("pinned_window1", "url=next-b.html", "canGoBack=true", label="window 1: the pinned page on its second page with history")
+    c.contains("new_window", "by ⌘N windows=2", "key=2", "active_is_new=true", "cascade=22,22", "same_space=true", "today=0", "selected=none",
+               "card_empty=true", "rows=2", label="⌘N: a second window, key, cascaded 22 pt, the same space, an empty Today list")
+    c.contains("new_window", "window_menu=2", label="the Window menu lists both windows (AppKit's list)")
+    c.contains("shared_rename", '→"Renamed in window 1"', 'window1_row="Renamed in window 1"', "same turn",
+               label="a pinned entry renamed in window 1 shows in window 2's row at once")
+    c.contains("today_per_window", "window2_today=2", "window1_today=0", "tab_window=2", "listed_window2=true", "listed_window1=false",
+               "pinned_listed_both=true", label="Today tabs per window; pinned entries in both")
+    c.contains("pinned_move", "window1_page_closed=true", "window1_holds=false", "window1_selected=C (its MRU)", "window1_card_shows_mru=true",
+               label="selecting the pinned page in window 2 moves it: window 1 gives it up and shows its MRU")
+    c.contains("pinned_move", "window2_url=next-b.html", "window2_canGoBack=true", "history_length=2", "window2_card=true", "owners=2",
+               label="window 2 shows the moved page with its history (unload and reload until 4.8b)")
+    c.contains("pinned_move_back", "url=b.html", label="Back in window 2 goes to the page's first page")
+    c.contains("cmd1_window2", "key=2", "selected_first=true", "window1_selection_kept=true", label="⌘1 in window 2 selects window 2's first entry only")
+    c.contains("switcher_per_window", "window2_has_its_tab=true", "window1_has_window2_tab=false", label="⌃Tab's recent list is per window")
+    c.contains("open_in_new_window", "item=true", "enabled=true", "windows=3", "selected=true", "tab_window=3", "window2_lists=false",
+               "window3_lists=true", "page=e.html", "window2_holds=false", label="Open in New Window: a third window with the Today tab moved and selected")
+    c.contains("drag_out", "near(20pt)_windows=3", "past(beyond 40pt)_windows=4", "top_left_at_drop=true", "selected=true", "kind=today",
+               "tab_window=4", label="the drag out: nothing within 40 pt; past it a window at the drop point with the entry")
+    c.contains("saved", "windows=4", "rows=4", label="four windows saved")
+    restored = [c.first(f"restored_window_{i}") or "" for i in range(1, 5)]
+    c.check("relaunch: every window back with its frame", all("frame_matches=true" in r for r in restored), " | ".join(r[:90] for r in restored))
+    saved_spaces = [re.search(r"space=(\S+)", c.first(f"saved_window_{i}") or "") for i in range(1, 5)]
+    restored_spaces = [re.search(r"space=(\S+)", r) for r in restored]
+    c.check("relaunch: every window on its active space (window 2 on Second)",
+            all(a and b and a.group(1) == b.group(1) for a, b in zip(saved_spaces, restored_spaces)) and "space=Second" in restored[1],
+            " | ".join((b.group(1) if b else "?") for b in restored_spaces))
+    c.contains("restored", "windows=4", "today_d_in_window=2", "today_d_in_front=false", label="relaunch: the Today tab is in its own window, not the front one")
+    c.contains("restored", "loaded_windows=1", "key=1", label="relaunch: only the front (key) window's selection loaded (spec §H)")
+    c.contains("close_window", "windows 4→3", "entry_gone=true", "archived=windowClosed", "library_row=Windows fixture D", "windowClosed_rows=1",
+               label="closing a window archives its Today tab with reason windowClosed (the Library's row)")
+    c.contains("close_window_restore", "into the active window", label="the archived tab restores into the window that asks")
+    c.contains("close_last", "windows=0", "visible=0", "app_running=true", "rows_kept=1", label="closing the last window keeps the app running")
+    c.contains("reopen_cmd_n", "menu_took=true", "windows=1", "same_row=true", "visible=true", label="⌘N reopens a window on the last state")
+    c.contains("reopen_dock", "windows=1", "visible=true", label="the Dock's reopen does too")
+    one = c.first("memory_windows_1") or ""
+    two = c.first("memory_windows_2") or ""
+    c.check("memory: ten pages over two windows (5 + 5) beside ten in one window, each on a fresh launch",
+            "loaded=10/10" in one and "pages_window1=10" in one and "loaded=10/10" in two and "pages_window1=5" in two and "pages_window2=5" in two,
+            (one[:110] + " | " + two[:140]) or "missing")
+    for key in ("new_window", "pinned_move", "shared_rename", "memory_baseline_1", "memory_windows_1", "memory_baseline_2", "memory_windows_2"):
+        c.number(key)
+
+
 @step_check("extensions")
 def _extensions(c):
     """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the

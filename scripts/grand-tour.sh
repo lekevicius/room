@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents; 4.7b: reader), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents; 4.7b: reader), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), windows (4.8a), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -290,6 +290,13 @@ for appearance in "${appearances[@]}"; do
   # 4.3a: import from the fixtures (research/spikes/phase-4.3) as detected installs: the readers'
   # counts, each preview against the store after it, the depth clip, the Essentials cap, Arc's spaces, history.
   run import scripts/import-check.sh "$CAPS/import"
+
+  # 4.8a: several windows: ⌘N, a pinned rename live in both, a Today tab per window, a pinned page
+  # moving with its history, ⌘1 per window, Open in New Window, the drag out; a relaunch with every
+  # window; close window → its Today tab archived; the last window closed keeps the app, ⌘N and the
+  # Dock reopen; memory with ten pages over two windows. Own state; :8777.
+  group=windows
+  run windows scripts/windows-check.sh "$CAPS/windows"
 
   group=netlog
   run netlog scripts/netlog-check.sh "$STEPS/netlog"
