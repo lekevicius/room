@@ -203,8 +203,10 @@ extension SpikeRunner.Context {
         if let engine = await app.engineProfile(for: defaultProfile), let history = engine.history {
             var found: [String] = []
             for query in ["Typed three times", "Import fixture Gamma", "Swift.org", "Old and new"] {
-                let results = await history.search(query, limit: 5)
-                found.append("\(query)=\(results.first.map { "\($0.url.absoluteString) visits=\($0.visitCount) typed=\($0.typedCount)" } ?? "none")")
+                // The full tour's shared state has other history matching the words (palettemeasure's 50k rows):
+                // the imported page is the one with the fixture's title.
+                let results = await history.search(query, limit: 1000)
+                found.append("\(query)=\((results.first { $0.title == query } ?? results.first).map { "\($0.url.absoluteString) visits=\($0.visitCount) typed=\($0.typedCount)" } ?? "none")")
             }
             SpikeRunner.record("history_search", found.joined(separator: " | "))
         } else {

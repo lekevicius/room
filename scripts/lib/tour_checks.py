@@ -487,7 +487,10 @@ def _cookies(c):
     c.check("moved to Work: a new page in Work's context reads Work's cookie",
             'cookie="room_profile=work"' in (c.first("after_move_to_work") or "") and c.first("moved_entry_profile_is_work") == "true",
             c.first("after_move_to_work") or "missing")
-    c.check("engine profiles are direct children of the root", c.first("engine_profile_directories") == "Room Profile Default, Room Profile Work",
+    # Since 4.4b (B-22) an engine profile's directory is keyed by the Room profile's id, not its name.
+    dirs = (c.first("engine_profile_directories") or "").split(", ")
+    c.check("engine profiles are direct children of the root",
+            len(dirs) == 2 and all(re.fullmatch(r"Room Profile [0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}", d) for d in dirs),
             c.first("engine_profile_directories") or "missing")
     # History follows the profile: each profile's engine history holds only its own visits (3.5; 3.9 reads the engine's).
     c.check("history follows the profile: Default has only ?set=home, Work only ?set=work",
@@ -545,7 +548,8 @@ def _palette2(c):
     exa = next((l for l in c.spike if l.startswith("palette exa: ")), "")
     c.check("inline host completion from history (exa → example.com)", "inline=mple.com" in exa, exa or "missing")
     for appearance in ("light", "dark"):
-        c.contains(f"state_commands-filtered_{appearance}", 'rows=["Reload", "Reload without Cache"]', label=f">re filters commands ({appearance})")
+        # 4.7a and 4.7b added commands that also match ">re" (Reader Mode, Capture Screenshot).
+        c.contains(f"state_commands-filtered_{appearance}", "chip=-", '"Reload", "Reload without Cache"', label=f">re filters commands ({appearance})")
         c.contains(f"state_site-search_{appearance}", "chip=YouTube", label=f"yt ⇥ shows the YouTube chip ({appearance})")
         c.contains(f"state_history-inline_{appearance}", "inline=thub.com", label=f"gi completes github.com ({appearance})")
     page = hist.get("history search page", "")

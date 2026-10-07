@@ -121,7 +121,10 @@ extension SpikeRunner.Context {
         SpikeRunner.record("closed_window", "visible after ⇧⌘W: \(window.isVisible)")
         let url = URL(string: Self.site28 + "site.html?after-close")!
         let t = await openFromOutside("open", url)
-        SpikeRunner.record("closed_window_link", "window visible=\(window.isVisible) main=\(window.isMainWindow) "
+        // Since 4.8a the closed window's session is torn down and the link reopens the kept window row as a new
+        // window: read the app's window now, not the closed one.
+        let shown = app2?.windowController?.window ?? window
+        SpikeRunner.record("closed_window_link", "window visible=\(shown.isVisible) main=\(shown.isMainWindow) new_window=\(shown !== window) "
             + "tab=\(app2?.tabs?.current?.url?.absoluteString ?? "nil") event→requested "
             + "\(t.event != nil && t.requested != nil ? Self.ms(t.event!, t.requested!) : "—")")
         await activate()
