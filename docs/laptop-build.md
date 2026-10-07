@@ -46,19 +46,14 @@ Refreshing the framework later (after a `//room` change on the Mac mini): rerun 
 
 ## B. Building the fork on the laptop
 
-Only if you want `//room` changes to build locally. The laptop's checkout is on 154.0.8037.58 with PR #1's twelve patch commits (0010 included), which the apply script now refuses (a commit outside the series). The rebase script takes it to 155 and rebuilds `room` from the patch files:
+Only if you want `//room` changes to build locally. `scripts/roomcore-rebase.sh` does not help a checkout that is merely behind: it compares the tag it is given with the pin in `CHROMIUM_TAG` and, once the repository is pinned, says "nothing to rebase" (found 2026-10-07). A stale checkout catches up with the scripts a new machine uses:
 
 ```bash
-cd "$CHROMIUM_SRC" && git checkout --detach && git branch -D room; cd - && scripts/roomcore-rebase.sh --dry-run 155.0.8059.36
+cd "$CHROMIUM_SRC" && git checkout --detach && git branch -m room room-old && rm -f room; cd -
+bash -c 'nohup sh -c "scripts/chromium-checkout.sh && scripts/roomcore-apply.sh && scripts/roomcore-build.sh" > build/laptop-fork-setup.log 2>&1 &'
 ```
 
-then, if the dry run lists no conflict (it should not: the 23 patches were refreshed on 155):
-
-```bash
-bash -c 'nohup scripts/roomcore-rebase.sh 155.0.8059.36 > build/roomcore-rebase-laptop.log 2>&1 &'
-```
-
-That fetches the tag, syncs (`gclient` downloads the clang roll and deps), applies the series, regenerates the stubs, runs `gn gen` and starts the clean build (64 GB: the default job count is fine; Phase 1.5's clean build on this laptop took 4 h 24 min, partly at reduced priority). When it ends, `scripts/roomcore-package.sh` stages and builds both apps as on the Mac mini, and `scripts/roomcore-rebase.sh --verify` runs the baseline and the tour sections. This path was not exercised on the laptop in Chapter 3; `Engine/roomcore/README.md` "Rebasing" has the script's modes if it stops.
+The first line parks the old `room` branch (its patches are files in the repository; `roomcore-apply.sh` refuses a branch with commits outside the series) and removes a `src/room` link that points at another clone or worktree (the apply script refuses that too and relinks it to this repository). The second fetches the pinned tag, checks it out, syncs DEPS (`gclient` downloads the clang roll and deps) and runs the hooks, applies the series on a new `room` branch, writes `out/dev/args.gn`, and starts the clean build (64 GB: the default job count is fine; Phase 1.5's clean build on this laptop took 4 h 24 min, partly at reduced priority). When it ends, `scripts/roomcore-package.sh` stages and builds both apps as on the Mac mini; then `build/roomcore` is the component stage again, not the link to the release framework from section A step 3. Timings: `research/notes/build-log.md`, "Laptop fork setup".
 
 ## The signed build
 

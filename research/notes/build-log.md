@@ -698,3 +698,20 @@ The `//room` change: the engine step (commit `5c039c3`, no patch: the series sta
 Then, from bash with nohup: `ROOM_BUILD_JOBS=6 ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn scripts/roomcore-build.sh`, **pid 94125**, started 04:05:57 (`date`), log `build/roomcore-release-build-4.8b.log`: the apply step 44 s, "build start 2026-10-07 04:06:41 … load: { 7.26 8.44 7.22 }", **"build done in 472 s"** (7 min 52 s; load at the end 7.95), `siso_metrics.json` written 04:14:33: **8 min 36 s wall** for the script. siso: 24 steps, 0 failed: no `gn` step, 19 `//room` objects (three public headers changed: every file including `RoomWebContents.h` or `RoomProfile.h`; the largest `room_browser_window.o` 23.5 s at 1.02 GiB, `room_browser.o` 21.9 s at 1.60 GiB), **the framework's ThinLTO link 407.5 s at 8.21 GiB `max_rss`** (4.7a: 421.6 s at 7.47 GiB), the framework copy, `run_verify_chrome_framework_order` **passed** (0.42 s: the members are methods on existing classes and a category, `RoomBrowserWindowClient`'s new member a C++ virtual inside `//room`: no class or constant joins `room_core.exports`, B-77) and `run_verify_libraries_chrome_app` (0.12 s). Beside it: the Tabs package's move, the Sidebar's incognito mode, unit tests, `--app-only` Debug builds over the dev framework. No swap noticed.
 
 `scripts/roomcore-package.sh --release`: **135.5 s** (`time -p` real; host 31.8 s, the Release app 100.9 s; 391 MB; `RoomCoreCommit 5c039c3`), built at 04:16 from the working tree with the incognito window half written (the Sidebar's incognito mode uncommitted, the app's `IncognitoWindow.swift` not yet there): the planner rebuilds the Release app (`--release --app-only`) before the DMG. The Debug app over the release framework (`CONFIGURATION=Debug … --release --app-only`) was rebuilt after the incognito commits and is the tour's `ROOM_TOUR_APP`.
+
+## 2026-10-07 — Laptop fork setup: the stale checkout to 155.0.8059.36 and a clean `out/dev` (M1 Max laptop, default jobs)
+
+The laptop's checkout was on 154.0.8037.58 with PR #1's twelve patch commits on `room` (0010 included) and `src/room` linked to a Codex worktree. Parked: `git branch -m room room-pr1-154`, the link removed. `scripts/roomcore-rebase.sh --dry-run 155.0.8059.36` does nothing here ("already pinned"; it moves the pin, it does not catch a checkout up), so the chain was `chromium-checkout.sh && roomcore-apply.sh && roomcore-build.sh` from nohup (`build/laptop-fork-setup.sh`, log `build/laptop-fork-setup.log`; `docs/laptop-build.md` §B).
+
+| Step | Seconds | Notes |
+|---|---|---|
+| fetch the tag | 21 | |
+| checkout `tags/155.0.8059.36` | 24 | |
+| `gclient sync -D --nohooks` | 116 | |
+| `gclient runhooks` | 30 | checkout 132 GB after |
+| `roomcore-apply.sh` | 33 | "23 applied", `gn gen out/dev` 35,999 targets from 5,005 files in 6.9 s; `room` at `5feeacac0dd5e` |
+| `roomcore-build.sh` (`out/dev`, target `chrome`, Siso default 10 jobs, nice 0) | **16,788 (4 h 39 min 48 s)** | started 16:50:08 at load 63 (other apps: the user's Room, Blender MCP servers, the session's Xcode build of the app beside the sync), ended 21:29:56 at load 383–432; `out/dev` 8.4 GB (the 154 out directory was reused; Siso rebuilt everything that changed with the tag) |
+| `roomcore-package.sh` | 95.9 | stage 5.2 s (518 dylibs, 931 MB, `RoomCoreCommit 5c039c3`), host 53.4 s, app 37.1 s |
+| `roomcore-baseline.sh` | 88.1 | passed: nav 14.1 s, ten-page quits 0.759 / 2.202 / 2.097 s at load 132–140, 0 helpers left, no crash reports |
+
+Compare: Phase 1.5's clean branded build on this laptop, 14,620 s cumulative (2026-10-03, partly resumed); the Mac mini's at 6 jobs, 15,284 s. Before the build, the release framework copied from the Mac mini (`docs/laptop-build.md` §A step 2, `rsync`, 9.98 s for 367 MB on the LAN; `RoomCoreCommit 43b3213` → `5c039c3`) and the Debug app built over it in 105 s (beside the sync). `roomcore-package.sh` replaces §A's `build/roomcore` link with the component stage; `build/roomcore-release` is untouched.
