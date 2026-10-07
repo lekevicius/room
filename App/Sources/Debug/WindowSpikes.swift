@@ -141,7 +141,7 @@ extension SpikeRunner.Context {
         var history = "nil"
         if let moved { history = await js(moved, "history.length") }
         SpikeRunner.record("pinned_move", String(format: "in %.0f ms ", moveMs)
-            + "window1_page_closed=\(first.state == .closed) window1_holds=\(t1.contents(for: pinB.id) != nil) "
+            + "same_page=\(moved === first) page_state=\(first.state) window1_holds=\(t1.contents(for: pinB.id) != nil) "
             + "window1_selected=\(s1.selectedEntryID == pinC.id ? "C (its MRU)" : s1.selectedEntryID?.uuidString ?? "none") "
             + "window1_card_shows_mru=\(w1.pageHost.contents != nil && w1.pageHost.contents === t1.contents(for: pinC.id)) "
             + "window2_url=\(moved?.url?.lastPathComponent ?? "nil") window2_canGoBack=\(moved?.canGoBack ?? false) history_length=\(history) "

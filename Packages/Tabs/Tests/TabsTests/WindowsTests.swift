@@ -16,6 +16,9 @@ final class TwoWindows {
     let tabs2: TabController
     let display2 = RecordingDisplay()
     let owners: PageOwners
+    /// The windows the pages move between (never shown; the controllers hold them weakly).
+    let window1 = NSWindow()
+    let window2 = NSWindow()
 
     init() throws {
         f = try TabsFixture()
@@ -27,6 +30,8 @@ final class TwoWindows {
         tabs2.now = { [unowned f] in f.clock }
         tabs2.profile = f.profile
         sidebar2.host = tabs2
+        f.tabs.window = window1
+        tabs2.window = window2
         let pair = [f.tabs, tabs2]
         owners = PageOwners { pair }
         f.tabs.ownership = owners
@@ -42,7 +47,7 @@ final class TwoWindows {
     }
 }
 
-@Suite("Page ownership across windows (4.8a)")
+@Suite("Page ownership across windows (4.8a, the move 4.8b)")
 @MainActor
 struct PageOwnershipTests {
     @Test("Claims: no holder loads, the holder keeps, another window's page moves")
@@ -65,7 +70,7 @@ struct PageOwnershipTests {
         #expect(PageOwnership.fallback(mru: [moved, unused], losing: moved.id, visibleElsewhere: []) == nil)
     }
 
-    @Test("A pinned page selected in window 2 moves there with its history; window 1 falls back to its most recent entry")
+    @Test("A pinned page selected in window 2 moves there, the same page with its history; window 1 falls back to its most recent entry")
     func pinnedMoves() async throws {
         let w = try TwoWindows()
         let f = w.f
@@ -81,11 +86,12 @@ struct PageOwnershipTests {
         #expect(first.canGoBack)
         f.advance(minutes: 1)
         w.sidebar2.select(pinned.id)
-        // Window 1 gave the page up (closed, its history in the entry); window 2 made it from that history.
-        #expect(first.state == .closed && f.tabs.contents(for: pinned.id) == nil)
+        // Window 1 handed the page over; window 2 moved the same page into its window (4.8b), history and all.
+        #expect(f.tabs.contents(for: pinned.id) == nil)
         let moved = try #require(w.page2(pinned.id))
-        #expect(moved.wasRestored && moved.canGoBack && moved.url?.absoluteString == "https://p.example/next")
-        #expect(w.display2.shown === moved)
+        #expect(moved === first && moved.state == .alive && moved.hostWindow === w.window2 && moved.moveCount == 1)
+        #expect(moved.canGoBack && moved.url?.absoluteString == "https://p.example/next" && !moved.wasRestored)
+        #expect(w.display2.shown === moved && f.display.shown !== moved)
         await w.nextTurn()
         // Window 1's selection fell to its MRU, whose page it shows.
         #expect(f.sidebar.selectedEntryID == other.id)
@@ -93,7 +99,7 @@ struct PageOwnershipTests {
         // Selecting it again in window 1 moves it back.
         w.sidebar2.select(nil)
         try f.select(pinned.id)
-        #expect(w.page2(pinned.id) == nil && f.page(pinned.id) != nil)
+        #expect(w.page2(pinned.id) == nil && f.page(pinned.id) === first && first.hostWindow === w.window1)
     }
 
     @Test("Each window's Today list and ⌘1 are its own")
@@ -132,7 +138,7 @@ struct PageOwnershipTests {
         final class Elsewhere: PageOwnershipCoordinator {
             let visible: Set<UUID>
             init(_ visible: Set<UUID>) { self.visible = visible }
-            func tabController(_ controller: TabController, willMakePageFor entry: UUID) {}
+            func tabController(_ controller: TabController, willMakePageFor entry: UUID) -> (any WebContents)? { nil }
             func entriesVisible(besides controller: TabController) -> Set<UUID> { visible }
         }
         let elsewhere = Elsewhere([a.id])

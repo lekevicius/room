@@ -1,12 +1,14 @@
+import Engine
 import Foundation
 import Model
 
 /// Page ownership across windows (4.8a, PLAN §4 "Windows and incognito"):
 /// an entry's page lives in one window's tab controller (one `RoomBrowser`
 /// per window and profile on RoomCore). Selecting the entry in another
-/// window moves the page there; until 4.8b's `WebContents.move(toHostWindow:)`
-/// the move is an unload in the first window (its back/forward list saved
-/// into the entry) and a load in the second (restored from it).
+/// window moves the page there: the holder hands it over and the claimer
+/// moves it into its window with `WebContents.move(toHostWindow:)` (4.8b;
+/// 4.8a unloaded it in the first window and loaded it from its saved
+/// history in the second).
 public enum PageOwnership {
     public enum Claim: Equatable, Sendable {
         /// No window holds the entry's page: make one.
@@ -37,8 +39,10 @@ public enum PageOwnership {
 @MainActor
 public protocol PageOwnershipCoordinator: AnyObject {
     /// `controller` is about to make a page for `entry`: a window holding
-    /// one gives it up first (its navigation state is in the entry when this returns).
-    func tabController(_ controller: TabController, willMakePageFor entry: UUID)
+    /// one hands it over (4.8b) and it is returned for `controller` to move
+    /// into its window; nil when no other window held it. Its navigation
+    /// state is in the entry when this returns.
+    func tabController(_ controller: TabController, willMakePageFor entry: UUID) -> (any WebContents)?
     /// The entries on screen in every other window (never discarded, spec §H).
     func entriesVisible(besides controller: TabController) -> Set<UUID>
 }
@@ -46,28 +50,6 @@ public protocol PageOwnershipCoordinator: AnyObject {
 extension TabController {
     /// The entries this window shows: the split's panes, or the card's entry.
     public var visibleEntries: Set<UUID> { visibleEntryIDs }
-
-    /// Another window takes `entry`'s page (4.8a): it closes here with its
-    /// back/forward list saved into the entry, and when it was on screen the
-    /// selection falls to this window's most recent other entry (or the
-    /// empty state). Returns whether a page was given up.
-    @discardableResult
-    public func giveUpPage(_ entry: UUID) -> Bool {
-        guard pages[entry] != nil else { return false }
-        let wasShown = visibleEntryIDs.contains(entry)
-        unload(entry)
-        sidebar?.pageStateDidChange([entry])
-        guard wasShown, let sidebar, sidebar.selectedEntryID == entry || currentEntryID == entry else { return true }
-        let elsewhere = ownership?.entriesVisible(besides: self) ?? []
-        let next = PageOwnership.fallback(mru: store.sidebar.mruOrder(space: sidebar.activeSpaceID, window: windowID),
-                                          losing: entry, visibleElsewhere: elsewhere.union([entry]))
-        // On the next turn: the claiming window finishes making its page first.
-        DispatchQueue.main.async { [weak self, weak sidebar] in
-            guard let self, let sidebar, sidebar.selectedEntryID == entry || self.currentEntryID == entry else { return }
-            sidebar.select(next)
-        }
-        return true
-    }
 }
 
 /// The coordinator over a set of windows' tab controllers (the app's
@@ -92,12 +74,13 @@ public final class PageOwners: PageOwnershipCoordinator {
         return result
     }
 
-    public func tabController(_ controller: TabController, willMakePageFor entry: UUID) {
+    public func tabController(_ controller: TabController, willMakePageFor entry: UUID) -> (any WebContents)? {
         guard let window = controller.windowID,
-              case .move(let from) = PageOwnership.claim(entry, by: window, owners: owners) else { return }
+              case .move(let from) = PageOwnership.claim(entry, by: window, owners: owners) else { return nil }
         for other in controllers() where other !== controller && other.windowID == from {
-            other.giveUpPage(entry)
+            if let page = other.handOverPage(entry) { return page }
         }
+        return nil
     }
 
     public func entriesVisible(besides controller: TabController) -> Set<UUID> {

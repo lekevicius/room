@@ -450,17 +450,7 @@ public final class TabController: SidebarHost {
         // Its Peek closes first (spec §A.3), and its reader page (4.7b).
         closePeek(over: entry, recordForReopen: false, animated: true)
         closeReader(of: entry)
-        guard let page = pages.removeValue(forKey: entry) else { return }
-        page.generation += 1
-        if currentEntryID == entry {
-            show(nil, split: shownSplit)
-        } else if let split = shownSplit, let index = split.panes.firstIndex(where: { $0.entry == entry }) {
-            // A pane's page went (the pane stays, empty, until the split changes).
-            var panes = split.panes
-            panes[index].contents = nil
-            shownSplit?.panes = panes
-            display?.showSplit(shownSplit)
-        }
+        guard let page = removePage(entry) else { return }
         guard page.contents.state != .closed else { return }
         // Its history as it is now (a change in this turn has not been
         // reported yet): an unloaded entry goes Back where it was (spec §A.3).
@@ -597,6 +587,58 @@ public final class TabController: SidebarHost {
         return makePage(for: entry, hidden: true)?.contents
     }
 
+    /// Takes `entry`'s page out of this window's pages and card (its
+    /// observations stop); the page itself is not touched.
+    private func removePage(_ entry: UUID) -> Page? {
+        guard let page = pages.removeValue(forKey: entry) else { return nil }
+        page.generation += 1
+        if currentEntryID == entry {
+            show(nil, split: shownSplit)
+        } else if let split = shownSplit, let index = split.panes.firstIndex(where: { $0.entry == entry }) {
+            // A pane's page went (the pane stays, empty, until the split changes).
+            var panes = split.panes
+            panes[index].contents = nil
+            shownSplit?.panes = panes
+            display?.showSplit(shownSplit)
+        }
+        return page
+    }
+
+    /// Another window takes `entry`'s page (4.8b): it leaves this window as
+    /// it is, renderer, history and state, for the claiming window to move
+    /// into its own (`WebContents.move(toHostWindow:)`). Its Peek closes and
+    /// reader mode for it ends (the reader page closes rather than moving
+    /// with it: one page to move, and the entry's page is the one the
+    /// history belongs to). When it was on screen the selection falls to
+    /// this window's most recent other entry, or the empty state, on the
+    /// next turn. Returns the page, or nil when this window held none.
+    func handOverPage(_ entry: UUID) -> (any WebContents)? {
+        guard pages[entry] != nil else { return nil }
+        let wasShown = visibleEntryIDs.contains(entry)
+        closePeek(over: entry, recordForReopen: false, animated: false)
+        closeReader(of: entry)
+        guard let page = removePage(entry), page.contents.state != .closed else { return nil }
+        // The entry keeps the history as it is now (the claimer reads it if the move fails).
+        saveNavigationState(of: page.contents, entry: entry)
+        sidebar?.pageStateDidChange([entry])
+        if wasShown { fallBack(losing: entry) }
+        return page.contents
+    }
+
+    /// The selection leaves `entry` (its page went to another window) for
+    /// this window's most recent other entry not on screen elsewhere, on the
+    /// next turn: the claiming window finishes taking its page first.
+    func fallBack(losing entry: UUID) {
+        guard let sidebar, sidebar.selectedEntryID == entry || currentEntryID == entry else { return }
+        let elsewhere = ownership?.entriesVisible(besides: self) ?? []
+        let next = PageOwnership.fallback(mru: store.sidebar.mruOrder(space: sidebar.activeSpaceID, window: windowID),
+                                          losing: entry, visibleElsewhere: elsewhere.union([entry]))
+        DispatchQueue.main.async { [weak self, weak sidebar] in
+            guard let self, let sidebar, sidebar.selectedEntryID == entry || self.currentEntryID == entry else { return }
+            sidebar.select(next)
+        }
+    }
+
     // MARK: Pages
 
     private func show(_ contents: (any WebContents)?, split: SplitPresentation? = nil) {
@@ -629,9 +671,22 @@ public final class TabController: SidebarHost {
             return nil
         }
         // A page lives in one window (4.8a): a window holding this entry's
-        // page gives it up first, saving its back/forward list into the
-        // entry, which is read again here (4.8b's engine member moves it instead).
-        ownership?.tabController(self, willMakePageFor: entry.id)
+        // page hands it over, and the engine moves it into this window with
+        // its renderer and back/forward list (4.8b). Without a window to move
+        // it to (tests), or when the move fails, the page closes with its
+        // history saved into the entry and a new one is made from it below
+        // (4.8a's path).
+        if let handed = ownership?.tabController(self, willMakePageFor: entry.id) {
+            if let window {
+                do {
+                    try handed.move(toHostWindow: window)
+                    return adopt(handed, entry: entry.id)
+                } catch {
+                    NSLog("Room: the page of entry \(entry.id) did not move (\(error)); it loads again from its history")
+                }
+            }
+            handed.close()
+        }
         let entry = store.sidebar.entry(entry.id) ?? entry
         let contents: any WebContents
         do {

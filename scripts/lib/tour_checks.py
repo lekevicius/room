@@ -1232,8 +1232,8 @@ def _windows(c):
     with an empty Today list, key; a pinned entry renamed in window 1 shows in
     window 2's row in the same turn; a Today tab belongs to its window (listed
     there, not in the other); a pinned page navigated in window 1 and selected
-    in window 2 moves (window 1's page closed, its selection on its MRU shown in
-    its card) with its history (the second page, canGoBack, Back works); ⌘1 in
+    in window 2 moves (4.8b: the same page through `move(toHostWindow:)`; window
+    1's selection on its MRU shown in its card) with its history (the second page, canGoBack, Back works); ⌘1 in
     window 2 selects its first entry and leaves window 1 alone; ⌃Tab's list is
     the window's; Open in New Window from the context menu makes a third
     window with the Today tab moved and selected; a drag ending 20 pt past the
@@ -1254,10 +1254,10 @@ def _windows(c):
                label="a pinned entry renamed in window 1 shows in window 2's row at once")
     c.contains("today_per_window", "window2_today=2", "window1_today=0", "tab_window=2", "listed_window2=true", "listed_window1=false",
                "pinned_listed_both=true", label="Today tabs per window; pinned entries in both")
-    c.contains("pinned_move", "window1_page_closed=true", "window1_holds=false", "window1_selected=C (its MRU)", "window1_card_shows_mru=true",
-               label="selecting the pinned page in window 2 moves it: window 1 gives it up and shows its MRU")
+    c.contains("pinned_move", "same_page=true", "page_state=alive", "window1_holds=false", "window1_selected=C (its MRU)", "window1_card_shows_mru=true",
+               label="selecting the pinned page in window 2 moves the same page (move(toHostWindow:), 4.8b): window 1 hands it over and shows its MRU")
     c.contains("pinned_move", "window2_url=next-b.html", "window2_canGoBack=true", "history_length=2", "window2_card=true", "owners=2",
-               label="window 2 shows the moved page with its history (unload and reload until 4.8b)")
+               label="window 2 shows the moved page with its history")
     c.contains("pinned_move_back", "url=b.html", label="Back in window 2 goes to the page's first page")
     c.contains("cmd1_window2", "key=2", "selected_first=true", "window1_selection_kept=true", label="⌘1 in window 2 selects window 2's first entry only")
     c.contains("switcher_per_window", "window2_has_its_tab=true", "window1_has_window2_tab=false", label="⌃Tab's recent list is per window")
