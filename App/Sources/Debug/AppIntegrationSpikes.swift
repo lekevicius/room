@@ -184,7 +184,8 @@ extension SpikeRunner.Context {
     private var app28b: AppDelegate? { AppDelegate.current }
 
     /// Where the header (the address field) starts, in the sidebar view.
-    private var headerX: CGFloat { controller.sidebarView.headerView?.frame.minX ?? -1 }
+    /// The top bar's first element (the sidebar toggle) beside the traffic lights.
+    private var headerX: CGFloat { controller.sidebarView.toggleButton.frame.minX }
 
     func settingsCheck() async {
         guard let app = app28b, let store = app.store else { return }
@@ -260,7 +261,7 @@ extension SpikeRunner.Context {
             let entered = await waitUntil(10) { watcher.didEnter != nil }
             let enterMs = watcher.didEnter.map { Self.ms(start, $0) } ?? -1
             let laidOut = await waitUntil(5) {
-                root.sidebarView.trafficLights.buttonsRect == nil && abs(headerX - SidebarMetrics.edgeInset) < 0.5
+                root.sidebarView.trafficLights.buttonsRect == nil && abs(headerX - SidebarMetrics.rowHorizontalInset) < 0.5
             }
             let headerMs = ms(since: start)
             SpikeRunner.record("fullscreen_enter_\(round)", String(format: "⌃⌘F handled=%@ entered=%@ → didEnterFullScreen %.0f ms, → header laid out %.0f ms (laid out=%@)",
@@ -295,7 +296,7 @@ extension SpikeRunner.Context {
             let exitMs = watcher.didExit.map { Self.ms(outStart, $0) } ?? -1
             let back = await waitUntil(5) {
                 guard let buttons = controller.trafficLights.geometry.buttonsRect else { return false }
-                return abs(headerX - (buttons.maxX + SidebarMetrics.headerLeadingGap)) < 0.5
+                return abs(headerX - (buttons.maxX + SidebarMetrics.topBarLeadingGap)) < 0.5
             }
             SpikeRunner.record("fullscreen_exit_\(round)", String(format: "exited=%@ → didExitFullScreen %.0f ms, → header laid out around the buttons %.0f ms (laid out=%@); toolbar visible=%@",
                                                                   "\(exited)", exitMs, ms(since: outStart), "\(back)", "\(window.toolbar?.isVisible ?? false)"))

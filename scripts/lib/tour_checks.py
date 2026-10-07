@@ -159,11 +159,12 @@ def _window(c):
     c.check("traffic lights at AppKit's place (19,19 60×14) in every state", len(lights) == len(states), f"{len(lights)}/{len(states)}")
     c.check("active states main", all("main=true" in v for k, v in states.items() if "-active-" in k or "compare" in k or "page-" in k), "")
     c.check("inactive states not main", all("main=false" in v for k, v in states.items() if "-inactive-" in k), "")
-    dia_framing(c, all("card={{280, 6}, {958, 806}}" in v for k, v in states.items() if "compare" in k), "Dia framing: card {{280, 6}, {958, 806}}",
+    # The Room Browser design (2026-10-07): the card 8 pt from the window's edges, a 300 pt default sidebar.
+    dia_framing(c, all("card={{280, 8}, {956, 802}}" in v for k, v in states.items() if "compare" in k), "Dia framing: card {{280, 8}, {956, 802}}",
                 next((v.split("card=")[1].split(" title")[0] for k, v in states.items() if "compare" in k), ""))
-    c.check("sidebar open: card at x 240, closed: at x 6",
-            all("card={{240, 6}" in v for k, v in states.items() if k.endswith("-open")) and
-            all("card={{6, 6}" in v for k, v in states.items() if k.endswith("-closed")), "")
+    c.check("sidebar open: card at x 300, closed: at x 8",
+            all("card={{300, 8}" in v for k, v in states.items() if k.endswith("-open")) and
+            all("card={{8, 8}" in v for k, v in states.items() if k.endswith("-closed")), "")
 
 
 @step_check("cdp")
@@ -1410,9 +1411,9 @@ def _app28a(c):
     for i in range(3):
         c.contains(f"fullscreen_enter_{i}", "entered=true", "laid out=true", label=f"⌃⌘F round {i + 1}: in, header laid out")
         c.contains(f"fullscreen_exit_{i}", "exited=true", "toolbar visible=true", label=f"⌃⌘F round {i + 1}: out, toolbar back")
-    c.contains("fullscreen_state", "header x=16.0", "toolbar visible=false", label="fullscreen: the 16 pt header fallback, toolbar hidden")
+    c.contains("fullscreen_state", "header x=8.0", "toolbar visible=false", label="fullscreen: the 8 pt top-bar fallback, toolbar hidden")
     c.contains("fullscreen_reveal", "shown=true", label="hover reveal in fullscreen")
-    c.check("header back after the buttons when windowed", c.first("fullscreen_header_windowed") == "x=91.0 (before: 91.0)", c.first("fullscreen_header_windowed") or "")
+    c.check("header back after the buttons when windowed", c.first("fullscreen_header_windowed") == "x=94.0 (before: 94.0)", c.first("fullscreen_header_windowed") or "")
     for key in ("menu_update_all", "settings_sidebar_side", "fullscreen_enter_0", "fullscreen_exit_0", "fullscreen_reveal"):
         c.number(key)
 

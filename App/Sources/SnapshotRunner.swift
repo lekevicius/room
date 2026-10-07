@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import Design
 import Tabs
 import UIKitCore
 
@@ -17,7 +18,7 @@ enum SnapshotRunner {
         var dark: Bool
         var sidebarOpen: Bool
         var contentSize = RoomWindow.defaultContentSize
-        var sidebarWidth = 240.0
+        var sidebarWidth = Double(SidebarMetrics.defaultWidth)
         var tint: NSColor?
         /// File name prefix; default from the name (phase-1.3 / phase-1.4).
         var prefix: String?
