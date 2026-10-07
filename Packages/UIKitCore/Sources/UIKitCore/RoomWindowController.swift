@@ -463,7 +463,6 @@ public final class BrowserWindowView: NSView {
             }
         }
         sidebarView.autoresizingMask = inOverlay ? [.width, .height] : []
-        sidebarView.showsNavigationRow = inOverlay
     }
 
     // MARK: The overlay (spec §E)

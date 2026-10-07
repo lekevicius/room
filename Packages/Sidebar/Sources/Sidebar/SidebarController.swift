@@ -15,6 +15,8 @@ public final class SidebarController: NSObject {
     public let bodyView = SidebarBodyView()
     /// Goes into `SidebarView.headerView`.
     public let addressField = AddressFieldView()
+    /// Goes into `SidebarView.accessoryView`: the extensions in the top bar.
+    public let extensionBar = ExtensionBarView()
     /// The footer's downloads button (spec §F); the app drives its ring, badge and popover.
     public var downloadsButton: DownloadsButton { footer.downloadsButton }
     let grid = EssentialsGridView()
@@ -562,17 +564,18 @@ public final class SidebarController: NSObject {
     private func updatePill(in target: SpacePane, animated: Bool) {
         let outline = target.outline
         var selectedRow = -1
-        if let id = selectedEntry(in: target), let node = target.tree.displayedNode(for: id) {
+        let selected = selectedEntry(in: target)
+        if let id = selected, let node = target.tree.displayedNode(for: id) {
             selectedRow = outline.row(forItem: node)
         }
         outline.enumerateAvailableRowViews { rowView, row in
             (rowView as? SidebarRowView)?.isSelectedEntry = row == selectedRow
         }
         guard selectedRow >= 0 else {
-            outline.pill.move(to: nil, animated: false)
+            outline.pill.move(to: nil, entry: nil, animated: false)
             return
         }
-        outline.pill.move(to: SidebarRowView.pillRect(in: outline.rect(ofRow: selectedRow)), animated: animated)
+        outline.pill.move(to: SidebarRowView.pillRect(in: outline.rect(ofRow: selectedRow)), entry: selected, animated: animated)
     }
 
     private func updateAddressField() {
@@ -1349,8 +1352,9 @@ public final class SidebarBodyView: NSView {
         let inset = SidebarMetrics.rowHorizontalInset
         let width = max(0, bounds.width - 2 * inset)
         let gridHeight = grid?.height(forWidth: width) ?? 0
-        grid?.frame = NSRect(x: inset, y: gridHeight > 0 ? Spacing.xs : 0, width: width, height: gridHeight)
-        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + Spacing.xs : 0
+        // The sidebar view leaves `addressRowGap` above the body: the grid starts at its top.
+        grid?.frame = NSRect(x: inset, y: 0, width: width, height: gridHeight)
+        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + SidebarMetrics.essentialsGap : 0
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         var bodyBottom = bounds.height - footerHeight

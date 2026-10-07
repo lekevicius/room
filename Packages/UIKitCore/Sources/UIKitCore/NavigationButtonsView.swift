@@ -1,8 +1,8 @@
 import AppKit
 import Design
 
-/// Back, Forward and Reload (Stop while loading): the revealed sidebar's
-/// header and the optional toolbar (spec §E).
+/// Back, Forward and Reload (Stop while loading): the sidebar's top bar
+/// and the optional toolbar (spec §E).
 public final class NavigationButtonsView: NSView {
     public var onBack: (() -> Void)?
     public var onForward: (() -> Void)?
@@ -43,14 +43,16 @@ public final class NavigationButtonsView: NSView {
         forward.isEnabled = canGoForward
         reload.isEnabled = hasPage
         let symbol: Symbol = isLoading ? .stop : .reload
-        reload.image = symbol.image(pointSize: 13, accessibilityDescription: isLoading ? "Stop" : "Reload")
+        reload.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: isLoading ? "Stop" : "Reload")
         reload.toolTip = isLoading ? "Stop (⌘.)" : "Reload (⌘R)"
     }
 
     public override func layout() {
         super.layout()
+        // Three equal buttons across the bounds (the sidebar's top bar may narrow them).
+        let side = min(bounds.width / 3, bounds.height)
         for (index, button) in [back, forward, reload].enumerated() {
-            button.frame = NSRect(x: CGFloat(index) * size, y: (bounds.height - size) / 2, width: size, height: size)
+            button.frame = NSRect(x: CGFloat(index) * side, y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
         }
     }
 
@@ -59,12 +61,9 @@ public final class NavigationButtonsView: NSView {
     @objc private func reloadClicked() { onReload?() }
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
-        let button = NSButton()
-        button.bezelStyle = .accessoryBarAction
-        button.isBordered = false
-        button.imagePosition = .imageOnly
-        button.image = symbol.image(pointSize: 13, accessibilityDescription: tip)
-        button.contentTintColor = .secondaryLabelColor
+        let button = HoverButton()
+        button.contentTintColor = .labelColor
+        button.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: tip)
         button.toolTip = tip
         return button
     }

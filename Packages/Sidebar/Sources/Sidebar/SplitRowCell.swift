@@ -54,7 +54,7 @@ final class SplitGroupCellView: NSTableCellView {
         while icons.count < count {
             let icon = FaviconView()
             let title = NSTextField(labelWithString: "")
-            title.font = Typography.row
+            title.font = Typography.sidebarRow
             title.lineBreakMode = .byTruncatingTail
             title.maximumNumberOfLines = 1
             icons.append(icon)

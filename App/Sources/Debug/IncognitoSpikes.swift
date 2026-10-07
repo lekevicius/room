@@ -253,8 +253,8 @@ extension SpikeRunner.Context {
             return SpikeRunner.record("extensions_incognito", "failed: the fixture did not load")
         }
         _ = await waitUntil(5) { center.section(profile: profileID)?.installed.first { $0.id == id }?.isPinned == true }
-        let regularField = regular.sidebar?.addressField, incognitoField = incognito.sidebar?.addressField
-        func shows(_ field: AddressFieldView?) -> Bool { field?.extensionActionIDs.contains(id) ?? false }
+        let regularField = regular.sidebar?.extensionBar, incognitoField = incognito.sidebar?.extensionBar
+        func shows(_ field: ExtensionBarView?) -> Bool { field?.extensionActionIDs.contains(id) ?? false }
         _ = await waitUntil(5) { shows(regularField) }
         let before = "regular=\(shows(regularField)) incognito=\(shows(incognitoField))"
         store.settings.update { $0.setAllowsInIncognito(true, id, profile: profileID) }

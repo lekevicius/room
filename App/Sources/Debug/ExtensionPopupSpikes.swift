@@ -108,8 +108,8 @@ extension SpikeRunner.Context {
     /// Opens `id`'s popup from its header button and waits for the popover;
     /// the milliseconds from the click to the popover (the popup page's load).
     func openPopupFromHeader(_ id: String, events: PopupEvents, timeout: Double = 10) async -> Double? {
-        guard let button = session.sidebar.addressField.extensionButton(for: id) else {
-            SpikeRunner.record("error", "no header button for \(id) (header: \(session.sidebar.addressField.extensionActionIDs))")
+        guard let button = session.sidebar.extensionBar.extensionButton(for: id) else {
+            SpikeRunner.record("error", "no header button for \(id) (header: \(session.sidebar.extensionBar.extensionActionIDs))")
             return nil
         }
         let before = events.shown.count
@@ -187,7 +187,7 @@ extension SpikeRunner.Context {
             if marker.contains("1") || marker.contains("2") { break }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        let field = session.sidebar.addressField
+        let field = session.sidebar.extensionBar
         _ = await waitUntil(5) { field.extensionActionIDs.contains(id) }
         let header = center.headerActions(profile: session.sidebar.activeSpace?.profileID, page: page)
         SpikeRunner.record("header", "buttons=\(field.extensionActionIDs) badge=\"\(header.first?.badgeText ?? "nil")\" "
@@ -293,7 +293,7 @@ extension SpikeRunner.Context {
     /// times, a capture of the first, Esc (or the focus loss) closing it.
     func webstorePopupChecks(_ id: String, page: any WebContents) async {
         let events = installPopupHooks()
-        let field = session.sidebar.addressField
+        let field = session.sidebar.extensionBar
         _ = await waitUntil(5) { field.extensionActionIDs.contains(id) }
         SpikeRunner.record("header_\(id)", "buttons=\(field.extensionActionIDs)")
         var times: [Double] = []

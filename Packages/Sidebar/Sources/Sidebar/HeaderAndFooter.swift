@@ -3,28 +3,19 @@ import Chrome
 import Design
 import Model
 
-/// The header's compact address field (spec §C): the site button, the
-/// selected page's domain only, and a Copy URL button on hover; the full
-/// URL is the tooltip. A click edits the address (⌘L docked, Phase 2.4).
+/// The address row under the top bar (spec §C; the Room Browser design):
+/// the selected page's domain only, Copy URL on hover and the site button
+/// at the trailing end; the full URL is the tooltip. A click edits the
+/// address (⌘L docked, Phase 2.4).
 public final class AddressFieldView: NSView {
     var onActivate: (() -> Void)?
     var onCopy: (() -> Void)?
     /// The site button: the site panel (2.6b).
     public var onSiteButton: (() -> Void)?
 
-    private let siteButton = NSButton()
-    /// The pinned extensions' action buttons, after the site button (3.6b).
-    private var actionButtons: [ExtensionActionButton] = []
-    /// A click on an extension's action button (its id), or its item in the overflow menu.
-    public var onExtensionAction: ((String) -> Void)?
-    /// The overflow menu's "Pin" for an extension (4.5).
-    public var onExtensionPin: ((String) -> Void)?
-    /// The overflow button (4.5): a puzzle piece after the pinned buttons
-    /// while an extension with an action is unpinned; its menu lists them.
-    private let overflowButton = NSButton()
-    private var overflowActions: [HeaderExtensionAction] = []
+    private let siteButton = HoverButton()
     private let domainField = NSTextField(labelWithString: "")
-    private let copyButton = NSButton()
+    private let copyButton = HoverButton()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
     private var url: String?
     /// The URL the field shows (spikes read it).
@@ -35,36 +26,21 @@ public final class AddressFieldView: NSView {
         wantsLayer = true
         setAccessibilityIdentifier("address-field")
         setAccessibilityRole(.button)
-        siteButton.isBordered = false
-        siteButton.imagePosition = .imageOnly
-        siteButton.contentTintColor = .secondaryLabelColor
+        siteButton.contentTintColor = .labelColor
         siteButton.target = self
         siteButton.action = #selector(siteClicked)
         siteButton.setAccessibilityIdentifier("site-button")
-        domainField.font = Typography.row
+        domainField.font = Typography.sidebarRow
         // A domain that does not fit keeps both ends: "devel…apple.com" (2.2a review).
         domainField.lineBreakMode = .byTruncatingMiddle
         domainField.cell?.truncatesLastVisibleLine = true
         copyButton.image = Symbol.copyURL.image(pointSize: 12, accessibilityDescription: "Copy URL")
-        copyButton.isBordered = false
-        copyButton.imagePosition = .imageOnly
-        copyButton.contentTintColor = .secondaryLabelColor
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
         copyButton.toolTip = "Copy URL (⇧⌘C)"
         copyButton.isHidden = true
         copyButton.setAccessibilityIdentifier("copy-url")
-        overflowButton.image = Symbol.extensions.image(pointSize: 11, accessibilityDescription: "Extensions")
-        overflowButton.isBordered = false
-        overflowButton.imagePosition = .imageOnly
-        overflowButton.contentTintColor = .secondaryLabelColor
-        overflowButton.target = self
-        overflowButton.action = #selector(overflowClicked)
-        overflowButton.toolTip = "Extensions"
-        overflowButton.isHidden = true
-        overflowButton.setAccessibilityIdentifier("extension-overflow")
         addSubview(siteButton)
-        addSubview(overflowButton)
         addSubview(domainField)
         addSubview(copyButton)
         setURL(nil, isSecure: false)
@@ -75,96 +51,6 @@ public final class AddressFieldView: NSView {
 
     /// The site button: the permission popover and the site panel point at it (ROADMAP 2.6).
     public var siteButtonView: NSView { siteButton }
-
-    /// The pinned extensions' buttons (3.6b), in order; reuses buttons by id.
-    public func setExtensionActions(_ actions: [HeaderExtensionAction]) {
-        guard actions != actionButtons.map(\.model) else { return }
-        var reusable = Dictionary(actionButtons.map { ($0.model.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var buttons: [ExtensionActionButton] = []
-        for action in actions {
-            let button = reusable.removeValue(forKey: action.id) ?? ExtensionActionButton()
-            button.model = action
-            button.target = self
-            button.action = #selector(extensionClicked(_:))
-            if button.superview !== self { addSubview(button) }
-            buttons.append(button)
-        }
-        reusable.values.forEach { $0.removeFromSuperview() }
-        actionButtons = buttons
-        needsLayout = true
-    }
-
-    /// The button of extension `id` (the popup's anchor), if the header shows
-    /// it; an unpinned extension's popup points at the overflow button.
-    public func extensionButton(for id: String) -> NSView? {
-        if let button = actionButtons.first(where: { $0.model.id == id }) { return button }
-        return overflowActions.contains { $0.id == id } && !overflowButton.isHidden ? overflowButton : nil
-    }
-
-    /// The unpinned extensions' actions for the overflow menu (4.5), with the page's badges.
-    public func setOverflowActions(_ actions: [HeaderExtensionAction]) {
-        guard actions != overflowActions else { return }
-        overflowActions = actions
-        overflowButton.isHidden = actions.isEmpty
-        needsLayout = true
-    }
-
-    /// The overflow button (spikes click it; popups of unpinned actions point at it).
-    public var overflowButtonView: NSView? { overflowButton.isHidden ? nil : overflowButton }
-    /// The extensions in the overflow menu, in order (spikes read it).
-    public var overflowActionIDs: [String] { overflowActions.map(\.id) }
-
-    /// The overflow menu (4.5): each unpinned action with its badge (a click
-    /// runs it: its popup opens on the overflow button) and a "Pin" item under it.
-    public func overflowMenu() -> NSMenu {
-        let menu = NSMenu(title: "Extensions")
-        for action in overflowActions {
-            let item = NSMenuItem(title: action.name, action: #selector(overflowItemClicked(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = action.id
-            item.isEnabled = action.isEnabled
-            let title = NSMutableAttributedString(string: action.name, attributes: [.font: NSFont.menuFont(ofSize: 0)])
-            if !action.badgeText.isEmpty {
-                title.append(NSAttributedString(string: "  " + action.badgeText, attributes: [
-                    .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold),
-                    .foregroundColor: action.badgeBackgroundColor ?? NSColor.systemBlue,
-                ]))
-            }
-            item.attributedTitle = title
-            item.toolTip = action.title
-            if let icon = (action.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: action.name))?.copy() as? NSImage {
-                icon.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
-                item.image = icon
-            }
-            menu.addItem(item)
-            let pin = NSMenuItem(title: "Pin", action: #selector(overflowPinClicked(_:)), keyEquivalent: "")
-            pin.target = self
-            pin.representedObject = action.id
-            pin.indentationLevel = 1
-            menu.addItem(pin)
-        }
-        return menu
-    }
-
-    @objc private func overflowClicked() {
-        let menu = overflowMenu()
-        // Under the button (its top-left corner at the button's bottom edge).
-        let y = overflowButton.isFlipped ? overflowButton.bounds.maxY + 4 : -4
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: y), in: overflowButton)
-    }
-
-    @objc private func overflowItemClicked(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        onExtensionAction?(id)
-    }
-
-    @objc private func overflowPinClicked(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        onExtensionPin?(id)
-    }
-
-    /// The extensions the header shows, in order (spikes read it).
-    public var extensionActionIDs: [String] { actionButtons.map(\.model.id) }
 
     public override var isFlipped: Bool { true }
     public override var wantsUpdateLayer: Bool { true }
@@ -190,40 +76,33 @@ public final class AddressFieldView: NSView {
             domainField.textColor = .placeholderTextColor
             toolTip = nil
         }
-        let symbol: Symbol = url == nil ? .search : (isSecure ? .siteSecure : .siteInfo)
-        siteButton.image = symbol.image(pointSize: 11, accessibilityDescription: "Site Information")
+        let symbol: Symbol = url == nil ? .search : (isSecure ? .siteInfo : .siteInsecure)
+        siteButton.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Site Information")
+        siteButton.toolTip = url == nil ? nil : (isSecure ? "Site Information" : "Not Secure")
         siteButton.isEnabled = url != nil
         setAccessibilityLabel(url ?? "Search or enter URL")
         updateHover()
     }
 
     public override func updateLayer() {
-        layer?.cornerRadius = Radius.small
+        layer?.cornerRadius = SidebarMetrics.pillCornerRadius
         layer?.cornerCurve = .continuous
         layer?.backgroundColor = Palette.sidebarHover.cgColor
     }
 
     public override func layout() {
         super.layout()
-        let side = bounds.height
         let padding = SidebarMetrics.addressFieldPadding
-        let icon = SidebarMetrics.faviconSize
-        siteButton.frame = NSRect(x: padding, y: 0, width: icon, height: side)
-        let copyWidth: CGFloat = copyButton.isHidden ? 0 : side
-        copyButton.frame = NSRect(x: bounds.width - side, y: 0, width: side, height: side)
-        var x = siteButton.frame.maxX + padding
-        for button in actionButtons {
-            button.frame = NSRect(x: x, y: 0, width: SidebarMetrics.extensionActionWidth, height: side)
-            x = button.frame.maxX
-        }
-        if !overflowButton.isHidden {
-            overflowButton.frame = NSRect(x: x, y: 0, width: SidebarMetrics.extensionActionWidth, height: side)
-            x = overflowButton.frame.maxX
-        }
-        if !actionButtons.isEmpty || !overflowButton.isHidden { x += padding }
+        let button = SidebarMetrics.addressButtonSize
+        // The button's icon lines up `padding` from the trailing edge, as the domain does from the leading one.
+        let inset = padding - (button - SidebarMetrics.faviconSize) / 2
+        let y = ((bounds.height - button) / 2).rounded()
+        siteButton.frame = NSRect(x: bounds.width - inset - button, y: y, width: button, height: button)
+        copyButton.frame = NSRect(x: siteButton.frame.minX - button, y: y, width: button, height: button)
+        let trailing = copyButton.isHidden ? siteButton.frame.minX : copyButton.frame.minX
         let height = ceil(domainField.cell?.cellSize.height ?? 16)
-        domainField.frame = NSRect(x: x, y: ((bounds.height - height) / 2).rounded(),
-                                   width: max(0, bounds.width - x - max(copyWidth, padding)), height: height)
+        domainField.frame = NSRect(x: padding, y: ((bounds.height - height) / 2).rounded(),
+                                   width: max(0, trailing - Spacing.xs - padding), height: height)
     }
 
     private func updateHover() {
@@ -249,31 +128,199 @@ public final class AddressFieldView: NSView {
     }
 
     @objc private func copyClicked() { onCopy?() }
-    @objc private func extensionClicked(_ sender: ExtensionActionButton) { onExtensionAction?(sender.model.id) }
     @objc private func siteClicked() { onSiteButton?() }
 }
 
-/// An extension's action button in the header (3.6b): its icon, its badge
+/// The extensions in the sidebar's top bar, packed against Back (the Room
+/// Browser design): the overflow button ("···", 4.5) first, then the pinned
+/// extensions' action buttons (3.6b), aligned to the bar's trailing edge.
+/// Pinned buttons that do not fit the bar's width move into the overflow menu.
+public final class ExtensionBarView: NSView {
+    /// The pinned extensions' action buttons, in order.
+    private var actionButtons: [ExtensionActionButton] = []
+    /// A click on an extension's action button (its id), or its item in the overflow menu.
+    public var onExtensionAction: ((String) -> Void)?
+    /// The overflow menu's "Pin" for an extension (4.5).
+    public var onExtensionPin: ((String) -> Void)?
+    /// Shows while an extension with an action is unpinned, or a pinned one does not fit; its menu lists them.
+    private let overflowButton = HoverButton()
+    private var overflowActions: [HeaderExtensionAction] = []
+    /// The buttons' side: the bar's height (the top bar's button size).
+    private var buttonSize: CGFloat { bounds.height }
+
+    public override init(frame: NSRect) {
+        super.init(frame: frame)
+        setAccessibilityIdentifier("extension-bar")
+        overflowButton.image = Symbol.more.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Extensions")
+        overflowButton.contentTintColor = .labelColor
+        overflowButton.target = self
+        overflowButton.action = #selector(overflowClicked)
+        overflowButton.toolTip = "Extensions"
+        overflowButton.isHidden = true
+        overflowButton.setAccessibilityIdentifier("extension-overflow")
+        addSubview(overflowButton)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    public override var isFlipped: Bool { true }
+
+    /// Every button side by side.
+    public override var fittingSize: NSSize {
+        let count = actionButtons.count + (overflowActions.isEmpty ? 0 : 1)
+        let side = SidebarMetrics.topBarButtonSize
+        return NSSize(width: CGFloat(count) * side, height: side)
+    }
+
+    /// The pinned extensions' buttons (3.6b), in order; reuses buttons by id.
+    public func setExtensionActions(_ actions: [HeaderExtensionAction]) {
+        guard actions != actionButtons.map(\.model) else { return }
+        var reusable = Dictionary(actionButtons.map { ($0.model.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var buttons: [ExtensionActionButton] = []
+        for action in actions {
+            let button = reusable.removeValue(forKey: action.id) ?? ExtensionActionButton()
+            button.model = action
+            button.target = self
+            button.action = #selector(extensionClicked(_:))
+            if button.superview !== self { addSubview(button) }
+            buttons.append(button)
+        }
+        reusable.values.forEach { $0.removeFromSuperview() }
+        actionButtons = buttons
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
+    /// The unpinned extensions' actions for the overflow menu (4.5), with the page's badges.
+    public func setOverflowActions(_ actions: [HeaderExtensionAction]) {
+        guard actions != overflowActions else { return }
+        overflowActions = actions
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
+    /// How many pinned buttons the width holds, and whether the overflow button shows.
+    private var fit: (pinned: Int, overflow: Bool) {
+        let slots = buttonSize > 0 ? Int((bounds.width / buttonSize).rounded(.down)) : 0
+        let pinned = actionButtons.count
+        if pinned + (overflowActions.isEmpty ? 0 : 1) <= slots { return (pinned, !overflowActions.isEmpty) }
+        guard slots > 0 else { return (0, false) }
+        return (slots - 1, true)
+    }
+
+    public override func layout() {
+        super.layout()
+        let (shown, overflow) = fit
+        let y: CGFloat = 0
+        var x = bounds.width - CGFloat(shown + (overflow ? 1 : 0)) * buttonSize
+        overflowButton.isHidden = !overflow
+        if overflow {
+            overflowButton.frame = NSRect(x: x, y: y, width: buttonSize, height: buttonSize)
+            x += buttonSize
+        }
+        for (index, button) in actionButtons.enumerated() {
+            button.isHidden = index >= shown
+            button.frame = NSRect(x: x, y: y, width: buttonSize, height: buttonSize)
+            if !button.isHidden { x += buttonSize }
+        }
+    }
+
+    /// The pinned buttons the bar shows (the rest are in the overflow menu).
+    private var shownButtons: [ExtensionActionButton] { actionButtons.filter { !$0.isHidden } }
+    /// Pinned actions that did not fit: listed first in the overflow menu.
+    private var hiddenPinnedActions: [HeaderExtensionAction] { actionButtons.filter(\.isHidden).map(\.model) }
+
+    /// The button of extension `id` (the popup's anchor), if the bar shows
+    /// it; an extension in the overflow menu points at the overflow button.
+    public func extensionButton(for id: String) -> NSView? {
+        if let button = shownButtons.first(where: { $0.model.id == id }) { return button }
+        let inMenu = overflowActions.contains { $0.id == id } || hiddenPinnedActions.contains { $0.id == id }
+        return inMenu && !overflowButton.isHidden ? overflowButton : nil
+    }
+
+    /// The overflow button (spikes click it; popups of actions in its menu point at it).
+    public var overflowButtonView: NSView? { overflowButton.isHidden ? nil : overflowButton }
+    /// The unpinned extensions in the overflow menu, in order (spikes read it).
+    public var overflowActionIDs: [String] { overflowActions.map(\.id) }
+    /// The pinned extensions, in order, whether the bar shows them or the menu does (spikes read it).
+    public var extensionActionIDs: [String] { actionButtons.map(\.model.id) }
+
+    /// The overflow menu (4.5): the pinned actions that did not fit, then each
+    /// unpinned action with a "Pin" item under it; each with its badge (a
+    /// click runs it: its popup opens on the overflow button).
+    public func overflowMenu() -> NSMenu {
+        let menu = NSMenu(title: "Extensions")
+        let hidden = hiddenPinnedActions
+        for action in hidden { menu.addItem(item(for: action)) }
+        if !hidden.isEmpty, !overflowActions.isEmpty { menu.addItem(.separator()) }
+        for action in overflowActions {
+            menu.addItem(item(for: action))
+            let pin = NSMenuItem(title: "Pin", action: #selector(overflowPinClicked(_:)), keyEquivalent: "")
+            pin.target = self
+            pin.representedObject = action.id
+            pin.indentationLevel = 1
+            menu.addItem(pin)
+        }
+        return menu
+    }
+
+    private func item(for action: HeaderExtensionAction) -> NSMenuItem {
+        let item = NSMenuItem(title: action.name, action: #selector(overflowItemClicked(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = action.id
+        item.isEnabled = action.isEnabled
+        let title = NSMutableAttributedString(string: action.name, attributes: [.font: NSFont.menuFont(ofSize: 0)])
+        if !action.badgeText.isEmpty {
+            title.append(NSAttributedString(string: "  " + action.badgeText, attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold),
+                .foregroundColor: action.badgeBackgroundColor ?? NSColor.systemBlue,
+            ]))
+        }
+        item.attributedTitle = title
+        item.toolTip = action.title
+        if let icon = (action.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: action.name))?.copy() as? NSImage {
+            icon.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
+            item.image = icon
+        }
+        return item
+    }
+
+    @objc private func overflowClicked() {
+        let menu = overflowMenu()
+        // Under the button (its top-left corner at the button's bottom edge).
+        let y = overflowButton.isFlipped ? overflowButton.bounds.maxY + 4 : -4
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: y), in: overflowButton)
+    }
+
+    @objc private func overflowItemClicked(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        onExtensionAction?(id)
+    }
+
+    @objc private func overflowPinClicked(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        onExtensionPin?(id)
+    }
+
+    @objc private func extensionClicked(_ sender: ExtensionActionButton) { onExtensionAction?(sender.model.id) }
+}
+
+/// An extension's action button in the top bar (3.6b): its icon, its badge
 /// drawn from the action's badge text and colours, the action's title as
 /// the tooltip; greyed when the extension disabled its action on the page.
-/// A plain button (no polish until Chapter 5).
-final class ExtensionActionButton: NSButton {
+final class ExtensionActionButton: HoverButton {
     var model = HeaderExtensionAction(id: "", name: "", title: "") {
         didSet { update() }
     }
 
     init() {
         super.init(frame: .zero)
-        isBordered = false
-        imagePosition = .imageOnly
         imageScaling = .scaleProportionallyDown
-        title = ""
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override var mouseDownCanMoveWindow: Bool { false }
 
     private func update() {
         image = model.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: model.name)
@@ -294,9 +341,12 @@ final class ExtensionActionButton: NSButton {
         ])
         let height = SidebarMetrics.extensionBadgeHeight
         let width = max(height, ceil(text.size().width) + 4)
+        // At the icon's bottom-trailing corner.
+        let iconMaxX = (bounds.width + SidebarMetrics.faviconSize) / 2 + 3
+        let iconBottom = (bounds.height + SidebarMetrics.faviconSize) / 2 + 2
         let flipped = isFlipped
-        let y = flipped ? bounds.height - height - 2 : 2
-        let rect = NSRect(x: bounds.width - width, y: y, width: width, height: height)
+        let y = flipped ? iconBottom - height : bounds.height - iconBottom
+        let rect = NSRect(x: min(bounds.width, iconMaxX) - width, y: y, width: width, height: height)
         (model.badgeBackgroundColor ?? NSColor.systemBlue).setFill()
         NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
         let size = text.size()

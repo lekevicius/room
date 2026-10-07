@@ -10,7 +10,7 @@ import Tabs
 import UIKitCore
 
 /// The hidden sidebar (spec §E): what keeps the hover-revealed overlay open,
-/// Back/Forward/Reload in its header, and the toasts that stand in for what
+/// Back/Forward/Reload in the sidebar's top bar (docked or revealed), and the toasts that stand in for what
 /// the hidden sidebar would have shown.
 @MainActor
 final class HiddenSidebar {
@@ -18,7 +18,7 @@ final class HiddenSidebar {
     private weak var tabs: TabController?
     private weak var sidebar: SidebarController?
     private weak var toasts: ToastCenter?
-    let navigation = NavigationButtonsView(buttonSize: RevealMetrics.navigationButtonSize)
+    let navigation = NavigationButtonsView(buttonSize: SidebarMetrics.topBarButtonSize)
     private var snapToken: NSObjectProtocol?
 
     /// The "Sidebar hidden" toast shows once ever (spec §E).

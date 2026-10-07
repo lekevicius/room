@@ -17,46 +17,73 @@ public enum Radius {
 
 /// Sidebar geometry (feature spec §E).
 public enum SidebarMetrics {
-    public static let defaultWidth: CGFloat = 240
+    /// The Room Browser design (2026-10-07, Figma `UI` ▸ window): 304 in a
+    /// 582 pt window; 300 leaves the top bar room for two extension buttons.
+    public static let defaultWidth: CGFloat = 300
     public static let minWidth: CGFloat = 180
     public static let maxWidth: CGFloat = 500
     /// Dragging the splitter below this width snaps the sidebar closed.
     public static let snapCloseWidth: CGFloat = 120
     /// Hit area of the splitter, centred on the sidebar/card boundary.
     public static let splitterHitWidth: CGFloat = 8
-    /// Height of the header row that sits beside the traffic lights.
-    public static let headerHeight: CGFloat = 52
+    /// Height of the top bar that sits beside the traffic lights (the
+    /// fallback when there are none: its buttons centre on half of it).
+    public static let headerHeight: CGFloat = 48
     /// Gap between the zoom button and the first header element.
     public static let headerLeadingGap: CGFloat = Spacing.m
+    /// Gap between the zoom button and the sidebar toggle (the design: lights 17…77, toggle at 92).
+    public static let topBarLeadingGap: CGFloat = 15
+    /// The top bar's buttons (sidebar toggle, extensions, Back, Forward,
+    /// Reload): 32 pt squares at a 32 pt pitch (the Room Browser design).
+    public static let topBarButtonSize: CGFloat = 32
+    /// The narrowest a top-bar button gets when the sidebar is too narrow for all of them.
+    public static let topBarButtonMinSize: CGFloat = 24
+    /// Between the sidebar toggle and the extensions, and between the extensions and Back.
+    public static let topBarGroupGap: CGFloat = Spacing.xs
+    /// The top bar's symbols (SF Pro 13 in the design).
+    public static let topBarSymbolSize: CGFloat = 13
+    /// Between the top bar and the address row, and the address row and the body.
+    public static let addressRowGap: CGFloat = Spacing.s
     /// Inset from the sidebar edges for header elements when no traffic lights are beside them.
     public static let edgeInset: CGFloat = Spacing.l
     /// Saturation and opacity applied to the sidebar content while the window is inactive (spec §I.12).
     public static let inactiveSaturation: CGFloat = 0.8
     public static let inactiveContentAlpha: CGFloat = 0.6
 
-    // Rows (Phase 2.2). Measured from `dia-window.jpg` at 1×: the selected
-    // pill spans x 6…274 of a 280 pt sidebar and is 34 pt tall, the favicon
-    // starts at x 16, the title at x 38, and rows repeat every ~37 pt.
+    // Rows. Phase 2.2 measured Dia (`dia-window.jpg`); the Room Browser
+    // design (2026-10-07) replaced it: rows at a 36 pt pitch with the pill
+    // filling the row, 8 pt from the sidebar's edges, the favicon 10 pt into
+    // the pill and the title 10 pt after it.
 
     /// Height of an entry row; the selection pill leaves `pillVerticalInset` above and below.
     public static let rowHeight: CGFloat = 36
-    public static let pillVerticalInset: CGFloat = 1
-    /// Dia's pill is "slightly elevated": a faint shadow in light mode only (chosen).
-    public static let pillShadowOpacity: Float = 0.08
-    public static let pillShadowRadius: CGFloat = 1.5
+    public static let pillVerticalInset: CGFloat = 0
+    /// The pill is "slightly elevated": in light mode only, the design's
+    /// `0 0.5 2 rgba(0,0,0,.15)` (blur 2 = radius 1).
+    public static let pillShadowOpacity: Float = 0.15
+    public static let pillShadowRadius: CGFloat = 1
     public static let pillShadowOffset = CGSize(width: 0, height: -0.5)
+    /// The rows' pill, hover fill, Essentials tiles and the address field (the design: 12).
+    public static let pillCornerRadius: CGFloat = Radius.large
+    /// Width of the fade that ends a title too long for its row (the design: 12 pt, no ellipsis).
+    public static let titleFadeWidth: CGFloat = 12
     /// Gap between the sidebar edges and the selection pill / hover background.
-    public static let rowHorizontalInset: CGFloat = 6
+    public static let rowHorizontalInset: CGFloat = Spacing.s
     /// Gap between the pill's leading edge and the favicon.
     public static let rowContentInset: CGFloat = 10
     public static let faviconSize: CGFloat = 16
-    public static let faviconTitleGap: CGFloat = 6
+    public static let faviconTitleGap: CGFloat = 10
     /// Extra leading inset per folder level (chosen).
     public static let folderIndent: CGFloat = 14
-    /// Close × hit area on Today rows (spec §I.4).
-    public static let closeButtonSize: CGFloat = 28
-    /// Audio indicator on a row (spec §I.5) (chosen).
-    public static let audioIndicatorWidth: CGFloat = 22
+    /// Close × on Today rows (spec §I.4), and its gap to the pill's trailing edge.
+    public static let closeButtonSize: CGFloat = 24
+    public static let closeButtonInset: CGFloat = 6
+    /// The row's small buttons (×, audio): their hover square's corner and their symbol size.
+    public static let rowButtonCornerRadius: CGFloat = 4
+    public static let rowButtonSymbolSize: CGFloat = 10
+    /// Audio button on a row (spec §I.5): after the favicon, the title
+    /// `Spacing.s` after it; filled only on hover (the Room Browser design).
+    public static let audioIndicatorWidth: CGFloat = 24
     /// Small corner badges on Essentials tiles (audio) and their inset (chosen).
     public static let tileBadgeSize: CGFloat = 11
     public static let tileBadgeInset: CGFloat = 3
@@ -68,33 +95,37 @@ public enum SidebarMetrics {
     /// Changed-entry badge (spec §I.8).
     public static let changedDotSize: CGFloat = 6
     /// Favicon of an unloaded entry (spec §A.1).
-    public static let unloadedIconAlpha: CGFloat = 0.6
+    public static let unloadedIconAlpha: CGFloat = 0.5
+    /// The title of an unloaded entry (the design: 70% of the label colour).
+    public static let unloadedTitleAlpha: CGFloat = 0.7
     /// The Today separator row ("Clear") (chosen).
     public static let separatorRowHeight: CGFloat = 24
     /// Space title row above the pinned list (chosen; same pitch as entries).
     public static let spaceTitleRowHeight: CGFloat = 36
 
-    /// Essentials tiles (spec §I.2): 36 pt tall, icon 20 pt, background the
-    /// icon's dominant colour at 15%. Tiles stretch to fill the row; a row
-    /// holds as many as fit at `essentialTileMinWidth`, at most `essentialMaxColumns`.
-    public static let essentialTileHeight: CGFloat = 36
+    /// Essentials tiles (spec §I.2): 40 pt tall, icon 16 pt, on the rows'
+    /// hover fill (the Room Browser design: neutral tiles, the selected one
+    /// the pill's fill). Tiles stretch to fill the row; a row holds as many
+    /// as fit at `essentialTileMinWidth`, at most `essentialMaxColumns`.
+    public static let essentialTileHeight: CGFloat = 40
     public static let essentialTileMinWidth: CGFloat = 48
     public static let essentialMaxColumns = 6
-    public static let essentialIconSize: CGFloat = 20
-    public static let essentialTintAlpha: CGFloat = 0.15
+    public static let essentialIconSize: CGFloat = 16
+    /// A hovered tile: the selection fill at this alpha over the tile's own.
+    public static let essentialHoverAlpha: CGFloat = 0.5
+    /// The selected tile's lift (the design: `drop-shadow 0 0.5 1 rgba(0,0,0,.15)`).
+    public static let essentialShadowRadius: CGFloat = 0.5
     public static let essentialsGap: CGFloat = Spacing.s
 
-    /// Address field in the header, beside the traffic lights (chosen).
-    public static let addressFieldHeight: CGFloat = 28
-    /// The header (address field) ends at the rows' trailing inset, aligned
-    /// with the selection pill (2.2a review: the domain truncated at 16 pt).
+    /// The address row under the top bar, as wide as the rows' pill (the Room Browser design).
+    public static let addressFieldHeight: CGFloat = 36
+    /// The top bar and the address row end at the rows' trailing inset, aligned with the selection pill.
     public static let headerTrailingInset: CGFloat = rowHorizontalInset
-    /// Horizontal padding inside the address field, around the site icon and
-    /// the domain (2.2a review: trimmed from 8 to `Spacing.xs`).
-    public static let addressFieldPadding: CGFloat = Spacing.xs
-    /// An extension's action button beside the site button (3.6b, chosen;
-    /// no polish until Chapter 5): its width and the badge's height.
-    public static let extensionActionWidth: CGFloat = 22
+    /// Horizontal padding inside the address field: before the domain, after the site button.
+    public static let addressFieldPadding: CGFloat = 10
+    /// The site button and Copy URL inside the address field.
+    public static let addressButtonSize: CGFloat = 24
+    /// An extension action's badge height (3.6b).
     public static let extensionBadgeHeight: CGFloat = 10
     /// Bottom bar (spec §F).
     public static let footerHeight: CGFloat = 40
@@ -218,24 +249,26 @@ public enum WindowMetrics {
 
 public enum CardMetrics {
     /// Gap between the card and the window edge on the top, trailing and bottom sides.
-    /// Measured from Dia's window (6pt); the ROADMAP's first guess was 8.
-    public static let inset: CGFloat = 6
+    /// Dia's window measured 6; the Room Browser design (2026-10-07) is 8.
+    public static let inset: CGFloat = Spacing.s
     /// Gap on the sidebar side while the sidebar is open (the card butts against it).
     public static let sidebarSideInset: CGFloat = 0
-    /// Continuous corner; fitted to Dia's card (its curve reaches the fill
-    /// ~3pt along the diagonal, 12pt reaches it at ~3.75pt). ROADMAP guessed 12.
-    public static let cornerRadius: CGFloat = Radius.medium
+    /// Continuous corner (the Room Browser design: 6; Dia measured 10).
+    public static let cornerRadius: CGFloat = Radius.small
     public static let borderWidth: CGFloat = 1
-    public static let shadowRadius: CGFloat = 4
-    public static let shadowOffset = CGSize(width: 0, height: -1)
+    /// The design's `0 2 6 rgba(0,0,0,.15)` (blur 6 = radius 3).
+    public static let shadowRadius: CGFloat = 3
+    public static let shadowOffset = CGSize(width: 0, height: -2)
     public static let shadowOpacityLight: Float = 0.15
     public static let shadowOpacityDark: Float = 0.35
 }
 
 /// Type styles. SF Pro through the system font so vibrancy and Dynamic Type-ish scaling behave.
 public enum Typography {
-    /// Sidebar rows, address field.
+    /// Rows outside the sidebar (palette, menus, panels).
     public static var row: NSFont { .systemFont(ofSize: 13, weight: .regular) }
+    /// Sidebar rows and the address field (the Room Browser design: SF Pro 14).
+    public static var sidebarRow: NSFont { .systemFont(ofSize: 14, weight: .regular) }
     /// Space title in the sidebar header.
     public static var spaceTitle: NSFont { .systemFont(ofSize: 13, weight: .semibold) }
     /// Sublabels, footer labels, badges.
@@ -263,7 +296,7 @@ public enum Motion {
     public static let standard: TimeInterval = 0.15
     /// Space switch slide, tint crossfade, sidebar reveal.
     public static let medium: TimeInterval = 0.25
-    /// Peek open, selection pill.
+    /// Peek open.
     public static let slow: TimeInterval = 0.35
 
     /// A spring described like SwiftUI's `Spring(duration:bounce:)`.
@@ -285,8 +318,6 @@ public enum Motion {
         }
     }
 
-    /// Selection pill moving between rows (spec §I.1).
-    public static let pill = Spring(duration: 0.35, bounce: 0.15)
     /// Toast in, download-button bounce (spec §F).
     public static let toast = Spring(duration: 0.5, bounce: 0.2)
     /// Layout changes without overshoot (sidebar open/close, splitter snap).
@@ -457,10 +488,6 @@ public enum RevealMetrics {
     /// pointer is this close to it (spec §E: Zen `outside-window-edge-offset`, 200 × 100 px).
     public static let outsideToleranceX: CGFloat = 200
     public static let outsideToleranceY: CGFloat = 100
-    /// The overlay's header holds Back, Forward and Reload beside the traffic
-    /// lights (spec §E); the address field moves to a row below it (chosen).
-    public static let navigationButtonSize: CGFloat = 28
-    public static let addressRowGap: CGFloat = 4
 }
 
 /// The floating traffic-light cluster while the sidebar is hidden (spec §E).

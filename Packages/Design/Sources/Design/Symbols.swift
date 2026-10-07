@@ -140,7 +140,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .search: "magnifyingglass"
         case .siteSecure: "lock.fill"
         case .siteInsecure: "exclamationmark.triangle.fill"
-        case .siteInfo: "slider.horizontal.3"
+        case .siteInfo: "slider.horizontal.2.square"
         case .copyURL: "link"
         case .copyMarkdown: "text.quote"
         case .paste: "doc.on.clipboard"

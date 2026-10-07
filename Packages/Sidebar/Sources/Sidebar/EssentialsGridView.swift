@@ -249,7 +249,7 @@ final class EssentialsDropSlotView: NSView {
     override func layout() {
         super.layout()
         border.frame = bounds
-        border.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: Radius.medium, cornerHeight: Radius.medium,
+        border.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerWidth: SidebarMetrics.pillCornerRadius, cornerHeight: SidebarMetrics.pillCornerRadius,
                              transform: nil)
         effectiveAppearance.performAsCurrentDrawingAppearance {
             border.strokeColor = NSColor.tertiaryLabelColor.cgColor
@@ -260,9 +260,10 @@ final class EssentialsDropSlotView: NSView {
     }
 }
 
-/// One Essential: the icon at 20 pt on its dominant colour at 15% (spec §I.2),
-/// the pill fill when selected, dimmed while unloaded, the changed dot at the
-/// tile's corner and the reset icon on hover (§I.8).
+/// One Essential: the icon on the rows' hover fill (the Room Browser design,
+/// 2026-10-07; spec §I.2 had the icon's dominant colour at 15%), the pill
+/// fill when selected and half of it on hover, dimmed while unloaded, the
+/// changed dot at the tile's corner and the reset icon on hover (§I.8).
 final class EssentialTileView: NSView {
     let entryID: UUID
     weak var events: EssentialTileEvents?
@@ -270,8 +271,7 @@ final class EssentialTileView: NSView {
     private let resetButton = NSButton()
     private let audio = NSImageView()
     private let dot = NSView()
-    private let hoverLayer = CALayer()
-    private var tint: NSColor?
+    private let multiSelectionLayer = CALayer()
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
     private var isChanged = false
@@ -284,7 +284,7 @@ final class EssentialTileView: NSView {
         self.entryID = entryID
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.addSublayer(hoverLayer)
+        layer?.addSublayer(multiSelectionLayer)
         setAccessibilityRole(.button)
         setAccessibilityIdentifier("essential")
         resetButton.image = Symbol.resetPinned.image(pointSize: 13, weight: .medium, accessibilityDescription: "Back to pinned URL")
@@ -319,7 +319,6 @@ final class EssentialTileView: NSView {
         favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
         favicon.isUnloaded = !page.isLoaded
         favicon.isLoading = page.isLoading
-        tint = page.favicon.flatMap(Self.dominantColor) ?? Palette.letterTileColor(for: favicon.letterSource)
         let audible = page.isAudible || page.isMuted
         audio.isHidden = !audible
         audio.image = (page.isMuted ? Symbol.muted : Symbol.audible).image(pointSize: 8, weight: .semibold)
@@ -338,21 +337,21 @@ final class EssentialTileView: NSView {
 
     override func updateLayer() {
         guard let layer else { return }
-        layer.cornerRadius = Radius.medium
+        layer.cornerRadius = SidebarMetrics.pillCornerRadius
         layer.cornerCurve = .continuous
-        let fill: NSColor = isSelected
-            ? Palette.sidebarSelection
-            : (tint ?? .clear).withAlphaComponent(SidebarMetrics.essentialTintAlpha)
+        // A hovered tile is half the selection fill in place of its own (the design).
+        let fill = isSelected ? Palette.sidebarSelection
+            : hovering ? Palette.sidebarSelection.withAlphaComponent(SidebarMetrics.essentialHoverAlpha) : Palette.sidebarHover
         layer.backgroundColor = fill.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
         layer.shadowOpacity = isSelected && !effectiveAppearance.isDark ? SidebarMetrics.pillShadowOpacity : 0
-        layer.shadowRadius = SidebarMetrics.pillShadowRadius
+        layer.shadowRadius = SidebarMetrics.essentialShadowRadius
         layer.shadowOffset = SidebarMetrics.pillShadowOffset
-        hoverLayer.frame = layer.bounds
-        hoverLayer.cornerRadius = Radius.medium
-        hoverLayer.cornerCurve = .continuous
-        hoverLayer.backgroundColor = (isMultiSelected ? Palette.sidebarMultiSelection : Palette.sidebarHover).cgColor
-        hoverLayer.isHidden = !(isMultiSelected || hovering) || (isSelected && !isMultiSelected)
+        multiSelectionLayer.frame = layer.bounds
+        multiSelectionLayer.cornerRadius = SidebarMetrics.pillCornerRadius
+        multiSelectionLayer.cornerCurve = .continuous
+        multiSelectionLayer.backgroundColor = Palette.sidebarMultiSelection.cgColor
+        multiSelectionLayer.isHidden = !isMultiSelected
         dot.layer?.backgroundColor = Palette.accent.cgColor
         dot.layer?.cornerRadius = SidebarMetrics.changedDotSize / 2
     }
@@ -367,7 +366,7 @@ final class EssentialTileView: NSView {
         let inset = SidebarMetrics.tileBadgeInset, badge = SidebarMetrics.tileBadgeSize
         dot.frame = NSRect(x: bounds.maxX - dotSize - inset, y: bounds.maxY - dotSize - inset, width: dotSize, height: dotSize)
         audio.frame = NSRect(x: bounds.maxX - badge - inset, y: inset, width: badge, height: badge)
-        hoverLayer.frame = bounds
+        multiSelectionLayer.frame = bounds
     }
 
     // MARK: Events
@@ -410,29 +409,4 @@ final class EssentialTileView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? { events?.tileMenu(entryID) }
 
     @objc private func resetClicked() { events?.tileResetClicked(entryID) }
-
-    /// The average colour of the icon's opaque pixels (spec §I.2 "dominant colour").
-    static func dominantColor(of image: NSImage) -> NSColor? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let side = 8
-        var pixels = [UInt8](repeating: 0, count: side * side * 4)
-        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: side, height: side, bitsPerComponent: 8,
-                                          bytesPerRow: side * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            context.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
-            return true
-        }
-        guard drawn else { return nil }
-        var red = 0.0, green = 0.0, blue = 0.0, alpha = 0.0
-        for index in stride(from: 0, to: pixels.count, by: 4) where pixels[index + 3] > 127 {
-            red += Double(pixels[index])
-            green += Double(pixels[index + 1])
-            blue += Double(pixels[index + 2])
-            alpha += Double(pixels[index + 3])
-        }
-        guard alpha > 0 else { return nil }
-        // Premultiplied sums over the alpha sum: the unpremultiplied average.
-        return NSColor(srgbRed: red / alpha, green: green / alpha, blue: blue / alpha, alpha: 1)
-    }
 }

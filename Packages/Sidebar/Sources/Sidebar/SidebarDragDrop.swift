@@ -510,7 +510,7 @@ enum DragImage {
             let iconRect = NSRect(x: rect.minX + inset, y: rect.midY - icon / 2, width: icon, height: icon)
             drawIcon(entry, page: page, in: iconRect)
             let title = EntryLabel.title(entry) as NSString
-            let attributes: [NSAttributedString.Key: Any] = [.font: Typography.row, .foregroundColor: NSColor.labelColor]
+            let attributes: [NSAttributedString.Key: Any] = [.font: Typography.sidebarRow, .foregroundColor: NSColor.labelColor]
             let height = title.size(withAttributes: attributes).height
             let x = iconRect.maxX + SidebarMetrics.faviconTitleGap
             title.draw(with: NSRect(x: x, y: rect.midY - height / 2, width: max(0, rect.maxX - inset - x), height: height),
@@ -538,7 +538,7 @@ enum DragImage {
         return NSImage(size: total, flipped: true) { _ in
             appearance.performAsCurrentDrawingAppearance {
                 let pill = NSRect(x: margin, y: margin, width: lifted.width, height: lifted.height)
-                let shape = NSBezierPath(roundedRect: pill, xRadius: Radius.medium, yRadius: Radius.medium)
+                let shape = NSBezierPath(roundedRect: pill, xRadius: SidebarMetrics.pillCornerRadius, yRadius: SidebarMetrics.pillCornerRadius)
                 NSGraphicsContext.saveGraphicsState()
                 let shadow = NSShadow()
                 shadow.shadowBlurRadius = SidebarMetrics.dragShadowRadius

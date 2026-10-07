@@ -34,8 +34,8 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         self.tabs = tabs
         self.rootView = rootView
         // The center's presenter is the app's router (one per app; it picks this window for its pages, 4.8a).
-        sidebar.addressField.onExtensionAction = { [weak self] id in self?.run(id) }
-        sidebar.addressField.onExtensionPin = { [weak self] id in self?.pin(id) }
+        sidebar.extensionBar.onExtensionAction = { [weak self] id in self?.run(id) }
+        sidebar.extensionBar.onExtensionPin = { [weak self] id in self?.pin(id) }
         observe()
     }
 
@@ -55,8 +55,8 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.observe() }
         }
-        sidebar?.addressField.setExtensionActions(actions)
-        sidebar?.addressField.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage).filter { allows?($0.id) ?? true })
+        sidebar?.extensionBar.setExtensionActions(actions)
+        sidebar?.extensionBar.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage).filter { allows?($0.id) ?? true })
     }
 
     /// The overflow menu's "Pin": the action joins the header at the end of the pinned order.
@@ -86,7 +86,7 @@ final class ExtensionPopups: ExtensionPopupPresenting {
             #endif
         }
         self.popover = popover
-        if let button = sidebar?.addressField.extensionButton(for: id), button.window != nil,
+        if let button = sidebar?.extensionBar.extensionButton(for: id), button.window != nil,
            rootView?.isSidebarOpen == true {
             popover.show(relativeTo: button.bounds, of: button)
         } else if let rootView {

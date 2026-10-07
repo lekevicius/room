@@ -3,17 +3,22 @@ import CoreImage
 import Design
 
 /// The sidebar region: a transparent area over the window material that
-/// moves the window when dragged. Its header row (`SidebarMetrics.headerHeight`)
-/// is laid out around the traffic lights: `headerView` (the address field)
-/// fills it from after the zoom button to the rows' trailing inset, or the space
-/// title shows there while no header view is set. `bodyView` fills the rest.
+/// moves the window when dragged (the Room Browser design, 2026-10-07).
+/// Its top bar is laid out around the traffic lights: after the zoom button
+/// the sidebar toggle and `accessoryView` (the extensions), and Back, Forward
+/// and Reload (`navigationView`) at the trailing end, all centred on the
+/// buttons. Under it, `headerView` (the address field) gets a row as wide as
+/// the rows' pill, or the space title shows there while no header view is
+/// set. `bodyView` fills the rest.
 public final class SidebarView: NSView {
     /// Everything that dims while the window is inactive.
     public let contentView = FlippedView()
     let titleField = NSTextField(labelWithString: "")
+    /// Hides or shows the sidebar (⌘S): the top bar's first button.
+    public let toggleButton = HoverButton()
+    public var onToggleSidebar: (() -> Void)?
 
-    /// Sits beside the traffic lights, vertically centred on them, at its
-    /// fitting height.
+    /// The row under the top bar, at its fitting height.
     public var headerView: NSView? {
         didSet {
             guard headerView !== oldValue else { return }
@@ -24,24 +29,23 @@ public final class SidebarView: NSView {
         }
     }
 
-    /// Back, Forward, Reload: shown beside the traffic lights while the sidebar
-    /// floats as the hover-revealed overlay (spec §E); the header view then
-    /// moves to a row of its own below them.
+    /// Back, Forward, Reload at the top bar's trailing end, three buttons wide.
     public var navigationView: NSView? {
         didSet {
             guard navigationView !== oldValue else { return }
             oldValue?.removeFromSuperview()
             if let navigationView { contentView.addSubview(navigationView) }
-            navigationView?.isHidden = !showsNavigationRow
             needsLayout = true
         }
     }
 
-    /// The overlay layout: navigation beside the traffic lights, the header view below.
-    public var showsNavigationRow = false {
+    /// Between the toggle and the navigation buttons: gets all the width
+    /// there is and shows what fits (the extension bar).
+    public var accessoryView: NSView? {
         didSet {
-            guard showsNavigationRow != oldValue else { return }
-            navigationView?.isHidden = !showsNavigationRow
+            guard accessoryView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let accessoryView { contentView.addSubview(accessoryView) }
             needsLayout = true
         }
     }
@@ -102,6 +106,13 @@ public final class SidebarView: NSView {
         badgeField.isHidden = true
         badgeField.setAccessibilityIdentifier("sidebar-badge")
         contentView.addSubview(badgeField)
+        toggleButton.image = Symbol.toggleSidebar.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Toggle Sidebar")
+        toggleButton.contentTintColor = .labelColor
+        toggleButton.toolTip = "Toggle Sidebar (⌘S)"
+        toggleButton.target = self
+        toggleButton.action = #selector(toggleClicked)
+        toggleButton.setAccessibilityIdentifier("sidebar-toggle")
+        contentView.addSubview(toggleButton)
     }
 
     @available(*, unavailable)
@@ -118,36 +129,29 @@ public final class SidebarView: NSView {
 
     public override func layout() {
         super.layout()
-        let leading = trafficLights.leadingX(gap: SidebarMetrics.headerLeadingGap, edgeInset: SidebarMetrics.edgeInset)
-        let centerY = trafficLights.centerY(fallback: SidebarMetrics.headerHeight / 2)
-        // The cell's natural size; a truncating label under-reports its intrinsic width.
-        let intrinsic = titleField.cell?.cellSize ?? titleField.intrinsicContentSize
-        let size = NSSize(width: ceil(intrinsic.width), height: ceil(intrinsic.height))
-        let width = max(0, bounds.width - leading - SidebarMetrics.edgeInset)
-        let frame = NSRect(x: leading, y: centerY - size.height / 2, width: min(size.width, width), height: size.height)
-        titleField.frame = backingAlignedRect(frame, options: [.alignMinXNearest, .alignMinYNearest, .alignWidthOutward, .alignHeightOutward])
-        var bodyTop = SidebarMetrics.headerHeight
-        if showsNavigationRow, let navigationView {
-            let size = navigationView.fittingSize
-            navigationView.frame = backingAlignedRect(NSRect(x: leading, y: centerY - size.height / 2, width: size.width, height: size.height),
-                                                      options: .alignAllEdgesNearest)
-            // The header view gets a row of its own under the traffic lights.
-            let rowTop = max(centerY * 2, navigationView.frame.maxY) + RevealMetrics.addressRowGap
-            if let headerView {
-                let height = max(headerView.fittingSize.height, 1)
-                let inset = SidebarMetrics.rowHorizontalInset
-                headerView.frame = backingAlignedRect(NSRect(x: inset, y: rowTop, width: max(0, bounds.width - 2 * inset), height: height),
-                                                      options: .alignAllEdgesNearest)
-                bodyTop = headerView.frame.maxY + RevealMetrics.addressRowGap
-            } else {
-                bodyTop = rowTop
-            }
-        } else if let headerView {
+        let bar = TopBarLayout(width: bounds.width, trafficLights: trafficLights)
+        toggleButton.isHidden = bar.toggle == nil
+        if let toggle = bar.toggle { toggleButton.frame = backingAlignedRect(toggle, options: .alignAllEdgesNearest) }
+        navigationView?.frame = backingAlignedRect(bar.navigation, options: .alignAllEdgesNearest)
+        accessoryView?.frame = backingAlignedRect(bar.accessory, options: .alignAllEdgesNearest)
+
+        let inset = SidebarMetrics.rowHorizontalInset
+        let rowTop = bar.bottom + SidebarMetrics.addressRowGap
+        let rowWidth = max(0, bounds.width - inset - SidebarMetrics.headerTrailingInset)
+        var bodyTop: CGFloat
+        if let headerView {
             let height = max(headerView.fittingSize.height, 1)
-            // Ends where the rows' pill ends, so the domain gets every point there is (2.2a review).
-            let headerWidth = max(0, bounds.width - leading - SidebarMetrics.headerTrailingInset)
-            let header = NSRect(x: leading, y: centerY - height / 2, width: headerWidth, height: height)
-            headerView.frame = backingAlignedRect(header, options: .alignAllEdgesNearest)
+            headerView.frame = backingAlignedRect(NSRect(x: inset, y: rowTop, width: rowWidth, height: height), options: .alignAllEdgesNearest)
+            bodyTop = headerView.frame.maxY + SidebarMetrics.addressRowGap
+        } else {
+            // The cell's natural size; a truncating label under-reports its intrinsic width.
+            let intrinsic = titleField.cell?.cellSize ?? titleField.intrinsicContentSize
+            let size = NSSize(width: ceil(intrinsic.width), height: ceil(intrinsic.height))
+            let x = inset + SidebarMetrics.rowContentInset
+            let frame = NSRect(x: x, y: rowTop + (SidebarMetrics.addressFieldHeight - size.height) / 2,
+                               width: min(size.width, max(0, bounds.width - x - inset)), height: size.height)
+            titleField.frame = backingAlignedRect(frame, options: [.alignMinXNearest, .alignMinYNearest, .alignWidthOutward, .alignHeightOutward])
+            bodyTop = rowTop + SidebarMetrics.addressFieldHeight + SidebarMetrics.addressRowGap
         }
         if badgeText != nil {
             let inset = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset
@@ -157,6 +161,8 @@ public final class SidebarView: NSView {
         }
         bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
     }
+
+    @objc private func toggleClicked() { onToggleSidebar?() }
 
     private func applyActivity() {
         NSAnimationContext.runAnimationGroup { context in

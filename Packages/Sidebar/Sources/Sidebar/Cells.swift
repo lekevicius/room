@@ -47,6 +47,31 @@ private func makeIconButton(_ symbol: Symbol, size: CGFloat, label: String) -> N
     return button
 }
 
+extension NSTextField {
+    /// Ends text too long for the field with a `titleFadeWidth` fade instead
+    /// of an ellipsis (the Room Browser design); `enabled` false (an inline
+    /// rename) or text that fits shows it whole. The field must clip.
+    func updateTrailingFade(enabled: Bool = true) {
+        let fade = SidebarMetrics.titleFadeWidth
+        let overflows = (cell?.cellSize.width ?? 0) > bounds.width
+        guard enabled, overflows, bounds.width > fade else {
+            layer?.mask = nil
+            return
+        }
+        wantsLayer = true
+        let mask = layer?.mask as? CAGradientLayer ?? CAGradientLayer()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        mask.frame = bounds
+        mask.startPoint = CGPoint(x: 0, y: 0.5)
+        mask.endPoint = CGPoint(x: 1, y: 0.5)
+        mask.colors = [NSColor.black.cgColor, NSColor.black.cgColor, NSColor.clear.cgColor]
+        mask.locations = [0, NSNumber(value: Double((bounds.width - fade) / bounds.width)), 1]
+        layer?.mask = mask
+        CATransaction.commit()
+    }
+}
+
 /// An entry or folder row: icon, title, hover sublabel, and on the trailing
 /// side the audio indicator and (Today tabs) the close button.
 final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
@@ -57,10 +82,18 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
 
     let favicon = FaviconView()
     private let folderIcon = NSImageView()
-    let titleField = makeLabel(font: Typography.row, color: .labelColor)
+    let titleField = makeLabel(font: Typography.sidebarRow, color: .labelColor)
     private let sublabel = makeLabel(font: Typography.secondary, color: .secondaryLabelColor)
     private let resetButton = makeIconButton(.resetPinned, size: 11, label: "Back to pinned URL")
-    private let closeButton = makeIconButton(.closeTab, size: 10, label: "Close Tab")
+    private let closeButton: NSButton = {
+        let button = HoverButton()
+        button.layer?.cornerRadius = SidebarMetrics.rowButtonCornerRadius
+        button.contentTintColor = .labelColor
+        button.image = Symbol.closeTab.image(pointSize: SidebarMetrics.rowButtonSymbolSize, weight: .medium, accessibilityDescription: "Close Tab")
+        button.setAccessibilityLabel("Close Tab")
+        button.toolTip = "Close Tab"
+        return button
+    }()
     private let audioButton = AudioIndicatorView()
     /// The page captures its camera, microphone or a screen (3.4b).
     private let captureIndicator = NSImageView()
@@ -79,6 +112,9 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         identifier = Self.identifier
         textField = titleField
         titleField.delegate = self
+        // A long title fades out over its last points (`updateTrailingFade`).
+        titleField.lineBreakMode = .byClipping
+        titleField.cell?.truncatesLastVisibleLine = false
         folderIcon.imageScaling = .scaleProportionallyDown
         folderIcon.contentTintColor = .secondaryLabelColor
         sublabel.isHidden = true
@@ -137,13 +173,14 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             }
         }
         if !isRenaming { titleField.stringValue = EntryLabel.title(entry) }
-        titleField.textColor = (isFolder || model.page.isLoaded) ? .labelColor : .secondaryLabelColor
+        titleField.textColor = (isFolder || model.page.isLoaded) ? .labelColor
+            : NSColor.labelColor.withAlphaComponent(SidebarMetrics.unloadedTitleAlpha)
         let audible = model.page.isAudible || model.page.isMuted
         audioButton.isHidden = !audible
         if audible {
             let symbol: Symbol = model.page.isMuted ? .muted : .audible
             let label = model.page.isMuted ? "Unmute Tab" : "Mute Tab"
-            audioButton.image = symbol.image(pointSize: 11, weight: .medium, accessibilityDescription: label)
+            audioButton.image = symbol.image(pointSize: SidebarMetrics.rowButtonSymbolSize, weight: .medium, accessibilityDescription: label)
             audioButton.toolTip = label
             audioButton.setAccessibilityLabel(label)
             audioButton.removeAllSymbolEffects()
@@ -224,29 +261,36 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         favicon.frame = icon
         folderIcon.frame = icon
         resetButton.frame = icon.insetBy(dx: -2, dy: -2)
-        var trailing = bounds.width - SidebarMetrics.rowHorizontalInset - Spacing.xs
+        // Buttons and indicators line up from the pill's trailing edge; the
+        // title ends `Spacing.s` before the pill's edge, or `Spacing.xs` before the first of them.
+        var trailing = bounds.width - SidebarMetrics.rowHorizontalInset - SidebarMetrics.closeButtonInset
         let button = SidebarMetrics.closeButtonSize
+        var titleEnd = bounds.width - SidebarMetrics.rowHorizontalInset - Spacing.s
         if !closeButton.isHidden {
-            closeButton.frame = NSRect(x: trailing - button, y: (bounds.height - button) / 2, width: button, height: button)
+            closeButton.frame = NSRect(x: trailing - button, y: ((bounds.height - button) / 2).rounded(), width: button, height: button)
             trailing -= button
-        }
-        if !audioButton.isHidden {
-            let width = SidebarMetrics.audioIndicatorWidth
-            audioButton.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
-            trailing -= width
+            titleEnd = trailing - Spacing.xs
         }
         if !captureIndicator.isHidden {
             let width = SidebarMetrics.audioIndicatorWidth
             captureIndicator.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
             trailing -= width
+            titleEnd = trailing - Spacing.xs
         }
         if !readerIndicator.isHidden {
             let width = SidebarMetrics.audioIndicatorWidth
             readerIndicator.frame = NSRect(x: trailing - width, y: (bounds.height - button) / 2, width: width, height: button)
             trailing -= width
+            titleEnd = trailing - Spacing.xs
         }
-        let x = icon.maxX + SidebarMetrics.faviconTitleGap
-        let width = max(0, trailing - x - Spacing.xs)
+        var x = icon.maxX + SidebarMetrics.faviconTitleGap
+        // The audio button sits between the favicon and the title (the Room Browser design).
+        if !audioButton.isHidden {
+            let side = SidebarMetrics.audioIndicatorWidth
+            audioButton.frame = NSRect(x: x, y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
+            x = audioButton.frame.maxX + Spacing.s
+        }
+        let width = max(0, titleEnd - x)
         let titleHeight = ceil(titleField.cell?.cellSize.height ?? 16)
         if sublabel.isHidden {
             titleField.frame = NSRect(x: x, y: ((bounds.height - titleHeight) / 2).rounded(), width: width, height: titleHeight)
@@ -256,6 +300,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             titleField.frame = NSRect(x: x, y: top, width: width, height: titleHeight)
             sublabel.frame = NSRect(x: x, y: top + titleHeight, width: width, height: subHeight)
         }
+        titleField.updateTrailingFade(enabled: !isRenaming)
     }
 
     // MARK: Buttons
@@ -269,6 +314,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     func beginRename() {
         guard let model, let window else { return }
         isRenaming = true
+        titleField.updateTrailingFade(enabled: false)
         titleField.isEditable = true
         titleField.isSelectable = true
         titleField.isBordered = false
@@ -290,6 +336,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         titleField.drawsBackground = false
         titleField.stringValue = EntryLabel.title(model.entry)
         updateHoverState()
+        needsLayout = true
         actions?.renameEnded(model.entry.id, label: committed ? text : nil, committed: committed)
     }
 
@@ -316,16 +363,46 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
 /// playing; a click toggles mute.
 final class AudioIndicatorView: NSImageView {
     var onClick: (() -> Void)?
+    private var hovering = false { didSet { if hovering != oldValue { updateFill() } } }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         imageScaling = .scaleNone
-        contentTintColor = .secondaryLabelColor
+        contentTintColor = .labelColor
         setAccessibilityRole(.button)
+        wantsLayer = true
+        layer?.cornerRadius = SidebarMetrics.rowButtonCornerRadius
+        layer?.cornerCurve = .continuous
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateFill()
+    }
+
+    /// The hover square, as the close button's (the Room Browser design).
+    private func updateFill() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = hovering ? Palette.sidebarHover.cgColor : nil
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        hovering = false
+    }
 
     override var mouseDownCanMoveWindow: Bool { false }
     override func mouseDown(with event: NSEvent) {}
@@ -555,7 +632,7 @@ final class NewTabCellView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("new-tab")
 
     private let icon = NSImageView()
-    private let label = makeLabel(font: Typography.row, color: .secondaryLabelColor)
+    private let label = makeLabel(font: Typography.sidebarRow, color: .secondaryLabelColor)
 
     override init(frame: NSRect) {
         super.init(frame: frame)

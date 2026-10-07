@@ -199,7 +199,7 @@ final class SidebarRowView: NSTableRowView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func drawBackground(in dirtyRect: NSRect) {
-        let shape = NSBezierPath(roundedRect: Self.pillRect(in: bounds), xRadius: Radius.medium, yRadius: Radius.medium)
+        let shape = NSBezierPath(roundedRect: Self.pillRect(in: bounds), xRadius: SidebarMetrics.pillCornerRadius, yRadius: SidebarMetrics.pillCornerRadius)
         if isDropTarget {
             Palette.sidebarMultiSelection.setFill()
             shape.fill()
@@ -212,7 +212,7 @@ final class SidebarRowView: NSTableRowView {
         }
         if isDropTarget || showsFocusRing {
             let ring = NSBezierPath(roundedRect: Self.pillRect(in: bounds).insetBy(dx: 1, dy: 1),
-                                    xRadius: Radius.medium - 1, yRadius: Radius.medium - 1)
+                                    xRadius: SidebarMetrics.pillCornerRadius - 1, yRadius: SidebarMetrics.pillCornerRadius - 1)
             ring.lineWidth = SidebarMetrics.insertionLineWidth
             Palette.accent.setStroke()
             ring.stroke()
@@ -260,9 +260,14 @@ final class DropIndicatorView: NSView {
     }
 }
 
-/// The selected entry's "slightly elevated" pill (Dia), one view that slides
-/// between rows with `Motion.pill` (spec §I.1); reduced motion crossfades.
+/// The selected entry's "slightly elevated" pill (Dia), one view under the
+/// rows. A new selection switches the fill at once, with no movement (the
+/// Room Browser design, 2026-10-07, replaced spec §I.1's slide); while the
+/// selection stays, the pill follows its row as rows insert or leave.
 final class SelectionPillView: NSView {
+    /// The entry the pill marks.
+    private(set) var entryID: UUID?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -278,7 +283,7 @@ final class SelectionPillView: NSView {
 
     override func updateLayer() {
         guard let layer else { return }
-        layer.cornerRadius = Radius.medium
+        layer.cornerRadius = SidebarMetrics.pillCornerRadius
         layer.cornerCurve = .continuous
         layer.backgroundColor = Palette.sidebarSelection.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
@@ -287,22 +292,23 @@ final class SelectionPillView: NSView {
         layer.shadowOffset = SidebarMetrics.pillShadowOffset
     }
 
-    /// Moves to `target` (`nil` hides it).
-    func move(to target: NSRect?, animated: Bool) {
+    /// Marks `entry`'s row at `target` (`nil` hides the pill). Only the same
+    /// entry's row moving animates, alongside the rows' own `Motion.standard`.
+    func move(to target: NSRect?, entry: UUID?, animated: Bool) {
+        let sameEntry = entry != nil && entry == entryID
+        entryID = target == nil ? nil : entry
         guard let target else {
             isHidden = true
             return
         }
         let wasHidden = isHidden
         isHidden = false
-        guard let layer, animated, !wasHidden, frame != target else {
+        guard let layer, animated, sameEntry, !wasHidden, frame != target, !Motion.reduceMotion else {
+            layer?.removeAllAnimations()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             frame = target
-            if animated, wasHidden { fadeIn() }
-            return
-        }
-        if Motion.reduceMotion {
-            frame = target
-            fadeIn()
+            CATransaction.commit()
             return
         }
         let from = layer.presentation() ?? layer
@@ -312,21 +318,17 @@ final class SelectionPillView: NSView {
         CATransaction.setDisableActions(true)
         frame = target
         CATransaction.commit()
-        let position = Motion.pill.animation(keyPath: "position")
-        position.fromValue = NSValue(point: fromPosition)
-        position.toValue = NSValue(point: layer.position)
-        let bounds = Motion.pill.animation(keyPath: "bounds")
-        bounds.fromValue = NSValue(rect: fromBounds)
-        bounds.toValue = NSValue(rect: layer.bounds)
-        layer.add(position, forKey: "position")
-        layer.add(bounds, forKey: "bounds")
-    }
-
-    private func fadeIn() {
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        fade.toValue = 1
-        fade.duration = Motion.fast
-        layer?.add(fade, forKey: "fade")
+        let moves: [(String, NSValue, NSValue)] = [
+            ("position", NSValue(point: fromPosition), NSValue(point: layer.position)),
+            ("bounds", NSValue(rect: fromBounds), NSValue(rect: layer.bounds)),
+        ]
+        for (key, fromValue, toValue) in moves {
+            let animation = CABasicAnimation(keyPath: key)
+            animation.fromValue = fromValue
+            animation.toValue = toValue
+            animation.duration = Motion.standard
+            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(animation, forKey: key)
+        }
     }
 }

@@ -691,6 +691,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #endif
         sidebar.host = tabs
         controller.sidebarView.headerView = sidebar.addressField
+        controller.sidebarView.accessoryView = sidebar.extensionBar
+        controller.sidebarView.onToggleSidebar = { [weak controller] in controller?.toggleSidebarVisibility(nil) }
         controller.sidebarView.bodyView = sidebar.bodyView
         // The window's title (Window menu, Mission Control) is not drawn: set after the switch's frame.
         sidebar.onSpaceChange = { [weak controller] space in

@@ -60,7 +60,7 @@ extension SpikeRunner.Context {
     // MARK: header: pin/unpin, the overflow menu
 
     func extuxHeader(center: ExtensionsCenter, section: ExtensionsCenter.ProfileSection, id: String, page: any WebContents) async {
-        let field = session.sidebar.addressField
+        let field = session.sidebar.extensionBar
         // A second unpacked extension with an action (made in the run's state directory).
         let root = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomStateDirectory") ?? NSTemporaryDirectory())
             .appending(path: "second-extension", directoryHint: .isDirectory)
