@@ -195,32 +195,35 @@ Development is organized into Chapters (broad arcs) and Phases (units with exit 
 
 ## 6. Next steps
 
-Chapters 1–3 are closed (`research/notes/chapter-1-review.md`, `chapter-2-review.md`, `chapter-3-review.md`). The Chapter 4 and 5 specs are written (ROADMAP, 2026-10-06) while the user's week of use continues on the 155 release build. Before the Chapter 4 loop: the week's notes as backlog rows, the decision form, the import fixtures (ROADMAP Chapter 4 "Before the loop"); then Chapters 4 and 5, the user's UI and UX iteration, and Chapter 6's spec. Open items that belong to no phase are in `docs/backlog.md`.
+Chapters 1–4 are closed (`research/notes/chapter-1-review.md` … `chapter-4-review.md`). Chapter 4 ran 2026-10-06/07 as one planner loop (`research/notes/chapter-4-loop.md`); the user installs build 11 (`build/sparkle-4.9/`) and does the 74-step by-hand pass with the week's rows as "4.9 week" (ROADMAP Chapter 5 "Before the loop"), answers the form's "Chapter 4" section, then Chapter 5, the user's UI and UX iteration, and Chapter 6's spec. Open items that belong to no phase are in `docs/backlog.md`.
 
 ## 7. Risks and unknowns (ranked)
 
-Re-ranked at the end of Chapter 3 (2026-10-06; the Chapter 2 ranking and reasoning are in `research/notes/chapter-2-review.md`, the Chapter 3 evidence per row in `research/notes/chapter-3-review.md`).
+Re-ranked at the end of Chapter 4 (2026-10-07; the Chapter 3 ranking is in `research/notes/chapter-3-review.md`, the Chapter 4 evidence per row in `research/notes/chapter-4-review.md` §8).
 
 | # | Risk | Mitigation / spike |
 |---|---|---|
-| 1 | Rebase and build cost at a 2-week cadence: measured at 5.5 and ~18 min of hand work per rebase, 2 conflicts in 48 patch replays, but a night of machine time per milestone (clean dev build 4 h 34 min, official 4 h 15 min at 6 jobs) and release-only checks the dev build never runs (B-77) | `scripts/roomcore-rebase.sh` (3.8); the official build per milestone from Chapter 4 on; 23 hooks, none widened; Stable confirmed |
-| 2 | Memory: ten loaded pages 4.8 GB on the release build against CEF's 3.6 GB (19 renderers for ten pages; a discarded page's renderer lingers, B-56); at rest 0.56 GB against 0.85 | The week's real tab counts; host-driven discarding with Chromium's blockers (3.7b); the renderer count per page and B-56 are 5.4's levers |
-| 3 | Main-thread budget: tab switching p95 20.9 ms on the release build at 60 Hz against the 16 ms bound (median 12.9); no 120 Hz measurement yet | 5.4 with the laptop's four runs (B-16, B-18, B-20, B-21) as inputs; B-53's profile (the hide/show path, the dev DCHECKs) |
-| 4 | Hybrid Views bubbles (passwords, autofill, print preview, translate, FedCM, choosers) look like Chrome inside a Dia-looking window; the translate bubble sits off its anchor | Accepted through the week; the friction rows decide which goes native first in Chapter 5 |
-| 5 | `BrowserWindow` and `BrowserView` assumptions in Chrome UI code: three CHECKs met in `//room` without a patch in Chapter 3, one new pure virtual per milestone | 58 real members, 38 logged stubs; `tools/gen_browser_window_stubs.py` per rebase; first-hit logs stay |
-| 6 | Unrequested network calls: every Chrome feature Chapter 3 enabled brought one request its phase found (leak check, ranker, Autofill queries, update pings); with suggestions on Chrome polls every ~100 ms (B-64) | Room's code 0, the engine 0 over launch, idle, browse, quit on dev and release (3.1b-2, 3.9); the net-log stays a per-phase step |
-| 7 | Dev-build renderer DCHECKs on live sites (Blink layout, one `//net`): 9–10 minidumps per tour on the component build, 0 on release (B-76) | A condition for every dev number and by-hand pass; crashes and numbers judged on the release framework (`ROOM_TOUR_APP`) |
-| 8 | Google-service dependencies the user decides: translate needs an API key (B-63), password generation needs Sync (B-72), Enhanced Spell Check (B-74), the Web Store's "Switch to Chrome?" banner, extensions' own requests (B-68) | Provisional choices recorded per row; Chapter 4.4's Settings copy states each |
-| 9 | Widevine licensed playback on a real service | Demand-only CDM verified on a test stream (3.1b); the user's by-hand step on the signed 155 build; manual CDM copy as the fallback |
-| 10 | Keychain and signing identity: the "Room Safe Storage" item belongs to the old identity, so the signed build prompts once | By hand once; signing 10 s, notarization 70 s, scripted (`roomcore-sign.sh`) |
-| 11 | Passkey entitlement lead time | Unblocked by the identity; the user files it |
-| 12 | Sparkle update size: the full DMG is 178 MiB | Full-app updates at first; the EdDSA signature by hand (the login keychain); deltas measured in Chapter 6 |
-| 13 | Crashpad → Sentry: RoomCore's dumps stay under the data root with no upload URL; the app process reports behind its opt-in | 6.3 |
-| 14 | Shutdown watchdog (B-38): not reproduced quiet on two release builds (0 in 89 + 20 quits); 11 of 12 under build load on the component build | Patch 0010 stays parked until a release-build reproduction |
+| 1 | Rebase cost, now by surface as much as by time: twelve engine members, +2,096 `//room` lines over Chrome internals, none behind a patch (the series 23 through eight engine steps); the fork is a milestone old; the next rebase pays in `//room` API fixes at once | One rebase proposed to the user for the night before 5.4b (the form); `scripts/roomcore-rebase.sh`; the official incremental per engine step (8–10 min) is settled |
+| 2 | Memory: ten loaded pages 4.6–4.8 GB on the release build against CEF's 3.6; a second window +25 MB; a discarded page's renderer lingers (B-56) | 5.4b's levers: the renderer count per page and B-56; the discard policy is in place |
+| 3 | Main-thread budget: switching p95 20.9 ms on the release build at 60 Hz (B-53); a large import's 604 ms stall (B-85); Chrome's best-effort work held for a startup signal (B-87) | 5.4a with the laptop's 120 Hz runs (B-16, B-20, B-21) |
+| 4 | The specs run ahead of the user's use: no "3.9 week" row arrived during Chapter 4; 74 by-hand steps plus Chapters 2–3's; every Chapter 4 surface unjudged by its user | Chapter 5 opens with the user's pass of build 11 and its rows order 5.2, 5.6 and 5.7 |
+| 5 | Hybrid Views bubbles and the Chrome surfaces Chapter 4 added (the site-data page B-88, Save As… B-91, the print preview's keyboard B-95) | 5.6 and 5.7 by the user's annoyance |
+| 6 | Chrome's lifetime rules and `BrowserView` assumptions: three met in Chapter 4 without a patch (an emptied Browser scheduled for deletion, no keep-alive on an OTR profile, a closed twin's wrappers), each found by a tour step's first run | 58 real `BrowserWindow` members, 38 logged stubs, `tools/gen_browser_window_stubs.py` per rebase; each new rule a small `//room` or `EngineRoomCore` fix |
+| 7 | Dev-build renderer DCHECKs on live sites: 11 per appearance on the full dev tour, 0 on the release framework (B-76) | A condition on every dev number; numbers and crashes judged on the release framework |
+| 8 | Unrequested network calls: 0 engine requests in every Chapter 4 net-log (launch, idle, browse, quit; an incognito window; an extension's own request attributed apart) | A net-log per engine step in Chapter 5 (5.4b, 5.6b, 5.7) |
+| 9 | Widevine licensed playback on a real service | The user's by-hand step on build 11 |
+| 10 | Keychain and signing identity; Apple's notarization queue can stall a DMG (build 7 never returned) | Scripted (82–85 s when Apple answers); a stalled DMG is skipped for the next build |
+| 11 | Passkey entitlement lead time | The user files it |
+| 12 | Sparkle update size: 180 MiB per DMG | Full-app updates; deltas in Chapter 6 |
+| 13 | Crashpad → Sentry | 6.3; the tour counts the engine's minidumps |
+| 14 | Shutdown watchdog (B-38): not reproduced in seven baselines' quits (0.28–0.39 s) | 0010 stays parked |
+| 15 | The machine's automation limits: macOS 26's out-of-process save panels, `AXIsProcessTrusted` false, the window server showing Chromium's layers white | A cost on the by-hand list, never a skipped check |
 
-Retired in Chapter 3: the tour passing by skipping (B-44: `PageDriver` and checks that require each result line; the rule that a check shaped by the old engine lies, after B-55, B-75 and the crash count B-76), launch time growing with the state (B-42: `quick_check`, then schema v6 at 12 ms), the CEF caps and the single-maintainer dependency on CEF (CEF deleted in 3.9).
+Retired in Chapter 4: the Google-service cluster (every row decided and stated in Settings: B-63, B-68, B-69, B-72, B-74); the Chapter 3 Import-formats risk stays only until the user's Arc file runs (by-hand step 25).
 
-Retired in Chapter 1: rounded-corner clipping (pixel-exact, 120 fps, and no extra WindowServer GPU work with the mask: 2.89 vs 2.88 ms per frame, measured 2026-10-03), overlay/palette z-order over the web view (green in Phase 1.4), traffic-light geometry drift (AppKit's own placement, six-state tests).
+Retired in Chapter 3: the tour passing by skipping (B-44, B-55, B-75, B-76), launch time growing with the state (B-42, schema v6), the CEF caps and the single-maintainer dependency on CEF.
+
+Retired in Chapter 1: rounded-corner clipping, overlay z-order over the web view, traffic-light geometry drift.
 
 ## 8. What is in `research/`
 

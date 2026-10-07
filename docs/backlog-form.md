@@ -92,6 +92,32 @@ The questions the backlog leaves to you, one per row, with the planner's provisi
 **B-45 / clone cleanup, B-58 toasts, B-60 client certificates, B-71 extension device chooser.** Chrome surfaces Room turns off or keeps as Chrome's: no question unless you want one of them native sooner than Chapter 4/5.
 - Notes: ________________________________________________
 
+## Chapter 4 (2026-10-07)
+
+The questions the Chapter 4 loop left to you, with the planner's provisional choice `(P)`; the chapter ran on them and nothing is blocked.
+
+**B-97 — dragging a sidebar row out of Room.** Since 4.8a a row dragged beyond 40 pt past the window's edge opens a new window there (spec §A.9), which meant the row no longer offers a drag outside Room: dropping a row on the desktop or another app does nothing.
+- [ ] The drag out wins; dragging a URL into another app comes back in 5.5 through ⌥-drag or a drag from the address field `(P)`
+- [ ] The URL drag wins; the drag out moves to a context item only ("Open in New Window" exists)
+- Notes: ________________________________________________
+
+**B-98 — incognito windows.** ⇧⌘N opens one incognito window per profile and brings it forward when it exists; Chrome allows several.
+- [ ] One per profile `(P)`
+- [ ] Several, each its own twin lifetime (5.6)
+- Notes: ________________________________________________
+
+**A rebase before 5.4b.** The fork is on 155.0.8059.36 (Stable of late September) with 23 patches and twelve new `//room` members from Chapter 4. 5.4b writes the numbers table v3 and takes the engine levers; measured on 155 they would be remeasured at the first rebase anyway.
+- [ ] One rebase to the current Stable the night before 5.4b (no session attached; `scripts/roomcore-rebase.sh`, `--verify`, the official build) `(P)`
+- [ ] No rebase until 6.4; 5.4b measures on 155
+- Notes: ________________________________________________
+
+**B-62 — Web Serial and Bluetooth hanging the browser.** The laptop's run hung the main thread in `IOBluetoothDeviceInquiry` while macOS's Bluetooth dialog was pending; no session has run it with the dialogs answered.
+- [ ] Do the laptop run (`chapter-3-by-hand.md` "Laptop" 8); if it still hangs, 5.4b's engine step takes one bounded attempt `(P)`
+- [ ] Skip it; a page that asks for Serial or Bluetooth may freeze Room until Chapter 6
+- Notes: ________________________________________________
+
+**Also yours, no question:** B-93 (the GitHub billing hold: CI has not run since 2026-10-07 01:35), the by-hand pass on build 11, the week's "4.9 week" rows.
+
 ## Accounts, keys and services (Chapter 2's open items)
 
 **The passkey entitlement** (`com.apple.developer.web-browser.public-key-credential`, Account Holder).

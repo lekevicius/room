@@ -63,3 +63,70 @@ Outcome: accepted. Multi-window end to end: schema v9, a `WindowSession` per win
 ### 4.8b — accepted; Phase 4.8 closed; the DMG (2026-10-07 03:42 → 04:59, 77 min; build 10 from 05:02 in the background)
 
 Outcome: accepted; the phase closed with every exit item behind a measured line on the release framework. Incognito without a patch (the series stays 23: patch 0014's hook answers the twin's Browser), the page move through the strip (6 ms, the same page), the off-the-record twin kept alive by a headless Browser (`AddKeepAlive` CHECKs on OTR: the 3.4b lesson in its OTR form), nothing persisted, extensions per the setting; the official incremental **8 min 36 s**; `incognito` 20 / 20 and `windows` 31 / 31 on the release framework; 0 engine hosts with an incognito window open. Decisions: B-98 (one incognito window per profile) to 5.6, the user's; the chapter's members end at twelve. User's list: Phase 4.8 at 10 of 10 (steps 65–74). No "3.9 week" rows yet.
+
+### 4.9 — accepted; Phase 4.9 and Chapter 4 closed (2026-10-07 05:03 → 07:03, 126 min; build 11 from 07:05 in the background)
+
+Outcome: accepted; the chapter closed. The full tour on both builds (dev 893 / 15 and 894 / 14 of 908 in 61.6 min with 11 DCHECK dumps per appearance; release 899 / 5 and 897 / 7 of 904 in 45.9 min with 0 minidumps), every failure attributed: four stale harness checks fixed (the 4.9 lesson: a shared shape's change must rerun the checks that read it), one product one-liner, B-53, B-56, B-99 new, B-100 new, two run conditions. The by-hand lists reconciled (74 steps), the review drafted; the planner's columns, closing and the Chapter 5 confirmation written in this fold-in. Decisions: build 11 as the chapter's DMG; PLAN §7 re-ranked with the new #4; Chapter 5 confirmed with three amendments; the form's "Chapter 4" section (B-97, B-98, the rebase before 5.4b, B-62). No "3.9 week" rows arrived in the chapter.
+
+## Closing (2026-10-07 07:10)
+
+### Sessions
+
+| Session | Outcome | Wall time | Note |
+|---|---|---|---|
+| 4.1a | accepted | 46 min | the five tooling carry-overs, schema v7's Archive, the sweep, the Library, the palette's chip |
+| 4.1b | accepted; 4.1 closed | 64 min | `removeDownload`; the official incremental measured: **8 min 5 s** → a DMG per engine step; backups, Restore Sidebar…, crash recovery, B-73, B-80's retention |
+| 4.2 | accepted; 4.2 closed | 44 min | schema v8 routing, the sheet, B-35, B-57 closed on release (69.5 ms), B-82 |
+| 4.3a | accepted | 45 min | `Packages/Import`, hand-made fixtures, the plan and the sheet |
+| 4.3b | accepted; 4.3 closed | 49 min | `importPasswords` (+314), B-81 fixed, Firefox, the store pages, first run, B-84 measured |
+| 4.4a | accepted | 55 min | shortcut remapping end to end, General, Search, Downloads; B-86 |
+| 4.4b | accepted; 4.4 closed | 79 min | `deleteProfile`, `clearBrowsingData`, `contentSettings` (+455), B-74 hidden, B-22 (directories keyed by id), Privacy, the net-log 0; B-87, B-88 |
+| 4.5 | accepted; 4.5 closed | 45 min | site access, Run, commands (+425), B-70, B-30, B-67, the overflow menu |
+| 4.6 | accepted; 4.6 closed | 46 min | the media controls (+191), the row, document PiP (B-51), Now Playing with no host code |
+| 4.7a | accepted | 48 min | `savePage`, the DevTools command (+324), Save Page…, View Source, ⇧⌘2 with Full Page; GitHub stopped CI (B-93) |
+| 4.7b | accepted; 4.7 closed | 45 min | reader mode from a `file://` template, no translate item, Page Setup |
+| 4.8a | accepted | 58 min | schema v9, a `WindowSession` per window, ownership by unload and reload, the drag out; two windows +25 MB |
+| 4.8b | accepted; 4.8 closed | 77 min | the page move, the off-the-record twin, extensions in incognito (+364); **no patch**; the move 6 ms |
+| 4.9 | accepted; 4.9 and the chapter closed | 126 min | the full tour on both builds, the by-hand list reconciled, the review drafted |
+
+Loop: 2026-10-06 15:50 → 2026-10-07 07:10, about 15.3 hours; implementer time about 13.8 hours; the rest the planner's fold-ins and DMGs (seven official incremental builds of 8–10 min ran inside the sessions). No power outage; one notarization that never returned (build 7); GitHub's billing hold from 01:35.
+
+### The engine members and what each cost in `//room`
+
+| Step | Members | `//room` lines | Patch |
+|---|---|---|---|
+| 4.1b | `Profile.removeDownload` | +23 | none |
+| 4.3b | `Profile.importPasswords` | +314 | none |
+| 4.4b | `EngineApplication.deleteProfile`, `Profile.clearBrowsingData`, `Profile.contentSettings`; B-74's defaults | +455 / −3 | none |
+| 4.5 | `siteAccess`/`setSiteAccess`, `runAction`, `commands`/`performCommand` | +425 | none |
+| 4.6 | the five media controls; `MediaSessionInfo` state, actions, position, artwork | +191 / −10 | none |
+| 4.7a | `savePage`, `sendDevToolsCommand`; B-90; the PDFs default | +324 / −2 | none |
+| 4.8b | `move(toHostWindow:)`, `offTheRecord`/`closeOffTheRecord`, `setAllowedInIncognito`; the hook's OTR answer | +364 / −15 | none |
+
+Twelve members (the eleven named plus `setAllowedInIncognito`), +2,096 / −30 lines, the series 23 throughout; no new exported class (every answer a Foundation value: B-77 never bit).
+
+### The numbers that changed against Chapter 3's release rows
+
+Memory at ten loaded pages 4.6 GB (3.9-2: 4.8); two windows +25 MB; the relaunch, quits and Peek's first paint (69.5 ms on release, 3.9-2 did not measure it there) in the review's §3; the kill test's commit time 5.9–8.3 → 11.4–11.7 ms with the Archive (B-80); the JSON snapshot 5.76 MB → 157 KB (B-73); the official incremental 8–10 min (clean 4 h 15 min); `--release` 79–173 s; the DMG 178 → 180 MiB; the full tour 47 steps and 904–908 checks per appearance, ~46 min on release for both; engine requests 0 in every net-log.
+
+### The user's decisions
+
+The form's "Chapter 4" section: B-97 (the drag out against URL drags), B-98 (one incognito window per profile), the rebase before 5.4b, B-62's laptop run. Standing from before with the planner's choices: B-10, B-16/20/21, B-26, B-32, B-46, B-48; the keychain, EdDSA and feed items; Widevine; the passkey; B-93 (GitHub billing) is new and the user's.
+
+### The by-hand list
+
+`research/notes/chapter-4-by-hand.md`: 74 steps in nine groups, build 11 at the top (build 10 if Apple's queue failed again). DMGs the chapter made: builds 2, 3, 4, 5, 6, 8, 9, 10, 11 (7 never returned from notarization).
+
+### What the week should watch
+
+The Archive and the sweep on a real day; the routing toast on links from other apps; the real Chrome, Arc and Safari files through the import sheet (Arc's reader has seen only the fixture); a remapped shortcut for a day; memory with two windows all day; B-97 and B-98; the engine's request count (`scripts/netlog-check.sh`).
+
+### Three things to change in the Chapter 5 spec
+
+1. The user's pass and the week's rows come before the taste work (risk #4): "Before the loop (the user)" in ROADMAP Chapter 5.
+2. The harness rule: a phase that changes a shared shape reruns the checks that read it; new steps own their state; B-100 before 5.8.
+3. One rebase before 5.4b if the user agrees, so v3 and the members' rebase cost are measured on the engine Chapter 6 ships.
+
+### What the loop itself would change
+
+Start the DMG chains in the background with a two-hour bound from the first one (two DMGs stalled on Apple's queue); grep `tour_checks.py` at every fold-in for the shape the session changed (4.9 paid for four stale checks at once); and when GitHub stops, the local CI spec run is the gate, which held.
