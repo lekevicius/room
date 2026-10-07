@@ -23,13 +23,13 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 |---|---|---|---|---|
 | New tab (palette) | ⌘T | **yes** | 2.4 | pressing again closes the palette |
 | Edit current URL (palette) | ⌘L | **yes** | 2.4 | Enter unchanged = reload |
-| New window | ⌘N | **yes** | 2.8 | multi-window proper is Chapter 4.8 |
+| New window | ⌘N | **yes** | 2.8 | 4.8a: a new window on the key window's space with an empty Today list, cascaded; with no window open, the last one again (the Dock's icon too) |
 | New incognito window | ⇧⌘N | **yes** | 4.8 | menu item disabled until then |
 | Close tab / pane (permanent entry: unload + reset + switch) | ⌘W | **yes** | 2.3 | spec §A.3 |
-| Close window | ⇧⌘W | **yes** | 1.4 | "Remove" a permanent entry is menu-only |
+| Close window | ⇧⌘W | **yes** | 1.4 | "Remove" a permanent entry is menu-only; 4.8a: the window's Today tabs go to the Archive ("Window closed"), the last window's close keeps Room running |
 | Reopen closed tab (incl. Peek) | ⇧⌘T | **yes** | 2.3 / 2.7 | |
 | Quit | ⌘Q | **yes** | 1.1 | |
-| MRU switcher / backwards | ⌃Tab / ⌃⇧Tab | **yes** | 2.3 | hold ⌃, tap W closes |
+| MRU switcher / backwards | ⌃Tab / ⌃⇧Tab | **yes** | 2.3 | hold ⌃, tap W closes; per window (4.8a: its Today tabs and the shared entries) |
 | Next / previous tab | ⇧⌘] / ⇧⌘[ | **yes** | 2.3 | |
 | Next / previous tab in sidebar order | ⌥⌘↓ / ⌥⌘↑ | **yes** | 2.3 | |
 | Next / previous space | ⌥⌘→ / ⌥⌘← | **yes** | 2.5 | wraps around |
@@ -40,7 +40,7 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | Add to / remove from Essentials | ⇧⌘D | no | 2.2 | |
 | Copy URL / as Markdown | ⇧⌘C / ⌥⇧⌘C | no | 2.6 | toast |
 | Clear Today tabs | ⇧⌘K | no | 2.2 | toast with Undo |
-| Sidebar item 1–8, last | ⌘1…⌘8, ⌘9 | no | 2.3 | essentials, then pinned (expanded order), then Today |
+| Sidebar item 1–8, last | ⌘1…⌘8, ⌘9 | no | 2.3 | essentials, then pinned (expanded order), then Today; per window (4.8a: the key window's own Today tabs) |
 | Space 1–9, 10 | ⌃1…⌃9, ⌃0 | no | 2.5 | |
 | Back / forward | ⌘[ ⌘] and ⌘← ⌘→ (outside text fields) | no | 1.4 | |
 | Reload / hard reload / stop | ⌘R / ⇧⌘R / ⌘. | no | 1.4 / 2.6 | |

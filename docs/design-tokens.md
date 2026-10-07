@@ -367,3 +367,12 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Settings ▸ Search | Default (an engine popup per profile), Search engines (name, keyword in monospaced secondary, the URL with %s in caption; Edit, Remove as link buttons, Remove disabled with its reason as help; an inline editor with Name, Keyword, Search URL, Suggestions URL, the refusal in red, Cancel, Save), the suggestions switch with B-64's line | ROADMAP 4.4a task 3 |
 | Settings ▸ Downloads | "Ask where to save each download" (a save panel as a sheet on the browser window, the folder's name proposed), "PDFs: Open in Room / Download" with "Applies from Phase 4.7" | ROADMAP 4.4a task 4 |
 
+
+## Added in Phase 4.8a (several windows)
+
+| Token / surface | Value | Source |
+|---|---|---|
+| `WindowMetrics.cascadeOffset` | 22 pt: ⌘N's window and "Open in New Window"'s sit this far right of and below the key (source) window, kept on its screen (`DragOutRule.cascaded`) | AppKit's `cascadeTopLeft` step; chosen |
+| `WindowMetrics.dragOutDistance` | 40 pt: a sidebar entry dragged and released this far outside its window's frame (no drop target took it) opens in a new window whose top-left corner is the drop point, kept on the screen (`DragOutRule`) | spec §A.9 |
+| "Open in New Window" | `Symbol.newWindow` (`macwindow.badge.plus`) in the Today, pinned and Essentials menus, after Duplicate (Today, pinned) or the Pinned URL submenu (Essentials); disabled without a URL | ROADMAP 4.8a task 4 |
+| A new window | the key window's sidebar width and visibility, its active space, an empty Today list (the card's empty state), the same layout as the first (traffic lights where AppKit puts them) | spec §J |

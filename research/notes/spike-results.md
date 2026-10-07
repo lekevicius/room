@@ -3270,3 +3270,43 @@ Findings: (1) Chrome's `domdistiller_wrapped.js` way (the module on `Object.crea
 ### Unit tier (`CI=1 swift test`)
 
 Chrome 72 (+8: the distiller's dictionary, the markup-text fallback, `null`/malformed answers, the article threshold, the script's options, the template's one-pass fill with escaping, the CSS variables from the tokens; the context menu's reading-mode items), Tabs 79 (+4: the swap and Exit with the page and its history untouched, Esc / the original link / another link, unload, `ReaderNavigation`), Model 109 (the sample state carries `readerTextSize`), Design 9, Sidebar 39, UIKitCore 56, Omnibox 51, all passing.
+
+## Phase 4.8a — several windows: per-window Today tabs, page ownership, the drag out (2026-10-07, Mac mini M4, 24 GB, display 1920 × 1080 @ 60 Hz, RoomCore 155.0.8059.36, no engine change)
+
+**Method.** Tour step `windows` (group `windows`, `scripts/windows-check.sh`, spike `windows` in `App/Sources/Debug/WindowSpikes.swift`, fixtures `research/spikes/phase-4.8/` on 127.0.0.1:8777), its own state and engine directories, four launches: `main` (three pinned entries A, B, C; B navigated to its second page in window 1; ⌘N as a key event through the menu bar; a rename of A through the store read back from window 2's row cell; two Today tabs in window 2; B selected in window 2; ⌘1 as a key event in window 2; "Open in New Window" performed from window 2's context menu; `SidebarController.debugDragEnded` at 20 pt and 100 pt past window 1's edge, the mouse drag itself being by-hand step 65; a second space and a frame of its own for window 2; the quit), `relaunch` on the same state (the windows read back; window 2 closed with `performClose`; every window closed; ⌘N as a key event with no window; the Dock's reopen through `applicationShouldHandleReopen`), then `memory` twice on fresh states (`-RoomWindowsMemoryWindows 1` and `2`: the `memory` spike's ten live sites, summed RSS over the process tree with `ps` after every page loaded and 8 s, one page shown per card; a fresh launch each because pages closed earlier leave renderers behind, B-56).
+
+**Results.** Dev build `20261007-031209-roomcore` (load1 7.5): **30 / 31**, the one failure 2 renderer minidumps, both `layout_object.h:518 DCHECK failed: !NeedsLayout() || ChildLayoutBlockedByDisplayLock()` from the memory launches' live sites (B-76's dev-build condition; the other launches 0). Release framework (`ROOM_TOUR_APP`, the Debug app over `build/roomcore-release`) `20261007-031532-roomcore` (load1 10.6, something else running on the Mac mini): **31 / 31**, 0 minidumps.
+
+| Check (release framework) | Line |
+|---|---|
+| ⌘N | `by ⌘N windows=2 in 62.2 ms key=2 active_is_new=true frame1=348,187 1280x800 frame2=370,165 1280x800 cascade=22,22 same_space=true today=0 selected=none card_empty=true rows=2 window_menu=2` (dev 92.8 ms) |
+| Shared rename | `window2_row "Pinned A"→"Renamed in window 1" window1_row="Renamed in window 1" in 0.69 ms (same turn)` (dev 0.73 ms): the store's change reaches both sidebars synchronously |
+| Today per window | `window2_today=2 window1_today=0 tab_window=2 listed_window2=true listed_window1=false pinned_listed_both=true` |
+| Pinned page moves | `in 82 ms window1_page_closed=true window1_holds=false window1_selected=C (its MRU) window1_card_shows_mru=true window2_url=next-b.html window2_canGoBack=true history_length=2 window2_card=true owners=2` (dev **1,582 ms**: the component build's restore and renderer launch); Back then shows `b.html` |
+| ⌘1 in window 2 | `key=2 selected_first=true is_pinA=true window1_selection_kept=true`; ⌃Tab's list `window2_has_its_tab=true window1_has_window2_tab=false` |
+| Open in New Window | `item=true enabled=true windows=3 selected=true tab_window=3 window2_lists=false window3_lists=true page=e.html window2_holds=false cascade=22,22` |
+| Drag out | `near(20pt)_windows=3 past(beyond 40pt)_windows=4 drop=248,947 frame=248,147 1280x800 top_left_at_drop=true selected=true kind=today tab_window=4` |
+| Relaunch | four windows, `frame_matches=true` each (window 2 at 260,140 1100×720), window 2 on space "Second", the Today tab `d.html` in window 2 only, `loaded_windows=1 key=1` (only the front window's selection loaded, spec §H) |
+| Close window 2 | `windows 4→3 rows=3 entry_gone=true archived=windowClosed library_row=Windows fixture D windowClosed_rows=1`; restored from the Archive into the active window |
+| Last window | `windows=0 visible=0 app_running=true rows_kept=1`; ⌘N (the menu bar's key equivalent with no window) `menu_took=true windows=1 same_row=true frame=248,147 1280x800 visible=true`; the Dock's reopen `windows=1 visible=true` |
+
+**Memory with two windows** (summed RSS of every Room process; each row a fresh launch on a fresh state; ten pages = the `memory` spike's ten live sites, one shown per card):
+
+| Build | Baseline (one blank page) | 10 pages, one window | 10 pages, two windows (5 + 5) | Two minus one |
+|---|---|---|---|---|
+| Release framework (load1 10.6) | 568 / 565 MB, 9 processes, 3 renderers | **4,628 MB**, 28 processes, 20 renderers (renderers 3,996 MB), loaded in 12 s | **4,653 MB**, 28 processes, 20 renderers (renderers 3,992 MB), loaded in 5 s | **+25 MB**, renderers 20 → 20 |
+| Dev build (load1 7.5) | 993 / 968 MB | 4,548 MB, 21 processes, 13 renderers, 49 s | 5,651 MB, 26 processes, 18 renderers, 12 s | +1,103 MB, renderers 13 → 18 |
+
+Beside one window's earlier numbers on the release framework (3.9-2, `memory` and `tabsmeasure`): baseline 559 MB, ten hidden pages 4,097 MB (17 renderers), ten loaded of 50 entries 4,801 MB (19 renderers); 4.1b measured the discard order under pressure, no RSS. A second window (its own `RoomBrowser` per profile, 3.2a) costs nothing measurable on the release framework: the renderer count follows the sites, not the windows. Renderers cannot be attributed to a window from the host (no process id in the `Engine` protocol); the pages per window were 10 and 5 + 5. The dev build's +1.1 GB with five more renderers is one run of live sites on the component build (its 49 s load against 12 s says the first run met slower pages); not chased (B-53's rule: measure, do not chase), the release framework is the judge.
+
+### Window-level wiring, not regressed (dev, `20261007-031645-roomcore`)
+
+`extpopup` **18 / 18** (the popups and the key router, now per window through `ExtensionPopupRouter`), `media` **32 / 32** (the media row per tab controller, the PiP panels per window), 0 minidumps.
+
+### Kill test with windows (dev, `20261007-031732-roomcore`)
+
+`--only killtest`: **7 / 7, 100 kills, 0 failures** (52 with a transaction in flight, all rolled back to the previous generation). The harness opens a second window with Today tabs, adds to it and closes it (`archiveToday(window:)` with `removeWindow` in one write); a 15-kill run of the same harness left 2 window rows, Today tabs of 2 windows, 236 `windowClosed` archive rows, no permanent entry with a window and no Today tab without one.
+
+### Unit tier (`CI=1 swift test`)
+
+Model 111 (+2: v9 on a v8 state with two windows → Today rows to the first by position, permanent rows NULL, a state without a window row; a pre-v9 JSON snapshot), Store 57 (+8: per-window Today lists and the shared sections, a shared rename's one change, conversions taking or dropping the window, Clear per window and `archiveToday` with `windowClosed` and its restore into a window, window rows created/removed/moved to front, a relaunch with both windows, orphans adopted, Restore Sidebar's window remap), Tabs 85 (+6: the claim and fallback rules, a pinned page moving with its history and the MRU fallback, per-window Today lists and ⌘1/⌘9 and the switcher's list, the discard policy with another window's visible set, an entry removed elsewhere), Sidebar 42 (+3: the drag-out threshold, the drop frame, the cascade), UIKitCore 56, Design 9, Palette 24, Library 2, Chrome 72, Omnibox 51: all passing; the window tier (no `CI`) UIKitCore 56, Sidebar 42, Tabs 85 passing.
