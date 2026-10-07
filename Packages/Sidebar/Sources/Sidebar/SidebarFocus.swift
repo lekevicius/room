@@ -78,6 +78,8 @@ extension SidebarController {
 
     /// The ⌘D item's title for the current target ("Pin Tab", "Unpin Tab"), `nil` when it does not apply.
     public var pinCommandTitle: String? {
+        // Nothing in an incognito window is kept: no pinned entries (4.8b).
+        if isIncognito { return nil }
         let kinds = Set(commandTargets().compactMap { sidebar.entry($0)?.kind })
         if kinds == [.today] { return CommandName.pinTab }
         if kinds == [.pinned] { return CommandName.unpinTab }
@@ -86,6 +88,7 @@ extension SidebarController {
 
     /// The ⇧⌘D item's title ("Add to Essentials", "Remove from Essentials"), `nil` when it does not apply.
     public var essentialsCommandTitle: String? {
+        if isIncognito { return nil }
         let kinds = Set(commandTargets().compactMap { sidebar.entry($0)?.kind })
         if kinds.isEmpty || kinds.contains(.folder) { return nil }
         return kinds == [.essential] ? CommandName.removeFromEssentials : CommandName.addToEssentials

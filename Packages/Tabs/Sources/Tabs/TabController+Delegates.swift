@@ -39,6 +39,16 @@ extension TabController: WebContentsUIDelegate {
             newContents.close()
             return
         }
+        // "Open Link in Incognito Window" (4.8b, B-50): a page of the opener's
+        // profile's off-the-record twin, for the app's incognito window.
+        if disposition == .offTheRecord {
+            if let openOffTheRecord {
+                openOffTheRecord(newContents, targetURL, pages[opener]?.profileID ?? store.sidebar.entry(opener)?.profileID)
+            } else {
+                newContents.close()
+            }
+            return
+        }
         // Document picture-in-picture gets the app's floating panel (4.6, B-51); popups stay Today tabs.
         if disposition == .newPictureInPicture, let presentPictureInPicture {
             presentPictureInPicture(newContents, webContents, opener)

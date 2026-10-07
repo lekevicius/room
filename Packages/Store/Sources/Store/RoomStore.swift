@@ -11,7 +11,15 @@ public final class RoomStore {
     /// What schema v6 kept of the Chapter 2 history tables (`HistoryArchive`,
     /// beside the database; absent when there was nothing to keep).
     public var historyArchiveURL: URL { storage.directory.appending(path: HistoryArchive.fileName) }
-    public let persistence: Persistence
+    /// The writer behind the stores. An ephemeral store has none (asking is
+    /// a programming error): check `isEphemeral` first.
+    public var persistence: Persistence {
+        guard let writerPersistence else { preconditionFailure("an ephemeral store writes nothing") }
+        return writerPersistence
+    }
+    private let writerPersistence: Persistence?
+    /// Nothing this store holds is ever written (`ephemeral(_:)`).
+    public var isEphemeral: Bool { writerPersistence == nil }
     public let storage: RoomStorage
     /// The previous session ended without `close()` (crash, kill, power loss).
     public let uncleanExit: Bool
@@ -43,7 +51,8 @@ public final class RoomStore {
         settings = SettingsStore(settings: state.settings)
         favicons = FaviconStore(database: writer.database)
         var provider: () -> RoomState = { RoomState() }
-        persistence = Persistence(writer: writer, generation: opened.generation, debounce: debounce) { provider() }
+        let persistence = Persistence(writer: writer, generation: opened.generation, debounce: debounce) { provider() }
+        writerPersistence = persistence
         provider = { [unowned self] in currentState() }
         sidebar.persistence = persistence
         windows.persistence = persistence
@@ -55,6 +64,41 @@ public final class RoomStore {
         // names its key window (schema v9).
         sidebar.defaultWindow = { [unowned self] in windows.windows.first?.id }
         if state.isEmpty { seed() }
+    }
+
+    /// A store that is never written (4.8b: the incognito window's sidebar):
+    /// `state` lives in memory only, its stores have no persistence and no
+    /// database (favicons are not kept), and it is gone with its owner.
+    public static func ephemeral(_ state: RoomState) -> RoomStore {
+        RoomStore(ephemeral: state)
+    }
+
+    /// The incognito window's store (4.8b): ephemeral, holding `profile`
+    /// (the active space's, same id: its engine profile's off-the-record
+    /// twin makes the pages), one space named "Incognito" in `themeColors`,
+    /// and one window showing it; no pinned entries or essentials;
+    /// `settings` copied (the look, search, shortcuts).
+    public static func incognito(profile: Profile, settings: Settings, sidebarWidth: Double, themeColors: [String]) -> RoomStore {
+        let owner = Profile(id: profile.id, name: profile.name, position: 0)
+        let space = Space(name: "Incognito", themeColors: themeColors, themeOpacity: 1, profileID: owner.id, position: 0)
+        let window = WindowState(sidebarWidth: sidebarWidth, activeSpaceID: space.id)
+        return ephemeral(RoomState(profiles: [owner], spaces: [space], windows: [window], settings: settings))
+    }
+
+    private init(ephemeral state: RoomState) {
+        storage = RoomStorage(directory: URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "room-ephemeral-never-opened"))
+        uncleanExit = false
+        recovery = nil
+        integrityCheck = nil
+        sidebar = SidebarStore(state: state)
+        windows = WindowStore(state: state)
+        settings = SettingsStore(settings: state.settings)
+        favicons = FaviconStore(database: nil)
+        writerPersistence = nil
+        sidebarToken = sidebar.observe { [unowned self] change in
+            windows.sidebarDidChange(change, firstSpace: sidebar.spaces.first?.id)
+        }
+        sidebar.defaultWindow = { [unowned self] in windows.windows.first?.id }
     }
 
     /// First launch: profile "Default", space "Space", no entries (ROADMAP 2.1).
@@ -93,12 +137,12 @@ public final class RoomStore {
 
     /// Writes now and waits (window close).
     public func flush() {
-        do { try persistence.flushAndWait() } catch { NSLog("Room: flush failed: \(error)") }
+        do { try writerPersistence?.flushAndWait() } catch { NSLog("Room: flush failed: \(error)") }
     }
 
     /// Final write at quit; marks the session as cleanly ended.
     public func close() {
-        do { try persistence.flushAndWait(cleanExit: true) } catch { NSLog("Room: final write failed: \(error)") }
+        do { try writerPersistence?.flushAndWait(cleanExit: true) } catch { NSLog("Room: final write failed: \(error)") }
     }
 }
 

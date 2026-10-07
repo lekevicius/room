@@ -19,7 +19,7 @@ final class SpaceRouter {
     /// Every window (4.8a): one router for the app.
     private let windows: RoomWindows
     /// The key window's (or the last key one's) sidebar.
-    private var sidebar: SidebarController? { windows.active?.sidebar }
+    private var sidebar: SidebarController? { windows.activeRegular?.sidebar }
     /// The rules compiled once per rule set (regexes included): rebuilt only when the store's rules change.
     private var compiled: (rules: [RoutingRule], evaluator: RoutingRules.Evaluator)?
 
@@ -62,7 +62,7 @@ final class SpaceRouter {
     /// it shows.
     @discardableResult
     func openExternal(_ url: URL) -> UUID? {
-        guard let key = windows.active, let keySidebar = key.sidebar else { return nil }
+        guard let key = windows.activeRegular, let keySidebar = key.sidebar else { return nil }
         let space = decide(url.absoluteString, from: .external)?.space ?? keySidebar.activeSpaceID
         let target = windows.showing(space: space) ?? key
         guard let tabs = target.tabs, let sidebar = target.sidebar else { return nil }
@@ -73,7 +73,7 @@ final class SpaceRouter {
     }
 
     /// The window an external link would open in for `space` (the routing spike reads it).
-    func targetWindow(for space: UUID) -> WindowSession? { windows.showing(space: space) ?? windows.active }
+    func targetWindow(for space: UUID) -> WindowSession? { windows.showing(space: space) ?? windows.activeRegular }
 
     /// `TabController.routeLink`: the space a link from a page in `source` belongs in.
     func routePageLink(_ url: String, from source: UUID) -> UUID? {
@@ -84,7 +84,7 @@ final class SpaceRouter {
     /// "Opened in {space} · Switch" (spec §F; 5 s with its button, `Timing.toastWithAction`) in
     /// `session`'s window (the active one by default).
     func announce(_ space: UUID, in session: WindowSession? = nil) {
-        guard let name = store.sidebar.space(space)?.name, let session = session ?? windows.active else { return }
+        guard let name = store.sidebar.space(space)?.name, let session = session ?? windows.activeRegular else { return }
         let sidebar = session.sidebar
         session.toasts?.show(Toast(id: "routed", symbol: .routing, message: "Opened in \(name)",
                                    action: Toast.Action(title: "Switch") { [weak sidebar] in sidebar?.showSpace(space) }))

@@ -24,7 +24,7 @@ key codes for arrows and Tab (`ReservedShortcuts.key(for:)`).
 | New tab (palette) | ⌘T | **yes** | 2.4 | pressing again closes the palette |
 | Edit current URL (palette) | ⌘L | **yes** | 2.4 | Enter unchanged = reload |
 | New window | ⌘N | **yes** | 2.8 | 4.8a: a new window on the key window's space with an empty Today list, cascaded; with no window open, the last one again (the Dock's icon too) |
-| New incognito window | ⇧⌘N | **yes** | 4.8 | menu item disabled until then |
+| New incognito window | ⇧⌘N | **yes** | 4.8 | 4.8b: a window on the active profile's off-the-record twin (dark, "Incognito" in the sidebar's header, a Today list only, nothing stored); one at a time: pressed again it comes forward; closing it ends its pages and the twin |
 | Close tab / pane (permanent entry: unload + reset + switch) | ⌘W | **yes** | 2.3 | spec §A.3 |
 | Close window | ⇧⌘W | **yes** | 1.4 | "Remove" a permanent entry is menu-only; 4.8a: the window's Today tabs go to the Archive ("Window closed"), the last window's close keeps Room running |
 | Reopen closed tab (incl. Peek) | ⇧⌘T | **yes** | 2.3 / 2.7 | |

@@ -134,7 +134,7 @@ public enum MainMenuTable {
     private static let file = MenuSpec("File", [
         item("New Tab", "newPage:", key: k("t", .command), row: "New tab (palette)"),
         item("New Window", "newRoomWindow:", key: k("n", .command), row: "New window"),
-        item("New Incognito Window", nil, key: k("n", [.command, .shift]), row: "New incognito window", chapter: "4.8"),
+        item("New Incognito Window", "newIncognitoWindow:", key: k("n", [.command, .shift]), row: "New incognito window"),
         item("New Space", "newSpace:"),
         .separator,
         item("Open Location…", "openLocation:", key: k("l", .command), row: "Edit current URL (palette)"),

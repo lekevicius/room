@@ -40,18 +40,23 @@ final class ExtensionPopups: ExtensionPopupPresenting {
     }
 
     private var profileID: UUID? { sidebar?.activeSpace?.profileID }
+    /// Which extensions the window offers (4.8b: the incognito window only
+    /// those allowed in incognito; the engine enforces the same on the twin).
+    var allows: ((InstalledExtension.ID) -> Bool)? {
+        didSet { observe() }
+    }
 
     /// The buttons follow the engine's actions and the focused page.
     private func observe() {
         let actions = withObservationTracking {
             _ = center.actionRevision
             _ = center.sections.map(\.installed)
-            return center.headerActions(profile: profileID, page: tabs?.focusedPage)
+            return center.headerActions(profile: profileID, page: tabs?.focusedPage).filter { allows?($0.id) ?? true }
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.observe() }
         }
         sidebar?.addressField.setExtensionActions(actions)
-        sidebar?.addressField.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage))
+        sidebar?.addressField.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage).filter { allows?($0.id) ?? true })
     }
 
     /// The overflow menu's "Pin": the action joins the header at the end of the pinned order.
@@ -63,7 +68,7 @@ final class ExtensionPopups: ExtensionPopupPresenting {
 
     /// A click on `id`'s button.
     func run(_ id: InstalledExtension.ID) {
-        guard let page = tabs?.focusedPage else { return }
+        guard let page = tabs?.focusedPage, allows?(id) ?? true else { return }
         center.runAction(id, profile: profileID, page: page)
     }
 

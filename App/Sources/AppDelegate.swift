@@ -139,6 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var previousExitSummary: String?
     /// The launch's windows were restored (a later `restoreWindows` is a reopen).
     private var windowsRestored = false
+    /// Settings ▸ Extensions' "Allow in incognito" is applied as it changes (4.8b, `IncognitoWindow.swift`).
+    var incognitoExtensionsObserved = false
     /// A quit is waiting for the engine (`applicationShouldTerminate`).
     private var quitInProgress = false
     private var finalStateWritten = false
@@ -381,7 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         // A Today list without a window is the active window's (the palette, links from other apps, spikes).
         store.sidebar.defaultWindow = { [weakSelf = MainActorWeak(self), weak store] in
-            weakSelf.value?.windows.active?.id ?? store?.windows.windows.first?.id
+            weakSelf.value?.windows.activeRegular?.id ?? store?.windows.windows.first?.id
         }
         windows.onBecameKey = { [weakSelf = MainActorWeak(self)] session in
             guard !session.selectionShown else { return }
@@ -445,7 +447,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// ones open again.
     @objc func newRoomWindow(_ sender: Any?) {
         guard let store else { return }
-        guard let key = activeWindow, let keyRecord = store.windows.window(key.id) else { return ensureWindow() }
+        guard let key = windows.activeRegular, let keyRecord = store.windows.window(key.id) else { return ensureWindow() }
         let base = key.window?.frame ?? NSRect(origin: .zero, size: RoomWindow.defaultContentSize)
         let screen = key.window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
         let record = store.windows.createWindow(frame: DragOutRule.cascaded(from: base, screen: screen),
@@ -467,7 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @discardableResult
     func openInNewWindow(_ id: UUID, at screenPoint: NSPoint?, from source: WindowSession?) -> WindowSession? {
         guard let store, let entry = store.sidebar.entry(id), entry.kind != .folder else { return nil }
-        let source = source ?? activeWindow
+        let source = source ?? windows.activeRegular
         let sourceRecord = source.flatMap { store.windows.window($0.id) }
         let base = source?.window?.frame ?? NSRect(origin: .zero, size: RoomWindow.defaultContentSize)
         let frame: NSRect
@@ -505,6 +507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// restorable from the Library) and its row goes, except the last
     /// window's, which ⌘N and the Dock reopen (spec §J; the app keeps running).
     private func windowWillClose(_ session: WindowSession) {
+        if session.isIncognito { return incognitoWindowWillClose(session) }
         guard let store, windows.session(id: session.id) === session else { return }
         if quitInProgress || finalStateWritten {
             store.flush()
@@ -653,14 +656,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// The sidebar tree (Phase 2.2), the tab controller behind it (2.3), the
     /// ⌃Tab switcher and toasts.
-    private func installSidebar(_ session: WindowSession, store: RoomStore, launch: WindowOpening) {
+    func installSidebar(_ session: WindowSession, store: RoomStore, launch: WindowOpening) {
         let controller = session.controller
         let pageHost = session.pageHost
         let windowID = session.id
         #if DEBUG
         if launch == .front, let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
         #endif
-        let sidebar = SidebarController(store: store, windowID: windowID)
+        let sidebar = SidebarController(store: store, windowID: windowID, incognito: session.isIncognito)
         let tabs = TabController(store: store)
         tabs.engine = engine
         let pageDelegate = PageUIDelegate(host: pageHost)
@@ -668,7 +671,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         session.tabs = tabs
         session.pageDelegate = pageDelegate
         // A profile made after launch (a new space's "New Profile…") gets its engine profile on first use (once per app).
-        tabs.requestEngineProfile = { [weakSelf = MainActorWeak(self)] model in weakSelf.value?.requestEngineProfile(model) }
+        // The incognito window's one profile is the twin it was made with (4.8b).
+        if !session.isIncognito {
+            tabs.requestEngineProfile = { [weakSelf = MainActorWeak(self)] model in weakSelf.value?.requestEngineProfile(model) }
+        }
         tabs.display = pageHost
         tabs.window = controller.window
         tabs.sidebar = sidebar
@@ -716,13 +722,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // One router for the app (4.8a): the target space's window, else the key window.
         let router = spaceRouter ?? SpaceRouter(store: store, windows: windows)
         spaceRouter = router
-        tabs.routeLink = { [weak router] url, source in router?.routePageLink(url, from: source) }
+        // An incognito page's links stay in the incognito window (its space is no routing target).
+        if !session.isIncognito { tabs.routeLink = { [weak router] url, source in router?.routePageLink(url, from: source) } }
         tabs.onLinkRouted = { [weak router, weakSession = MainActorWeak(session)] _, space in
             router?.announce(space, in: weakSession.value)
         }
         sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
         // The footer's media row (4.6): its buttons call the page's media session controls.
         sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
+        // "Open Link in Incognito Window" (4.8b, B-50): into the profile's incognito window.
+        tabs.openOffTheRecord = { [weakSelf = MainActorWeak(self)] contents, url, profileID in
+            weakSelf.value?.adoptOffTheRecordPage(contents, url: url, profileID: profileID)
+        }
         // Document picture-in-picture floats in a panel at the card's corner (4.6, B-51).
         let pictureInPicture = PictureInPicturePanels()
         pictureInPicture.pageUIDelegate = tabs
@@ -808,16 +819,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             session.switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
         }
         // "Open in New Window" and the drag out (spec §A.9).
-        sidebar.onOpenInNewWindow = { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] id, point in
-            weakSelf.value?.openInNewWindow(id, at: point, from: weakSession.value)
+        if !session.isIncognito {
+            sidebar.onOpenInNewWindow = { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session)] id, point in
+                weakSelf.value?.openInNewWindow(id, at: point, from: weakSession.value)
+            }
         }
         if windows.all.isEmpty { observeShortcuts() }
         applyShortcutKeys(to: session)
         installExtensionPopups(session)
-        installReader(session, settings: store.settings)
-        installFirstRun(session, settings: store.settings)
-        // Every engine profile the app has (a window opened after launch).
-        for (id, profile) in engineProfiles where tabs.engineProfiles[id] == nil { tabs.setEngineProfile(profile, for: id) }
+        installReader(session, settings: store.settings, folder: session.incognito?.readerFolder)
+        // Every engine profile the app has (a window opened after launch); the incognito window has its twin.
+        if let incognito = session.incognito {
+            tabs.setEngineProfile(incognito.twin, for: incognito.profileID)
+            installIncognitoParts(session, incognito: incognito)
+        } else {
+            installFirstRun(session, settings: store.settings)
+            for (id, profile) in engineProfiles where tabs.engineProfiles[id] == nil { tabs.setEngineProfile(profile, for: id) }
+        }
         // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
         // without an engine the tab controller listens to macOS's events.
         #if ROOM_ENGINE_ROOMCORE
@@ -829,7 +847,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // sweep runs before anything loads: no selection is taken) and the rolling backups.
         if archiveSweeper == nil {
             let sweeper = ArchiveSweeper(store: store) { [weakSelf = MainActorWeak(self)] in
-                weakSelf.value?.windows.all.compactMap(\.tabs) ?? []
+                weakSelf.value?.windows.regular.compactMap(\.tabs) ?? []
             }
             archiveSweeper = sweeper
             // After this window joins the list (the launch sweep sees its tabs).
@@ -1330,7 +1348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// One engine profile to every window's tab controller (the selection and loads waiting for it load now).
     private func deliver(_ profile: any Engine.Profile, for profileID: UUID) {
         engineProfiles[profileID] = profile
-        for session in windows.all {
+        for session in windows.regular {
             guard let tabs = session.tabs, tabs.engineProfiles[profileID] == nil else { continue }
             tabs.setEngineProfile(profile, for: profileID)
         }
@@ -1385,7 +1403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard !finalStateWritten else { return }
         finalStateWritten = true
         // The key window goes first: the next launch puts it in front and loads only its selection (spec §H).
-        if let active = activeWindow { store?.windows.moveToFront(active.id) }
+        if let active = windows.activeRegular { store?.windows.moveToFront(active.id) }
         store?.close()
         NSLog("Room: final state written")
     }
@@ -1610,7 +1628,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
               let profile = tabs.engineProfile(for: page), let rootView = windowController?.rootView else { return }
         // 4.5 (B-30): the profile's extensions that want this site.
         let extensionsSection = extensions.flatMap { center -> SitePanelExtensions? in
-            guard let profileID = sidebar?.activeSpace?.profileID, let host = origin.host() else { return nil }
+            // The incognito window's twin has no extensions object of its own (4.8b): none here.
+            guard activeWindow?.isIncognito != true, let profileID = sidebar?.activeSpace?.profileID, let host = origin.host() else { return nil }
             return SitePanelExtensions(center: center, profile: profileID, page: page, host: host) { [weak self] in
                 self?.sitePanel.close()
                 self?.showSettings(section: .extensions)
@@ -1737,6 +1756,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Help
         #selector(showRestoreSidebar(_:)): { app, _ in app.store != nil && app.backupScheduler != nil && app.restoreSheet == nil },
         #selector(newRoomWindow(_:)): { app, _ in app.store != nil },
+        #selector(newIncognitoWindow(_:)): { app, _ in app.store != nil },
         #selector(newSpace(_:)): { app, _ in app.sidebar != nil },
         #selector(openLocation(_:)): { app, _ in app.tabs != nil },
         #selector(openFileInTab(_:)): { app, _ in app.tabs?.profile != nil },

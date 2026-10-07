@@ -385,6 +385,8 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     override var isFlipped: Bool { true }
 
     func configure(_ space: Space) {
+        isNote = false
+        nameField.textColor = .labelColor
         spaceName = space.name
         if !isRenaming { nameField.stringValue = space.name }
         switch SpaceIcon(space.icon) {
@@ -407,9 +409,25 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
         needsLayout = true
     }
 
+    /// The incognito window's note in place of a space's name (4.8b): no
+    /// icon, no chevron, no menu, no rename.
+    func configureNote(_ text: String) {
+        isNote = true
+        spaceName = text
+        nameField.stringValue = text
+        nameField.textColor = .secondaryLabelColor
+        iconField.stringValue = ""
+        iconImage.image = nil
+        setAccessibilityLabel(text)
+        updateChevron()
+        needsLayout = true
+    }
+
+    private var isNote = false
+
     private func updateChevron() {
-        chevron.isHidden = !(isHovered || isCollapsed)
-        moreButton.isHidden = !isHovered || isRenaming
+        chevron.isHidden = isNote || !(isHovered || isCollapsed)
+        moreButton.isHidden = isNote || !isHovered || isRenaming
         chevron.image = (isCollapsed ? Symbol.forward : Symbol.disclosure).image(pointSize: 9, weight: .medium,
                                                                                  accessibilityDescription: chevron.accessibilityLabel())
     }

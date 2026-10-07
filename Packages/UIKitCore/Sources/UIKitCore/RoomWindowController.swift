@@ -99,6 +99,20 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    // MARK: Incognito (4.8b)
+
+    /// The incognito window's look: the dark material whatever the system's
+    /// appearance (`Palette.incognitoAppearance`) and "Incognito" under the
+    /// sidebar's header row. Its tint is its space's theme colour
+    /// (`Palette.incognitoTintHex`), set like any space's.
+    public func applyIncognitoLook() {
+        window?.appearance = NSAppearance(named: Palette.incognitoAppearance)
+        sidebarView.badgeText = "Incognito"
+    }
+
+    /// The window shows the incognito look.
+    public var isIncognito: Bool { sidebarView.badgeText != nil }
+
     // MARK: Sidebar
 
     /// The active space's name: the header title while no header view is

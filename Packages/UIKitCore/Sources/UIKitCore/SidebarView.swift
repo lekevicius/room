@@ -56,6 +56,17 @@ public final class SidebarView: NSView {
         }
     }
 
+    /// A label under the header row, before the body (4.8b: "Incognito" in
+    /// the incognito window); nil shows none.
+    public var badgeText: String? {
+        didSet {
+            badgeField.stringValue = badgeText ?? ""
+            badgeField.isHidden = badgeText == nil
+            needsLayout = true
+        }
+    }
+    let badgeField = NSTextField(labelWithString: "")
+
     public var trafficLights = TrafficLightGeometry.none {
         didSet { if trafficLights != oldValue { needsLayout = true } }
     }
@@ -86,6 +97,11 @@ public final class SidebarView: NSView {
         titleField.lineBreakMode = .byTruncatingTail
         titleField.setAccessibilityIdentifier("space-title")
         contentView.addSubview(titleField)
+        badgeField.font = Typography.secondary
+        badgeField.textColor = Palette.incognitoLabel
+        badgeField.isHidden = true
+        badgeField.setAccessibilityIdentifier("sidebar-badge")
+        contentView.addSubview(badgeField)
     }
 
     @available(*, unavailable)
@@ -132,6 +148,12 @@ public final class SidebarView: NSView {
             let headerWidth = max(0, bounds.width - leading - SidebarMetrics.headerTrailingInset)
             let header = NSRect(x: leading, y: centerY - height / 2, width: headerWidth, height: height)
             headerView.frame = backingAlignedRect(header, options: .alignAllEdgesNearest)
+        }
+        if badgeText != nil {
+            let inset = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset
+            badgeField.frame = backingAlignedRect(NSRect(x: inset, y: bodyTop, width: max(0, bounds.width - 2 * inset),
+                                                         height: WindowMetrics.incognitoLabelHeight), options: .alignAllEdgesNearest)
+            bodyTop = badgeField.frame.maxY + WindowMetrics.incognitoLabelGap
         }
         bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
     }

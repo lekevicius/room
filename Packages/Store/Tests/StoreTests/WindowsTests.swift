@@ -178,3 +178,31 @@ struct WindowsTests {
         #expect(mapped.entries.first { $0.id == pinned.id }?.windowID == nil)
     }
 }
+
+/// The incognito window's store (4.8b, ROADMAP 4.8 task 7: nothing incognito is persisted).
+@Suite("Incognito store")
+@MainActor
+struct IncognitoStoreTests {
+    @Test("An incognito store holds one space of the active profile and writes nothing anywhere")
+    func ephemeral() throws {
+        let disk = try TestStore()
+        let profile = try #require(disk.store.sidebar.profiles.first)
+        var settings = disk.store.settings.settings
+        settings.searchSuggestions = false
+        let incognito = RoomStore.incognito(profile: profile, settings: settings, sidebarWidth: 240, themeColors: ["#26262C"])
+        #expect(incognito.isEphemeral && !disk.store.isEphemeral)
+        #expect(incognito.sidebar.profiles.map(\.id) == [profile.id])
+        let space = try #require(incognito.sidebar.spaces.first)
+        #expect(incognito.sidebar.spaces.count == 1 && space.profileID == profile.id && space.themeColors == ["#26262C"])
+        #expect(incognito.windows.windows.count == 1 && incognito.windows.windows.first?.activeSpaceID == space.id)
+        #expect(!incognito.settings.settings.searchSuggestions)
+        // Today tabs live and go in memory; the disk store never sees them.
+        let tab = try incognito.sidebar.addEntry(.today, url: "https://private.example/", title: "Private", space: space.id)
+        #expect(incognito.sidebar.today(space: space.id).map(\.id) == [tab.id])
+        incognito.flush()
+        incognito.close()
+        #expect(!FileManager.default.fileExists(atPath: incognito.storage.directory.path))
+        let reopened = try disk.reopen()
+        #expect(reopened.sidebar.entry(tab.id) == nil && reopened.sidebar.spaces.allSatisfy { $0.id != space.id })
+    }
+}

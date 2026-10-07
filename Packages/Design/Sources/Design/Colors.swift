@@ -20,6 +20,17 @@ public enum Palette {
     /// Rows in the ⌘/⇧-click multi-selection and the drop-onto target (§A.9, §A.6).
     public static var sidebarMultiSelection: NSColor { NSColor.controlAccentColor.withAlphaComponent(0.18) }
 
+    // MARK: Incognito (4.8b)
+
+    /// The incognito window's appearance whatever the system's (Chrome's
+    /// incognito windows are always dark): the dark window material.
+    public static let incognitoAppearance: NSAppearance.Name = .darkAqua
+    /// The incognito window's tint over that material (its space's theme
+    /// colour; `Materials.tintOpacityRange` applies).
+    public static let incognitoTintHex = "#2A2A33"
+    /// The "Incognito" label in the incognito window's sidebar header.
+    public static var incognitoLabel: NSColor { .secondaryLabelColor }
+
     /// Letter-tile backgrounds for pages without a favicon (spec §I.2), picked
     /// by a stable hash of the domain (`letterTileColor(for:)`).
     public static let letterTileColors: [NSColor] = [

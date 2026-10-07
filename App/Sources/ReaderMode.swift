@@ -201,11 +201,13 @@ extension AppDelegate {
     }
 
     /// Per window (4.8a): each window's controller reads its own card.
-    func installReader(_ session: WindowSession, settings: SettingsStore) {
+    /// `folder` overrides the state's Reader folder (the incognito window's
+    /// temporary one, 4.8b, removed when it closes).
+    func installReader(_ session: WindowSession, settings: SettingsStore, folder override: URL? = nil) {
         guard let tabs = session.tabs else { return }
-        let folder = Self.stateDirectory.appending(path: "Reader", directoryHint: .isDirectory)
+        let folder = override ?? Self.stateDirectory.appending(path: "Reader", directoryHint: .isDirectory)
         // Reader files of a session that ended without Exit (a quit, a crash): once, before the first window's.
-        if windows.all.isEmpty { try? FileManager.default.removeItem(at: folder) }
+        if windows.all.isEmpty, override == nil { try? FileManager.default.removeItem(at: folder) }
         session.reader = ReaderController(tabs: tabs, settings: settings, toasts: session.toasts, folder: folder)
         // The keyboard goes to the page now in the card (Esc and the arrows work at once).
         let pageHost = session.pageHost

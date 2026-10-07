@@ -210,6 +210,10 @@ public enum WindowMetrics {
     /// A sidebar entry dropped this far outside its window's frame opens in a
     /// new window at the drop point (spec §A.9: "beyond 40px past the window edge").
     public static let dragOutDistance: CGFloat = 40
+    /// The incognito window's "Incognito" label: its row under the sidebar's
+    /// header row, before the list (4.8b).
+    public static let incognitoLabelHeight: CGFloat = 16
+    public static let incognitoLabelGap: CGFloat = 4
 }
 
 public enum CardMetrics {

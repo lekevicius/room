@@ -111,14 +111,25 @@ public final class SidebarController: NSObject {
 
     var sidebar: SidebarStore { store.sidebar }
 
-    public init(store: RoomStore, windowID: UUID) {
+    /// The incognito window's sidebar (4.8b): its store is ephemeral, the
+    /// tree is the Today list under a note, no essentials, no pinned entries,
+    /// no space form; pin and essentials commands do not apply.
+    public let isIncognito: Bool
+
+    public init(store: RoomStore, windowID: UUID, incognito: Bool = false) {
         self.store = store
         self.windowID = windowID
+        isIncognito = incognito
         let spaceID = Self.activeSpace(store: store, windowID: windowID)
         pane = SpacePane(store: store.sidebar, spaceID: spaceID, windowID: windowID,
                          selectedEntry: store.windows.selectedEntry(space: spaceID, window: windowID))
         super.init()
         bodyView.install(grid: grid, footer: footer)
+        if incognito {
+            // No essentials, and no space to add or form in an incognito window.
+            grid.isHidden = true
+            footer.plusButton.isHidden = true
+        }
         attach(pane)
         outline.events = self
         bodyView.show(pane.scrollView, direction: .forward, animated: false)
@@ -178,6 +189,7 @@ public final class SidebarController: NSObject {
 
     private func attach(_ pane: SpacePane) {
         let outline = pane.outline
+        pane.tree.isIncognito = isIncognito
         // Registered first: setting the data source makes AppKit ask for rows at once.
         panes[pane.spaceID] = pane
         paneByOutline[ObjectIdentifier(outline)] = pane
@@ -493,7 +505,11 @@ public final class SidebarController: NSObject {
             cell.configure(EntryRowModel(entry: entry, page: pageState(entry.id), isSelected: entry.id == selectedEntry(in: target),
                                          isChanged: isChanged(entry), depth: entry.kind == .today ? 0 : max(0, level - 1)))
         case (.spaceTitle, let cell as SpaceTitleCellView):
-            if let space = target.tree.space { cell.configure(space) }
+            if isIncognito {
+                cell.configureNote(SidebarTree.incognitoNote)
+            } else if let space = target.tree.space {
+                cell.configure(space)
+            }
         case (.separator, let cell as SeparatorCellView):
             cell.configure(todayCount: sidebar.today(space: target.spaceID, window: windowID).count)
         default:
@@ -595,8 +611,8 @@ public final class SidebarController: NSObject {
         case .newTab:
             host?.newTab()
         case .spaceTitle:
-            // A click on the name renames the space inline (spec §B).
-            if let event, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? SpaceTitleCellView,
+            // A click on the name renames the space inline (spec §B); the incognito note is not a space.
+            if !isIncognito, let event, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? SpaceTitleCellView,
                cell.nameRect.insetBy(dx: -2, dy: -4).contains(cell.convert(event.locationInWindow, from: nil)) {
                 cell.beginRename()
             }
@@ -1004,7 +1020,7 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
 
     func outlineMenu(forRow row: Int) -> NSMenu? {
         guard let node = outline.item(atRow: row) as? OutlineNode else { return nil }
-        if node.kind == .spaceTitle { return spaceMenu(tree.spaceID) }
+        if node.kind == .spaceTitle { return isIncognito ? nil : spaceMenu(tree.spaceID) }
         guard let rowID = node.entryID else { return nil }
         return menu(forClicked: splitMember(atRow: row, event: NSApp.currentEvent) ?? rowID)
     }
@@ -1444,6 +1460,20 @@ extension SidebarController {
 
     /// Whether `id` has a row of its own.
     public func debugIsListed(_ id: UUID) -> Bool { outline.row(forItem: tree.node(for: id)) >= 0 }
+
+    /// The rows the outline shows, as kinds (4.8b: the incognito tree), and whether the essentials grid shows.
+    public var debugRowKinds: [String] {
+        (0..<outline.numberOfRows).compactMap { row in
+            switch (outline.item(atRow: row) as? OutlineNode)?.kind {
+            case .spaceTitle?: isIncognito ? "note" : "space"
+            case .separator?: "separator"
+            case .newTab?: "newtab"
+            case .entry(let id)?: sidebar.entry(id)?.kind.rawValue ?? "entry"
+            case nil: nil
+            }
+        }
+    }
+    public var debugEssentialsShown: Bool { !grid.isHidden }
 
     /// The title an entry's row draws now (4.8a: a rename in another window shows here at once).
     public func debugRowTitle(for id: UUID) -> String? {

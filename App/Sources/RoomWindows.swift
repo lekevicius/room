@@ -50,6 +50,9 @@ final class WindowSession {
     /// loads (spec §H); another restored window loads its selection when it
     /// first becomes key.
     var selectionShown = false
+    /// The incognito window's own pieces (4.8b); nil for every other window.
+    var incognito: IncognitoContext?
+    var isIncognito: Bool { incognito != nil }
 
     init(id: UUID, controller: RoomWindowController, pageHost: PageHost) {
         self.id = id
@@ -86,9 +89,22 @@ final class RoomWindows {
     private var keyObserver: Any?
 
     /// A page lives in one window: the controllers' coordinator (`PageOwnership`).
+    /// The incognito window holds only its own pages and takes none (4.8b).
     private(set) lazy var owners = PageOwners { [weakSelf = MainActorWeak(self)] in
-        weakSelf.value?.all.compactMap(\.tabs) ?? []
+        weakSelf.value?.regular.compactMap(\.tabs) ?? []
     }
+
+    /// The windows on the store's state: every one but the incognito window.
+    var regular: [WindowSession] { all.filter { !$0.isIncognito } }
+
+    /// The window the store's commands act on (its Today lists, routing,
+    /// ⌘N's space, the quit's front window): the active window unless it is
+    /// the incognito one, then the last key regular window, else the first.
+    var activeRegular: WindowSession? {
+        if let active, !active.isIncognito { return active }
+        return lastKeyRegular.flatMap { session in all.contains { $0 === session } ? session : nil } ?? regular.first
+    }
+    private weak var lastKeyRegular: WindowSession?
 
     /// A window became key for the first time (the app loads its selection then).
     var onBecameKey: ((WindowSession) -> Void)?
@@ -100,6 +116,7 @@ final class RoomWindows {
             MainActor.assumeIsolated {
                 guard let self = weakSelf.value, let session = self.session(for: window) else { return }
                 self.lastKey = session
+                if !session.isIncognito { self.lastKeyRegular = session }
                 self.onBecameKey?(session)
             }
         }
@@ -129,7 +146,7 @@ final class RoomWindows {
 
     func add(_ session: WindowSession) {
         all.append(session)
-        session.tabs?.ownership = owners
+        session.tabs?.ownership = session.isIncognito ? nil : owners
     }
 
     func remove(_ session: WindowSession) {
@@ -141,6 +158,7 @@ final class RoomWindows {
     /// defer the key status while another app is frontmost).
     func focus(_ session: WindowSession) {
         lastKey = session
+        if !session.isIncognito { lastKeyRegular = session }
         session.controller.showWindow(nil)
         session.window?.makeKeyAndOrderFront(nil)
     }

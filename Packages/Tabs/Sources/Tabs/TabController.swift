@@ -114,6 +114,11 @@ public final class TabController: SidebarHost {
     /// new page, its opener's page and the opener's entry. The app floats it
     /// in a panel; without a handler it is a Today tab under the opener.
     @ObservationIgnored public var presentPictureInPicture: ((_ contents: any WebContents, _ opener: any WebContents, _ entry: UUID) -> Void)?
+    /// A page opened off the record ("Open Link in Incognito Window", 4.8b):
+    /// the new page (of the opener's profile's twin), its URL and the
+    /// opener's model profile. The app moves it into its incognito window;
+    /// without a handler it is closed.
+    @ObservationIgnored public var openOffTheRecord: ((_ contents: any WebContents, _ url: URL?, _ profileID: UUID?) -> Void)?
     /// A link went to another space than its page's (the app's toast).
     @ObservationIgnored public var onLinkRouted: ((_ entry: UUID, _ space: UUID) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.
@@ -522,6 +527,21 @@ public final class TabController: SidebarHost {
         pendingTransitions[entry.id] = transition
         sidebar.selectInBackground(entry.id, space: space)
         loadInBackground(store.sidebar.entry(entry.id) ?? entry)
+        return entry.id
+    }
+
+    /// A page made elsewhere (4.8b: an off-the-record page moved into the
+    /// incognito window) as a new Today tab at the top of the active space's
+    /// list, selected; its window must be this controller's already.
+    @discardableResult
+    public func adoptNewTab(_ contents: any WebContents, url: URL?) -> UUID? {
+        let target = (url ?? contents.url)?.absoluteString
+        guard let sidebar,
+              let entry = try? store.sidebar.addEntry(.today, url: target, title: contents.title, space: sidebar.activeSpaceID, window: windowID, at: 0) else {
+            return nil
+        }
+        adopt(contents, entry: entry.id)
+        sidebar.select(entry.id)
         return entry.id
     }
 

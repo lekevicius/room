@@ -39,7 +39,7 @@ extension AppDelegate {
     /// The restore itself (the sheet's Restore; DEBUG spikes call it).
     @discardableResult
     func restoreSidebar(from file: BackupFile) -> Bool {
-        guard let store, let active = activeWindow, let tabs = active.tabs, let sidebar = active.sidebar, let backupScheduler else { return false }
+        guard let store, let active = windows.activeRegular, let tabs = active.tabs, let sidebar = active.sidebar, let backupScheduler else { return false }
         hideLibrary()
         // Every page in every window goes; their back/forward lists land in the state being backed up.
         for session in windows.all {

@@ -67,6 +67,13 @@ final class SidebarTree {
     let windowID: UUID?
     /// The selected entry (peeks out of a collapsed folder).
     var selectedEntry: UUID?
+    /// The incognito window's tree (4.8b): the space title row is the note
+    /// below and the pinned section is always empty; the Today list follows.
+    var isIncognito = false {
+        didSet { if isIncognito != oldValue { reloadAll() } }
+    }
+    /// What the incognito window's title row says.
+    static let incognitoNote = "Pages here are not saved"
 
     let spaceTitle = OutlineNode(.spaceTitle)
     let separator = OutlineNode(.separator)
@@ -127,7 +134,7 @@ final class SidebarTree {
 
     func isExpandable(_ node: OutlineNode) -> Bool {
         switch node.kind {
-        case .spaceTitle: true
+        case .spaceTitle: !isIncognito
         case .entry(let id): store.entry(id)?.kind == .folder
         case .separator, .newTab: false
         }
@@ -299,6 +306,7 @@ final class SidebarTree {
         case .root:
             return [spaceTitle, separator] + store.today(space: spaceID, window: windowID).filter { !isHiddenPane($0) }.map { node(for: $0.id) } + [newTab]
         case .pinnedRoot:
+            if isIncognito { return [] }
             let entries = store.pinned(space: spaceID).filter { !isHiddenPane($0) }
             return (space.pinnedCollapsed ? peek(in: entries) : entries).map { node(for: $0.id) }
         case .folder(let id):
