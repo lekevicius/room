@@ -101,11 +101,24 @@ extension TabController {
         memoryPressureSource = source
     }
 
+    /// The window closed (4.8a): no more sweeps or pressure steps.
+    public func stopLifecycle() {
+        lifecycleStarted = false
+        sweepTimer?.invalidate()
+        sweepTimer = nil
+        pressureTimer?.invalidate()
+        pressureTimer = nil
+        memoryPressureSource?.cancel()
+        memoryPressureSource = nil
+    }
+
     var discardCandidates: [DiscardPolicy.Page] {
-        pages.compactMap { id, page in
+        // On screen here or in another window (4.8a): never discarded.
+        let visible = visibleEntryIDs.union(ownership?.entriesVisible(besides: self) ?? [])
+        return pages.compactMap { id, page in
             guard let entry = store.sidebar.entry(id) else { return nil }
             // A split's panes are all on screen (spec §D), like the selected page.
-            var candidate = DiscardPolicy.Page(id: id, kind: entry.kind, isSelected: visibleEntryIDs.contains(id),
+            var candidate = DiscardPolicy.Page(id: id, kind: entry.kind, isSelected: visible.contains(id),
                                                isAudible: page.contents.isAudible, isAlive: page.contents.state == .alive,
                                                lastVisible: page.lastVisible)
             // The engine is asked only about pages the host's own rules would discard.

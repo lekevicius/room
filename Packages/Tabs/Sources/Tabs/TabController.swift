@@ -91,6 +91,9 @@ public final class TabController: SidebarHost {
     @ObservationIgnored public weak var sidebar: SidebarController?
     /// The window's id in the store (its Today tabs carry it, schema v9).
     public var windowID: UUID? { sidebar?.windowID }
+    /// The other windows (4.8a): a page lives in one window and moves when
+    /// its entry is selected elsewhere (`PageOwnership`).
+    @ObservationIgnored public weak var ownership: (any PageOwnershipCoordinator)?
     /// Dialogs, permission prompts, context menus, file choosers, keys.
     @ObservationIgnored public weak var pageUIDelegate: (any WebContentsUIDelegate)?
     /// ⌘T and "New Tab" (the palette, Phase 2.4).
@@ -281,6 +284,8 @@ public final class TabController: SidebarHost {
     /// again at its URL in the new profile (spec §B), shown if it was.
     private func sidebarDidChange(_ change: SidebarChange) {
         defer { refreshSplitIfChanged() }
+        // An entry another window removed (a pinned entry, a space) takes its page here with it (4.8a).
+        for id in change.removedEntries where pages[id] != nil && store.sidebar.entry(id) == nil { unload(id) }
         for id in change.entries {
             guard let page = pages[id], let entry = store.sidebar.entry(id),
                   ProfileRules.needsNewPage(pageProfile: page.profileID, entry: entry) else { continue }
@@ -623,6 +628,11 @@ public final class TabController: SidebarHost {
             requestProfile(entry.profileID)
             return nil
         }
+        // A page lives in one window (4.8a): a window holding this entry's
+        // page gives it up first, saving its back/forward list into the
+        // entry, which is read again here (4.8b's engine member moves it instead).
+        ownership?.tabController(self, willMakePageFor: entry.id)
+        let entry = store.sidebar.entry(entry.id) ?? entry
         let contents: any WebContents
         do {
             // The entry's saved back/forward list (3.7b): a relaunch, a crash
