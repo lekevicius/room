@@ -54,6 +54,24 @@ nonisolated public enum ScreenshotRules {
         }
     }
 
+    /// The files of `<state>/Screenshots/` to delete at launch (B-92): every
+    /// one modified more than `maximumAge` before `now`, and of the rest
+    /// every one beyond the newest `keep`. The folder holds only Open as
+    /// Tab's images, which a `file://` tab needs while it is open.
+    public static func pruned(_ files: [(url: URL, modified: Date)], now: Date, maximumAge: TimeInterval, keep: Int) -> [URL] {
+        let newestFirst = files.sorted { $0.modified > $1.modified }
+        var kept = 0
+        var gone: [URL] = []
+        for file in newestFirst {
+            if now.timeIntervalSince(file.modified) > maximumAge || kept >= keep {
+                gone.append(file.url)
+            } else {
+                kept += 1
+            }
+        }
+        return gone
+    }
+
     /// The CSS clip a full-page capture asks for: the page's content size,
     /// its height cut so the image stays within `maximumPixels` at `scale`.
     public static func fullPageClip(contentSize: CGSize, scale: CGFloat, maximumPixels: CGFloat) -> CGSize {

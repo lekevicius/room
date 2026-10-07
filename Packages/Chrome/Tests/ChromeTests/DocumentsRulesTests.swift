@@ -1,5 +1,6 @@
 import Chrome
 import CoreGraphics
+import Design
 import Engine
 import Foundation
 import Testing
@@ -53,6 +54,28 @@ struct DocumentsRulesTests {
             == CGSize(width: 1034, height: 4000))
         #expect(ScreenshotRules.fullPageClip(contentSize: CGSize(width: 1034, height: 50_000), scale: 2, maximumPixels: 16_384)
             == CGSize(width: 1034, height: 8192))
+    }
+
+    /// B-92: Open as Tab's files are pruned at launch: older than 7 days or beyond the newest 50.
+    @Test func screenshotTabFilesArePrunedByAgeAndCount() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let folder = URL(filePath: "/tmp/Screenshots", directoryHint: .isDirectory)
+        func file(_ index: Int, hoursAgo: Double) -> (url: URL, modified: Date) {
+            (folder.appending(path: "s\(index).png"), now.addingTimeInterval(-hoursAgo * 3600))
+        }
+        // 60 files an hour apart, the newest first: the 10 beyond the newest 50 go.
+        let sixty = (0..<60).map { file($0, hoursAgo: Double($0)) }
+        let gone = ScreenshotRules.pruned(sixty.shuffled(), now: now, maximumAge: Retention.screenshotsAge, keep: Retention.screenshotsKept)
+        #expect(Set(gone) == Set((50..<60).map { folder.appending(path: "s\($0).png") }))
+        // Older than 7 days goes even under the count; exactly 7 days stays.
+        let few = [file(0, hoursAgo: 1), file(1, hoursAgo: 7 * 24), file(2, hoursAgo: 7 * 24 + 1)]
+        #expect(ScreenshotRules.pruned(few, now: now, maximumAge: Retention.screenshotsAge, keep: Retention.screenshotsKept)
+            == [folder.appending(path: "s2.png")])
+        // An old file never counts toward the 50 kept.
+        let mixed = [file(0, hoursAgo: 400)] + (1...50).map { file($0, hoursAgo: Double($0)) }
+        #expect(ScreenshotRules.pruned(mixed, now: now, maximumAge: Retention.screenshotsAge, keep: Retention.screenshotsKept)
+            == [folder.appending(path: "s0.png")])
+        #expect(ScreenshotRules.pruned([], now: now, maximumAge: Retention.screenshotsAge, keep: Retention.screenshotsKept).isEmpty)
     }
 
     @Test func savePageNamesComeFromTheTitle() {

@@ -376,3 +376,9 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `WindowMetrics.dragOutDistance` | 40 pt: a sidebar entry dragged and released this far outside its window's frame (no drop target took it) opens in a new window whose top-left corner is the drop point, kept on the screen (`DragOutRule`) | spec §A.9 |
 | "Open in New Window" | `Symbol.newWindow` (`macwindow.badge.plus`) in the Today, pinned and Essentials menus, after Duplicate (Today, pinned) or the Pinned URL submenu (Essentials); disabled without a URL | ROADMAP 4.8a task 4 |
 | A new window | the key window's sidebar width and visibility, its active space, an empty Today list (the card's empty state), the same layout as the first (traffic lights where AppKit puts them) | spec §J |
+
+## Added in Phase 4.9 (the long tail)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `Retention.screenshotsAge` / `screenshotsKept` | 7 days / the newest 50: ⇧⌘2's Open as Tab files in `<state>/Screenshots/` beyond either are deleted at launch (`ScreenshotRules.pruned`) | B-92 (the planner's rule, 2026-10-07; no setting) |

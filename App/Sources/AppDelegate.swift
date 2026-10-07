@@ -858,6 +858,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let backups = BackupScheduler(store: store)
             backupScheduler = backups
             backups.start()
+            // ⇧⌘2's Open as Tab files (B-92), once per launch, off the main thread.
+            Self.pruneScreenshots()
         }
         // Only the front window's selected entry loads at launch (spec §H; `showSelection(of:)`); it
         // waits for the profile. After a crash (the store's running flag here, the engine's exit

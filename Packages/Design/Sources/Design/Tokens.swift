@@ -584,4 +584,8 @@ public enum Retention {
     /// An archived row keeps its back/forward list for 7 days, then only its
     /// URL (B-80).
     public static let archiveNavigationState: TimeInterval = 7 * 86_400
+    /// ⇧⌘2's Open as Tab files in `<state>/Screenshots/` (B-92): pruned at
+    /// launch when older than 7 days or beyond the newest 50.
+    public static let screenshotsAge: TimeInterval = 7 * 86_400
+    public static let screenshotsKept = 50
 }

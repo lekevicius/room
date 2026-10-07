@@ -92,6 +92,29 @@ extension AppDelegate {
 
     // MARK: Screenshots
 
+    /// B-92: Open as Tab writes its images to `<state>/Screenshots/`; at
+    /// launch, off the main thread, the files older than
+    /// `Retention.screenshotsAge` or beyond the newest
+    /// `Retention.screenshotsKept` are deleted (`ScreenshotRules.pruned`).
+    static func pruneScreenshots() {
+        let folder = stateDirectory.appending(path: "Screenshots", directoryHint: .isDirectory)
+        let maximumAge = Retention.screenshotsAge, keep = Retention.screenshotsKept
+        Task.detached(priority: .utility) {
+            let manager = FileManager.default
+            guard let urls = try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                                                               options: [.skipsHiddenFiles]) else { return }
+            let files: [(url: URL, modified: Date)] = urls.compactMap { url in
+                guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                      values.isRegularFile == true, let modified = values.contentModificationDate else { return nil }
+                return (url, modified)
+            }
+            let gone = ScreenshotRules.pruned(files, now: Date(), maximumAge: maximumAge, keep: keep)
+            var removed = 0
+            for url in gone where (try? manager.removeItem(at: url)) != nil { removed += 1 }
+            NSLog("Room: screenshots pruned %d of %d in %@", removed, files.count, folder.path)
+        }
+    }
+
     /// ⇧⌘2: the crop overlay over the focused page (again: closes it).
     @objc func captureScreenshot(_ sender: Any?) {
         if let screenshot {
