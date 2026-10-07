@@ -1748,6 +1748,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     static let validators: [Selector: (AppDelegate, NSMenuItem) -> Bool] = [
         // App, File
         #selector(showSettings(_:)): { app, _ in app.store != nil },
+        #selector(showSettingsSection(_:)): { app, _ in app.store != nil },
         #selector(checkForAppUpdates(_:)): { app, _ in app.optIns?.canCheckForUpdates ?? false },
         #selector(makeDefaultBrowser(_:)): { app, item in
             let isDefault = app.defaultBrowser.isDefault
