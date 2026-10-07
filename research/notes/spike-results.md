@@ -3310,3 +3310,36 @@ Beside one window's earlier numbers on the release framework (3.9-2, `memory` an
 ### Unit tier (`CI=1 swift test`)
 
 Model 111 (+2: v9 on a v8 state with two windows → Today rows to the first by position, permanent rows NULL, a state without a window row; a pre-v9 JSON snapshot), Store 57 (+8: per-window Today lists and the shared sections, a shared rename's one change, conversions taking or dropping the window, Clear per window and `archiveToday` with `windowClosed` and its restore into a window, window rows created/removed/moved to front, a relaunch with both windows, orphans adopted, Restore Sidebar's window remap), Tabs 85 (+6: the claim and fallback rules, a pinned page moving with its history and the MRU fallback, per-window Today lists and ⌘1/⌘9 and the switcher's list, the discard policy with another window's visible set, an entry removed elsewhere), Sidebar 42 (+3: the drag-out threshold, the drop frame, the cascade), UIKitCore 56, Design 9, Palette 24, Library 2, Chrome 72, Omnibox 51: all passing; the window tier (no `CI`) UIKitCore 56, Sidebar 42, Tabs 85 passing.
+
+## Phase 4.8b — incognito and the page move through the engine (2026-10-07, Mac mini M4, 24 GB, display 1920 × 1080 @ 60 Hz, RoomCore 155.0.8059.36 with the 4.8b `//room` change, no patch)
+
+### The engine probe (`incognito -RoomSpikeOnly engine`, the dev build, `build/evidence-4.8b/engine-probe-dev.txt`)
+
+On RoomCore's members directly, two windows, load1 11.7:
+
+- `move(toHostWindow:)`: a page with two entries in window 1's `RoomBrowser` (`browsers=w1:1`, `canGoBack=true`, `history.length` 2) moved in **6.1 ms** (6.3–9.9 ms over five runs) into window 2's (`browsers=w2:1`: window 1's Browser closed with its emptied strip); `canGoBack=true`, `history=2`, the same `WebContentsViewCocoa` inside the page's view (`same_chromium_view=true`), in window 2, a 480 × 320 `captureViewport` after the move, Back to `a.html`; a closed page refused (`EngineError.closed`).
+- `offTheRecord()`: the twin made in 5.0 ms, the same object on a second call, `offTheRecord()` of the twin refused (`notSupported`), no history service of its own; `cookies.html?set=incognito-engine` in the twin: `room_profile=incognito-engine`, the regular profile's page on the same origin: `""`; the regular history 3 rows, 0 of the incognito URL; `closeOffTheRecord()`: `hasOffTheRecordProfile` false **21 ms** later (no page open); a new twin: a new object, no cookie.
+- The navigator hook (B-50): "Open Link in Incognito Window" in RoomCore's context menu on a regular page's link → `didCreate` with `.offTheRecord`, the page in the twin (not the regular profile), `document.referrer` `""` and `window.opener === null` (Chrome's navigator drops both across profiles), into the twin's Browser in window 2 when it had one (`twin_browsers_before=["w2:2"]`); with no twin page open, into a Browser `//room` made for the twin in the opener's window, which the move emptied and Chrome closed (`twin_browsers_before=[]` → `["w2:1"]`). 0 minidumps.
+
+### Tour step `windows` with the move member
+
+Release framework (`ROOM_TOUR_APP`, `build/grand-tour/20261007-044216-roomcore`, load1 ~8): **31 / 31**; the pinned page selected in window 2 is **the same page** (`same_page=true page_state=alive`) moved in **6 ms** (4.8a's unload and reload: 82 ms) with `canGoBack` and `history.length` 2, Back to its first page; ⌘N 70.1 ms; memory, ten live pages on fresh launches: one window 4,178 MB (16 renderers), two windows 5 + 5 4,555 MB (20 renderers), not chased (live sites; 4.8a: 4,628 / 4,653 MB). Dev (`20261007-043732-roomcore`): **30 / 31**, the move in 8 ms (4.8a: 1,582 ms); the one failure 2 × `layout_object.h:518` minidumps from the memory launches' live sites (B-76, as in 4.8a).
+
+### Tour step `incognito` (`scripts/incognito-check.sh`, own state, :8777, :8765, :8772)
+
+Release framework: **20 / 20**; dev: **20 / 20**, 0 minidumps on both. Release lines:
+
+- ⇧⌘N by the menu key: the window in **49.6 ms** (dev 80.5 ms), titled "Incognito" (listed in the Window menu), `NSAppearanceNameDarkAqua` (`Palette.incognitoAppearance`) in both system appearances, the tint `#2A2A33` (`Palette.incognitoTintHex`), the label "Incognito", key; the store's windows 1 / 1 (no row for it), its store ephemeral.
+- Its sidebar: `note, separator, newtab` (no essentials grid, no pinned section, one space); the regular window's first row is its space title.
+- `cookies.html?set=incognito-main` in incognito: `room_profile=incognito-main`; the regular window on the same page: `""`. After 1.5 s the regular profile's history has 1 row (its own visit of the cookie page) and **0** of the incognito URL; Room's store has 0 entries of it.
+- `login.html`, typed sign-in: the regular window's save bubble in 47 ms (the control); the incognito window: **no bubble in 8,010 ms**, the form submitted (`/login`).
+- "Open Link in Incognito Window" from a regular page's context menu (Chrome's item, now offered): the incognito Today list 2 → 3, the regular list 3 → 3, `next-a.html` in the incognito window, which is key, in 60 ms.
+- The 3.6 fixture extension, pinned in the regular profile: in the incognito header only after "Allow in incognito" (the engine's `IsIncognitoEnabled` true), gone again after it is turned off (engine false); the regular header shows it throughout.
+- Captures (`research/screenshots/phase-4.8b/`): the incognito window light and dark (identical: the window is dark in both), the regular window in each for contrast.
+- Closing the window: closed in 14 ms, its 3 pages closed (the twin's page count 3 → 0), the twin gone **38 ms** after the close (dev 50 ms), renderers 0 (launch) → 8 (open) → 4 (closed: the regular window's three pages and the fixture extension), the store's windows still 1, the reader folder removed.
+- Reopened: a new twin, `cookies.html` shows `""`.
+- Net-log (`--log-net-log`, a fresh state, the incognito window opened at launch and left 20 s idle): **0 hosts, 0 URL requests** (27 events).
+
+### Unit tier (`CI=1 swift test`)
+
+Engine 80 (+5: the twin one object until closed with its own cookies, a closing twin refused, an off-the-record open belongs to the twin, a moved page keeps its history and opens in its new window, Allow in incognito per extension), Tabs 85 (the move test now checks the same page and its window), Sidebar 43 (+1: the incognito tree), Store 58 (+1: the incognito store writes nothing), UIKitCore 56, Design 9; all passing; the window tier (no `CI`) UIKitCore 56, Sidebar 43, Tabs 85.
