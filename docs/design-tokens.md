@@ -33,19 +33,26 @@ section; **chosen** = our call, no reference measurement.
 
 | Token | Value | Provenance |
 |---|---|---|
-| `CardMetrics.inset` | 6 | measured (ROADMAP guessed 8) |
+| `CardMetrics.inset` | 8 | the Room Browser design (2026-10-07); Dia measured 6 |
 | `CardMetrics.sidebarSideInset` | 0 | measured: the card butts against the sidebar |
-| `CardMetrics.cornerRadius` | 10 (`Radius.medium`) | measured (guessed 12) |
+| `CardMetrics.cornerRadius` | 6 (`Radius.small`) | the Room Browser design; Dia measured 10 |
 | `CardMetrics.borderWidth` | 1 | measured: hairline composites above the page |
-| `CardMetrics.shadowRadius` / `shadowOffset` | 4 / (0, −1) | measured: rows y=812…816 within 1–4 luma of Dia |
+| `CardMetrics.shadowRadius` / `shadowOffset` | 3 / (0, −2) | the Room Browser design (`0 2 6` at 15%) |
 | `CardMetrics.shadowOpacityLight` / `Dark` | 0.15 / 0.35 | measured (light); chosen (dark) |
-| `SidebarMetrics.defaultWidth` | 240 | spec §E |
+| `SidebarMetrics.defaultWidth` | 300 | the Room Browser design (304 in its frame); spec §E said 240 |
 | `SidebarMetrics.minWidth` / `maxWidth` | 180 / 500 | spec §E (Zen max 500) |
 | `SidebarMetrics.snapCloseWidth` | 120 | spec §E |
 | `SidebarMetrics.splitterHitWidth` | 8 | chosen |
-| `SidebarMetrics.headerHeight` | 52 | measured: AppKit's unified-toolbar titlebar, traffic lights at (19,19) |
-| `SidebarMetrics.headerLeadingGap` | 12 | measured (see `Spacing.m`) |
-| `SidebarMetrics.edgeInset` | 16 | chosen |
+| `SidebarMetrics.headerHeight` | 48 | the Room Browser design: the top bar; the address row starts at its bottom |
+| `SidebarMetrics.headerLeadingGap` | 12 | measured (see `Spacing.m`); the optional toolbar |
+| `SidebarMetrics.topBarLeadingGap` | 15 | the Room Browser design: the toggle at x 92 after lights ending at 77 |
+| `SidebarMetrics.topBarButtonSize` / `topBarButtonMinSize` / `topBarGroupGap` / `topBarSymbolSize` | 32 / 24 / 4 / 13 | the Room Browser design (min chosen) |
+| `SidebarMetrics.addressFieldHeight` / `addressFieldPadding` / `addressRowGap` | 36 / 10 / 8 | the Room Browser design |
+| `SidebarMetrics.rowHorizontalInset` / `pillVerticalInset` / `faviconTitleGap` / `pillCornerRadius` / `titleFadeWidth` | 8 / 0 / 10 / 12 / 12 | the Room Browser design |
+| `SidebarMetrics.pillShadowOpacity` / `pillShadowRadius` / `pillShadowOffset` | 0.15 / 1 / (0, −0.5) | the Room Browser design (`0 0.5 2` at 15%), light only |
+| `SidebarMetrics.essentialTileHeight` / `essentialIconSize` / `essentialHoverAlpha` | 40 / 16 / 0.5 | the Room Browser design |
+| `SidebarMetrics.closeButtonSize` / `audioIndicatorWidth` / `rowButtonCornerRadius` / `rowButtonSymbolSize` | 24 / 24 / 4 / 10 | the Room Browser design |
+| `SidebarMetrics.edgeInset` | 16 | chosen (the top bar falls back to `rowHorizontalInset`, 8) |
 | `SidebarMetrics.inactiveSaturation` / `inactiveContentAlpha` | 0.8 / 0.6 | spec §I.12 (desaturate 20%) |
 
 ## Reader page (4.7b)
@@ -66,7 +73,8 @@ The reader page (`App/Resources/Reader/reader.html`) takes its CSS variables fro
 
 | Token | Value | Provenance |
 |---|---|---|
-| `Typography.row` | system 13 regular | chosen (Dia/Arc rows) |
+| `Typography.row` | system 13 regular | chosen (rows outside the sidebar) |
+| `Typography.sidebarRow` | system 14 regular | the Room Browser design: sidebar rows and the address field |
 | `Typography.spaceTitle` | system 13 semibold | measured: Dia's header title |
 | `Typography.secondary` | system 11 regular | chosen |
 
