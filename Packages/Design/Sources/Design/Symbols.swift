@@ -10,6 +10,8 @@ public enum Symbol: CaseIterable, Sendable {
     case reload
     case stop
     case more
+    /// "Open in New Window" (4.8a).
+    case newWindow
 
     // Address field and site panel (§C)
     case search
@@ -134,6 +136,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .reload: "arrow.clockwise"
         case .stop: "xmark"
         case .more: "ellipsis"
+        case .newWindow: "macwindow.badge.plus"
         case .search: "magnifyingglass"
         case .siteSecure: "lock.fill"
         case .siteInsecure: "exclamationmark.triangle.fill"

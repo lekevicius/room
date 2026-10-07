@@ -50,7 +50,8 @@ final class SidebarOutlineView: NSOutlineView {
         allowsMultipleSelection = true
         draggingDestinationFeedbackStyle = .none
         setDraggingSourceOperationMask([.move, .copy], forLocal: true)
-        setDraggingSourceOperationMask(.copy, forLocal: false)
+        // Outside Room nothing (4.8a): a drop there is the drag out to a new window (spec §A.9).
+        setDraggingSourceOperationMask([], forLocal: false)
         allowsTypeSelect = false
         focusRingType = .none
         floatsGroupRows = false

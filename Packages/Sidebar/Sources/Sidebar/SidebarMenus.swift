@@ -186,6 +186,7 @@ extension SidebarController {
             [weak self] in self?.removeFromEssentials(id)
         })
         menu.addItem(pinnedURLItem(entry))
+        addOpenInNewWindow(menu, entry)
         menu.addItem(.separator())
         menu.addItem(action(CommandName.rename, symbol: .rename) { [weak self] in self?.renameWithPopover(id) })
         menu.addItem(later(CommandName.changeIcon, symbol: .changeIcon, phase: "5.6"))
@@ -229,11 +230,23 @@ extension SidebarController {
         menu.addItem(action(CommandName.deleteFolder, symbol: .deleteSpace) { [weak self] in self?.deleteFolder(id) })
     }
 
+    /// "Open in New Window" (4.8a): the entry selected in a new window
+    /// cascaded from this one (a Today tab moves there, a shared entry's page
+    /// moves when it loads there).
+    private func addOpenInNewWindow(_ menu: NSMenu, _ entry: Entry) {
+        guard let onOpenInNewWindow else { return }
+        let id = entry.id
+        menu.addItem(action(CommandName.openInNewWindow, symbol: .newWindow, enabled: entry.currentURL != nil) {
+            onOpenInNewWindow(id, nil)
+        })
+    }
+
     /// Rename, Change Icon, Duplicate, Copy URL / Markdown (Today and pinned).
     private func addCommonItems(_ menu: NSMenu, _ entry: Entry) {
         let id = entry.id
         let hasURL = entry.currentURL != nil
         menu.addItem(action(CommandName.duplicateTab, symbol: .duplicate, enabled: hasURL) { [weak self] in self?.duplicate(id) })
+        addOpenInNewWindow(menu, entry)
         menu.addItem(action(CommandName.rename, symbol: .rename) { [weak self] in self?.beginRename(id) })
         menu.addItem(later(CommandName.changeIcon, symbol: .changeIcon, phase: "5.6"))
         menu.addItem(action(CommandName.copyURL, symbol: .copyURL, key: "c", modifiers: [.command, .shift], enabled: hasURL) {

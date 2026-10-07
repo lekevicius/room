@@ -58,6 +58,10 @@ public final class SidebarController: NSObject {
     /// The routing sheet (spec §B, 4.2): "Space Routing Settings…" (`nil`), or
     /// "Add Route for Domain…" with a new rule prefilled for `host` targeting `space`.
     public var onRoutingSettings: ((_ newRule: (host: String, space: UUID)?) -> Void)?
+    /// "Open in New Window" and the drag out of the window (spec §A.9, 4.8a):
+    /// the entry in a new window, at `screenPoint` (the drop point) or cascaded
+    /// (`nil`). Without a handler neither is offered.
+    public var onOpenInNewWindow: ((_ entry: UUID, _ screenPoint: NSPoint?) -> Void)?
     /// The key equivalent a menu action has now (4.4a, the app's `ShortcutTable`):
     /// action id ("togglePin:") → key and modifiers as `NSMenuItem` takes them,
     /// `("", [])` for none. `nil` (tests) keeps the defaults the menus name.
@@ -908,7 +912,9 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
 
     public func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
                             operation: NSDragOperation) {
+        let ids = drag?.ids ?? []
         draggingSessionEnded()
+        dragEnded(ids, at: screenPoint, operation: operation)
     }
 
     public func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?,
@@ -1438,6 +1444,18 @@ extension SidebarController {
 
     /// Whether `id` has a row of its own.
     public func debugIsListed(_ id: UUID) -> Bool { outline.row(forItem: tree.node(for: id)) >= 0 }
+
+    /// The title an entry's row draws now (4.8a: a rename in another window shows here at once).
+    public func debugRowTitle(for id: UUID) -> String? {
+        guard let node = tree.displayedNode(for: id) else { return nil }
+        let row = outline.row(forItem: node)
+        guard row >= 0, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? EntryCellView else { return nil }
+        return cell.titleField.stringValue
+    }
+
+    /// A drag of `id` from this sidebar ending at `screenPoint` with no target (4.8a's drag out; the
+    /// mouse drag itself is by hand).
+    public func debugDragEnded(_ id: UUID, at screenPoint: NSPoint) { dragEnded([id], at: screenPoint, operation: []) }
 
     /// Spaces whose list is built and loaded.
     public var debugPreparedSpaces: Int { panes.values.filter(\.isLoaded).count }

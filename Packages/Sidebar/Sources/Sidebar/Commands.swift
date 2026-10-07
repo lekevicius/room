@@ -25,6 +25,7 @@ public enum CommandName {
     public static let layoutStacked = "Stacked"
     public static let currentTab = "Current Tab"
     public static func joinTabs(_ count: Int) -> String { "Join \(count) Tabs" }
+    public static let openInNewWindow = "Open in New Window"
     public static let duplicateTab = "Duplicate Tab"
     public static let rename = "Rename…"
     public static let changeIcon = "Change Icon…"

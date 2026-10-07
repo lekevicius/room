@@ -10,8 +10,9 @@ import Store
 /// `SidebarStore.move`; the Essentials cap (badge, shake, refused); onto a
 /// folder or a pinned entry after a 500 ms hold; ⌥-drag duplicates; URLs
 /// and text from outside; group drags of the multi-selection; a haptic tick
-/// whenever the insertion line moves. Drag to a space icon waits for 2.5,
-/// drag out to a new window for Chapter 4.8.
+/// whenever the insertion line moves. A drag of one entry that ends beyond
+/// `WindowMetrics.dragOutDistance` outside the window opens it in a new
+/// window at the drop point (4.8a, `DragOutRule`).
 /// The sidebar's own drag types, for drop targets outside it (the card's split drop zones, spec §D).
 public enum SidebarDragTypes {
     /// One sidebar entry: its id.
@@ -442,12 +443,52 @@ extension SidebarController {
 }
 
 extension SidebarController: NSDraggingSource {
+    /// Outside Room an entry offers nothing (4.8a): the desktop and Finder
+    /// would otherwise take its URL as a file, and a drop there is the drag
+    /// out to a new window (spec §A.9). Other Room windows' sidebars take it.
     public func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        context == .withinApplication ? [.move, .copy] : .copy
+        context == .withinApplication ? [.move, .copy] : []
     }
 
     public func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        let ids = drag?.ids ?? []
         draggingSessionEnded()
+        dragEnded(ids, at: screenPoint, operation: operation)
+    }
+}
+
+extension SidebarController {
+    /// A drag that no target took (`operation` empty), of one entry, ending
+    /// beyond the drag-out distance outside the window: a new window there.
+    func dragEnded(_ ids: [UUID], at screenPoint: NSPoint, operation: NSDragOperation) {
+        guard operation.isEmpty, ids.count == 1, let id = ids.first, let frame = outline.window?.frame,
+              DragOutRule.opensWindow(at: screenPoint, windowFrame: frame), let onOpenInNewWindow else { return }
+        onOpenInNewWindow(id, screenPoint)
+    }
+}
+
+/// The drag out of the window (spec §A.9), as a pure rule.
+public enum DragOutRule {
+    /// The drop point is more than `distance` outside `windowFrame` (screen coordinates).
+    public static func opensWindow(at point: NSPoint, windowFrame: NSRect, distance: CGFloat = WindowMetrics.dragOutDistance) -> Bool {
+        !windowFrame.insetBy(dx: -distance, dy: -distance).contains(point)
+    }
+
+    /// The new window's frame for a drop at `point`: `size`, its top-left
+    /// corner at the drop point, kept on the screen that holds the point.
+    public static func frame(droppedAt point: NSPoint, size: NSSize, screen: NSRect) -> NSRect {
+        var frame = NSRect(x: point.x, y: point.y - size.height, width: size.width, height: size.height)
+        guard !screen.isEmpty else { return frame }
+        frame.size.width = min(frame.width, screen.width)
+        frame.size.height = min(frame.height, screen.height)
+        frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
+        return frame
+    }
+
+    /// ⌘N's and "Open in New Window"'s frame: `key` moved right and down by the cascade offset, kept on `screen`.
+    public static func cascaded(from key: NSRect, screen: NSRect, offset: CGFloat = WindowMetrics.cascadeOffset) -> NSRect {
+        frame(droppedAt: NSPoint(x: key.minX + offset, y: key.maxY - offset), size: key.size, screen: screen)
     }
 }
 

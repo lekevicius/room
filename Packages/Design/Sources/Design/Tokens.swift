@@ -202,6 +202,16 @@ public enum LibraryMetrics {
     public static let searchLimit = 200
 }
 
+/// Several windows (Phase 4.8a).
+public enum WindowMetrics {
+    /// ⌘N's new window sits this far right of and below the key window
+    /// (AppKit's `cascadeTopLeft` step; chosen, Chapter 5 may tune it).
+    public static let cascadeOffset: CGFloat = 22
+    /// A sidebar entry dropped this far outside its window's frame opens in a
+    /// new window at the drop point (spec §A.9: "beyond 40px past the window edge").
+    public static let dragOutDistance: CGFloat = 40
+}
+
 public enum CardMetrics {
     /// Gap between the card and the window edge on the top, trailing and bottom sides.
     /// Measured from Dia's window (6pt); the ROADMAP's first guess was 8.
