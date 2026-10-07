@@ -86,6 +86,11 @@ class RoomBrowserWindowClient {
   // tab, popup or window disposition (a modifier click, target=_blank,
   // window.open): false cancels it (the host's navigation policy).
   virtual bool AllowOpenFromTab(const NavigateParams& params) = 0;
+  // Navigate() is about to open a page from a page of this window in an
+  // off-the-record window (OFF_THE_RECORD: Chrome's "Open link in incognito
+  // window"): the Browser of the profile's off-the-record twin that receives
+  // it (4.8b), or nullptr to cancel the open.
+  virtual BrowserWindowInterface* BrowserForOffTheRecord() = 0;
   // Chrome is closing the window (the quit) with downloads in progress,
   // which closing cancels: the host decides (true continues).
   virtual void ConfirmCloseWithPendingDownloads(
@@ -154,6 +159,9 @@ class RoomBrowserWindow : public BrowserWindow {
 
   // A Browser //room did not create: no host window, nothing drawn.
   bool is_headless() const;
+  // Its strip emptied and Chrome destroys it after this task: a new page
+  // must not join it (B-81).
+  bool is_closing() const { return destroy_posted_; }
   room::RoomBrowserWindowClient* client() const { return client_; }
 
   // Records how the next inserted contents is being opened (navigator hook).

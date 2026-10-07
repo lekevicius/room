@@ -75,9 +75,16 @@ public final class FakeWebContents: WebContents {
     /// `NavigationController::Restore` then `LoadIfNecessary`).
     private var needsRestoreLoad = false
 
+    /// The window the page is in (`configuration.hostWindow`, then each
+    /// `move(toHostWindow:)`); pages it opens open there.
+    @ObservationIgnored public private(set) weak var hostWindow: NSWindow?
+    /// How many times `move(toHostWindow:)` moved the page.
+    public private(set) var moveCount = 0
+
     init(profile: FakeProfile, configuration: WebContentsConfiguration) {
         self.profile = profile
         self.configuration = configuration
+        hostWindow = configuration.hostWindow
         self.muted = configuration.initiallyMuted
         if configuration.transparentBackground { rootBackgroundColor = nil }
         if let data = configuration.restoredNavigationState, let saved = try? JSONDecoder().decode(SavedHistory.self, from: data),
@@ -246,8 +253,11 @@ public final class FakeWebContents: WebContents {
     private func openNewContents(_ url: URL, disposition: Disposition) {
         guard let profile else { return }
         // As RoomCore: a page opens in its opener's window.
-        let contents = profile.makeWebContents(WebContentsConfiguration(initiallyHidden: disposition == .newBackgroundTab,
-                                                                        hostWindow: configuration.hostWindow))
+        // Off the record: the page belongs to the profile's twin (RoomCore's
+        // navigator hook); the host moves it into its incognito window.
+        let target = disposition == .offTheRecord && !profile.isOffTheRecord ? profile.makeOffTheRecord() : profile
+        let contents = target.makeWebContents(WebContentsConfiguration(initiallyHidden: disposition == .newBackgroundTab,
+                                                                       hostWindow: hostWindow))
         contents.loadsSynchronously = loadsSynchronously
         contents.load(url, transition: .link, fromAddressBar: false)
         if let uiDelegate {
@@ -352,6 +362,17 @@ public final class FakeWebContents: WebContents {
         pageView?.removeFromSuperview()
         profile?.didClose(self)
         uiDelegate?.webContentsDidClose(self)
+    }
+
+    // MARK: Windows (4.8b)
+
+    /// RoomCore's move between two windows' Browsers: the same page, its
+    /// history and state kept; only the window changes.
+    public func move(toHostWindow window: NSWindow) throws {
+        guard state != .closed else { throw EngineError.closed }
+        guard hostWindow !== window else { return }
+        hostWindow = window
+        moveCount += 1
     }
 
     // MARK: Tools

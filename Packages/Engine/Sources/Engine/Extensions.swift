@@ -82,6 +82,16 @@ import AppKit
     /// `false` when the extension has no such command.
     @discardableResult
     func performCommand(_ name: String, for id: InstalledExtension.ID, in page: (any WebContents)?) -> Bool
+
+    // MARK: Incognito (Phase 4.8b)
+
+    /// Whether the extension runs in the profile's off-the-record twin
+    /// ("Allow in incognito"; the host applies `Settings.extensionsInIncognito`
+    /// when it makes the twin and when the setting changes). RoomCore:
+    /// `extensions::util::SetIsIncognitoEnabled` (the engine reloads an
+    /// enabled extension for the change); the twin's pages, popups and
+    /// commands offer only the allowed ones.
+    func setAllowedInIncognito(_ allowed: Bool, extension id: InstalledExtension.ID)
 }
 
 /// Receives a profile's extension changes and answers its consent questions.

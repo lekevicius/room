@@ -4,6 +4,7 @@
 
 #import "RoomExport.h"
 
+@class RoomBrowser;
 @class RoomProfile;
 @class RoomWebContents;
 
@@ -865,6 +866,24 @@ typedef NS_ENUM(NSInteger, RoomSavePageFormat) {
                                           result,
                                       NSError* _Nullable error))completion
     NS_SWIFT_NAME(sendDevToolsCommand(_:params:completion:));
+
+@end
+
+// Moving a page between windows (Phase 4.8b).
+@interface RoomWebContents (Windows)
+
+// Moves the page into `browser`'s tab strip with its back/forward list, its
+// tab helpers and its renderer: Chrome's tab drag between windows
+// (TabStripModel::DetachTabAtForInsertion on the page's strip, then
+// InsertDetachedTabAt on `browser`'s). `browser` must be open and of the
+// page's profile. `nativeView` stays the same NSView: the host moves it from
+// one window's views to the other's. A page not yet in a strip joins
+// `browser` as -[RoomBrowser addWebContents:activate:] would; a page already
+// in it stays. The browser it leaves closes when its strip empties (Chrome's
+// rule). NO, with `error` set (domain "RoomWebContentsMove"), when the page
+// is closed or `browser` is closed or of another profile.
+- (BOOL)moveToBrowser:(RoomBrowser*)browser
+                error:(NSError* _Nullable*)error NS_SWIFT_NAME(move(to:));
 
 @end
 

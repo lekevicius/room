@@ -421,13 +421,35 @@ bool BrowserForDisposition(const NavigateParams& params,
       *browser = params.browser;
       return true;
     }
-    case WindowOpenDisposition::OFF_THE_RECORD:
-      // Room has no private window yet (Chapter 4.8); an incognito Browser
-      // would be headless and its page invisible. Cancel the navigation.
-      LOG(WARNING) << "RoomCore: refused an off-the-record open from a Room "
-                      "window (no private windows before Chapter 4.8)";
-      *browser = nullptr;
+    case WindowOpenDisposition::OFF_THE_RECORD: {
+      // From an off-the-record page the page stays in its own Browser
+      // (Chrome's NormalizeDisposition makes it a foreground tab there).
+      if (params.browser->GetProfile()->IsOffTheRecord()) {
+        found->second->SetPendingOpen(pending);
+        *browser = params.browser;
+        return true;
+      }
+      // Otherwise the twin's Browser in the host's incognito window, or one
+      // //room makes for the twin in this window: the opener's delegate
+      // hears didCreate with the off-the-record disposition and the host
+      // moves the page into its incognito window (4.8b, B-50). Chrome's own
+      // choice would be an incognito Browser with a BrowserView.
+      BrowserWindowInterface* target =
+          found->second->client()
+              ? found->second->client()->BrowserForOffTheRecord()
+              : nullptr;
+      RoomBrowserWindow* target_window =
+          target ? room::RoomBrowserWindowFor(target) : nullptr;
+      if (!target_window) {
+        LOG(WARNING) << "RoomCore: refused an off-the-record open (no "
+                        "off-the-record profile)";
+        *browser = nullptr;
+        return true;
+      }
+      target_window->SetPendingOpen(pending);
+      *browser = target;
       return true;
+    }
     default:
       // Tabs (foreground, background, singleton, switch-to-tab, split):
       // Chrome already keeps them in this Browser.

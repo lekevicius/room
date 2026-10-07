@@ -78,6 +78,8 @@
 #include "ui/gfx/image/image_skia.h"
 #import "room/core/room_browser_internal.h"
 #import "room/core/room_extension_popups.h"
+#include "chrome/browser/extensions/extension_util.h"
+#include "extensions/browser/extension_util.h"
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_web_contents_internal.h"
 
@@ -896,6 +898,23 @@ class SidePanelGuard : public extensions::SidePanelService::Observer,
       model->IsActionPinned(id) != static_cast<bool>(pinned)) {
     model->SetActionVisibility(id, pinned);
   }
+}
+
+- (void)setAllowedInIncognito:(BOOL)allowed
+                 forExtension:(NSString*)identifier {
+  if (![self room_extension:identifier] ||
+      static_cast<bool>(allowed) == [self isAllowedInIncognito:identifier]) {
+    return;
+  }
+  // Reloads the extension when it is enabled: Chrome applies the bit at load.
+  extensions::util::SetIsIncognitoEnabled(base::SysNSStringToUTF8(identifier),
+                                          _profile, allowed);
+}
+
+- (BOOL)isAllowedInIncognito:(NSString*)identifier {
+  return [self room_extension:identifier] &&
+         extensions::util::IsIncognitoEnabled(
+             base::SysNSStringToUTF8(identifier), _profile);
 }
 
 - (RoomExtensionAction*)actionForExtension:(NSString*)identifier

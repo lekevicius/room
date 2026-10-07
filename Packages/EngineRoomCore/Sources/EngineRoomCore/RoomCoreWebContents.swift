@@ -24,7 +24,8 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     @ObservationIgnored public weak var uiDelegate: (any WebContentsUIDelegate)?
     @ObservationIgnored public weak var navigationDelegate: (any NavigationDelegate)?
 
-    public let configuration: WebContentsConfiguration
+    /// How the page was made; `hostWindow` follows `move(toHostWindow:)`.
+    public private(set) var configuration: WebContentsConfiguration
 
     public private(set) var title: String?
     public private(set) var url: URL?
@@ -493,6 +494,22 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         return png
     }
 
+    // MARK: Windows (4.8b)
+
+    /// `-[RoomWebContents moveToBrowser:error:]` into `window`'s `RoomBrowser`
+    /// for the page's profile (made on first use, as for a new page): Chrome's
+    /// tab drag between windows; the back/forward list, renderer and tab
+    /// helpers go along and `nativeView` (this object's view) is the same.
+    public func move(toHostWindow window: NSWindow) throws {
+        guard state != .closed, let profile else { throw EngineError.closed }
+        do {
+            try page.move(to: profile.browser(for: window))
+        } catch {
+            throw EngineError.failed(error.localizedDescription)
+        }
+        configuration.hostWindow = window
+    }
+
     // MARK: RoomWebContentsDelegate
 
     /// The policy for a navigation, from the `//room` navigation throttle
@@ -519,11 +536,14 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         let mapped = Disposition(disposition)
         let configuration = WebContentsConfiguration(initiallyHidden: mapped == .newBackgroundTab,
                                                      hostWindow: self.configuration.hostWindow)
-        guard let profile else {
+        // Off the record (patches/0014, 4.8b): the page belongs to this
+        // profile's twin, in the twin's Browser; the host moves it into its
+        // incognito window.
+        guard let owner = profile?.owner(of: newContents.profile) else {
             newContents.close()
             return
         }
-        let contents = profile.adoptOpened(newContents, configuration: configuration)
+        let contents = owner.adoptOpened(newContents, configuration: configuration)
         if requestedBounds.width > 0 || requestedBounds.height > 0 { contents.requestedBounds = requestedBounds }
         guard let uiDelegate else {
             contents.close()

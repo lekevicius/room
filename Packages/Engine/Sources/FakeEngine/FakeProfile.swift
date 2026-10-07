@@ -17,8 +17,52 @@ public final class FakeProfile: Profile {
 
     private var nextDownloadID = 1
 
-    init(name: String) {
+    /// The profile is another's off-the-record twin (`offTheRecord()`).
+    public let isOffTheRecord: Bool
+    /// The twin `offTheRecord()` made and `closeOffTheRecord()` ended.
+    public private(set) var offTheRecordTwin: FakeProfile?
+    /// Set by `closeOffTheRecord()` on the twin it ended.
+    public private(set) var isClosed = false
+    /// Cookies by host (`setCookie`): in memory, per profile, as an engine
+    /// keeps a twin's apart from its parent's.
+    public private(set) var cookies: [String: [String: String]] = [:]
+    /// Makes `offTheRecord()` throw `profileInUse` (the previous twin still
+    /// closing, as RoomCore can report).
+    public var offTheRecordUnavailable = false
+
+    init(name: String, isOffTheRecord: Bool = false) {
         self.name = name
+        self.isOffTheRecord = isOffTheRecord
+    }
+
+    // MARK: Off the record (4.8b)
+
+    public func offTheRecord() throws -> any Profile {
+        guard !isOffTheRecord else { throw EngineError.notSupported("offTheRecord of an off-the-record profile") }
+        guard !offTheRecordUnavailable else { throw EngineError.profileInUse("the previous twin is closing") }
+        return makeOffTheRecord()
+    }
+
+    /// `offTheRecord()` returning the concrete type.
+    public func makeOffTheRecord() -> FakeProfile {
+        if let offTheRecordTwin { return offTheRecordTwin }
+        let twin = FakeProfile(name: name, isOffTheRecord: true)
+        offTheRecordTwin = twin
+        return twin
+    }
+
+    /// The twin's pages close and its cookies go with it.
+    public func closeOffTheRecord() {
+        guard let twin = offTheRecordTwin else { return }
+        offTheRecordTwin = nil
+        for page in twin.openWebContents { page.closeNow() }
+        twin.cookies = [:]
+        twin.isClosed = true
+    }
+
+    /// A page of `host` set a cookie.
+    public func setCookie(_ name: String, value: String, host: String) {
+        cookies[host, default: [:]][name] = value
     }
 
     public func createWebContents(_ configuration: WebContentsConfiguration) throws -> any WebContents {

@@ -123,6 +123,19 @@ public protocol WebContents: AnyObject, Observable {
     /// full-page capture); throws the protocol's error, or when the engine
     /// cannot attach.
     func sendDevToolsCommand(_ method: String, params: [String: Any]) async throws -> [String: Any]
+
+    // MARK: Windows (4.8b)
+
+    /// Moves the page into `window` (another host window showing it now)
+    /// with its back/forward list, renderer and state: RoomCore moves it
+    /// from its window's `RoomBrowser` into `window`'s for the page's profile
+    /// (Chromium's tab drag between windows, `TabStripModel::
+    /// DetachTabAtForInsertion` then `InsertDetachedTabAt`); pages it opens
+    /// from now on open in `window`. `nativeView` stays the same view: the
+    /// host moves it into `window`'s card. The host never asks while the page
+    /// shows in a Peek or a picture-in-picture panel. Throws
+    /// `EngineError.closed` for a closed page.
+    func move(toHostWindow window: NSWindow) throws
 }
 
 public extension WebContents {

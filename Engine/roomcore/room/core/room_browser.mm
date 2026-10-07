@@ -45,6 +45,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "base/task/single_thread_task_runner.h"
@@ -96,6 +99,10 @@
 - (NSRect)room_bubbleAnchorRect;
 - (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
 - (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event;
+- (BrowserWindowInterface*)room_browserForOffTheRecord;
+- (void)room_forgetPage:(RoomWebContents*)page;
+- (void)room_insertDetachedTab:(std::unique_ptr<tabs::TabModel>)tab
+                          page:(RoomWebContents*)page;
 @end
 
 namespace {
@@ -142,6 +149,9 @@ class Client : public room::RoomBrowserWindowClient {
   }
   bool AllowOpenFromTab(const NavigateParams& params) override {
     return room::AllowOpenFromRoomPage(params);
+  }
+  BrowserWindowInterface* BrowserForOffTheRecord() override {
+    return [browser_ room_browserForOffTheRecord];
   }
   void ConfirmCloseWithPendingDownloads(
       int download_count,
@@ -273,6 +283,42 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 
 - (room::RoomBrowserExtensions*)room_extensions {
   return _extensions.get();
+}
+
+- (BrowserWindowInterface*)room_browserInterface {
+  RoomBrowserWindow* window =
+      _browser ? room::RoomBrowserWindowFor(_browser) : nullptr;
+  return window && !window->is_closing() ? _browser.get() : nullptr;
+}
+
+// patches/0014's off-the-record open from a page of this window (4.8b): the
+// twin's Browser that receives it (RoomProfile finds or makes it).
+- (BrowserWindowInterface*)room_browserForOffTheRecord {
+  NSWindow* window = _window;
+  return window ? [_profile room_offTheRecordBrowserForOpenFromWindow:window]
+                : nullptr;
+}
+
+- (void)room_forgetPage:(RoomWebContents*)page {
+  [_pages removeObject:page];
+}
+
+// A page another Browser of this profile detached for insertion
+// (TabStripModel::DetachTabAtForInsertion: its WebContents, navigation
+// controller and tab helpers): inserted at the end, not activated (the strip's
+// active tab follows the host's view, as for any page).
+- (void)room_insertDetachedTab:(std::unique_ptr<tabs::TabModel>)tab
+                          page:(RoomWebContents*)page {
+  CHECK(self.room_browserInterface) << "a page moved into a closed browser";
+  [_pages addObject:page];
+  page.room_browser = self;
+  TabStripModel* strip = _browser->GetTabStripModel();
+  _addingFromHost = YES;
+  strip->InsertDetachedTabAt(strip->count(), std::move(tab),
+                             AddTabTypes::ADD_NONE);
+  _addingFromHost = NO;
+  // Idempotent: the observers and Room's page services are per WebContents.
+  [page room_tabHelpersAttached];
 }
 
 - (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event {
@@ -1012,5 +1058,53 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   return @(-1);
 }
 #endif  // BUILDFLAG(ROOM_ENABLE_SPIKES)
+
+@end
+
+// MARK: Moving a page between windows (Phase 4.8b)
+
+@implementation RoomWebContents (Windows)
+
+- (BOOL)moveToBrowser:(RoomBrowser*)target error:(NSError**)error {
+  content::WebContents* contents = self.room_webContents;
+  NSString* failure = nil;
+  if (!contents || self.closed) {
+    failure = @"the page is closed";
+  } else if (!target.room_browserInterface) {
+    failure = @"the target browser is closed";
+  } else if (target.profile != self.profile) {
+    failure = @"the target browser belongs to another profile";
+  }
+  if (failure) {
+    if (error) {
+      *error = [NSError
+          errorWithDomain:@"RoomWebContentsMove"
+                     code:1
+                 userInfo:@{NSLocalizedDescriptionKey : failure}];
+    }
+    return NO;
+  }
+  BrowserWindowInterface* destination = target.room_browserInterface;
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* strip = browser->GetTabStripModel();
+    const int index = strip->GetIndexOfWebContents(contents);
+    if (index == TabStripModel::kNoTab) {
+      continue;
+    }
+    if (browser == destination) {
+      return YES;
+    }
+    // Chrome's tab drag between windows: the TabModel (the WebContents with
+    // its navigation controller and tab helpers) leaves one strip and joins
+    // the other; the source Browser closes if its strip empties.
+    std::unique_ptr<tabs::TabModel> tab = strip->DetachTabAtForInsertion(index);
+    [self.room_browser room_forgetPage:self];
+    [target room_insertDetachedTab:std::move(tab) page:self];
+    return YES;
+  }
+  // Not in a strip yet: the page joins `target` as a new page would.
+  [target addWebContents:self activate:NO];
+  return YES;
+}
 
 @end

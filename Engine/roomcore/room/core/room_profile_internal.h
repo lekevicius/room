@@ -5,7 +5,9 @@
 
 #import "room/core/public/RoomProfile.h"
 
+class BrowserWindowInterface;
 class Profile;
+@class NSWindow;
 
 @interface RoomProfile (Internal)
 // The wrapper for `profile`, created on first use and kept for the profile's
@@ -28,6 +30,13 @@ class Profile;
                                             BOOL gone))completion;
 // A deletion is under way (no second one, no new pages).
 @property(nonatomic, readonly) BOOL room_deleting;
+// patches/0014's off-the-record open from a page of `window` (4.8b): the
+// twin's Room Browser in a host window (the host's incognito window), else
+// one made for the twin in `window` and held until it closes (the host then
+// moves the page into its incognito window). The twin is created if needed.
+// nullptr for an off-the-record or destroyed profile.
+- (BrowserWindowInterface*)room_offTheRecordBrowserForOpenFromWindow:
+    (NSWindow*)window;
 @end
 
 #endif  // ROOM_CORE_ROOM_PROFILE_INTERNAL_H_

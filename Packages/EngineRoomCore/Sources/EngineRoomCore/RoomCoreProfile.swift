@@ -31,10 +31,52 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     /// their `browserDidClose` (B-81).
     private var closingBrowsers: [RoomBrowser] = []
 
+    /// The off-the-record twin `offTheRecord()` made (4.8b), until `closeOffTheRecord()`.
+    private var twin: RoomCoreProfile?
+
     init(name: String, profile: RoomProfile) {
         self.name = name
         self.profile = profile
         super.init()
+    }
+
+    // MARK: Off the record (4.8b)
+
+    /// `-[RoomProfile offTheRecordProfile]` (`Profile::GetPrimaryOTRProfile`,
+    /// held by RoomCore's headless Browser of the twin).
+    public func offTheRecord() throws -> any Profile {
+        try makeOffTheRecord()
+    }
+
+    /// `offTheRecord()` returning the concrete type.
+    public func makeOffTheRecord() throws -> RoomCoreProfile {
+        guard !profile.isOffTheRecord else { throw EngineError.notSupported("offTheRecord of an off-the-record profile") }
+        guard let otr = profile.offTheRecord() else {
+            throw EngineError.profileInUse("the previous off-the-record profile is still being destroyed")
+        }
+        if let twin, twin.profile === otr { return twin }
+        let made = RoomCoreProfile(name: name, profile: otr)
+        twin = made
+        return made
+    }
+
+    /// `-[RoomProfile closeOffTheRecordProfile]`: the twin's Browsers close
+    /// (their pages with them) and Chrome destroys it once its renderers exit.
+    public func closeOffTheRecord() {
+        twin = nil
+        profile.closeOffTheRecord()
+    }
+
+    /// The twin exists in Chrome (`Profile::HasPrimaryOTRProfile`): from
+    /// `offTheRecord()` until Chrome destroyed it after `closeOffTheRecord()`.
+    public var hasOffTheRecordProfile: Bool { profile.hasOffTheRecordProfile }
+
+    /// The object for `roomProfile`'s pages: this profile, or its twin for a
+    /// page Chrome opened off the record (patches/0014's hook).
+    func owner(of roomProfile: RoomProfile) -> RoomCoreProfile? {
+        if roomProfile === profile { return self }
+        guard roomProfile.isOffTheRecord, let twin = try? makeOffTheRecord(), twin.profile === roomProfile else { return nil }
+        return twin
     }
 
     /// Chromium's exit type for this profile's previous session

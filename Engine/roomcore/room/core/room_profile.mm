@@ -9,6 +9,7 @@
 #include "chrome/common/chrome_paths_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "ui/base/base_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -37,6 +38,8 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/apple/url_conversions.h"
 #include "ui/gfx/image/image.h"
+#import "room/browser/room_browser_window.h"
+#import "room/core/room_browser_internal.h"
 #import "room/core/room_extensions_internal.h"
 #import "room/core/room_omnibox_internal.h"
 #import "room/core/room_page_ui_internal.h"
@@ -112,9 +115,13 @@ class ProfileWrapper : public base::SupportsUserData::Data,
 
 }  // namespace
 
-@interface RoomProfile ()
+@interface RoomProfile () <RoomBrowserDelegate>
 - (instancetype)initWithProfile:(Profile*)profile;
 - (void)room_profileWillBeDestroyed;
+- (void)room_holdOpen;
+- (void)room_releaseHold;
+- (BrowserWindowInterface*)room_holdBrowser;
+- (BrowserWindowInterface*)room_openBrowserInWindow:(NSWindow*)window;
 @end
 
 namespace {
@@ -156,6 +163,13 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   void (^_deletion)(BOOL destroyed, BOOL gone);
   BOOL _deleting;
   base::FilePath _path;
+  // Off the record (4.8b): the headless Browser that holds this twin
+  // (Chrome destroys an off-the-record profile with its last Browser and
+  // allows it no keep-alive), and the Room Browsers made for patches/0014's
+  // off-the-record opens before the host moved their page, held until they
+  // close.
+  raw_ptr<BrowserWindowInterface> _holdBrowser;
+  NSMutableArray<RoomBrowser*>* _openBrowsers;
 }
 
 + (RoomProfile*)room_profileFor:(Profile*)profile {
@@ -248,6 +262,7 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
   }
   _autocompleteControllers = nil;
   _passwordImport.reset();
+  _holdBrowser = nullptr;
   _keepAlive.reset();
   _downloads.reset();
   _faviconTasks.reset();
@@ -377,6 +392,123 @@ void ProfileWrapper::OnProfileWillBeDestroyed(Profile* profile) {
         callback(result.image.IsEmpty() ? nil : result.image.ToNSImage());
       }),
       _faviconTasks.get());
+}
+
+// MARK: Off the record (Phase 4.8b)
+
+- (RoomProfile*)offTheRecordProfile {
+  if (!_profile || _offTheRecord || _deleting) {
+    return nil;
+  }
+  Profile* otr = _profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  RoomProfile* twin = otr ? [RoomProfile room_profileFor:otr] : nil;
+  // A twin Chrome is still destroying keeps its place until its renderers
+  // have exited; its wrapper has already let go of it.
+  if (!twin.room_profile) {
+    LOG(WARNING) << "RoomCore: the previous off-the-record profile is still "
+                    "being destroyed";
+    return nil;
+  }
+  [twin room_holdOpen];
+  return twin;
+}
+
+- (void)closeOffTheRecordProfile {
+  if (!_profile || _offTheRecord || !_profile->HasPrimaryOTRProfile()) {
+    return;
+  }
+  Profile* otr = _profile->GetPrimaryOTRProfile(/*create_if_needed=*/false);
+  [[RoomProfile room_existingProfileFor:otr] room_releaseHold];
+}
+
+- (BOOL)hasOffTheRecordProfile {
+  return _profile && !_offTheRecord && _profile->HasPrimaryOTRProfile();
+}
+
+// The twin's own headless Browser (no host window: CreateRoomBrowserWindow
+// gives it a headless RoomBrowserWindow): BrowserManagerService destroys a
+// primary off-the-record profile when its last Browser goes, and the host's
+// Room Browsers come and go with its pages.
+- (void)room_holdOpen {
+  if (!_profile || !_offTheRecord || [self room_holdBrowser]) {
+    return;
+  }
+  BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
+                                   *_profile, /*from_user_gesture=*/false);
+  params.omit_from_session_restore = true;
+  _holdBrowser = CreateBrowserWindow(std::move(params));
+  LOG(INFO) << "RoomCore: off-the-record profile created and held";
+}
+
+// The hold Browser if it is still open (Chrome closes every Browser at quit).
+- (BrowserWindowInterface*)room_holdBrowser {
+  if (!_holdBrowser) {
+    return nullptr;
+  }
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    if (browser == _holdBrowser) {
+      return browser;
+    }
+  }
+  _holdBrowser = nullptr;
+  return nullptr;
+}
+
+- (void)room_releaseHold {
+  if (!_profile || !_offTheRecord) {
+    return;
+  }
+  _holdBrowser = nullptr;
+  // Every Browser of the twin: the hold, and any Room Browser whose pages
+  // the host did not close (closing runs their beforeunload first).
+  std::vector<BrowserWindowInterface*> browsers;
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    if (browser->GetProfile() == _profile &&
+        !browser->capabilities()->IsAttemptingToCloseBrowser()) {
+      browsers.push_back(browser);
+    }
+  }
+  for (BrowserWindowInterface* browser : browsers) {
+    browser->GetWindow()->Close();
+  }
+  LOG(INFO) << "RoomCore: off-the-record profile released ("
+            << browsers.size() << " browser(s) closing)";
+}
+
+- (BrowserWindowInterface*)room_offTheRecordBrowserForOpenFromWindow:
+    (NSWindow*)window {
+  RoomProfile* twin = [self offTheRecordProfile];
+  Profile* otr = twin.room_profile;
+  if (!otr) {
+    return nullptr;
+  }
+  // The twin's Room Browser in a host window (the incognito window's).
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    RoomBrowserWindow* roomWindow = room::RoomBrowserWindowFor(browser);
+    if (browser->GetProfile() == otr && roomWindow &&
+        !roomWindow->is_headless() && !roomWindow->is_closing()) {
+      return browser;
+    }
+  }
+  // None (no incognito page open yet): one in the opener's window, which
+  // the host's move empties and Chrome then closes.
+  return [twin room_openBrowserInWindow:window];
+}
+
+- (BrowserWindowInterface*)room_openBrowserInWindow:(NSWindow*)window {
+  RoomBrowser* browser = [[RoomBrowser alloc] initWithProfile:self
+                                                       window:window];
+  browser.delegate = self;
+  if (!_openBrowsers) {
+    _openBrowsers = [NSMutableArray array];
+  }
+  [_openBrowsers addObject:browser];
+  return browser.room_browserInterface;
+}
+
+// RoomBrowserDelegate, for the Browsers made above.
+- (void)browserDidClose:(RoomBrowser*)browser {
+  [_openBrowsers removeObject:browser];
 }
 
 // MARK: Downloads (Phase 3.4a)

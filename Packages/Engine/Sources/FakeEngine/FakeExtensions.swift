@@ -210,6 +210,14 @@ public final class FakeProfileExtensions: ProfileExtensions {
         return true
     }
 
+    /// Extensions allowed in the off-the-record twin (`setAllowedInIncognito`).
+    public private(set) var allowedInIncognito: Set<InstalledExtension.ID> = []
+
+    public func setAllowedInIncognito(_ allowed: Bool, extension id: InstalledExtension.ID) {
+        guard index(id) != nil else { return }
+        if allowed { allowedInIncognito.insert(id) } else { allowedInIncognito.remove(id) }
+    }
+
     /// An install asking for consent, as the Web Store's "Add to Chrome"
     /// does: the delegate answers; accepted, the extension is installed.
     @discardableResult

@@ -64,6 +64,17 @@ public final class RoomCoreExtensions: NSObject, ProfileExtensions, RoomProfileE
         extensions.setPinned(pinned, forExtension: id)
     }
 
+    /// `extensions::util::SetIsIncognitoEnabled` (4.8b; Chrome reloads an
+    /// enabled extension for the change).
+    public func setAllowedInIncognito(_ allowed: Bool, extension id: InstalledExtension.ID) {
+        extensions.setAllowedInIncognito(allowed, forExtension: id)
+    }
+
+    /// `extensions::util::IsIncognitoEnabled` (spikes read it).
+    public func isAllowedInIncognito(_ id: InstalledExtension.ID) -> Bool {
+        extensions.isAllowedInIncognito(id)
+    }
+
     /// `ExtensionAction` for the page's tab id (or the defaults).
     public func action(for id: InstalledExtension.ID, in webContents: (any WebContents)?) -> ExtensionActionState? {
         let page = (webContents as? RoomCoreWebContents)?.page

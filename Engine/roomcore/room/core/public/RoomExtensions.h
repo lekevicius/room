@@ -211,6 +211,17 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 - (void)setPinned:(BOOL)pinned
      forExtension:(NSString*)identifier
     NS_SWIFT_NAME(setPinned(_:forExtension:));
+// Whether the extension runs in this profile's off-the-record twin
+// ("Allow in incognito", 4.8b): extensions::util::SetIsIncognitoEnabled,
+// stored in the profile's extension prefs; Chrome reloads an enabled
+// extension for the change. The twin's pages, popups and commands offer only
+// the extensions allowed here.
+- (void)setAllowedInIncognito:(BOOL)allowed
+                 forExtension:(NSString*)identifier
+    NS_SWIFT_NAME(setAllowedInIncognito(_:forExtension:));
+// extensions::util::IsIncognitoEnabled for the extension.
+- (BOOL)isAllowedInIncognito:(NSString*)identifier
+    NS_SWIFT_NAME(isAllowedInIncognito(_:));
 // The action as `webContents` shows it (nil: the defaults).
 - (nullable RoomExtensionAction*)actionForExtension:(NSString*)identifier
                                         webContents:

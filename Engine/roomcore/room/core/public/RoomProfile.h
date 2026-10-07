@@ -134,6 +134,27 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly, copy) NSString* name;
 @property(nonatomic, readonly, copy) NSURL* directory;
 @property(nonatomic, readonly, getter=isOffTheRecord) BOOL offTheRecord;
+// The profile's off-the-record twin (Profile::GetPrimaryOTRProfile, created
+// on first use; 4.8b): cookies, cache and site storage in memory only, no
+// history of its own (Chrome's omnibox there reads this profile's), no saved
+// passwords, extensions only where allowed in incognito. Chrome destroys an
+// off-the-record profile with its last Browser and gives it no
+// ScopedProfileKeepAlive (ProfileManager::AddKeepAlive CHECKs that the
+// profile is not off the record), so RoomCore holds the twin with a headless
+// Browser of its own until -closeOffTheRecordProfile. Its pages join Room
+// Browsers per window as this profile's do. nil for an off-the-record or
+// destroyed profile, and while the previous twin is still being destroyed
+// (its renderers exiting: ask again shortly).
+- (nullable RoomProfile*)offTheRecordProfile;
+// Ends the twin: RoomCore's headless Browser and every Browser of the twin
+// still open close (their pages with them), and Chrome destroys the twin
+// once its renderers have exited (ProfileDestroyer::
+// DestroyOTRProfileWhenAppropriate), its cookies and site data with it.
+// Nothing when there is none.
+- (void)closeOffTheRecordProfile;
+// The twin exists (Profile::HasPrimaryOTRProfile): YES from
+// -offTheRecordProfile until Chrome has destroyed it.
+@property(nonatomic, readonly) BOOL hasOffTheRecordProfile;
 
 // Whether this profile's previous session ended cleanly: Chrome's
 // ExitTypeService (the profile's exit_type pref, "Normal" after a clean quit,

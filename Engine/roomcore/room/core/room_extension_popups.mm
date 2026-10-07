@@ -64,6 +64,8 @@
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/content_accelerators/accelerator_util.h"
 #include "ui/gfx/geometry/size.h"
+#include "chrome/browser/extensions/extension_util.h"
+#include "extensions/browser/extension_util.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/room_extensions_internal.h"
 #import "room/core/room_profile_internal.h"
@@ -534,9 +536,17 @@ class Container : public RoomBrowserExtensions,
 
  private:
   const extensions::Extension* EnabledExtension(const std::string& id) {
-    return extensions::ExtensionRegistry::Get(profile_)
-        ->enabled_extensions()
-        .GetByID(id);
+    const extensions::Extension* extension =
+        extensions::ExtensionRegistry::Get(profile_)
+            ->enabled_extensions()
+            .GetByID(id);
+    // An off-the-record window offers only the extensions allowed in
+    // incognito (4.8b; Chrome's toolbar model filters the same way).
+    if (extension && profile_->IsOffTheRecord() &&
+        !extensions::util::IsIncognitoEnabled(id, profile_)) {
+      return nullptr;
+    }
+    return extension;
   }
 
   bool OpenPopup(const extensions::Extension& extension,

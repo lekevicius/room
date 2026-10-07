@@ -169,12 +169,12 @@ class ContextMenuHolder
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ContextMenuHolder);
 
-// Items Room cannot offer: private windows (none before Chapter 4.8, B-50),
-// Chrome's other profiles, and "Use Enhanced Spell Check" (Google's spelling
-// service behind Chrome's consent; hidden, B-74).
+// Items Room cannot offer: Chrome's other profiles and "Use Enhanced Spell
+// Check" (Google's spelling service behind Chrome's consent; hidden, B-74).
+// "Open Link in Incognito Window" shows since 4.8b (B-50): the navigator hook
+// hands it to the host's incognito window.
 bool IsOmitted(int command_id) {
-  return command_id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD ||
-         command_id == IDC_CONTENT_CONTEXT_SPELLING_TOGGLE ||
+  return command_id == IDC_CONTENT_CONTEXT_SPELLING_TOGGLE ||
          command_id == IDC_CONTENT_CONTEXT_OPENLINKINPROFILE ||
          (command_id >= IDC_OPEN_LINK_IN_PROFILE_FIRST &&
           command_id < IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1);

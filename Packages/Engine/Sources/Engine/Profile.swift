@@ -75,6 +75,26 @@ public protocol Profile: AnyObject {
     /// profile loaded; `nil` when the engine does not track it. The
     /// host combines it with its own store's `uncleanExit`.
     var lastExitWasClean: Bool? { get }
+
+    // MARK: Off the record (4.8b)
+
+    /// The profile's off-the-record twin, made on first use and the same
+    /// object until `closeOffTheRecord()`: cookies, cache and site storage
+    /// in memory only, no history or saved passwords of its own, extensions
+    /// only where `ProfileExtensions.setAllowedInIncognito` allowed them.
+    /// Its pages are made with its `createWebContents` and its downloads go
+    /// to its own `downloadsDelegate`. RoomCore: `Profile::
+    /// GetPrimaryOTRProfile`, held open by the engine until
+    /// `closeOffTheRecord()` (Chromium destroys an off-the-record profile
+    /// with its last `Browser`). Throws `EngineError.notSupported` for an
+    /// off-the-record profile or an engine without one, and
+    /// `EngineError.profileInUse` while the previous twin is still being
+    /// destroyed (ask again shortly).
+    func offTheRecord() throws -> any Profile
+    /// Ends the twin: its remaining pages close and its cookies and site
+    /// data go; the next `offTheRecord()` makes a new one. Nothing when there
+    /// is none.
+    func closeOffTheRecord()
 }
 
 /// Chromium's history service for one profile (Phase 3.5). The palette's

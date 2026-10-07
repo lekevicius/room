@@ -5,6 +5,8 @@
 
 #import "room/core/public/RoomBrowser.h"
 
+class BrowserWindowInterface;
+
 namespace room {
 class RoomBrowserExtensions;
 }
@@ -15,6 +17,8 @@ class RoomBrowserExtensions;
 - (void)room_activateWebContents:(RoomWebContents*)webContents;
 // The window's extension popups and shortcuts (3.6b); nullptr once closed.
 @property(nonatomic, readonly) room::RoomBrowserExtensions* room_extensions;
+// Chrome's Browser; nullptr once closed or while Chrome is destroying it.
+@property(nonatomic, readonly) BrowserWindowInterface* room_browserInterface;
 @end
 
 #endif  // ROOM_CORE_ROOM_BROWSER_INTERNAL_H_
