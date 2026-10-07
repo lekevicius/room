@@ -3343,3 +3343,71 @@ Release framework: **20 / 20**; dev: **20 / 20**, 0 minidumps on both. Release l
 ### Unit tier (`CI=1 swift test`)
 
 Engine 80 (+5: the twin one object until closed with its own cookies, a closing twin refused, an off-the-record open belongs to the twin, a moved page keeps its history and opens in its new window, Allow in incognito per extension), Tabs 85 (the move test now checks the same page and its window), Sidebar 43 (+1: the incognito tree), Store 58 (+1: the incognito store writes nothing), UIKitCore 56, Design 9; all passing; the window tier (no `CI`) UIKitCore 56, Sidebar 43, Tabs 85.
+
+## Phase 4.9 — the full tour (2026-10-07, Mac mini M4, 24 GB, display 1920 × 1080 @ 60 Hz, RoomCore 155.0.8059.36 with 4.8b's `//room`, `RoomCoreCommit 5c039c3`, series 23)
+
+**Method.** `scripts/grand-tour.sh --no-build light dark`, one state per appearance, the test servers once, the Claude desktop app frontmost throughout, no Chromium build running, the user's own Room not touched. Two builds: the **dev build** (`build/roomcore/DerivedData/Build/Products/Debug/Room.app`, the component framework with `DCHECK_ALWAYS_ON`, rebuilt with `scripts/roomcore-package.sh --app-only` from `8e891ff`) and the **release framework** (`ROOM_TOUR_APP=build/roomcore-release/DerivedData/Build/Products/Debug/Room.app`, the Debug app over the official framework, rebuilt with xcodebuild per `docs/laptop-build.md` §A step 3 from `1555793`, i.e. with this session's B-92, harness fixes and the validator line). 47 steps in eleven groups (Chapter 3's 34 plus the chapter's 13: `archive`, `recovery`, `routing`, `import`, `settings`, `settings2`, `extpopup`, `extensions`, `media`, `documents`, `reader`, `windows`, `incognito`). Crashes and numbers are judged on the release framework; the dev tour is for correctness.
+
+### Totals
+
+| Run | Directory | Conditions at the start (`conditions.tsv`) | Wall time | Light | Dark |
+|---|---|---|---|---|---|
+| Dev build | `build/grand-tour/20261007-045544-roomcore` | load1 7.13, 0 other Room processes, no build | **61.6 min** (31.6 + 30.0) | **893 passed / 15 failed** of 908 | **894 / 14** of 908 |
+| Dev build, the same outputs re-evaluated with the three fixed checks (below) | (the tour's own top-level `summary.md`, written after the fixes landed in `tour_checks.py` mid-run) | — | — | 896 / 12 | 897 / 11 |
+| Release framework | `build/grand-tour/20261007-060609-roomcore` | load1 8.85, 0 other Room processes, no build | **45.9 min** (22.8 + 23.1) | **899 / 5** of 904 | **897 / 7** of 904 |
+
+The release framework lists 4 fewer checks per appearance: the per-step crash check is listed only for steps that left a minidump (none there). Chapter 3's exit tour (3.9-2, dev only): 505 / 6 of 511 per appearance, 41.4 min.
+
+**Minidumps.** Dev: **11 DCHECK minidumps per appearance**, the same in light and dark: memory 4, quittiming 3, open10 1, `windows`' memory launches 2 (its own engine directory), all `layout_object.h:518 !NeedsLayout() || ChildLayoutBlockedByDisplayLock()`, and palette 1 × `inline_node.cc:2297`; no `//net` DCHECK this time (3.9-2 had one in dark). Release framework: **0** in both appearances. Both builds: the one renderer `chrome://crash` kills in `chrome26b` (no FATAL line, expected, the step passes).
+
+### Every failure attributed
+
+| Step | Build | Appearance | Failed check(s) | Cause | Row / commit |
+|---|---|---|---|---|---|
+| memory, open10, quittiming, palette | dev | light, dark | no helper crash report (4, 1, 3, 1 minidumps) | the dev build's Blink DCHECKs on live sites (stated condition; 0 on release) | B-76 |
+| windows | dev | light, dark | no engine minidump in the run's own engine directory (2) | the same, from the memory launches' live sites (as in 4.8a, 4.8b) | B-76 |
+| cookies | dev | light, dark | engine profiles are direct children of the root | **harness fault**: the check wanted `Room Profile Default, Room Profile Work`; since 4.4b the directories are keyed by the profile's id (B-22). Check fixed (`e1d91e1`); rerun `--only cookies` 14 / 14 | `e1d91e1` |
+| palette2 | dev | light, dark (2 checks each) | `>re` filters commands (light; dark) | **harness fault**: the check wanted exactly `["Reload", "Reload without Cache"]`; 4.7a's Capture Screenshot and 4.7b's Reader Mode match `>re` too. Check fixed; rerun 26 / 26 | `e1d91e1` |
+| app28a | dev | light, dark | `menu_app_items_without_validation: none` | **product, one line**: 4.4b's Room ▸ Settings Section items had no validator; added (`1555793`); rerun 29 / 29 dev, 29 / 29 in the release tour | `1555793` |
+| app28b | dev | light, dark | a link after ⇧⌘W brings the window back with it | **harness fault**: the spike read the window it had closed; since 4.8a the close tears its session down and the link reopens the kept row as a new window. Spike reads the app's window now; rerun 25 / 25 dev, 25 / 25 in the release tour | `e1d91e1` |
+| import | dev; release | light, dark; light, dark | imported history is found through ProfileHistory.search in the same launch | **harness fault, partly fixed**: the spike took the search's first row, and the tour's shared state has other history matching "Swift.org" (palettemeasure's 50,000 generated rows: `https://www.bikeissue1366.org/swift/game/blog/26986`); it now takes the row with the fixture's title among 1,000 (`e1d91e1`): `--only palettemeasure,import` 65 / 65 with `Swift.org=https://swift.org/` (`20261007-060431`), but the release tour, run with the fix, still read the generated row in both appearances: something else in the full tour's history outranks it (not chased). The import itself passed every other check (`safari_applied … history urls=4 equal=true`) | B-100 |
+| tabs | both | light, dark | Discard Background Pages: renderers released | renderers 15 → 16 after seven discards (dev 3,638 → 3,776 MB; release 1,957 → 2,014 MB) | B-56 |
+| tabsmeasure | dev | light, dark | switching median and p95 under 16 ms | dev 16.23 / 19.02 and 17.13 / 19.47 ms | B-53 |
+| tabsmeasure | release | light, dark | switching p95 under 16 ms | median passes (14.20 / 15.72 ms), p95 17.27 / 18.26 ms (3.9-2: 12.88 / 20.87) | B-53 |
+| settings2 | dev | light only | Clear browsing data, last hour: … the cookie goes | the cookie `room_profile=work` survived "Last hour, History and Cookies" in the full tour's shared state (history went: `fresh=false old=true`); `--only settings2` 26 / 26 (`20261007-055912`), the dark run and both release runs passed: not reproduced, not chased | **B-99** |
+| palette2 | release | light, dark | the chip: secure / insecure for Chrome's LocationBarModel (2) | **cannot run on the release framework**: the check reads Chrome's `LocationBarModel` through a spike hook the official framework does not have (`spike hooks unavailable (roomSpikeCommand: on RoomBrowser)`, B-82's guard); the host's chip half passed (`host=secure`, `host=insecure`); the dev tour passed both | B-82 (by design) |
+| layoutmodes | release | dark only | reveal slide drops no frame | one frame of 72 at 26.2 ms (median and p95 16.67 ms): a run condition; `--only layoutmodes,incognito dark` 55 / 55 (`20261007-065223`, load1 4.52) | — (condition) |
+| incognito | release | dark only | Open Link in Incognito Window lands in the incognito window | the context-menu item was not found in 10 s with another app key (`item="none" … key=other`): the run's activation condition; the standalone rerun found it and landed in 52 ms | — (condition) |
+
+`--only` reruns used for attribution: dev `cookies,palette2,palettemeasure,settings2,documents,app28a,app28b,import light` (`build/grand-tour/20261007-055912-roomcore`, load1 6.49: **226 / 1**, the one failure `import` before the second spike fix), dev `palettemeasure,import light` (`20261007-060431`: **65 / 0**), release `layoutmodes,incognito dark` (`20261007-065223`: **55 / 0**). No `window_main` failure and no Stack Overflow quit in any run.
+
+**B-92 on the dev build.** The prune at launch on a throwaway state (`/tmp/room-4/b92`, 55 PNGs 1–55 min old and 3 eight days old in `Screenshots/`): `Room: screenshots pruned 8 of 58`, 50 left, the oldest kept `new-50.png`; then `documents` 42 / 42 in the rerun above (the step's result lines as in 4.7a: the full page 2068 × 8000 px, the swatch 480 × 241 px, the MHTML 2,542 B reopened).
+
+### Numbers (release framework, light / dark; dev in brackets, light / dark)
+
+| Measure | 4.9 tour, release framework | 4.9 tour, dev | Chapter 3 / 4 reference (release) |
+|---|---|---|---|
+| Memory baseline (summed RSS) | 731 / 745 MB | [1,236 / 1,243 MB] | 559 MB (3.9-2) |
+| 1 / 10 / 30 hidden pages | 887 / 4,641 / 8,242 and — / 4,433 / 9,056 MB (21 / 18 renderers at ten) | [1,623 / 5,071 / 10,481 and — / 5,031 / 10,882 MB] | 748 / 4,097 / 8,725 MB (3.9-2) |
+| 10 loaded of 50 entries (tabsmeasure) | 4,448 / 4,499 MB, 17 renderers | [6,170 / 6,270 MB, 17] | 4,801 MB, 19 renderers (3.9-2) |
+| 50 loaded over 5 spaces | 4,964 / 4,970 MB, 52 renderers | [10,381 / 10,380 MB] | — |
+| Ten live pages, one window / two windows (fresh launches) | 3,046 / 4,633 and 3,293 / 4,664 MB (16 / 20 and 17 / 20 renderers) | [4,570 / 5,652 and 4,627 / 5,751 MB] | 4,628 / 4,653 MB (4.8a), 4,178 / 4,555 MB (4.8b) |
+| Tab switch: click → committed, median / p95 | 14.20 / 17.27 and 15.72 / 18.26 ms | [16.23 / 19.02 and 17.13 / 19.47 ms] | 12.88 / 20.87 ms (3.9-2) |
+| Relaunch: load start; selected loaded | 0.65 s; 0.78 s and 0.65 s; 1.26 s | [2.56 s; 6.47 s and 2.53 s; 7.51 s] | 0.56 s; 1.33 s (3.9-2) |
+| Quit with ten pages (3 runs) | 0.37 / 0.37 / 0.31 and 0.30 / 0.29 / 0.30 s, 0 helpers (load1 6.3–7.9) | [0.36–0.37 and 0.34–0.36 s, load1 13.8–22.8] | 0.24–0.30 s (3.9-2) |
+| Kill test, 100 kills: commit median / p95 | 16.54 / 24.32 and 16.17 / 24.62 ms, 0 failures | [16.22 / 24.54 and 15.74 / 24.39 ms] | 11.41–11.67 / 15.67–16.65 ms (4.1a, 4.1b, dev, a fresh state) |
+| Peek: decision → overlay frame; → first paint, median | 25.7 / 27.1 ms; **76.5 / 76.9 ms** | [28.6 / 31.5; 479 / 885 ms] | 69.54 ms first paint (4.2) |
+| Palette at 50k rows: first key median; later keys p95 | 17.06 / 17.00; 10.57 / 11.01 ms | [17.39 / 18.33; 12.57 / 11.10 ms] | — (3.9-2 dev: 21.75; 9.79–10.00) |
+| Space switch ⌃digit → first slide frame, median / p95 | 13.76 / 18.88 and 13.26 / 16.94 ms | [20.11 / 30.26 and 18.68 / 32.73 ms] | — |
+| ⌘N → second window | 68.6 / 67.6 ms | [96.4 / 91.0 ms] | 62.2 ms (4.8a) |
+| A pinned page moved to another window | 6 / 6 ms, the same page | [8 / 8 ms] | 6 ms (4.8b) |
+| ⇧⌘N → incognito window | 53.3 / 47.5 ms | [71.2 / 68.5 ms] | 49.6 ms (4.8b) |
+| ⌥⇧⌘R → reader page | 104 / 106 ms (distilled 13 ms) | [153 / 148 ms] | 107 ms (4.7b) |
+| The PDF fixture loaded | 340 / 340 ms | [4,105 / 4,050 ms] | 349 ms (4.7a) |
+| Find, keystroke → match median / p95 | 9.1 / 416 and 9.7 / 415 ms | [44 / 425 and 27 / 423 ms] | — |
+| Cold launch by a link: event → requested | 374 / 382 ms | [232 / 224 ms] | — |
+| The state opened at the first launch (a fresh state) | 5.1 / 5.2 ms | [5.4 / 5.7 ms] | 11.9–12.1 ms on the 50k state (3.9-1) |
+| Engine requests (netlog step) | 0 / 0 hosts | [0 / 0] | 0 (3.9-2) |
+| Suggestions on, requests for three queries | 34 / 34 | [34 / 34] | 34 (3.5, B-64) |
+
+The release framework's memory rows read higher at rest than 3.9-2's (baseline 731–745 against 559 MB) and lower with ten loaded pages (4,448–4,499 against 4,801 MB): the tour's state now carries more (Archive rows, backups, imported profiles, extensions from earlier steps) and the live sites differ by day; not chased (5.4). No cold launch of a Release app and no DMG size in 4.9: no release app was built (the DMG is build 10's, 188,415,784 B).
