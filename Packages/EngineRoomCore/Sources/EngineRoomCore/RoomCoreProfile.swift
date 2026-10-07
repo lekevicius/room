@@ -33,6 +33,15 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
 
     /// The off-the-record twin `offTheRecord()` made (4.8b), until `closeOffTheRecord()`.
     private var twin: RoomCoreProfile?
+    /// Twins `closeOffTheRecord()` ended whose Browsers Chrome is still
+    /// closing: kept until the last one's `browserDidClose`, because the
+    /// twin owns those `RoomBrowser` wrappers and Chrome's window calls back
+    /// into them while it is destroyed (B-81's lesson; found by the
+    /// `incognito` step: a crash in `~RoomBrowserWindow` at the quit after
+    /// an incognito window closed, 4.8b).
+    private var retiredTwins: [RoomCoreProfile] = []
+    /// The profile whose twin this is.
+    private weak var parent: RoomCoreProfile?
 
     init(name: String, profile: RoomProfile) {
         self.name = name
@@ -56,6 +65,7 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
         }
         if let twin, twin.profile === otr { return twin }
         let made = RoomCoreProfile(name: name, profile: otr)
+        made.parent = self
         twin = made
         return made
     }
@@ -63,8 +73,20 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     /// `-[RoomProfile closeOffTheRecordProfile]`: the twin's Browsers close
     /// (their pages with them) and Chrome destroys it once its renderers exit.
     public func closeOffTheRecord() {
+        if let twin, twin.hasOpenBrowsers { retiredTwins.append(twin) }
         twin = nil
         profile.closeOffTheRecord()
+    }
+
+    /// Browsers of this profile that are open or closing.
+    private var hasOpenBrowsers: Bool { !browsers.isEmpty || !closingBrowsers.isEmpty }
+
+    /// A retired twin's last Browser closed: it may go (after this callback).
+    private func twinBrowsersClosed(_ retired: RoomCoreProfile) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !retired.hasOpenBrowsers else { return }
+            self.retiredTwins.removeAll { $0 === retired }
+        }
     }
 
     /// The twin exists in Chrome (`Profile::HasPrimaryOTRProfile`): from
@@ -151,6 +173,7 @@ public final class RoomCoreProfile: NSObject, Profile, RoomBrowserDelegate, Room
     public func browserDidClose(_ browser: RoomBrowser) {
         browsers.removeAll { $0.browser === browser }
         closingBrowsers.removeAll { $0 === browser }
+        if !hasOpenBrowsers { parent?.twinBrowsersClosed(self) }
     }
 
     func closeAll() {
