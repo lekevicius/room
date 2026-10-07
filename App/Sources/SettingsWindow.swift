@@ -514,7 +514,7 @@ struct ExtensionsSettingsView: View {
                     Text("Allow in incognito").font(.callout)
                 }
                 .toggleStyle(.checkbox)
-                .help("Incognito windows arrive in Phase 4.8; the choice is kept for them.")
+                .help("The extension runs in this profile's incognito window (⇧⌘N).")
                 .accessibilityIdentifier("extension-incognito-\(item.id)")
                 DisclosureGroup("Details") { details(item) }
                     .font(.callout)

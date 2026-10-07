@@ -1290,6 +1290,53 @@ def _windows(c):
         c.number(key)
 
 
+@step_check("incognito")
+def _incognito(c):
+    """ROADMAP 4.8b (`scripts/incognito-check.sh`, the `incognito` spike, two
+    launches): ⇧⌘N opens the incognito window (titled Incognito, the dark
+    appearance whatever the system's, the tint token, the "Incognito" label,
+    key; not in the store's windows; in the Window menu); its sidebar is the
+    note, the Today list and New Tab (no essentials, no pinned, one space); a
+    cookie set at cookies.html there is absent in the regular profile; the
+    regular profile's history and Room's store have no row of it; a sign-in
+    offers to save in the regular window and not in incognito (3.7a's check
+    inverted); "Open Link in Incognito Window" from a regular page lands in
+    the incognito window; the fixture extension's action shows in the
+    incognito header only while allowed in incognito (the engine's bit
+    follows); closing the window ends its pages and the off-the-record
+    profile and the renderers go; reopened, a new twin without the cookie;
+    the engine's net-log over launch and idle with an incognito window open
+    names no host."""
+    spike_from_out(c)
+    _no_dumps(c)
+    c.contains("incognito_window", "by menu key", 'title="Incognito"', "appearance=NSAppearanceNameDarkAqua", "tint=#2A2A33", "badge=Incognito",
+               "key=true", "windows=2", "store_rows=1/1", "window_menu_lists=true", "ephemeral=true",
+               label="⇧⌘N: the incognito window, dark with its label, not stored, listed in the Window menu")
+    c.contains("incognito_sidebar", "rows=note,separator,newtab", "essentials_shown=false", "spaces=1", "pinned=0", "essentials=0",
+               label="the incognito sidebar: the note, the Today list, no essentials or pinned")
+    c.contains("cookie", 'incognito="room_profile=incognito-main"', 'regular=""', label="a cookie set in incognito is absent from the regular profile")
+    c.contains("history", "incognito_rows=0", "store_entries=0", label="the regular profile's history and Room's store have nothing of the incognito page")
+    c.contains("login_regular", "save_bubble=true", label="a sign-in in the regular window offers to save (the control)")
+    c.contains("login_incognito", "save_bubble=false", "submitted_to=/login", label="a sign-in in incognito shows no save bubble")
+    line = c.first("open_link_incognito") or ""
+    m = re.search(r"incognito_today=(\d+)→(\d+) regular_today=(\d+)→(\d+)", line)
+    c.check("Open Link in Incognito Window from a regular page lands in the incognito window",
+            bool(m) and int(m.group(2)) == int(m.group(1)) + 1 and m.group(3) == m.group(4)
+            and 'item="Open Link in Incognito Window"' in line and "url=next-a.html" in line and "in_incognito_window=true" in line, line[:200] or "missing")
+    c.contains("extensions_incognito", "disallowed: regular=true incognito=false", "allowed: incognito=true engine=true",
+               "disallowed again: gone=true engine=true regular=true", label="the extension's action in incognito only while allowed")
+    close = c.first("close_incognito") or ""
+    r = re.search(r"renderers=(\d+)\(launch\)→(\d+)\(open\)→(\d+)\(closed\)", close)
+    c.check("closing the incognito window ends its pages and the off-the-record profile; renderers go",
+            "windows=1" in close and "→0 twin_gone=true" in close and bool(r) and int(r.group(3)) < int(r.group(2))
+            and "store_rows=1" in close and "reader_folder_left=false" in close, close[:220] or "missing")
+    c.contains("reopen_incognito", "new_twin=true", 'cookie=""', label="reopened: a new twin without the cookie")
+    c.contains("idle_incognito", "opened=true", label="the net-log launch: an incognito window open over launch and idle")
+    c.contains("netlog", "(0 not page traffic: none)", label="the engine's net-log names no host with an incognito window open")
+    for key in ("incognito_window", "open_link_incognito", "close_incognito"):
+        c.number(key)
+
+
 @step_check("extensions")
 def _extensions(c):
     """ROADMAP 4.5 (`scripts/extensions-check.sh`, the `extux` spike with the

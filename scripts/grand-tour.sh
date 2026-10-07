@@ -28,7 +28,7 @@
 # shell (window captures) and Automation for Room (activate/quit).
 # Groups (`--groups layout,tabs`, Chapter 3 ran the tour section by section):
 # layout, sidebar, lifecycle (4.1a: archive; 4.1b: recovery), spaces, palette, tabs,
-# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents; 4.7b: reader), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), windows (4.8a), netlog. `--only` takes step names, `--from` a step to start at.
+# chrome (2.6a, 2.6b; 4.4a: settings; 4.4b: settings2; 3.6b and 4.5: extpopup, extensions; 4.6: media; 4.7a: documents; 4.7b: reader), layoutmodes, appintegration (2.8a, 2.8b; 4.2: routing; 4.3a: import), windows (4.8a; 4.8b: incognito), netlog. `--only` takes step names, `--from` a step to start at.
 # Crash reports: Room's own and its helpers' in ~/Library/Logs/DiagnosticReports,
 # and the engine's minidumps in <engine>/Crashpad (RoomCore's Crashpad writes
 # there, never to DiagnosticReports: B-76); each step's new minidumps are named
@@ -297,6 +297,10 @@ for appearance in "${appearances[@]}"; do
   # Dock reopen; memory with ten pages over two windows. Own state; :8777.
   group=windows
   run windows scripts/windows-check.sh "$CAPS/windows"
+  # 4.8b: the incognito window: ⇧⌘N's look and Today-only sidebar, a cookie and history that stay in
+  # it, no save bubble, Open Link in Incognito Window, extensions per Allow in incognito, the close
+  # ending the twin, the net-log with an incognito window open. Own state; :8777, :8765, :8772.
+  run incognito scripts/incognito-check.sh "$CAPS/incognito"
 
   group=netlog
   run netlog scripts/netlog-check.sh "$STEPS/netlog"
