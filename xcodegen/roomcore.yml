@@ -45,9 +45,15 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
-        excludes: ["Reader/**", "AppIcon.icon/**"]
+        excludes: ["Reader/**", "AppIcon.icon/**", "AppIcons/**"]
       # The app icon (Icon Composer; actool compiles it into Assets.car and AppIcon.icns).
       - path: App/Resources/AppIcon.icon
+        buildPhase: resources
+      # Settings ▸ Appearance ▸ App Icon: the choices rendered to PNG (scripts/render-app-icons.sh),
+      # copied as Resources/Rendered. The alternates' .icon documents beside them are sources only:
+      # never compiled by actool, never in the bundle.
+      - path: App/Resources/AppIcons/Rendered
+        type: folder
         buildPhase: resources
       # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
       - path: App/Resources/Reader
