@@ -339,6 +339,13 @@ private struct SettingsSectionView: View {
             }
             .pickerStyle(.segmented)
         }
+        Section("App Icon") {
+            AppIconPicker(selection: binding(\.appIcon))
+            // Only while running: with Room quit, the Dock and Finder show the bundle's icon.
+            Text("The Dock shows this icon while Room is open.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
         Section {
             Picker("Sidebar", selection: binding(\.sidebarSide)) {
                 Text("Left").tag(SidebarSide.left)
