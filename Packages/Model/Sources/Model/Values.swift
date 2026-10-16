@@ -489,6 +489,9 @@ public struct Settings: Hashable, Sendable, Codable {
     public var extensionsInIncognito: [String: [String]] = [:]
     /// Settings ▸ Appearance (4.7b): the reader page's text size.
     public var readerTextSize: ReaderTextSize = .medium
+    /// Settings ▸ Appearance ▸ App Icon (Chapter 5): the Dock's icon while Room
+    /// runs; `.room` is the bundle's own icon.
+    public var appIcon: AppIconChoice = .room
 
     public init() {}
 
@@ -497,7 +500,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
-        case extensionsInIncognito, readerTextSize
+        case extensionsInIncognito, readerTextSize, appIcon
     }
 
     public init(from decoder: any Decoder) throws {
@@ -537,6 +540,7 @@ public struct Settings: Hashable, Sendable, Codable {
         extensionsInIncognito = (try? container.decodeIfPresent([String: [String]].self, forKey: .extensionsInIncognito)).flatMap { $0 }
             ?? defaults.extensionsInIncognito
         readerTextSize = (try? container.decodeIfPresent(ReaderTextSize.self, forKey: .readerTextSize)).flatMap { $0 } ?? defaults.readerTextSize
+        appIcon = (try? container.decodeIfPresent(AppIconChoice.self, forKey: .appIcon)).flatMap { $0 } ?? defaults.appIcon
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).
@@ -585,6 +589,25 @@ public enum ReaderTextSize: String, Hashable, Sendable, Codable, CaseIterable {
 /// Light, dark, or the system's choice.
 public enum AppearanceSetting: String, Hashable, Sendable, Codable, CaseIterable {
     case system, light, dark
+}
+
+/// Settings ▸ Appearance ▸ App Icon: Room's own icon or one of the
+/// alternates (the raw value names the rendered PNGs in the bundle).
+public enum AppIconChoice: String, Hashable, Sendable, Codable, CaseIterable {
+    case room, sunrise, lagoon, ember, dusk, harbor, newsprint, watercolor
+
+    public var displayName: String {
+        switch self {
+        case .room: "Room"
+        case .sunrise: "Sunrise"
+        case .lagoon: "Lagoon"
+        case .ember: "Ember"
+        case .dusk: "Dusk"
+        case .harbor: "Harbor"
+        case .newsprint: "Newsprint"
+        case .watercolor: "Watercolor"
+        }
+    }
 }
 
 /// Everything the state pipeline persists, as one value.

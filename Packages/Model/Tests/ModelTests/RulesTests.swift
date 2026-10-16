@@ -304,6 +304,12 @@ struct ValueTests {
         #expect(!partial.firstRunDone && !partial.crashReports && !partial.automaticUpdateChecks)
         let wrong = try JSONDecoder().decode(Settings.self, from: Data(#"{"crashReports":"yes","automaticUpdateChecks":1}"#.utf8))
         #expect(!wrong.crashReports && !wrong.automaticUpdateChecks)
+        // App Icon (Chapter 5): a database written before it, or an icon this build lacks, reads Room's own icon.
+        #expect(partial.appIcon == .room)
+        let icon = try JSONDecoder().decode(Settings.self, from: Data(#"{"appIcon":"neon"}"#.utf8))
+        #expect(icon.appIcon == .room)
+        let chosen = try JSONDecoder().decode(Settings.self, from: Data(#"{"appIcon":"dusk"}"#.utf8))
+        #expect(chosen.appIcon == .dusk)
     }
 
     @Test("Timestamps round-trip through JSON and rounding is stable")
