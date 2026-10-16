@@ -22,3 +22,7 @@ local.env
 
 # Generated import fixtures (make-large.py, B-84): ~17 MB, made on demand
 research/spikes/phase-4.3/generated/
+
+# Source art (risograph prints, Icon Composer documents): large originals, kept local.
+# The app ships its icons from App/Resources; the website ships optimised derivatives (Website/scripts).
+research/art/
