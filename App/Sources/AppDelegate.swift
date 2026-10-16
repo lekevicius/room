@@ -117,6 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let defaultBrowser = DefaultBrowser()
     /// Sparkle and Sentry behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
     private(set) var optIns: OptInServices?
+    /// Settings ▸ Appearance ▸ App Icon follows the light or dark appearance (`applyAppIcon`).
+    private var appIconAppearance: NSKeyValueObservation?
+    /// The icon and rendition the Dock shows now (`nil`: the bundle's own).
+    private var appliedAppIcon: (choice: AppIconChoice, dark: Bool)?
     /// The first run over Settings and its card in the sidebar (ROADMAP 2.8 task 4).
     private(set) var firstRun: FirstRun?
     #if DEBUG
@@ -174,6 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Before anything else runs: crash reports start here when the user opted in, and only then.
         optIns = makeOptIns()
         applyOptIns()
+        // Before the first window: the Dock swaps to the chosen icon as the app starts.
+        applyAppIcon()
         restoreWindows()
         NSApp.activate()
         Task { await startSession() }
@@ -994,6 +1000,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         for session in windows.all { applyLook(to: session, side: side, toolbar: toolbar) }
+    }
+
+    /// Settings ▸ Appearance ▸ App Icon (Chapter 5): the Dock's icon while Room runs, now and
+    /// whenever the choice or the effective appearance changes. Room's own icon is the bundle's
+    /// (`nil`: the Liquid Glass icon with every system rendition); an alternate is its rendered
+    /// PNG in the matching rendition. With Room quit, the Dock and Finder show the bundle's icon.
+    private func applyAppIcon() {
+        guard let settings = store?.settings else { return }
+        let choice = withObservationTracking {
+            settings.settings.appIcon
+        } onChange: { [weakSelf = MainActorWeak(self)] in
+            Task { @MainActor in weakSelf.value?.applyAppIcon() }
+        }
+        if appIconAppearance == nil {
+            appIconAppearance = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weakSelf = MainActorWeak(self)] _, _ in
+                Task { @MainActor in weakSelf.value?.applyAppIcon() }
+            }
+        }
+        let dark = NSApp.effectiveAppearance.isDark
+        if choice == .room {
+            guard appliedAppIcon != nil else { return }
+            appliedAppIcon = nil
+            NSApp.applicationIconImage = nil
+            return
+        }
+        if let applied = appliedAppIcon, applied.choice == choice, applied.dark == dark { return }
+        guard let image = AppIconImages.image(choice, dark: dark) else {
+            NSLog("Room: no rendered app icon \(AppIconImages.resourceName(choice, dark: dark)).png in the bundle")
+            return
+        }
+        appliedAppIcon = (choice, dark)
+        NSApp.applicationIconImage = image
     }
 
     /// The sidebar's side and the toolbar in one window (every window follows Settings ▸ Appearance).
