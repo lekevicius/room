@@ -12,51 +12,34 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
   };
 
-  // ---------- Hero: the hole in the paper ----------
+  // ---------- Hero ----------
   //
-  // The window is there from the first frame, under the title. p runs 0 → 1 over the hero's
-  // scroll: the window rises to the middle while a hole shaped like the mark, starting at the
-  // mark above the title, opens behind it (in log space, so it reads as a camera move) until
-  // the print fills the screen around the window. Then the print draws in to a panel and the
-  // stage scrolls away. The window never leaves the view.
+  // The window is there from the first frame, over the foot of the name. p runs 0 → 1 over the
+  // hero's scroll: the window rises to the middle and comes to full size, the line and the name
+  // drift up and fade, the paper arc sinks with the download on it, and at the end the print
+  // draws in from the edges to a panel. The window never leaves the view.
 
   const hero = $('[data-hero]');
   if (hero) {
     const stage = $('.hero-stage', hero);
-    const paper = $('[data-hero-paper]', hero);
     const copy = $('[data-hero-copy]', hero);
-    const markSpace = $('.hero-mark-space', hero);
-    const actions = $('.hero-actions', hero);
+    const title = $('.hero-title', hero);
+    const ground = $('[data-hero-ground]', hero);
     const win = $('[data-hero-window]', hero);
-    // The glyph point that stays put while the hole grows, and the part of the glyph
-    // that is solid enough to cover the viewport at the end (in glyph units, 0…1).
-    const anchor = { x: 0.33, y: 0.5 };
-    const solid = { w: 0.54, h: 0.88 };
-    const settle = 0.64;
+    const settle = 0.6;
     let geo = null;
     let ticking = false;
 
     const measure = () => {
       const vw = stage.clientWidth;
       const vh = stage.clientHeight;
-      const size = Math.round(clamp(Math.min(vw, vh) * 0.11, 64, 112));
-      copy.style.setProperty('--mark-size', `${size}px`);
       copy.style.setProperty('--copy-y', '0px');
-      const start = { x: markSpace.offsetLeft, y: markSpace.offsetTop, s: size };
-      // Where the window ends (the middle, as CSS places it) and where it starts (under the copy).
       const height = win.offsetHeight;
+      const scale0 = vw < 700 ? 1 : 0.94;
+      // The window's top starts a little above the name's baseline, so it covers the name's foot.
+      const top0 = copy.offsetTop + title.offsetTop + title.offsetHeight * (vw < 700 ? 0.95 : 0.8);
       const end = vh / 2 + 28;
-      const scale0 = vw < 700 ? 1 : 0.9;
-      const top0 = actions.offsetTop + actions.offsetHeight + (vw < 700 ? 32 : 44);
-      const winY0 = top0 + (height * scale0) / 2 - end;
-      geo = {
-        vw, vh,
-        s0: start.s, s1: Math.max(vw / solid.w, vh / solid.h) * 1.04,
-        a0: { x: start.x + anchor.x * start.s, y: start.y + anchor.y * start.s },
-        a1: { x: vw / 2, y: end },
-        winY0, scale0,
-        range: hero.offsetHeight - vh,
-      };
+      geo = { vw, vh, scale0, winY0: top0 + (height * scale0) / 2 - end, groundH: ground.offsetHeight, range: hero.offsetHeight - vh };
     };
 
     const render = () => {
@@ -64,32 +47,16 @@
       if (!geo) measure();
       const top = hero.getBoundingClientRect().top;
       const p = clamp(-top / geo.range);
-
-      const t = easeInOut(clamp((p - 0.05) / (settle - 0.05)));
-      const s = geo.s0 * Math.pow(geo.s1 / geo.s0, t);
-      const ax = geo.a0.x + (geo.a1.x - geo.a0.x) * t;
-      const ay = geo.a0.y + (geo.a1.y - geo.a0.y) * t;
-      const st = paper.style;
-      st.setProperty('--hs', `${s.toFixed(2)}px`);
-      st.setProperty('--hx', `${(ax - anchor.x * s).toFixed(2)}px`);
-      st.setProperty('--hy', `${(ay - anchor.y * s).toFixed(2)}px`);
-      const shadow = 0.28 * (1 - clamp(t * 3));
-      st.setProperty('--hole-shadow', shadow.toFixed(3));
-      paper.style.filter = shadow < 0.005 ? 'none' : '';
-      paper.style.visibility = t > 0.995 ? 'hidden' : '';
-      stage.style.setProperty('--print-scale', (1.08 - 0.08 * ease(t)).toFixed(4));
-
-      // The window rises with the hole, so there is never a moment of print alone.
+      const t = easeInOut(clamp(p / settle));
       stage.style.setProperty('--win-y', `${(geo.winY0 * (1 - t)).toFixed(2)}px`);
       stage.style.setProperty('--win-s', (geo.scale0 + (1 - geo.scale0) * t).toFixed(4));
-
-      const c = clamp(p / 0.17);
+      stage.style.setProperty('--print-scale', (1.06 - 0.06 * ease(t)).toFixed(4));
+      const c = clamp(p / 0.28);
       copy.style.setProperty('--copy-o', (1 - c).toFixed(3));
-      copy.style.setProperty('--copy-y', `${(-c * 60).toFixed(1)}px`);
+      copy.style.setProperty('--copy-y', `${(-c * 80).toFixed(1)}px`);
       copy.style.visibility = c >= 1 ? 'hidden' : '';
-
-      // At the end the print draws in from the edges and becomes a panel on the paper.
-      const e = ease(clamp((p - 0.78) / 0.22));
+      ground.style.setProperty('--ground-y', `${(ease(clamp(p / 0.35)) * (geo.groundH + 40)).toFixed(1)}px`);
+      const e = ease(clamp((p - 0.74) / 0.26));
       stage.style.setProperty('--edge', `${(e * Math.min(24, geo.vw * 0.04)).toFixed(2)}px`);
       stage.style.setProperty('--edge-r', `${(e * 28).toFixed(2)}px`);
     };

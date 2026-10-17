@@ -232,9 +232,13 @@ code {
   .nav-links { display: none; }
 }
 
-/* ---------- Hero ---------- */
+/* ---------- Hero ----------
+   Dia's arrangement in Room's materials: the print full bleed, the line and the name on it in
+   paper, the window over the name's foot and past the fold, and the page's own paper rising in
+   an arc with the download on it. Scrolling lifts the window to the middle, the arc sinks, and
+   the print draws in to a panel on the paper. */
 
-.hero { position: relative; height: 240vh; }
+.hero { position: relative; height: 210vh; }
 .hero-stage {
   position: sticky; top: 0;
   height: 100vh; height: 100dvh;
@@ -243,70 +247,70 @@ code {
 }
 .hero-print {
   position: absolute; inset: 0;
-  background: url("../art/pigment-1536.avif") center / cover;
-  transform: scale(var(--print-scale, 1.08));
-  transform-origin: 50% 40%;
+  background: url("../art/pigment-1536.avif") center 40% / cover;
+  transform: scale(var(--print-scale, 1.06));
+  transform-origin: 50% 30%;
   clip-path: inset(var(--edge, 0px) round var(--edge-r, 0px));
 }
-/* The sheet, with a hole shaped like the mark. --hx/--hy/--hs place the hole (px). */
-.hero-paper {
-  position: absolute; inset: -1px;
-  background: var(--paper);
-  -webkit-mask:
-    var(--mark) var(--hx, 50vw) var(--hy, 20vh) / var(--hs, 200px) var(--hs, 200px) no-repeat,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    var(--mark) var(--hx, 50vw) var(--hy, 20vh) / var(--hs, 200px) var(--hs, 200px) no-repeat exclude,
-    linear-gradient(#000 0 0);
-  filter: drop-shadow(0 1.5px 1.5px rgb(var(--shadow-ink) / var(--hole-shadow, 0.28)));
+.hero-print::after {
+  /* A breath of shade behind the light type. */
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 42% at 50% 22%, rgb(40 24 16 / 0.22), transparent 70%);
 }
 .hero-copy {
-  position: absolute; inset: 0;
+  position: absolute; inset: 0 0 auto;
   display: flex; flex-direction: column; align-items: center;
-  padding: calc(env(safe-area-inset-top) + clamp(84px, 11vh, 120px)) var(--gutter) 0;
+  padding: calc(env(safe-area-inset-top) + clamp(88px, 11.5vh, 118px)) var(--gutter) 0;
   text-align: center;
+  color: #f6f0e6;
   opacity: var(--copy-o, 1);
   transform: translateY(var(--copy-y, 0px));
 }
-.hero-mark-space { width: var(--mark-size, 200px); height: var(--mark-size, 200px); flex: none; }
-.hero-title {
-  margin-top: clamp(12px, 2vh, 22px);
-  font: 400 clamp(76px, 9.5vw, 140px)/0.86 var(--serif);
-  letter-spacing: -0.045em;
-  font-variation-settings: "opsz" 72;
-}
 .hero-lede {
-  margin-top: clamp(12px, 2vh, 20px);
-  font: italic 400 clamp(21px, 2.1vw, 29px)/1.25 var(--serif);
-  color: var(--ink-2);
-  max-width: 30ch;
+  font: 400 clamp(22px, 2.5vw, 36px)/1.15 var(--serif);
+  letter-spacing: -0.012em;
+  text-shadow: 0 1px 18px rgb(40 24 16 / 0.35);
+  text-wrap: balance;
 }
-.hero-actions { margin-top: clamp(18px, 3vh, 30px); display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.hero-meta { font-size: 13px; color: var(--ink-3); }
-
+.hero-title {
+  margin-top: clamp(14px, 2.2vh, 26px);
+  font: 400 clamp(150px, 21vw, 300px)/0.8 var(--serif);
+  letter-spacing: -0.05em;
+  font-variation-settings: "opsz" 72;
+  text-shadow: 0 2px 40px rgb(40 24 16 / 0.25);
+}
 .hero-window {
   position: absolute; left: 50%; top: calc(50% + 28px);
-  width: min(1180px, 88vw, calc((100dvh - 190px) * 1.6));
+  width: min(1180px, 82vw, calc((100dvh - 150px) * 1.6));
   margin: 0;
   translate: -50% -50%;
-  transform: translateY(var(--win-y, 60vh)) scale(var(--win-s, 0.9));
+  transform: translateY(var(--win-y, 30vh)) scale(var(--win-s, 0.94));
   will-change: transform;
 }
+.hero-ground {
+  position: absolute; left: 50%; bottom: 0;
+  width: max(180vw, 1600px); height: clamp(170px, 26vh, 250px);
+  translate: -50% var(--ground-y, 0px);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: var(--paper);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px;
+  padding-top: clamp(40px, 5.5vh, 62px);
+  box-shadow: 0 -30px 60px -40px rgb(40 24 16 / 0.35);
+}
+.hero-ground .button { height: 56px; padding: 0 30px 0 26px; font-size: 17px; }
+.hero-meta { font-size: 13px; color: var(--ink-3); }
 
 /* Without JS or with reduced motion the hero is a plain, unpinned composition. */
 html:not(.js) .hero, .hero[data-static] { height: auto; }
-html:not(.js) .hero-stage, .hero[data-static] .hero-stage { position: relative; height: auto; overflow: visible; padding-bottom: 64px; }
-html:not(.js) .hero-print, .hero[data-static] .hero-print { display: none; }
-html:not(.js) .hero-paper, .hero[data-static] .hero-paper { display: none; }
+html:not(.js) .hero-stage, .hero[data-static] .hero-stage { position: relative; height: auto; min-height: 100vh; overflow: hidden; padding-bottom: 260px; }
 html:not(.js) .hero-copy, .hero[data-static] .hero-copy { position: relative; }
-html:not(.js) .hero-mark-space, .hero[data-static] .hero-mark-space {
-  background: url("../art/pigment-800.avif") center / 300%;
-  -webkit-mask: var(--mark) center / contain no-repeat; mask: var(--mark) center / contain no-repeat;
-}
 html:not(.js) .hero-window, .hero[data-static] .hero-window {
-  position: relative; left: auto; top: auto; translate: none; transform: none; opacity: 1;
-  margin: 56px auto 0; width: min(1180px, 92vw);
+  position: relative; left: auto; top: auto; translate: none; transform: none;
+  margin: -6vw auto 0; width: min(1180px, 88vw);
+}
+@media (max-width: 640px) {
+  .hero-title { font-size: 34vw; }
+  .hero-ground { height: 190px; padding-top: 44px; }
 }
 
 /* ---------- Screenshots ---------- */
