@@ -30,6 +30,8 @@ public final class FakeWebContents: WebContents {
     public private(set) var rootBackgroundColor: NSColor? = .white
     public private(set) var securityState = SecurityState.none
     public private(set) var isAudible = false
+    /// Set by `simulateBlockedRequests`; 0 again at the next navigation.
+    public internal(set) var blockedRequestCount = 0
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
     /// Set by `simulateCrash`; cleared by the next reload or navigation.
@@ -240,6 +242,7 @@ public final class FakeWebContents: WebContents {
         findResult = nil
         lastFind = nil
         self.url = url
+        blockedRequestCount = 0
         title = nil
         favicon = nil
         isLoading = true
@@ -490,6 +493,18 @@ public final class FakeWebContents: WebContents {
     }
 
     // MARK: Simulated page state (more in FakeWebContents+Simulation.swift)
+
+    /// Room's blocker stops `count` more of the page's requests.
+    public func simulateBlockedRequests(_ count: Int = 1) {
+        guard state == .alive, count > 0 else { return }
+        blockedRequestCount += count
+    }
+
+    /// Room's blocker handled the page's cookie banner.
+    public func simulateCookieBanner(_ consentPlatform: String, optedOut: Bool = true) {
+        guard state == .alive else { return }
+        uiDelegate?.webContents(self, didHandleCookieBanner: consentPlatform, optedOut: optedOut)
+    }
 
     /// Media starts or stops playing.
     public func simulateAudio(_ audible: Bool) {

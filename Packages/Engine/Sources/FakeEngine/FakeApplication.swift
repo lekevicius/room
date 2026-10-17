@@ -57,6 +57,10 @@ public final class FakeApplication: EngineApplication {
     /// The bundled Public Suffix List (RoomCore asks Chromium).
     public func site(of url: URL) -> String? { PublicSuffixList.site(of: url) }
 
+    /// The blocker the host configures (`||host^` and `##selector` only).
+    public let fakeContentBlocking = FakeContentBlocking()
+    public var contentBlocking: (any ContentBlocking)? { fakeContentBlocking }
+
     public func createProfile(name: String) async throws -> any Profile {
         try profile(named: name)
     }

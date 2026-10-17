@@ -103,6 +103,10 @@ public protocol EngineApplication: AnyObject {
     /// `net::registry_controlled_domains`; the fake and no engine: the bundled
     /// `PublicSuffixList`.
     func site(of url: URL) -> String?
+
+    /// Room's built-in ad and tracker blocker, one for the whole app (B-30);
+    /// `nil` when the engine has none (no engine).
+    var contentBlocking: (any ContentBlocking)? { get }
 }
 
 /// The system's memory pressure as the engine reports it (Chromium
@@ -124,6 +128,8 @@ public protocol EngineApplicationDelegate: AnyObject {
 }
 
 public extension EngineApplication {
+    var contentBlocking: (any ContentBlocking)? { nil }
+
     /// Both URLs have a host and the same site (`site(of:)`).
     func isSameSite(_ a: URL, _ b: URL) -> Bool {
         guard let siteA = site(of: a), let siteB = site(of: b) else { return false }

@@ -43,6 +43,9 @@ public protocol WebContents: AnyObject, Observable {
     var rootBackgroundColor: NSColor? { get }
     var securityState: SecurityState { get }
     var isAudible: Bool { get }
+    /// Requests Room's blocker stopped on the current page (its frames and
+    /// workers); 0 again when another page commits (B-30).
+    var blockedRequestCount: Int { get }
     var isMuted: Bool { get set }
     var state: WebContentsState { get }
     /// Page zoom; 1 is 100%.

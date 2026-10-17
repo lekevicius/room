@@ -147,6 +147,10 @@ public protocol WebContentsUIDelegate: AnyObject {
     // MARK: Page state notifications
 
     func webContents(_ webContents: any WebContents, didChangeAudible isAudible: Bool)
+    /// Room's blocker handled a cookie banner on the page (Cookie banners:
+    /// Reject): `consentPlatform` names it, `optedOut` says whether its
+    /// opt-out succeeded (false: it was only hidden).
+    func webContents(_ webContents: any WebContents, didHandleCookieBanner consentPlatform: String, optedOut: Bool)
     func webContents(_ webContents: any WebContents, didChangeMuted isMuted: Bool)
     func webContents(_ webContents: any WebContents, didChangeSecurityState state: SecurityState)
     /// The renderer died. The page shows nothing until reloaded.
@@ -213,6 +217,7 @@ public extension WebContentsUIDelegate {
     }
     func webContents(_ webContents: any WebContents, didConsumeKey key: KeyEventInfo) {}
     func webContents(_ webContents: any WebContents, didChangeAudible isAudible: Bool) {}
+    func webContents(_ webContents: any WebContents, didHandleCookieBanner consentPlatform: String, optedOut: Bool) {}
     func webContents(_ webContents: any WebContents, didChangeMuted isMuted: Bool) {}
     func webContents(_ webContents: any WebContents, didChangeSecurityState state: SecurityState) {}
     func webContents(_ webContents: any WebContents, processGone status: TerminationStatus) {}
