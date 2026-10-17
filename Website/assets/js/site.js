@@ -14,9 +14,11 @@
 
   // ---------- Hero: the hole in the paper ----------
   //
-  // p runs 0 → 1 over the hero's scroll. The hole starts where the mark sits above the
-  // title and grows (in log space, so it feels like a camera move) until the print fills
-  // the screen; then the window rises onto the print.
+  // The window is there from the first frame, under the title. p runs 0 → 1 over the hero's
+  // scroll: the window rises to the middle while a hole shaped like the mark, starting at the
+  // mark above the title, opens behind it (in log space, so it reads as a camera move) until
+  // the print fills the screen around the window. Then the print draws in to a panel and the
+  // stage scrolls away. The window never leaves the view.
 
   const hero = $('[data-hero]');
   if (hero) {
@@ -24,25 +26,35 @@
     const paper = $('[data-hero-paper]', hero);
     const copy = $('[data-hero-copy]', hero);
     const markSpace = $('.hero-mark-space', hero);
+    const actions = $('.hero-actions', hero);
+    const win = $('[data-hero-window]', hero);
     // The glyph point that stays put while the hole grows, and the part of the glyph
     // that is solid enough to cover the viewport at the end (in glyph units, 0…1).
     const anchor = { x: 0.33, y: 0.5 };
     const solid = { w: 0.54, h: 0.88 };
+    const settle = 0.64;
     let geo = null;
     let ticking = false;
 
     const measure = () => {
       const vw = stage.clientWidth;
       const vh = stage.clientHeight;
-      const size = Math.round(clamp(Math.min(vw, vh) * 0.2, 112, 208));
+      const size = Math.round(clamp(Math.min(vw, vh) * 0.11, 64, 112));
       copy.style.setProperty('--mark-size', `${size}px`);
+      copy.style.setProperty('--copy-y', '0px');
       const start = { x: markSpace.offsetLeft, y: markSpace.offsetTop, s: size };
-      const endS = Math.max(vw / solid.w, vh / solid.h) * 1.04;
+      // Where the window ends (the middle, as CSS places it) and where it starts (under the copy).
+      const height = win.offsetHeight;
+      const end = vh / 2 + 28;
+      const scale0 = vw < 700 ? 1 : 0.9;
+      const top0 = actions.offsetTop + actions.offsetHeight + (vw < 700 ? 32 : 44);
+      const winY0 = top0 + (height * scale0) / 2 - end;
       geo = {
         vw, vh,
-        s0: start.s, s1: endS,
+        s0: start.s, s1: Math.max(vw / solid.w, vh / solid.h) * 1.04,
         a0: { x: start.x + anchor.x * start.s, y: start.y + anchor.y * start.s },
-        a1: { x: vw / 2, y: vh / 2 },
+        a1: { x: vw / 2, y: end },
+        winY0, scale0,
         range: hero.offsetHeight - vh,
       };
     };
@@ -53,7 +65,7 @@
       const top = hero.getBoundingClientRect().top;
       const p = clamp(-top / geo.range);
 
-      const t = easeInOut(clamp((p - 0.04) / 0.56));
+      const t = easeInOut(clamp((p - 0.05) / (settle - 0.05)));
       const s = geo.s0 * Math.pow(geo.s1 / geo.s0, t);
       const ax = geo.a0.x + (geo.a1.x - geo.a0.x) * t;
       const ay = geo.a0.y + (geo.a1.y - geo.a0.y) * t;
@@ -65,23 +77,21 @@
       st.setProperty('--hole-shadow', shadow.toFixed(3));
       paper.style.filter = shadow < 0.005 ? 'none' : '';
       paper.style.visibility = t > 0.995 ? 'hidden' : '';
-
       stage.style.setProperty('--print-scale', (1.08 - 0.08 * ease(t)).toFixed(4));
-      // At the end the print draws in from the edges and becomes a panel on the paper.
-      const e = ease(clamp((p - 0.86) / 0.14));
-      stage.style.setProperty('--edge', `${(e * Math.min(24, geo.vw * 0.04)).toFixed(2)}px`);
-      stage.style.setProperty('--edge-r', `${(e * 28).toFixed(2)}px`);
 
-      const c = clamp(p / 0.22);
+      // The window rises with the hole, so there is never a moment of print alone.
+      stage.style.setProperty('--win-y', `${(geo.winY0 * (1 - t)).toFixed(2)}px`);
+      stage.style.setProperty('--win-s', (geo.scale0 + (1 - geo.scale0) * t).toFixed(4));
+
+      const c = clamp(p / 0.17);
       copy.style.setProperty('--copy-o', (1 - c).toFixed(3));
-      copy.style.setProperty('--copy-y', `${(-c * 70).toFixed(1)}px`);
+      copy.style.setProperty('--copy-y', `${(-c * 60).toFixed(1)}px`);
       copy.style.visibility = c >= 1 ? 'hidden' : '';
 
-      const w = ease(clamp((p - 0.44) / 0.44));
-      const win = stage.style;
-      win.setProperty('--win-y', `${((1 - w) * 72).toFixed(2)}vh`);
-      win.setProperty('--win-s', (0.9 + 0.1 * w).toFixed(4));
-      win.setProperty('--win-o', clamp(w * 2.2).toFixed(3));
+      // At the end the print draws in from the edges and becomes a panel on the paper.
+      const e = ease(clamp((p - 0.78) / 0.22));
+      stage.style.setProperty('--edge', `${(e * Math.min(24, geo.vw * 0.04)).toFixed(2)}px`);
+      stage.style.setProperty('--edge-r', `${(e * 28).toFixed(2)}px`);
     };
 
     const schedule = () => { if (!ticking) { ticking = true; requestAnimationFrame(render); } };
@@ -237,34 +247,52 @@
     });
   }).catch(() => {});
 
-  // ---------- Icon picker ----------
+  // ---------- Icon picker: a cycle ----------
   //
-  // Mirrors Settings ▸ Appearance ▸ App Icon. The choice also re-prints this page:
-  // the mark in the header, the hero's print and the favicon follow it.
+  // Mirrors Settings ▸ Appearance ▸ App Icon. The chosen icon sits in the middle on its print,
+  // its neighbours either side, wrapping around. The choice also re-prints this page: the mark
+  // in the header, the hero's print and the favicon follow it.
 
   const picker = $('[data-icon-picker]');
   if (picker) {
     const buttons = $$('button', picker);
-    const preview = $('[data-icon-preview]');
     const backdrop = $('[data-icon-backdrop]');
+    const nameLabel = $('[data-icon-name]');
     const heroPrint = $('[data-hero-print]');
     const favicon = $('#favicon');
     const brandIcon = $('[data-brand-icon]');
+    const count = buttons.length;
+    let current = 0;
 
     const iconSrc = (name) => `assets/icons/${name}${darkScheme.matches ? '-dark' : ''}.webp`;
     const paint = () => buttons.forEach((b) => { $('img', b).src = iconSrc(b.dataset.icon); });
 
-    const choose = (button, { persist = true } = {}) => {
+    const layout = () => {
+      buttons.forEach((b, i) => {
+        // The shortest way round: offsets -3…3 for seven icons.
+        let o = ((i - current) % count + count) % count;
+        if (o > count / 2) o -= count;
+        b.style.setProperty('--o', o);
+        b.style.setProperty('--a', Math.abs(o));
+        b.style.visibility = Math.abs(o) > 3 ? 'hidden' : '';
+      });
+    };
+
+    const choose = (index, { persist = true } = {}) => {
+      current = (index + count) % count;
+      const button = buttons[current];
       const name = button.dataset.icon;
       const print = button.dataset.print;
-      buttons.forEach((b) => {
-        const on = b === button;
-        b.setAttribute('aria-checked', String(on));
-        b.tabIndex = on ? 0 : -1;
+      buttons.forEach((b, i) => {
+        b.setAttribute('aria-checked', String(i === current));
+        b.tabIndex = i === current ? 0 : -1;
       });
-      preview.src = iconSrc(name);
-      preview.alt = `Room’s icon, the ${button.textContent.trim()} print.`;
-      backdrop.style.backgroundImage = `url(assets/art/${print}-1536.avif)`;
+      layout();
+      nameLabel.textContent = button.getAttribute('aria-label');
+      backdrop.classList.add('is-changing');
+      const next = new Image();
+      next.onload = () => { backdrop.style.backgroundImage = `url(assets/art/${print}-1536.avif)`; backdrop.classList.remove('is-changing'); };
+      next.src = `assets/art/${print}-1536.avif`;
       if (heroPrint) heroPrint.style.backgroundImage = `url(assets/art/${print}-1536.avif)`;
       $$('.mark').forEach((m) => { m.style.backgroundImage = `url(assets/icons/${name}-glyph.webp)`; });
       if (favicon) { favicon.href = `assets/icons/${name}.webp`; favicon.type = 'image/webp'; }
@@ -272,25 +300,23 @@
       if (persist) store.set('room.icon', name);
     };
 
-    buttons.forEach((b) => b.addEventListener('click', () => choose(b)));
+    buttons.forEach((b, i) => b.addEventListener('click', () => choose(i)));
+    $$('[data-step-by]').forEach((b) => b.addEventListener('click', () => choose(current + Number(b.dataset.stepBy))));
     picker.addEventListener('keydown', (e) => {
-      const keys = { ArrowRight: 1, ArrowDown: 4, ArrowLeft: -1, ArrowUp: -4 };
+      const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
       if (!(e.key in keys)) return;
       e.preventDefault();
-      const i = buttons.findIndex((b) => b.getAttribute('aria-checked') === 'true');
-      const next = buttons[(i + keys[e.key] + buttons.length) % buttons.length];
-      choose(next);
-      next.focus();
+      choose(current + keys[e.key]);
+      buttons[current].focus();
     });
-    darkScheme.addEventListener('change', () => {
-      paint();
-      const current = buttons.find((b) => b.getAttribute('aria-checked') === 'true');
-      if (current) preview.src = iconSrc(current.dataset.icon);
-    });
+    darkScheme.addEventListener('change', paint);
     paint();
-    const saved = buttons.find((b) => b.dataset.icon === store.get('room.icon'));
-    choose(saved || buttons[0], { persist: false });
+    const saved = buttons.findIndex((b) => b.dataset.icon === store.get('room.icon'));
+    choose(saved >= 0 ? saved : 0, { persist: false });
   }
+
+  // The listening figure: dots arrive one by one.
+  $$('[data-listen] .listen-dots i').forEach((dot, i) => dot.style.setProperty('--i', i));
 
   // ---------- Brand menu: right-click (or long-press) the header mark ----------
 
