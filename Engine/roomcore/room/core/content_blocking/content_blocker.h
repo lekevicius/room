@@ -132,6 +132,7 @@ class ContentBlocker {
 
   ContentBlockerConfig config_;
   std::string engine_key_;
+  size_t engine_bytes_ = 0;
   std::unique_ptr<adblock::AdblockEngineHolder> engine_;
   std::string cookie_script_;
   uint64_t generation_ = 0;

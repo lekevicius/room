@@ -222,6 +222,9 @@ void ContentBlocker::OnBuilt(
     if (result->engine) {
       engine_ = std::move(result->engine);
       engine_key_ = result->key;
+      engine_bytes_ = result->report.engine_bytes;
+    } else {
+      result->report.engine_bytes = engine_bytes_;  // unchanged lists
     }
     cookie_script_ = std::move(result->cookie_script);
     LOG(WARNING) << "RoomCore: content blocking: engine "
