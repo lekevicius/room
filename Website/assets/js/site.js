@@ -12,6 +12,11 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
   };
 
+  // ---------- Shortcuts: the run twice, so the loop has no end ----------
+
+  const marquee = $('[data-marquee]');
+  if (marquee && !reduceMotion.matches) marquee.append(...[...marquee.children].map((c) => c.cloneNode(true)));
+
   // ---------- Nav: arrives once the name has scrolled away ----------
 
   const nav = $('[data-nav]');

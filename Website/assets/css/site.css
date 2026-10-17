@@ -253,7 +253,8 @@ code {
 .nav-github { display: inline-flex; align-items: center; gap: 6px; }
 .nav-gh { width: 15px; height: 15px; }
 .nav-brand { display: flex; align-items: center; gap: 9px; text-decoration: none; }
-.nav-word { font: 500 21px/1 var(--serif); letter-spacing: -0.01em; }
+/* Newsreader's ink sits high in its box: down a touch to centre the capitals on the mark. */
+.nav-word { font: 500 21px/1 var(--serif); letter-spacing: -0.01em; translate: 0 0.07em; }
 .nav-links { display: flex; gap: clamp(14px, 2.2vw, 28px); }
 .nav-links a { font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none; transition: color 0.2s; }
 .nav-links a:hover { color: var(--ink); }
@@ -786,15 +787,16 @@ section { position: relative; }
   -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
   mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
 }
+/* The run is there twice (site.js copies it), so sliding by half its width loops without a seam. */
 .marquee-track {
-  display: flex; gap: 44px; width: max-content;
+  display: flex; width: max-content;
   padding: 8px 0;
-  animation: marquee 48s linear infinite;
+  animation: marquee 110s linear infinite;
 }
 .marquee:hover .marquee-track { animation-play-state: paused; }
-@keyframes marquee { to { transform: translateX(calc(-50% - 22px)); } }
+@keyframes marquee { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .marquee-track { animation: none; flex-wrap: wrap; width: auto; justify-content: center; } }
-.combo { display: inline-flex; align-items: center; gap: 4px; font: 400 22px/1 var(--serif); color: var(--ink-2); white-space: nowrap; }
+.combo { margin-right: 44px; display: inline-flex; align-items: center; gap: 4px; font: 400 22px/1 var(--serif); color: var(--ink-2); white-space: nowrap; }
 .combo kbd { font-size: 17px; }
 .combo kbd:last-of-type { margin-right: 10px; }
 .shortcuts-note { margin-top: 36px; color: var(--ink-2); max-width: 52ch; }
@@ -866,6 +868,7 @@ section { position: relative; }
   font-size: 14px; color: var(--ink-3);
 }
 .footer-brand { display: flex; align-items: center; gap: 9px; font: 500 19px/1 var(--serif); color: var(--ink); }
+.footer-brand > span:last-child { translate: 0 0.07em; }
 .footer-links { display: flex; gap: 22px; }
 .footer-links a { text-decoration: none; color: var(--ink-2); }
 .footer-links a:hover { color: var(--ink); }

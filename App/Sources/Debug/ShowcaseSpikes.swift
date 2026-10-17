@@ -602,7 +602,7 @@ extension SpikeRunner.Context {
             NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
             restorePaletteHooks()
             switch stage {
-            case "sidebar": await showcaseShow("la-grande-jatte")
+            case "sidebar", "hero": await showcaseShow("la-grande-jatte")
             case "peek": await showcaseShow("garden-history", scrollY: 900)
             case "split": await showcaseShow("human-interface-guidelines")
             default: await showcaseShow("Risograph")
