@@ -145,6 +145,94 @@
     steps.forEach((s) => io.observe(s));
   }
 
+  // ---------- Clips: recorded with Website/capture/record.sh ----------
+  //
+  // A clip is the window alone, without the system cursor, plus the pointer's track.
+  // The cursor is drawn here, on the video's own frames, so it stays sharp at any size.
+
+  const CURSOR = '<svg class="cursor-arrow" viewBox="0 0 20 28" aria-hidden="true"><path d="M2.2 1.6v21.2l5.1-4.9 3.3 7.6 3.5-1.5-3.3-7.5h7.1z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+  const mountClip = (figure, name) => {
+    const box = document.createElement('div');
+    box.className = 'clip';
+    const video = document.createElement('video');
+    Object.assign(video, { muted: true, loop: true, playsInline: true, preload: 'metadata' });
+    video.setAttribute('muted', '');
+    video.poster = `assets/clips/${name}.webp`;
+    video.src = `assets/clips/${name}.mp4`;
+    const cursor = document.createElement('div');
+    cursor.className = 'cursor';
+    cursor.innerHTML = CURSOR;
+    box.append(video, cursor);
+    figure.querySelector('picture')?.replaceWith(box);
+    figure.classList.add('has-clip');
+
+    let track = null;
+    fetch(`assets/clips/${name}.cursor.json`).then((r) => r.json()).then((t) => { track = t; }).catch(() => {});
+    new ResizeObserver(([e]) => {
+      if (track) box.style.setProperty('--k', (e.contentRect.width / track.width).toFixed(4));
+    }).observe(box);
+
+    let lastDown = -1;
+    const at = (time) => {
+      const ev = track.events;
+      let lo = 0, hi = ev.length - 1;
+      while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (ev[mid][0] <= time) lo = mid; else hi = mid - 1; }
+      const a = ev[lo], b = ev[Math.min(lo + 1, ev.length - 1)];
+      const f = b[0] > a[0] ? clamp((time - a[0]) / (b[0] - a[0])) : 0;
+      // Pressed from a down until the next up.
+      let pressed = false;
+      for (let i = lo; i >= 0; i--) { if (ev[i][3] === 'u') break; if (ev[i][3] === 'd') { pressed = true; break; } }
+      let down = -1;
+      for (let i = lo; i >= 0 && time - ev[i][0] < 0.5; i--) if (ev[i][3] === 'd') { down = ev[i][0]; break; }
+      return { x: a[1] + (b[1] - a[1]) * f, y: a[2] + (b[2] - a[2]) * f, pressed, down };
+    };
+    const ring = (x, y) => {
+      const r = document.createElement('span');
+      r.className = 'click-ring';
+      r.style.left = `${(x / track.width) * 100}%`;
+      r.style.top = `${(y / track.height) * 100}%`;
+      box.append(r);
+      r.addEventListener('animationend', () => r.remove());
+    };
+    const frame = () => {
+      if (track && track.events.length) {
+        const p = at(video.currentTime);
+        cursor.style.left = `${(p.x / track.width) * 100}%`;
+        cursor.style.top = `${(p.y / track.height) * 100}%`;
+        cursor.classList.toggle('is-pressed', p.pressed);
+        if (p.down >= 0 && p.down !== lastDown) { lastDown = p.down; ring(p.x, p.y); }
+        if (video.currentTime < 0.05) lastDown = -1;
+      }
+      schedule();
+    };
+    const schedule = () => {
+      if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(frame);
+      else requestAnimationFrame(frame);
+    };
+    schedule();
+
+    if (reduceMotion.matches) { cursor.hidden = true; return video; }
+    const io = new IntersectionObserver(([e]) => {
+      const active = !figure.classList.contains('tour-shot') || figure.classList.contains('is-active');
+      if (e.isIntersecting && active) video.play().catch(() => {}); else video.pause();
+    }, { threshold: 0.4 });
+    io.observe(figure);
+    new MutationObserver(() => {
+      if (figure.classList.contains('is-active')) { video.currentTime = 0; video.play().catch(() => {}); } else video.pause();
+    }).observe(figure, { attributes: true, attributeFilter: ['class'] });
+    return video;
+  };
+
+  fetch('assets/clips/clips.json').then((r) => (r.ok ? r.json() : [])).then((clips) => {
+    const scheme = darkScheme.matches ? 'dark' : 'light';
+    $$('[data-shot]').forEach((figure) => {
+      const key = figure.dataset.shot;
+      const name = clips.includes(`${key}-${scheme}`) ? `${key}-${scheme}` : clips.includes(`${key}-light`) ? `${key}-light` : null;
+      if (name) mountClip(figure, name);
+    });
+  }).catch(() => {});
+
   // ---------- Icon picker ----------
   //
   // Mirrors Settings ▸ Appearance ▸ App Icon. The choice also re-prints this page:

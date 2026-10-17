@@ -320,6 +320,45 @@ html:not(.js) .hero-window, .hero[data-static] .hero-window {
     drop-shadow(0 22px 40px rgb(var(--shadow-ink) / 0.28));
 }
 
+/* Clips: the video in the window's own corners, the cursor drawn over it. */
+.clip {
+  position: relative;
+  --k: 0.8;
+  border-radius: 1.6% / 2.5%;
+  filter:
+    drop-shadow(0 1px 1px rgb(var(--shadow-ink) / 0.12))
+    drop-shadow(0 22px 40px rgb(var(--shadow-ink) / 0.28));
+}
+.clip video {
+  display: block; width: 100%; height: auto;
+  aspect-ratio: 16 / 10;
+  border-radius: inherit;
+  background: var(--paper-3);
+}
+.cursor {
+  position: absolute; left: 50%; top: 50%;
+  width: calc(20px * var(--k)); height: calc(28px * var(--k));
+  translate: calc(-2.2px * var(--k)) calc(-1.6px * var(--k));
+  pointer-events: none;
+  filter: drop-shadow(0 calc(1.5px * var(--k)) calc(2px * var(--k)) rgb(0 0 0 / 0.35));
+  transition: scale 0.12s var(--ease);
+  transform-origin: 10% 6%;
+}
+.cursor.is-pressed { scale: 0.86; }
+.cursor-arrow { display: block; width: 100%; height: 100%; }
+.click-ring {
+  position: absolute;
+  width: calc(44px * var(--k)); height: calc(44px * var(--k));
+  margin: calc(-22px * var(--k)) 0 0 calc(-22px * var(--k));
+  border-radius: 50%;
+  border: calc(2px * var(--k)) solid rgb(255 255 255 / 0.9);
+  background: rgb(228 87 46 / 0.22);
+  box-shadow: 0 0 0 calc(1px * var(--k)) rgb(0 0 0 / 0.12);
+  pointer-events: none;
+  animation: click-ring 0.55s var(--ease) forwards;
+}
+@keyframes click-ring { from { scale: 0.3; opacity: 1; } to { scale: 1.25; opacity: 0; } }
+
 /* ---------- Reveal ---------- */
 
 .js [data-reveal] {

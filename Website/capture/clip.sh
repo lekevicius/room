@@ -14,7 +14,9 @@ mkdir -p "$OUT"
 ffmpeg -loglevel error -y -ss "$TRIM" -i "$RAW/$NAME.mov" -an \
   -vf "scale=1920:-2:flags=lanczos,format=yuv420p" -c:v libx264 -profile:v high -preset slow -crf 20 \
   -movflags +faststart "$OUT/$NAME.mp4"
-ffmpeg -loglevel error -y -i "$OUT/$NAME.mp4" -frames:v 1 -c:v libwebp -quality 86 "$OUT/$NAME.webp"
+POSTER="$(mktemp -d)/poster.png"
+ffmpeg -loglevel error -y -i "$OUT/$NAME.mp4" -frames:v 1 "$POSTER"
+cwebp -quiet -q 86 "$POSTER" -o "$OUT/$NAME.webp"
 python3 - "$RAW/$NAME.cursor.json" "$OUT/$NAME.cursor.json" "$TRIM" <<'PY'
 import json, sys
 src, dst, trim = sys.argv[1], sys.argv[2], float(sys.argv[3])
