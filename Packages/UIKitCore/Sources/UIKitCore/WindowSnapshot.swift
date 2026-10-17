@@ -26,6 +26,31 @@ public enum WindowSnapshot {
         return createImage(.null, includingWindow, UInt32(window.windowNumber), options)?.takeRetainedValue()
     }
 
+    private typealias CreateImageFromArray = @convention(c) (CGRect, CFArray, UInt32) -> Unmanaged<CGImage>?
+
+    private static let createImageFromArray: CreateImageFromArray? = {
+        guard let handle = dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_NOW),
+              let symbol = dlsym(handle, "CGWindowListCreateImageFromArray") else { return nil }
+        return unsafeBitCast(symbol, to: CreateImageFromArray.self)
+    }()
+
+    /// The window with the app's windows over it (child windows, panels, popovers) composited
+    /// as the window server draws them, cropped to `window`'s frame, without frame shadows.
+    public static func capture(_ window: NSWindow, with others: [NSWindow]) -> CGImage? {
+        guard let createImageFromArray, window.windowNumber > 0, let screen = NSScreen.screens.first else { return nil }
+        // Front to back, as the window server orders them.
+        let ids = ([window] + others).filter { $0.windowNumber > 0 }.sorted { $0.orderedIndex > $1.orderedIndex }
+            .map { UnsafeRawPointer(bitPattern: UInt($0.windowNumber)) }
+        let array = ids.withUnsafeBufferPointer { buffer in
+            CFArrayCreate(nil, UnsafeMutablePointer(mutating: buffer.baseAddress), buffer.count, nil)
+        }
+        guard let array else { return nil }
+        let frame = window.frame
+        let bounds = CGRect(x: frame.minX, y: screen.frame.height - frame.maxY, width: frame.width, height: frame.height)
+        let options: UInt32 = (1 << 0) | (1 << 3)     // BoundsIgnoreFraming | BestResolution
+        return createImageFromArray(bounds, array, options)?.takeRetainedValue()
+    }
+
     @discardableResult
     public static func writePNG(_ window: NSWindow, to url: URL) throws -> CGImage? {
         guard let image = capture(window) else { return nil }

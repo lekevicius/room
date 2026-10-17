@@ -24,19 +24,25 @@ RAW="$BASE/raw"
 SHOTS="Website/assets/shots"
 OUT="$(mktemp -d)/spike-showcase.txt"
 SIZE="${ROOM_SHOWCASE_SIZE:-1440x900}"
+# composite (default): the spike composes each frame itself, no Screen Recording needed.
+# window: the window server's own capture of the window (screencapture), needs the permission.
+MODE="${ROOM_CAPTURE_MODE:-composite}"
+BACKDROP="${ROOM_SHOWCASE_BACKDROP:-Website/assets/art/pigment-1536.avif}"
 
 [[ "${ROOM_SHOWCASE_FRESH:-0}" == 1 ]] && rm -rf "$STATE"
 mkdir -p "$STATE" "$RAW" "$SHOTS"
 
 args=(-RoomSidebarFixture showcase -RoomFixtureReplaces YES
       -RoomStateDirectory "$PWD/$STATE" -RoomEngineDirectory "$PWD/$STATE/engine"
-      -RoomShowcaseSize "$SIZE" -ApplePersistenceIgnoreState YES)
+      -RoomShowcaseSize "$SIZE" -RoomShowcaseBackdrop "$PWD/$BACKDROP" -ApplePersistenceIgnoreState YES)
+[[ "$MODE" == composite ]] && args+=(-RoomShowcaseDirectory "$PWD/$RAW")
+[[ "${ROOM_SHOWCASE_DEBUG:-0}" == 1 ]] && args+=(-RoomShowcaseDebug YES)
 [[ $# -gt 0 ]] && args+=(-RoomShowcaseOnly "$1")
 
 ROOM_APP="$APP" ROOM_SPIKE_OUT="$OUT" scripts/run-spike.sh showcase "${args[@]}" >/dev/null &
 runner=$!
 captured=()
-while kill -0 "$runner" 2>/dev/null; do
+while [[ "$MODE" == window ]] && kill -0 "$runner" 2>/dev/null; do
   if [[ -f "$OUT" ]]; then
     wid=$(awk -F': ' '/^window_id:/ {print $2}' "$OUT" | tail -1)
     for name in $(awk -F': ' '/^capture:/ {print $2}' "$OUT"); do
@@ -49,7 +55,12 @@ while kill -0 "$runner" 2>/dev/null; do
   fi
   sleep 0.2
 done
-grep -E '^(error|showcase_missing|capture_timeout):' "$OUT" || true
+wait "$runner" || true
+cp "$OUT" "$BASE/last-run.txt"
+if [[ "$MODE" == composite ]]; then
+  while read -r name; do captured+=("$name"); echo "composed $name"; done < <(awk -F': ' '/^captured:/ {print $2}' "$OUT")
+fi
+grep -E '^(error|showcase_missing|capture_timeout|capture_failed):' "$OUT" || true
 
 # 2880 px wide frames are kept at 2400 for the site: sharp at the largest size it shows them
 # (1180 pt), a third of the bytes.
