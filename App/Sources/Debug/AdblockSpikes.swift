@@ -65,9 +65,12 @@ extension SpikeRunner.Context {
     }
 
     func adblockEngine(_ blocking: ContentBlockingController) async {
-        // Off, then the defaults: the engine's share of the browser process.
+        // The defaults (loaded at launch), then no lists: what the engine's release gives back.
+        blocking.update { $0 = ContentBlockingSettings() }
+        await blocking.apply()
+        try? await Task.sleep(for: .seconds(2))
+        let on = Self.footprintMB()
         blocking.update {
-            $0 = ContentBlockingSettings()
             $0.blockAds = false
             $0.blockTrackers = false
             $0.cookieBanners = .off
@@ -75,11 +78,7 @@ extension SpikeRunner.Context {
         await blocking.apply()
         try? await Task.sleep(for: .seconds(2))
         let off = Self.footprintMB()
-        blocking.update { $0 = ContentBlockingSettings() }
-        await blocking.apply()
-        try? await Task.sleep(for: .seconds(2))
-        let on = Self.footprintMB()
-        SpikeRunner.record("adblock_footprint", String(format: "browser process %.1f MB with no lists, %.1f MB with the defaults (+%.1f MB)", off, on, on - off))
+        SpikeRunner.record("adblock_footprint", String(format: "browser process %.1f MB with the defaults, %.1f MB with no lists (%.1f MB released)", on, off, on - off))
         let report = blocking.lastReport
         SpikeRunner.record("adblock_lists", blocking.ruleCounts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
         SpikeRunner.record("adblock_engine", String(format: "%@ in %.0f ms, %ld bytes, problems=%ld",
