@@ -248,132 +248,140 @@ extension SpikeRunner.Context {
         return WindowSnapshot.capture(window, with: others) ?? WindowSnapshot.capture(window)
     }
 
-    /// Returns nil on success, or what went wrong.
+    /// One thing to lay over the window image, in the window's drawing order.
+    private enum Layer {
+        case page(CGImage, NSView)
+        /// A translucent fill (a dim): the view's own layer colour over what is under it.
+        case tint(CGColor, NSView)
+        /// Glass or material (the palette, Peek's frame): its pixels from the window image.
+        case paste(NSView)
+        /// Anything Room draws itself (the screenshot overlay, labels, buttons): the view's own
+        /// drawing with its transparency.
+        case drawn(NSBitmapImageRep, NSView)
+    }
+
+    /// Composes the window as the window server draws it with the pages Chromium draws on the GPU.
     ///
-    /// The window server's image lacks the pages (Chromium draws them in its GPU process), and the
-    /// card is opaque behind them, so a page cannot simply go under the window's own overlays (the
-    /// palette, Peek's dim and glass). Difference matting recovers them: each page is captured, then
-    /// the window twice with the page's view hidden and its container black (B), then white (W); per
-    /// channel, an overlay of colour F and opacity a gives B = aF and W = aF + (1 − a), so over the
-    /// page P the result is B + (W − B)·P.
+    /// The window image lacks the pages: their area reads as opaque white whatever lies under or
+    /// over it, so the pages cannot be keyed in. Instead the window's views are walked in drawing
+    /// order: each page goes in where it is, and whatever Room draws above a page (Peek's dim and
+    /// frame, the palette, the screenshot overlay) goes back over it. Returns nil on success.
     private func composeCapture(to url: URL) async -> String? {
         if let backdrop = Self.backdrop { backdrop.order(.below, relativeTo: window.windowNumber) }
         let pages = visiblePages
-        // The pages first, while they are showing.
-        var shots: [(CGImage, NSView)] = []
+        var images: [ObjectIdentifier: CGImage] = [:]
         for page in pages {
             if let image = try? await page.captureViewport(), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                shots.append((cg, page.nativeView))
+                images[ObjectIdentifier(page.nativeView)] = cg
             }
         }
-        // Keying the page (black, then white) to recover the window's own overlays over it by
-        // difference matting does not work yet: Chromium's remote content comes out opaque white in
-        // our own window's image whatever lies under or over it. Until then the pages are drawn over
-        // the window (B = W, so the result is the page): overlays inside the card (the palette, Peek's
-        // dim) are lost, everything else is right.
-        let views = shots.map(\.1)
-        let black = windowImage()
-        let white = black
-        guard let black, let white else { return "no window image" }
-        _ = views
+        guard let base = windowImage(), let root = window.contentView else { return "no window image" }
+        let pageViews = pages.map(\.nativeView)
+        func isPageOrInside(_ view: NSView) -> Bool { pageViews.contains { view === $0 || view.isDescendant(of: $0) } }
+        func containsPage(_ view: NSView) -> Bool { pageViews.contains { $0.isDescendant(of: view) } }
+        let pageRects = pageViews.map { $0.convert($0.bounds, to: nil) }
+
+        // The drawing order: a depth-first walk, subviews in order. A view is "over a page" once
+        // a page has been passed and it overlaps one.
+        var layers: [Layer] = []
+        var passedPage = false
+        func visit(_ view: NSView) {
+            guard !view.isHidden, view.alphaValue > 0.01 else { return }
+            if let image = images[ObjectIdentifier(view)] { layers.append(.page(image, view)); passedPage = true; return }
+            if isPageOrInside(view) { return }
+            let frame = view.convert(view.bounds, to: nil)
+            let over = passedPage && !containsPage(view) && pageRects.contains { $0.intersects(frame) }
+            if over {
+                if view is NSGlassEffectView || view is NSVisualEffectView { layers.append(.paste(view)); return }
+                if let colour = view.layer?.backgroundColor, colour.alpha > 0.01 {
+                    if colour.alpha < 0.99 { layers.append(.tint(colour, view)) } else { layers.append(.paste(view)); return }
+                }
+                if view.subviews.isEmpty || view is NSControl, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    layers.append(.drawn(rep, view))
+                    return
+                }
+                if !(view is NSControl), let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    // A view that draws itself under its subviews (the screenshot overlay's dim).
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    layers.append(.drawn(rep, view))
+                    return
+                }
+            }
+            for subview in view.subviews { visit(subview) }
+        }
+        visit(root)
         if UserDefaults.standard.bool(forKey: "RoomShowcaseDebug") {
-            try? NSBitmapImageRep(cgImage: black).representation(using: .png, properties: [:])?
-                .write(to: url.deletingPathExtension().appendingPathExtension("black.png"))
-            let list = NSApp.windows.filter(\.isVisible).map { "\(Swift.type(of: $0)) #\($0.windowNumber) idx \($0.orderedIndex)" }
-            SpikeRunner.record("windows", list.joined(separator: " | ") + "; pages \(pages.count)")
+            SpikeRunner.record("compose_layers", layers.map { layer -> String in
+                switch layer {
+                case .page(_, let v): "page \(Swift.type(of: v))"
+                case .tint(_, let v): "tint \(Swift.type(of: v))"
+                case .paste(let v): "paste \(Swift.type(of: v))"
+                case .drawn(_, let v): "drawn \(Swift.type(of: v))"
+                }
+            }.joined(separator: ", "))
         }
 
-        let width = black.width, height = black.height
+        let width = base.width, height = base.height
         let scale = CGFloat(width) / window.frame.width
-        let space = black.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!
-        func buffer(_ draw: (CGContext) -> Void) -> [UInt8]? {
-            var bytes = [UInt8](repeating: 0, count: width * height * 4)
-            let ok = bytes.withUnsafeMutableBytes { raw -> Bool in
-                guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                                              space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-                draw(context)
-                return true
-            }
-            return ok ? bytes : nil
-        }
+        let space = base.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return "no context" }
         let full = CGRect(x: 0, y: 0, width: width, height: height)
-        // The pages, each in its place and clipped to its card's corners, on white.
-        let pageBytes = buffer { context in
-            context.setFillColor(CGColor(gray: 1, alpha: 1))
-            context.fill(full)
-            for (image, view) in shots {
-                let frame = view.convert(view.bounds, to: nil)
-                let rect = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
-                context.saveGState()
-                if let corner = clippingCorner(of: view) {
-                    let r = corner.rect
-                    context.addPath(CGPath(roundedRect: CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale),
-                                           cornerWidth: corner.radius * scale, cornerHeight: corner.radius * scale, transform: nil))
-                    context.clip()
-                }
-                context.interpolationQuality = .high
-                context.draw(image, in: rect)
-                context.restoreGState()
+        context.draw(base, in: full)
+        context.interpolationQuality = .high
+        func pixels(_ view: NSView) -> CGRect {
+            let f = view.convert(view.bounds, to: nil)
+            return CGRect(x: f.minX * scale, y: f.minY * scale, width: f.width * scale, height: f.height * scale)
+        }
+        func clip(_ view: NSView) {
+            var path = CGPath(rect: pixels(view), transform: nil)
+            if let corner = clippingCorner(of: view) {
+                let r = corner.rect
+                path = CGPath(roundedRect: CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale),
+                              cornerWidth: corner.radius * scale, cornerHeight: corner.radius * scale, transform: nil)
             }
+            context.addPath(path); context.clip()
         }
-        var maskBytes = [UInt8](repeating: 0, count: width * height)
-        maskBytes.withUnsafeMutableBytes { raw in
-            guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
-                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
-            context.setFillColor(gray: 1, alpha: 1)
-            for (_, view) in shots {
-                let frame = view.convert(view.bounds, to: nil)
-                let rect = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
-                context.saveGState()
-                if let corner = clippingCorner(of: view) {
-                    let r = corner.rect
-                    context.addPath(CGPath(roundedRect: CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale),
-                                           cornerWidth: corner.radius * scale, cornerHeight: corner.radius * scale, transform: nil))
-                    context.clip()
-                }
-                context.fill(rect)
-                context.restoreGState()
+        for layer in layers {
+            context.saveGState()
+            switch layer {
+            case .page(let image, let view):
+                clip(view)
+                context.draw(image, in: pixels(view))
+            case .tint(let colour, let view):
+                clip(view)
+                context.setFillColor(colour)
+                context.fill(pixels(view))
+            case .paste(let view):
+                let r = pixels(view)
+                let radius = (view.layer?.cornerRadius ?? 0) * scale
+                context.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil)); context.clip()
+                // The window image is top-left first; crop it to the view's rect.
+                let crop = CGRect(x: r.minX, y: CGFloat(height) - r.maxY, width: r.width, height: r.height).integral
+                if let piece = base.cropping(to: crop) { context.draw(piece, in: CGRect(x: crop.minX, y: CGFloat(height) - crop.maxY, width: crop.width, height: crop.height)) }
+            case .drawn(let rep, let view):
+                clip(view)
+                if let image = rep.cgImage { context.draw(image, in: pixels(view)) }
             }
+            context.restoreGState()
         }
-        guard var out = buffer({ $0.draw(black, in: full) }), let whiteBytes = buffer({ $0.draw(white, in: full) }), let pageBytes else {
-            return "no buffers"
+        // Windows Chromium draws on the GPU (picture in picture), laid in with their shadow and corners.
+        for layer in Self.extraLayers {
+            let r = CGRect(x: layer.rect.minX * scale, y: layer.rect.minY * scale, width: layer.rect.width * scale, height: layer.rect.height * scale)
+            let path = CGPath(roundedRect: r, cornerWidth: layer.radius * scale, cornerHeight: layer.radius * scale, transform: nil)
+            context.saveGState()
+            context.setShadow(offset: CGSize(width: 0, height: -14 * scale), blur: 40 * scale, color: CGColor(gray: 0, alpha: 0.38))
+            context.addPath(path); context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fillPath()
+            context.restoreGState()
+            context.saveGState()
+            context.addPath(path); context.clip()
+            context.draw(layer.image, in: r)
+            context.restoreGState()
         }
-        // Pages over the window, where the pages are (see above); the window's shape from W.
-        out.withUnsafeMutableBufferPointer { o in
-            whiteBytes.withUnsafeBufferPointer { w in
-                pageBytes.withUnsafeBufferPointer { p in
-                    var i = 0
-                    let count = o.count
-                    while i < count {
-                        // The page layer is opaque white outside the pages; the pages' own pixels are
-                        // told apart by the mask drawn alongside them.
-                        if maskBytes[i / 4] != 0 { o[i] = p[i]; o[i + 1] = p[i + 1]; o[i + 2] = p[i + 2] }
-                        o[i + 3] = w[i + 3]
-                        i += 4
-                    }
-                }
-            }
+        guard let result = context.makeImage(), let data = NSBitmapImageRep(cgImage: result).representation(using: .png, properties: [:]) else {
+            return "no png"
         }
-        let result: CGImage? = out.withUnsafeMutableBytes { raw in
-            guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                                          space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-            // Windows Chromium draws on the GPU (picture in picture), laid in with their shadow and corners.
-            for layer in Self.extraLayers {
-                let r = CGRect(x: layer.rect.minX * scale, y: layer.rect.minY * scale, width: layer.rect.width * scale, height: layer.rect.height * scale)
-                let path = CGPath(roundedRect: r, cornerWidth: layer.radius * scale, cornerHeight: layer.radius * scale, transform: nil)
-                context.saveGState()
-                context.setShadow(offset: CGSize(width: 0, height: -14 * scale), blur: 40 * scale, color: CGColor(gray: 0, alpha: 0.38))
-                context.addPath(path); context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fillPath()
-                context.restoreGState()
-                context.saveGState()
-                context.addPath(path); context.clip()
-                context.interpolationQuality = .high
-                context.draw(layer.image, in: r)
-                context.restoreGState()
-            }
-            return context.makeImage()
-        }
-        guard let result, let data = NSBitmapImageRep(cgImage: result).representation(using: .png, properties: [:]) else { return "no png" }
         do { try data.write(to: url) } catch { return "write: \(error)" }
         return nil
     }
@@ -563,12 +571,13 @@ extension SpikeRunner.Context {
             case "screenshot":
                 // ⇧⌘2 with the painting selected: the bar with Copy, Save and Open as Tab.
                 guard let app = AppDelegate.current, let page = await showcaseShow("la-grande-jatte") else { continue }
-                let painting = await rect(of: "main img, .m-article-header img, img", in: page)
+                let painting = await rect(of: ".m-article-header img, .o-article__primary-actions img, main img[src*=\"iiif\"], img[src*=\"iiif\"]", in: page)
                 guard let painting, let controller = await openOverlay(app) else { continue }
                 let inset = painting.insetBy(dx: -10, dy: -10)
                 dragOverlay(controller.overlay, from: CGPoint(x: inset.minX, y: inset.minY), to: CGPoint(x: inset.maxX, y: inset.maxY))
                 _ = await waitUntil(5) { controller.image != nil }
                 try? await Task.sleep(for: .milliseconds(600))
+                SpikeRunner.record("screenshot_state", "painting=\(NSStringFromRect(painting)) selection=\(controller.overlay.selection.map { NSStringFromRect($0) } ?? "nil") bar=\(controller.overlay.isBarShown) in_window=\(controller.overlay.window != nil) superview=\(controller.overlay.superview.map { "\(Swift.type(of: $0))" } ?? "nil")")
                 await showcaseCapture("screenshot")
                 escapeKey()
                 continue
