@@ -9,6 +9,8 @@
 # verify_chrome_framework_order (patch 0004) checks the exports against
 # framework.order followed by this list. A new class goes where nm puts it;
 # the check's "actual order" output is the list to copy (3.9-2).
+# RoomContentBlocker* (B-30, 2026-10-17) placed by link order (room_content_blocker.mm
+# after room_browser.mm), not yet checked by an official build.
 _OBJC_CLASS_$_RoomApplication
 _OBJC_METACLASS_$_RoomApplication
 _OBJC_CLASS_$_RoomAutocompleteMatch
@@ -17,6 +19,14 @@ _OBJC_CLASS_$_RoomAutocompleteController
 _OBJC_METACLASS_$_RoomAutocompleteController
 _OBJC_CLASS_$_RoomBrowser
 _OBJC_METACLASS_$_RoomBrowser
+_OBJC_CLASS_$_RoomContentBlockerList
+_OBJC_METACLASS_$_RoomContentBlockerList
+_OBJC_CLASS_$_RoomContentBlockerConfiguration
+_OBJC_METACLASS_$_RoomContentBlockerConfiguration
+_OBJC_CLASS_$_RoomContentBlockerReport
+_OBJC_METACLASS_$_RoomContentBlockerReport
+_OBJC_CLASS_$_RoomContentBlocker
+_OBJC_METACLASS_$_RoomContentBlocker
 _OBJC_CLASS_$_RoomMenuItem
 _OBJC_METACLASS_$_RoomMenuItem
 _OBJC_CLASS_$_RoomContextMenu

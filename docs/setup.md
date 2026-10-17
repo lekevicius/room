@@ -20,9 +20,11 @@ xcode-select -p                                   # must point at Xcode.app, not
 xcodebuild -downloadComponent MetalToolchain      # Chromium's ANGLE needs it; Xcode 27 does not ship it
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"   # if no Homebrew (user: needs the login password)
 brew install xcodegen gh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal   # cargo, for vendoring Room's Rust crates (B-30)
 ```
 
-depot_tools is cloned by `scripts/chromium-checkout.sh` into `~/depot_tools`.
+Cargo only resolves and downloads Room's crates (`Engine/roomcore/tools/vendor_rust_crates.sh`);
+Chromium's own rustc compiles them. depot_tools is cloned by `scripts/chromium-checkout.sh` into `~/depot_tools`.
 Chromium's build brings its own clang, Python, Siso and GN.
 
 ## 2. Repository
@@ -75,7 +77,8 @@ timings in `research/notes/build-log.md` under a heading for this machine.
 mkdir -p build && bash -c 'nohup scripts/chromium-checkout.sh > build/chromium-checkout.log 2>&1 &'
 #   fetch (~50 min at 60 MB/s), checkout of the tag in Engine/roomcore/CHROMIUM_TAG, gclient sync, runhooks
 scripts/roomcore-apply.sh
-#   symlinks Engine/roomcore/room as $CHROMIUM_SRC/room, creates the `room`
+#   symlinks Engine/roomcore/room as $CHROMIUM_SRC/room, vendors Room's Rust
+#   crates once per Cargo.lock (the blocker), creates the `room`
 #   branch with Engine/roomcore/patches applied, branding placeholders,
 #   out/dev/args.gn, gn gen
 bash -c 'nohup scripts/roomcore-build.sh > build/roomcore-build.log 2>&1 &'

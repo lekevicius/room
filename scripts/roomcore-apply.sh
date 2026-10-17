@@ -63,6 +63,17 @@ else
   ln -s "$ROOMCORE/room" room
 fi
 
+# Room's Rust crates (the blocker, B-30): vendored once per Cargo.lock
+# (gitignored; tools/vendor_rust_crates.sh, a crates.io download when the
+# crates are not in ~/.cargo already).
+if ! "$ROOMCORE/tools/vendor_rust_crates.sh" --check 2>/dev/null; then
+  if (( DRY_RUN )); then
+    echo "would vendor room/third_party/rust (tools/vendor_rust_crates.sh)"
+  else
+    "$ROOMCORE/tools/vendor_rust_crates.sh"
+  fi
+fi
+
 # Keep our symlinks out of Chromium's `git status`.
 exclude=.git/info/exclude
 for path in /room /chrome/app/theme/room /chrome/app/theme/default_100_percent/room \
