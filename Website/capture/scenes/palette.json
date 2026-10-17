@@ -1,0 +1,17 @@
+{
+  "note": "⌘T, type, arrow to an open tab, Return. Starts on Studio ▸ Risograph (1440×900, sidebar 300).",
+  "start": [930, 560],
+  "steps": [
+    { "wait": 0.9 },
+    { "move": [880, 430], "duration": 0.7 },
+    { "wait": 0.25 },
+    { "key": "cmd+t" },
+    { "wait": 0.55 },
+    { "type": "palette", "interval": 0.11 },
+    { "wait": 1.1 },
+    { "key": "down" },
+    { "wait": 0.45 },
+    { "key": "return" },
+    { "wait": 1.6 }
+  ]
+}

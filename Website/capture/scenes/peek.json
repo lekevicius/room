@@ -1,0 +1,16 @@
+{
+  "note": "Shift-click a link in the article; the Peek opens over it; scroll inside; close with Escape. Starts on Reading ▸ A Brief History of Digital Gardens, scrolled 900. Probe a link's position first (room-record --probe) and put it in the second move.",
+  "start": [1050, 640],
+  "steps": [
+    { "wait": 0.8 },
+    { "move": [760, 420], "duration": 0.9 },
+    { "wait": 0.35 },
+    { "click": true, "modifiers": "shift" },
+    { "wait": 1.6 },
+    { "move": [900, 520], "duration": 0.6 },
+    { "scroll": [0, 420], "duration": 1.0 },
+    { "wait": 0.9 },
+    { "key": "escape" },
+    { "wait": 1.0 }
+  ]
+}

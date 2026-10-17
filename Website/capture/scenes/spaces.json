@@ -1,0 +1,17 @@
+{
+  "note": "Rest over the sidebar, then ⌃2, ⌃3, ⌃4 and back to ⌃1: each slide and its tint. Starts on Studio.",
+  "start": [150, 520],
+  "steps": [
+    { "wait": 0.8 },
+    { "move": [168, 470], "duration": 0.6 },
+    { "key": "ctrl+2" },
+    { "wait": 1.3 },
+    { "key": "ctrl+3" },
+    { "wait": 1.3 },
+    { "key": "ctrl+4" },
+    { "wait": 1.3 },
+    { "move": [150, 520], "duration": 0.5 },
+    { "key": "ctrl+1" },
+    { "wait": 1.4 }
+  ]
+}

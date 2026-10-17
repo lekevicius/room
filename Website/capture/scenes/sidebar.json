@@ -1,0 +1,14 @@
+{
+  "note": "Drag today's top tab up into Pinned, then open the Inspiration folder. Starts on Studio ▸ La Grande Jatte. Row positions depend on the fixture: probe them (room-record --probe) and adjust.",
+  "start": [700, 600],
+  "steps": [
+    { "wait": 0.8 },
+    { "move": [150, 560], "duration": 0.8 },
+    { "wait": 0.4 },
+    { "drag": [150, 300], "duration": 0.9 },
+    { "wait": 0.6 },
+    { "move": [120, 336], "duration": 0.5 },
+    { "click": true },
+    { "wait": 1.4 }
+  ]
+}

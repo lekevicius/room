@@ -12,6 +12,9 @@ import Store
 /// - `-RoomShowcaseOnly hero,palette` limits the scenes.
 /// - `-RoomShowcaseSize 1440x900` sets the window's content size (default 1440×900).
 /// - `-RoomShowcaseAppearances light` limits the appearances (default `light,dark`).
+/// - `-RoomShowcaseStage <clip>` (with `-RoomSpikeKeepRunning YES`, `Website/capture/record.sh`):
+///   no captures; after the warm-up the clip's first state is set up in the first appearance,
+///   `ready: <clip>` is written, and Room stays open for `room-record` to play the clip's script.
 ///
 /// Every page gets `tidy` after it loads: consent banners hidden (captures are made from
 /// the EU), the page scrolled to its scene's offset.
@@ -189,6 +192,21 @@ extension SpikeRunner.Context {
         }
         sidebar.showSpace(studio.id, animated: false)
         try? await Task.sleep(for: .seconds(2))
+
+        if let stage = UserDefaults.standard.string(forKey: "RoomShowcaseStage") {
+            let appearance = showcaseAppearances.first ?? "light"
+            NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+            restorePaletteHooks()
+            switch stage {
+            case "sidebar": await showcaseShow("la-grande-jatte")
+            case "peek": await showcaseShow("garden-history", scrollY: 900)
+            case "split": await showcaseShow("human-interface-guidelines")
+            default: await showcaseShow("Risograph")
+            }
+            try? await Task.sleep(for: .seconds(1))
+            SpikeRunner.record("ready", stage)
+            return
+        }
 
         for scene in showcaseScenes {
             switch scene {
