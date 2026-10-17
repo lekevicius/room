@@ -67,6 +67,10 @@
       paper.style.visibility = t > 0.995 ? 'hidden' : '';
 
       stage.style.setProperty('--print-scale', (1.08 - 0.08 * ease(t)).toFixed(4));
+      // At the end the print draws in from the edges and becomes a panel on the paper.
+      const e = ease(clamp((p - 0.86) / 0.14));
+      stage.style.setProperty('--edge', `${(e * Math.min(24, geo.vw * 0.04)).toFixed(2)}px`);
+      stage.style.setProperty('--edge-r', `${(e * 28).toFixed(2)}px`);
 
       const c = clamp(p / 0.22);
       copy.style.setProperty('--copy-o', (1 - c).toFixed(3));

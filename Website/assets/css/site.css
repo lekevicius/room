@@ -246,6 +246,7 @@ code {
   background: url("../art/pigment-1536.avif") center / cover;
   transform: scale(var(--print-scale, 1.08));
   transform-origin: 50% 40%;
+  clip-path: inset(var(--edge, 0px) round var(--edge-r, 0px));
 }
 /* The sheet, with a hole shaped like the mark. --hx/--hy/--hs place the hole (px). */
 .hero-paper {
@@ -285,8 +286,8 @@ code {
 .hero-meta { font-size: 13px; color: var(--ink-3); }
 
 .hero-window {
-  position: absolute; left: 50%; top: 50%;
-  width: min(1180px, 88vw, calc((100dvh - 120px) * 1.6));
+  position: absolute; left: 50%; top: calc(50% + 28px);
+  width: min(1180px, 88vw, calc((100dvh - 190px) * 1.6));
   margin: 0;
   translate: -50% -50%;
   transform: translateY(var(--win-y, 70vh)) scale(var(--win-s, 0.9));
@@ -526,13 +527,13 @@ section { position: relative; }
 .privacy-figure { display: grid; gap: 22px; }
 .zero { display: flex; align-items: flex-end; gap: 18px; }
 .zero-digit {
-  font: 300 clamp(150px, 16vw, 240px)/0.78 var(--serif);
+  font: 300 clamp(150px, 16vw, 240px)/1 var(--serif);
+  margin-bottom: -0.12em;
   letter-spacing: -0.06em;
-  background: url("../art/newsprint-800.avif") 40% 30% / 220%;
+  background: url("../art/flow-800.avif") 30% 45% / 180%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
 }
-@media (prefers-color-scheme: dark) { .zero-digit { background-image: url("../art/flow-800.avif"); } }
 .zero-caption { font: italic 400 22px/1.2 var(--serif); color: var(--ink-2); max-width: 9ch; padding-bottom: 12px; }
 .switches {
   list-style: none; margin: 0; padding: 6px 18px;
@@ -579,23 +580,21 @@ section { position: relative; }
   max-width: 440px;
 }
 .icon-picker button {
-  appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
-  display: grid; justify-items: center; gap: 6px;
+  appearance: none; border: 0; background: none; cursor: pointer;
+  padding: 6px 4px 10px;
+  border-radius: 18px;
+  display: grid; justify-items: center; gap: 4px;
   font: 500 12.5px/1 var(--sans); color: var(--ink-3);
+  transition: background 0.25s var(--ease), color 0.2s;
 }
-.icon-picker img {
-  width: 76px; border-radius: 22%;
-  outline: 2.5px solid transparent; outline-offset: 2px;
-  transition: transform 0.3s var(--ease), outline-color 0.2s;
-}
-.icon-picker button:hover img { transform: translateY(-2px); }
-.icon-picker [aria-checked="true"] { color: var(--ink); }
-.icon-picker [aria-checked="true"] img { outline-color: var(--accent); }
-.icon-picker button:focus-visible { outline: none; }
-.icon-picker button:focus-visible img { outline-color: var(--ink); }
+.icon-picker img { width: 80px; transition: transform 0.35s var(--ease); }
+.icon-picker button:hover img { transform: translateY(-2px) scale(1.03); }
+.icon-picker [aria-checked="true"] { color: var(--ink); background: var(--paper-2); box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--accent) 70%, transparent); }
+.icon-picker button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 860px) {
   .prints { grid-template-columns: 1fr; }
   .icon-picker img { width: 64px; }
+  .icon-picker { gap: 8px 4px; }
 }
 
 /* Shortcuts, the one marquee */
@@ -636,6 +635,7 @@ section { position: relative; }
   box-shadow: 0 30px 60px -30px rgb(var(--shadow-ink) / 0.5);
 }
 @media (prefers-color-scheme: dark) { .terminal { background: #0f0d0b; box-shadow: 0 0 0 1px var(--line); } }
+.terminal code { background: none; padding: 0; font: inherit; color: inherit; border-radius: 0; }
 .t-dim { color: #8c8273; user-select: none; }
 @media (max-width: 860px) { .source { grid-template-columns: 1fr; } }
 
@@ -653,6 +653,11 @@ section { position: relative; }
   background-position: center; background-size: cover;
   color: #221e1a;
 }
+.closing-panel::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 55% 45% at 50% 55%, rgb(30 20 10 / 0.28), transparent 70%);
+}
+.closing-panel > * { position: relative; }
 .closing-mark {
   width: clamp(96px, 12vw, 150px); aspect-ratio: 1;
   background: #f3ece0;
@@ -663,7 +668,7 @@ section { position: relative; }
   font: 400 clamp(48px, 7.5vw, 112px)/0.95 var(--serif);
   letter-spacing: -0.035em;
   color: #f6f0e6;
-  text-shadow: 0 2px 30px rgb(30 20 10 / 0.25);
+  text-shadow: 0 1px 2px rgb(30 20 10 / 0.25), 0 4px 40px rgb(30 20 10 / 0.35);
   max-width: 12ch;
   text-wrap: balance;
 }
