@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room blocker fixture</title>
+<!-- Phase 5 `adblock` spike (App/Sources/Debug/AdblockSpikes.swift), served by
+     scripts/adblock-check.sh on 127.0.0.1:8777; "third-party" files come from
+     localhost:8777, another site. The spike's custom rules:
+       ||localhost^*/ads/banner.js$script
+       ||localhost^*/tracker.gif$image
+       ||localhost^*/beacon.txt
+       ||localhost^*/ads/needed.js$script,redirect=noop.js
+       127.0.0.1##.ad-slot
+       ##.room-generic-ad
+     and EasyList's own /jquery.overlayad.js. The results go into #log. -->
+<style>
+  .box { width: 160px; height: 40px; margin: 6px; background: #c33; color: white; font: 13px system-ui; }
+  .cky-consent-container { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px; background: #222; color: white; }
+</style>
+<div class="ad-slot box" id="specific">specific ad slot</div>
+<div class="room-generic-ad box" id="generic">generic ad class</div>
+<div class="content box" id="content">content</div>
+<div class="cky-consent-container" id="banner">
+  We use cookies.
+  <button data-cky-tag="accept-button" onclick="consent('accepted')">Accept All</button>
+  <button data-cky-tag="reject-button" onclick="consent('rejected')">Reject All</button>
+</div>
+<pre id="log">pending</pre>
+<script>
+  const results = {};
+  function consent(answer) {
+    results.cookie_answer = answer;
+    document.cookie = 'cookieyes-consent=advertisement:' + (answer === 'rejected' ? 'no' : 'yes');
+    document.getElementById('banner').remove();
+  }
+  const third = 'http://localhost:8777/phase-5-adblock/';
+  function load(name, src, kind) {
+    return new Promise((resolve) => {
+      const el = document.createElement(kind);
+      el.src = src;
+      el.onload = () => resolve(results[name] = 'loaded');
+      el.onerror = () => resolve(results[name] = 'blocked');
+      document.head.appendChild(el);
+    });
+  }
+  const started = performance.now();
+  Promise.all([
+    load('custom_script', third + 'ads/banner.js', 'script'),
+    load('tracker_pixel', third + 'tracker.gif?id=1', 'img'),
+    load('easylist_path', third + 'jquery.overlayad.js', 'script'),
+    load('redirected', third + 'ads/needed.js', 'script'),
+    load('first_party', '/phase-5-adblock/app.js', 'script'),
+    fetch(third + 'beacon.txt', { mode: 'no-cors' }).then(() => results.fetch = 'loaded', () => results.fetch = 'blocked'),
+  ]).then(() => {
+    results.requests_ms = Math.round(performance.now() - started);
+    // Cosmetic results after the collector's round trip and autoconsent's click.
+    setTimeout(() => {
+      const hidden = (id) => { const el = document.getElementById(id); return !el ? 'gone' : getComputedStyle(el).display === 'none'; };
+      results.specific_hidden = hidden('specific');
+      results.generic_hidden = hidden('generic');
+      results.content_hidden = hidden('content');
+      results.banner = document.getElementById('banner') ? (hidden('banner') === true ? 'hidden' : 'shown') : 'answered';
+      results.cookie = document.cookie;
+      results.ran = { banner: !!window.bannerRan, needed: !!window.neededRan, overlay: !!window.overlayRan, app: !!window.appRan };
+      document.getElementById('log').textContent = JSON.stringify(results);
+    }, 2500);
+  });
+</script>

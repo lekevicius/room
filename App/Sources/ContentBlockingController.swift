@@ -217,13 +217,13 @@ final class ContentBlockingController {
     private func download(_ ids: [String], reason: String) async {
         guard !ids.isEmpty else { return }
         try? FileManager.default.createDirectory(at: listsDirectory, withIntermediateDirectories: true)
-        await withTaskGroup(of: Void.self) { group in
-            for id in ids {
-                guard let url = sourceURL(for: id) else { continue }
-                status[id] = .downloading
-                group.addTask { @MainActor in await self.fetch(id: id, from: url, reason: reason) }
-            }
+        // In parallel, each on the main actor between its awaits.
+        let fetches = ids.compactMap { id -> Task<Void, Never>? in
+            guard let url = sourceURL(for: id) else { return nil }
+            status[id] = .downloading
+            return Task { await self.fetch(id: id, from: url, reason: reason) }
         }
+        for fetch in fetches { await fetch.value }
         writeRecords()
     }
 

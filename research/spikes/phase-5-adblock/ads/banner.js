@@ -1,0 +1,1 @@
+window.bannerRan = 1;
