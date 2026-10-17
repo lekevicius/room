@@ -1,0 +1,20 @@
+# Room's Rust crates (//room/third_party/rust). Resolved and vendored by
+# Engine/roomcore/tools/vendor_rust_crates.sh; each crate's BUILD.gn is
+# generated from `cargo metadata` by tools/gen_rust_crates.py. Chromium's own
+# //third_party/rust crates are not used (most are visible only to
+# //third_party/rust) except cxx, which must match Chromium's cxxbridge.
+[package]
+name = "room_rust_deps"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+# Brave's choice of features minus css-validation and debug-info; the domain
+# resolver is Chromium's registry_controlled_domains (set from C++).
+adblock = { version = "=0.13.3", default-features = false, features = ["full-regex-handling"] }
+# idna's ICU-free adapter: ASCII domains only (lists use punycode).
+idna_adapter = "=1.0.0"
