@@ -37,6 +37,6 @@ final class RoomCoreContentBlocking: ContentBlocking {
     }
 
     func wouldBlock(_ url: URL, from source: URL, type: ContentBlockingRequestType) -> Bool {
-        blocker.wouldBlock(url, sourceURL: source, requestType: type.rawValue)
+        blocker.wouldBlockURL(url, sourceURL: source, requestType: type.rawValue)
     }
 }
