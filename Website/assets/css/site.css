@@ -294,7 +294,7 @@ code {
 }
 /* At the fold: the download floats on the window. */
 .hero-cta {
-  position: absolute; left: 50%; top: calc(100vh - 128px); top: calc(100dvh - 128px);
+  position: absolute; left: 50%; top: var(--cta-top, calc(100vh - 128px));
   translate: -50% 0;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
@@ -608,7 +608,8 @@ section { position: relative; }
 
 /* Moving in: the browsers in an arc, each path flowing into Room's icon. */
 .migrate { position: relative; height: 270px; margin-top: auto; }
-.migrate-paths { position: absolute; left: 0; top: 0; width: 100%; height: 270px; overflow: visible; }
+/* 1:1 with the icons' pixel positions: 400 × 260 around the tile's centre line. */
+.migrate-paths { position: absolute; left: calc(50% - 200px); top: 0; width: 400px; height: 260px; overflow: visible; }
 .migrate-paths path {
   fill: none; stroke: color-mix(in oklab, var(--ink) 28%, transparent); stroke-width: 1.4;
   stroke-dasharray: 0.02 0.03; stroke-linecap: round;
