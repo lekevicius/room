@@ -420,6 +420,45 @@ section { position: relative; }
   .pillar:nth-child(n) { margin-top: 0; }
 }
 
+/* The letter */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.letter {
+  width: min(var(--max), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding: clamp(48px, 8vh, 96px) 0 clamp(96px, 14vh, 160px);
+  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(40px, 6vw, 96px); align-items: center;
+}
+.letter-paper {
+  font: 400 clamp(19px, 1.45vw, 21px)/1.62 var(--serif);
+  color: var(--ink);
+  max-width: 34em;
+}
+.letter-paper p + p { margin-top: 1em; }
+.letter-lede { font-size: clamp(34px, 3.4vw, 48px); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 0.7em; }
+.letter-lede em { font-style: italic; color: var(--accent-text); }
+.letter-close { font-style: italic; }
+.letter-sign { margin-top: 1.6em; display: grid; gap: 2px; }
+.letter-name { font: italic 400 clamp(40px, 3.6vw, 52px)/1 var(--serif); letter-spacing: -0.02em; transform: rotate(-3deg); transform-origin: left; width: max-content; }
+.letter-role { font: 500 13px/1.4 var(--sans); color: var(--ink-3); margin-top: 8px; }
+.letter-video { margin: 0; }
+.letter-video-frame {
+  position: relative; aspect-ratio: 4 / 5; border-radius: 28px; overflow: hidden;
+  background-position: center; background-size: cover;
+  display: grid; place-items: center; align-content: center; gap: 22px; padding: 32px;
+  box-shadow: 0 30px 60px -34px rgb(var(--shadow-ink) / 0.55);
+}
+.letter-video-frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.letter-video-mark { width: 96px; height: 96px; background-image: none !important; background-color: #f3ece0; filter: drop-shadow(0 14px 24px rgb(30 20 10 / 0.3)); }
+.letter-video-soon {
+  padding: 8px 16px; border-radius: 999px; text-align: center;
+  font: italic 400 18px/1.3 var(--serif); color: #221e1a;
+  background: rgb(246 240 230 / 0.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+@media (max-width: 860px) {
+  .letter { grid-template-columns: 1fr; }
+  .letter-video-frame { aspect-ratio: 4 / 3; }
+}
+
 /* Tour */
 .tour { padding-bottom: clamp(72px, 10vh, 120px); }
 .tour-head { padding-bottom: clamp(24px, 4vh, 48px); }

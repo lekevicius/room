@@ -113,6 +113,19 @@
     setMode();
   }
 
+  // ---------- The letter's video: shown once it exists ----------
+
+  const letterVideo = $('[data-letter-video]');
+  if (letterVideo) {
+    fetch(letterVideo.dataset.src, { method: 'HEAD' }).then((r) => {
+      if (!r.ok) return;
+      const frame = $('.letter-video-frame', letterVideo);
+      const video = document.createElement('video');
+      Object.assign(video, { src: letterVideo.dataset.src, controls: true, playsInline: true, preload: 'metadata' });
+      frame.replaceChildren(video);
+    }).catch(() => {});
+  }
+
   // ---------- Reveal on scroll ----------
 
   const reveals = $$('[data-reveal]');
