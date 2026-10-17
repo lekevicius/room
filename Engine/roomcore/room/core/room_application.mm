@@ -45,6 +45,7 @@
 #import "room/core/room_profile_internal.h"
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
+#include "room/core/content_blocking/network_blocking.h"
 #include "room/core/room_network_policy.h"
 
 // chrome/app/chrome_main.cc, linked into the same library.
@@ -308,6 +309,8 @@ class RoomMemoryPressureListener : public base::MemoryPressureListener {
   room::InstallAppController();
   room::InstallBrowserWindowFactory();
   room::InstallWebContentsHooks();
+  // Ads and trackers (B-30): the proxy joins factories while blocking is on.
+  room::InstallNetworkBlockingHook();
   // What Chrome would draw for a Room page goes to the host (3.4a).
   room::InstallPermissionPromptHook();
   room::InstallContextMenuHook();

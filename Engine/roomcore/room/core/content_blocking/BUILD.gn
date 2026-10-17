@@ -1,0 +1,68 @@
+# Room's ad and tracker blocker (B-30; research/notes/adblock-approach.md §9):
+# adblock-rust (MPL-2.0, //room/third_party/rust) behind a cxx bridge, the
+# engine holder, the network proxy (patch 0026), and the renderer side
+# (cosmetic filters, scriptlets, cookie banners; patch 0027).
+
+import("//build/rust/rust_static_library.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+
+# adblock-rust's domain resolver: Chromium's registry_controlled_domains.
+source_set("domain_resolver") {
+  sources = [
+    "domain_resolver.cc",
+    "domain_resolver.h",
+  ]
+  deps = [
+    "//net",
+    "//build/rust:cxx_cppdeps",
+  ]
+}
+
+rust_static_library("adblock_ffi") {
+  allow_unsafe = true  # cxx's FFI
+  crate_root = "adblock_ffi.rs"
+  sources = [ "adblock_ffi.rs" ]
+  cxx_bindings = [ "adblock_ffi.rs" ]
+  deps = [
+    ":domain_resolver",
+    "//room/third_party/rust/adblock/v0_13:room_lib",
+    "//room/third_party/rust/serde_json/v1:room_lib",
+  ]
+}
+
+mojom("mojom") {
+  sources = [ "cosmetic_filters.mojom" ]
+}
+
+source_set("content_blocking") {
+  sources = [
+    "content_blocker.cc",
+    "content_blocker.h",
+    "cosmetic_filter_agent.cc",
+    "cosmetic_filter_agent.h",
+    "cosmetic_filter_tab_helper.cc",
+    "cosmetic_filter_tab_helper.h",
+    "network_blocking.cc",
+    "network_blocking.h",
+  ]
+  public_deps = [
+    ":mojom",
+    "//base",
+    "//content/public/browser",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+  deps = [
+    ":adblock_ffi",
+    ":mojom",
+    "//content/public/renderer",
+    "//crypto",
+    "//gin",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public/common",
+    "//v8",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/network/public/cpp",
+  ]
+}

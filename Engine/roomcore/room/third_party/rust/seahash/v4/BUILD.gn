@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "seahash"
   epoch = "4"
   crate_type = "rlib"

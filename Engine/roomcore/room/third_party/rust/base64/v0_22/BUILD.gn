@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "base64"
   epoch = "0.22"
   crate_type = "rlib"

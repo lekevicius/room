@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "thiserror_impl"
   epoch = "1"
   crate_type = "proc-macro"
@@ -31,11 +31,10 @@ cargo_crate("lib") {
   rustc_metadata = "room_thiserror_impl-1"
   allow_unsafe = true
   deps = [
-    "//room/third_party/rust/proc_macro2/v1:lib",
-    "//room/third_party/rust/quote/v1:lib",
-    "//room/third_party/rust/syn/v2:lib",
+    "//room/third_party/rust/proc_macro2/v1:room_lib",
+    "//room/third_party/rust/quote/v1:room_lib",
+    "//room/third_party/rust/syn/v2:room_lib",
   ]
-  features = []
 
   # Third-party code: no chromium_code warnings, no coverage.
   _configs_to_remove = [

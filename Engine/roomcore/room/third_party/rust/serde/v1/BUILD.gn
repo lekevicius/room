@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "serde"
   epoch = "1"
   crate_type = "rlib"
@@ -45,8 +45,8 @@ cargo_crate("lib") {
   rustc_metadata = "room_serde-1"
   allow_unsafe = true
   deps = [
-    "//room/third_party/rust/serde_core/v1:lib",
-    "//room/third_party/rust/serde_derive/v1:lib",
+    "//room/third_party/rust/serde_core/v1:room_lib",
+    "//room/third_party/rust/serde_derive/v1:room_lib",
   ]
   features = [
     "default",
@@ -57,6 +57,7 @@ cargo_crate("lib") {
   ]
   build_root = "//room/third_party/rust/vendor/serde-1.0.229/build.rs"
   build_sources = [ "//room/third_party/rust/vendor/serde-1.0.229/build.rs" ]
+  build_script_outputs = [ "private.rs" ]
   build_deps = []
 
   # Third-party code: no chromium_code warnings, no coverage.

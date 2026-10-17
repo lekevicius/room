@@ -14,6 +14,7 @@ source_set("core") {
   sources = [
     "public/RoomApplication.h",
     "public/RoomBrowser.h",
+    "public/RoomContentBlocker.h",
     "public/RoomCore.h",
     "public/RoomCrApplication.h",
     "public/RoomExtensions.h",
@@ -32,6 +33,7 @@ source_set("core") {
     "room_browser_internal.h",
     "room_cdm_browser.cc",
     "room_cdm_renderer.cc",
+    "room_content_blocker.mm",
     "room_context_menu.mm",
     "room_core_version.mm",
     "room_cr_application.mm",
@@ -57,6 +59,7 @@ source_set("core") {
   ]
   deps = [
     ":cdm_mojom",
+    "//room/core/content_blocking",
     "//content/public/renderer",
     "//mojo/public/cpp/bindings",
     "//services/network/public/cpp",

@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "aho_corasick"
   epoch = "1"
   crate_type = "rlib"
@@ -52,7 +52,7 @@ cargo_crate("lib") {
   cargo_pkg_version = "1.1.5"
   rustc_metadata = "room_aho_corasick-1"
   allow_unsafe = true
-  deps = [ "//room/third_party/rust/memchr/v2:lib" ]
+  deps = [ "//room/third_party/rust/memchr/v2:room_lib" ]
   features = [
     "perf-literal",
     "std",

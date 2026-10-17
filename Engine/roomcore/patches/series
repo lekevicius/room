@@ -24,3 +24,5 @@
 0023-external-protocol-dialog-hook.patch
 0024-extension-install-dialog-hook.patch
 0025-extension-update-allowed-hook.patch
+0026-url-loader-factory-hook.patch
+0027-render-frame-created-hook.patch

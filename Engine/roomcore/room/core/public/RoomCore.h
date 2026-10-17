@@ -10,6 +10,7 @@
 #import "RoomExport.h"
 #import "RoomApplication.h"
 #import "RoomBrowser.h"
+#import "RoomContentBlocker.h"
 #import "RoomCrApplication.h"
 #import "RoomExtensions.h"
 #import "RoomOmnibox.h"

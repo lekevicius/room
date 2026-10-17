@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "zmij"
   epoch = "1"
   crate_type = "rlib"
@@ -25,7 +25,6 @@ cargo_crate("lib") {
   rustc_metadata = "room_zmij-1"
   allow_unsafe = true
   deps = []
-  features = []
   build_root = "//room/third_party/rust/vendor/zmij-1.0.23/build.rs"
   build_sources = [ "//room/third_party/rust/vendor/zmij-1.0.23/build.rs" ]
   build_deps = []

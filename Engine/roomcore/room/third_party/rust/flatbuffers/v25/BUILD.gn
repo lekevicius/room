@@ -3,12 +3,13 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "flatbuffers"
   epoch = "25"
   crate_type = "rlib"
   crate_root = "//room/third_party/rust/vendor/flatbuffers-25.12.19/src/lib.rs"
   sources = [
+    "//room/third_party/rust/vendor/flatbuffers-25.12.19/build.rs",
     "//room/third_party/rust/vendor/flatbuffers-25.12.19/src/array.rs",
     "//room/third_party/rust/vendor/flatbuffers-25.12.19/src/builder.rs",
     "//room/third_party/rust/vendor/flatbuffers-25.12.19/src/endian_scalar.rs",
@@ -33,14 +34,11 @@ cargo_crate("lib") {
   cargo_pkg_version = "25.12.19"
   rustc_metadata = "room_flatbuffers-25"
   allow_unsafe = true
-  deps = [ "//room/third_party/rust/bitflags/v2:lib" ]
+  deps = [ "//room/third_party/rust/bitflags/v2:room_lib" ]
   features = [
     "default",
     "std",
   ]
-  build_root = "//room/third_party/rust/vendor/flatbuffers-25.12.19/build.rs"
-  build_sources = [ "//room/third_party/rust/vendor/flatbuffers-25.12.19/build.rs" ]
-  build_deps = [ "//room/third_party/rust/rustc_version/v0_4:lib" ]
 
   # Third-party code: no chromium_code warnings, no coverage.
   _configs_to_remove = [

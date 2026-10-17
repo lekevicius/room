@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "quote"
   epoch = "1"
   crate_type = "rlib"
@@ -27,7 +27,7 @@ cargo_crate("lib") {
   cargo_pkg_version = "1.0.47"
   rustc_metadata = "room_quote-1"
   allow_unsafe = true
-  deps = [ "//room/third_party/rust/proc_macro2/v1:lib" ]
+  deps = [ "//room/third_party/rust/proc_macro2/v1:room_lib" ]
   features = [
     "default",
     "proc-macro",

@@ -1,0 +1,54 @@
+Room: Room's content-blocking proxy joins every URLLoaderFactory.
+
+Room blocks ads and trackers itself (B-30; research/notes/adblock-approach.md,
+option c, the user's decision 2026-10-17): adblock-rust in //room decides
+per request, so //room needs to sit between a frame's or worker's
+URLLoaderFactory and the network, as the webRequest API and the signin and
+enterprise header proxies do.
+
+No existing hook: the interceptors are appended only by
+ChromeContentBrowserClient::WillCreateURLLoaderFactory; a ContentBrowserClient
+subclass would replace Chrome's for one call, and the webRequest proxy runs
+only for extensions. //room appends its proxy when blocking is on (it
+forwards every request it does not block to the next factory with the
+caller's own client) and never for downloads.
+
+2026-10-17. //room: room/core/content_blocking/network_blocking.cc
+(InstallNetworkBlockingHook).
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 19045777b3d81..9edc9529dffd5 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -838,6 +838,19 @@ using plugins::ChromeContentBrowserClientPluginsPart;
+ using web_app::ChromeContentBrowserClientIsolatedWebAppsPart;
+ #endif
+ 
++namespace room {
++// Room: set by //room/core at startup. Adds Room's content-blocking proxy to
++// the factory (ads and trackers, B-30); it decides per request.
++void (*g_url_loader_factory_hook)(
++    content::BrowserContext*,
++    content::RenderFrameHost*,
++    int,
++    content::ContentBrowserClient::URLLoaderFactoryType,
++    const url::Origin&,
++    const net::IsolationInfo&,
++    network::URLLoaderFactoryBuilder&) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ const char kAIManagerUserDataKey[] = "ai_manager";
+@@ -6748,6 +6761,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+ #endif  // BUILDFLAG (ENABLE_EXTENSIONS_CORE)
+ #endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+ 
++  if (room::g_url_loader_factory_hook) {
++    room::g_url_loader_factory_hook(browser_context, frame, render_process_id,
++                                    type, request_initiator, isolation_info,
++                                    factory_builder);
++  }
++
+   MaybeSetTargetNetwork(GetBoundNetworkFromRenderFrameHost(frame),
+                         factory_builder, is_for_network_service);
+ 

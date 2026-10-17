@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "itoa"
   epoch = "1"
   crate_type = "rlib"
@@ -23,7 +23,6 @@ cargo_crate("lib") {
   rustc_metadata = "room_itoa-1"
   allow_unsafe = true
   deps = []
-  features = []
 
   # Third-party code: no chromium_code warnings, no coverage.
   _configs_to_remove = [

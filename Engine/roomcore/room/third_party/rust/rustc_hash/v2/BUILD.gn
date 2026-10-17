@@ -3,7 +3,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("room_lib") {
   crate_name = "rustc_hash"
   epoch = "2"
   crate_type = "rlib"
@@ -24,7 +24,6 @@ cargo_crate("lib") {
   rustc_metadata = "room_rustc_hash-2"
   allow_unsafe = true
   deps = []
-  features = []
 
   # Third-party code: no chromium_code warnings, no coverage.
   _configs_to_remove = [
