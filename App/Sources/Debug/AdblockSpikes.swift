@@ -65,6 +65,11 @@ extension SpikeRunner.Context {
     }
 
     func adblockEngine(_ blocking: ContentBlockingController) async {
+        // The launch's own build (or cache load), before anything changes.
+        let launch = blocking.lastReport
+        SpikeRunner.record("adblock_launch", String(format: "%@ in %.0f ms, %ld bytes; %@", launch?.fromCache == true ? "cached" : "built",
+                                                    launch?.buildMilliseconds ?? -1, launch?.engineBytes ?? -1,
+                                                    AppDelegate.launchLog.first { $0.hasPrefix("content blocking") } ?? "no launch line"))
         // The defaults (loaded at launch), then no lists: what the engine's release gives back.
         blocking.update { $0 = ContentBlockingSettings() }
         await blocking.apply()
@@ -79,6 +84,8 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .seconds(2))
         let off = Self.footprintMB()
         SpikeRunner.record("adblock_footprint", String(format: "browser process %.1f MB with the defaults, %.1f MB with no lists (%.1f MB released)", on, off, on - off))
+        blocking.update { $0 = ContentBlockingSettings() }
+        await blocking.apply()
         let report = blocking.lastReport
         SpikeRunner.record("adblock_lists", blocking.ruleCounts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
         SpikeRunner.record("adblock_engine", String(format: "%@ in %.0f ms, %ld bytes, problems=%ld",
