@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import Chrome
+import Design
 import Engine
 import Model
 import Omnibox
@@ -26,6 +27,10 @@ import UIKitCore
 /// :8766): a chosen file, then a cancelled panel.
 /// `verify` (the relaunch): every setting read back, the remapped keys in the
 /// menu and the reserved set, then Reset All and the settings put back.
+/// `appicon` (Chapter 5, on its own): Settings ▸ Appearance with an alternate
+/// icon chosen, the Dock's image checked and captured as
+/// `app-icon-picker-<light|dark>.png` (`-RoomSpikeAppearance`), then Room's own
+/// again; Dusk is left stored, so a second run on the state reads it applied at launch.
 extension SpikeRunner.Context {
     private var settingsApp: AppDelegate? { AppDelegate.current }
 
@@ -56,6 +61,7 @@ extension SpikeRunner.Context {
         }
         switch UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "set" {
         case "verify": await settingsVerify(app: app, store: store)
+        case "appicon": await settingsAppIcon(app: app, store: store)
         default: await settingsSet(app: app, store: store, sidebar: sidebar)
         }
     }
@@ -120,13 +126,13 @@ extension SpikeRunner.Context {
     }
 
     /// Settings at `section` as a PNG in the capture directory (evidence, not an assertion).
-    func captureSettings(_ app: AppDelegate, _ section: SettingsWindowController.Section, _ name: String) async {
+    func captureSettings(_ app: AppDelegate, _ section: SettingsWindowController.Section, _ name: String, file: String? = nil) async {
         guard let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"),
               let settingsWindow = app.debugSettingsWindow, let window = settingsWindow.window else { return }
         settingsWindow.select(section)
         window.orderFront(nil)
         try? await Task.sleep(for: .milliseconds(400))
-        let url = URL(fileURLWithPath: directory).appending(path: "phase-4.4a-settings-\(name).png")
+        let url = URL(fileURLWithPath: directory).appending(path: file ?? "phase-4.4a-settings-\(name).png")
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         window.displayIfNeeded()
         SpikeRunner.record("capture_\(name)", (try? WindowSnapshot.writePNG(window, to: url)) != nil ? url.lastPathComponent : "failed")
@@ -335,6 +341,43 @@ extension SpikeRunner.Context {
         }
         store.flush()
         SpikeRunner.record("stored", "overrides=\(store.settings.settings.shortcutOverrides.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" })")
+    }
+
+    // MARK: appicon (Chapter 5)
+
+    private func settingsAppIcon(app: AppDelegate, store: RoomStore) async {
+        let dark = NSApp.effectiveAppearance.isDark
+        // A second run on the same state shows the choice applied at launch.
+        SpikeRunner.record("dock_at_launch", "choice=\(store.settings.settings.appIcon.rawValue) applied=\(app.debugAppliedAppIcon ?? "bundle")")
+        store.settings.update { $0.appIcon = .dusk }
+        try? await Task.sleep(for: .milliseconds(300))
+        let rendition = AppIconImages.image(.dusk, dark: dark)
+        SpikeRunner.record("dock_alternate", "choice=\(store.settings.settings.appIcon.rawValue) dark=\(dark) "
+            + "rendered=\(rendition != nil) applied=\(app.debugAppliedAppIcon ?? "bundle")")
+        let missing = AppIconChoice.allCases.flatMap { choice in [false, true].map { (choice, $0) } }
+            .filter { AppIconImages.url($0.0, dark: $0.1) == nil }.map { AppIconImages.resourceName($0.0, dark: $0.1) }
+        SpikeRunner.record("rendered_pngs", "\(AppIconChoice.allCases.count * 2 - missing.count) of \(AppIconChoice.allCases.count * 2) missing=\(missing)")
+        app.showSettings(nil)
+        // The pane renders before the capture's own 400 ms (a blank capture under load otherwise).
+        app.debugSettingsWindow?.select(.appearance)
+        try? await Task.sleep(for: .seconds(2))
+        let file = "app-icon-picker-\(dark ? "dark" : "light").png"
+        await captureSettings(app, .appearance, "appicon", file: file)
+        // With the display asleep or the screen locked the window server's capture is blank:
+        // the pane drawn in process too (no toolbar, no materials).
+        if let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"),
+           let view = app.debugSettingsWindow?.window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+            view.cacheDisplay(in: view.bounds, to: rep)
+            let url = URL(fileURLWithPath: directory).appending(path: file.replacingOccurrences(of: ".png", with: "-drawn.png"))
+            SpikeRunner.record("capture_appicon_drawn", (try? rep.representation(using: .png, properties: [:])?.write(to: url)) != nil ? url.lastPathComponent : "failed")
+        }
+        app.debugSettingsWindow?.window?.orderOut(nil)
+        store.settings.update { $0.appIcon = .room }
+        try? await Task.sleep(for: .milliseconds(300))
+        SpikeRunner.record("dock_room", "choice=\(store.settings.settings.appIcon.rawValue) applied=\(app.debugAppliedAppIcon ?? "bundle")")
+        // Dusk again, stored for the next run's launch.
+        store.settings.update { $0.appIcon = .dusk }
+        store.flush()
     }
 
     // MARK: verify (the relaunch)

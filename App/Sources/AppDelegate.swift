@@ -121,6 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var appIconAppearance: NSKeyValueObservation?
     /// The icon and rendition the Dock shows now (`nil`: the bundle's own).
     private var appliedAppIcon: (choice: AppIconChoice, dark: Bool)?
+    #if DEBUG
+    /// The rendition in the Dock (`settings` spike, `-RoomSpikeOnly appicon`); `nil` for the bundle's icon.
+    var debugAppliedAppIcon: String? { appliedAppIcon.map { AppIconImages.resourceName($0.choice, dark: $0.dark) } }
+    #endif
     /// The first run over Settings and its card in the sidebar (ROADMAP 2.8 task 4).
     private(set) var firstRun: FirstRun?
     #if DEBUG
