@@ -92,7 +92,7 @@ targets:
       - path: App/Sources
       - path: App/Resources
         buildPhase: none
-        excludes: ["Reader/**", "AppIcon.icon/**", "AppIcons/**"]
+        excludes: ["Reader/**", "AppIcon.icon/**", "AppIcons/**", "ContentBlocking/**"]
       # The app icon (Icon Composer; actool compiles it into Assets.car and AppIcon.icns).
       - path: App/Resources/AppIcon.icon
         buildPhase: resources
@@ -104,6 +104,11 @@ targets:
         buildPhase: resources
       # Reader mode (4.7b): the distiller and the page template, copied as Resources/Reader.
       - path: App/Resources/Reader
+        type: folder
+        buildPhase: resources
+      # Room's blocker (B-30): the bundled lists and autoconsent (scripts/content-blocking-assets.sh),
+      # copied as Resources/ContentBlocking.
+      - path: App/Resources/ContentBlocking
         type: folder
         buildPhase: resources
     # Info.plist is generated from here (xcodegen writes App/Resources/Info.plist).

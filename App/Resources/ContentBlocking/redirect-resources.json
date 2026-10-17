@@ -1,0 +1,80 @@
+[
+ {
+  "name": "noop.js",
+  "aliases": [
+   "noopjs",
+   "abp-resource:blank-js",
+   "blank-js"
+  ],
+  "kind": {
+   "mime": "application/javascript"
+  },
+  "content": "KGZ1bmN0aW9uKCl7fSkoKTs="
+ },
+ {
+  "name": "noop.txt",
+  "aliases": [
+   "nooptext",
+   "noop",
+   "abp-resource:blank-text"
+  ],
+  "kind": {
+   "mime": "text/plain"
+  },
+  "content": ""
+ },
+ {
+  "name": "noop.css",
+  "aliases": [
+   "noopcss",
+   "abp-resource:blank-css"
+  ],
+  "kind": {
+   "mime": "text/css"
+  },
+  "content": ""
+ },
+ {
+  "name": "noop.html",
+  "aliases": [
+   "noopframe",
+   "abp-resource:blank-html"
+  ],
+  "kind": {
+   "mime": "text/html"
+  },
+  "content": "PCFET0NUWVBFIGh0bWw+PGh0bWw+PGhlYWQ+PC9oZWFkPjxib2R5PjwvYm9keT48L2h0bWw+"
+ },
+ {
+  "name": "1x1.gif",
+  "aliases": [
+   "1x1-transparent.gif",
+   "abp-resource:1x1-transparent-gif"
+  ],
+  "kind": {
+   "mime": "image/gif"
+  },
+  "content": "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+ },
+ {
+  "name": "2x2.png",
+  "aliases": [
+   "2x2-transparent.png",
+   "abp-resource:2x2-transparent-png"
+  ],
+  "kind": {
+   "mime": "image/png"
+  },
+  "content": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAC0lEQVR4nGNgQAcAABIAAboYB0QAAAAASUVORK5CYII="
+ },
+ {
+  "name": "noop.json",
+  "aliases": [
+   "noopjson"
+  ],
+  "kind": {
+   "mime": "application/json"
+  },
+  "content": "e30="
+ }
+]
