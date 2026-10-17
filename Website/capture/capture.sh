@@ -69,10 +69,26 @@ if [[ "$MODE" == composite ]]; then
 fi
 grep -E '^(error|showcase_missing|capture_timeout|capture_failed):' "$OUT" || true
 
+# Picture in picture as its own layer (the floating window, its corners rounded), cut from the
+# composed frame, so the site can fade the window behind it and keep the video crisp.
+pip_layer() {
+  local name="$1" x y w h r scale
+  read -r x y w h r < <(awk -F': ' '/^pip_layer:/ {print $2}' "$BASE/last-run.txt" | tail -1)
+  [[ -n "${x:-}" && -f "$RAW/$name.png" ]] || return 0
+  scale=$(( $(magick identify -format %w "$RAW/$name.png") / ${SIZE%x*} ))
+  magick "$RAW/$name.png" -crop "$((w * scale))x$((h * scale))+$((x * scale))+$((y * scale))" +repage \
+    \( +clone -alpha extract -fill black -colorize 100 -fill white \
+       -draw "roundrectangle 0,0 $((w * scale - 1)),$((h * scale - 1)) $((r * scale)),$((r * scale))" \) \
+    -alpha off -compose CopyOpacity -composite "$RAW/$name-layer.png"
+  cwebp -quiet -q 88 -alpha_q 100 "$RAW/$name-layer.png" -o "$SHOTS/$name-layer.webp"
+  echo "layer $SHOTS/$name-layer.webp"
+}
+
 # 2880 px wide frames are kept at 2400 for the site: sharp at the largest size it shows them
 # (1180 pt), a third of the bytes.
 for name in "${captured[@]-}"; do
   [[ -n "$name" ]] || continue
   cwebp -quiet -q 86 -alpha_q 100 -m 6 -resize 2400 0 "$RAW/$name.png" -o "$SHOTS/$name.webp"
   echo "encoded $SHOTS/$name.webp ($(du -k "$SHOTS/$name.webp" | cut -f1) KB)"
+  [[ "$name" == pip-* ]] && pip_layer "$name"
 done

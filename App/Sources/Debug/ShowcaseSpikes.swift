@@ -710,6 +710,10 @@ extension SpikeRunner.Context {
                     pip.setFrame(NSRect(origin: origin, size: size), display: true)
                     Self.extraLayers = [(frame, CGRect(x: origin.x - window.frame.minX, y: origin.y - window.frame.minY,
                                                        width: size.width, height: size.height), 12)]
+                    // Where the picture-in-picture window sits, in window points from the top left:
+                    // capture.sh cuts it out as its own layer, so the site can fade the window but not it.
+                    SpikeRunner.record("pip_layer", String(format: "%.0f %.0f %.0f %.0f 12", origin.x - window.frame.minX,
+                                                           window.frame.maxY - origin.y - size.height, size.width, size.height))
                     try? await Task.sleep(for: .milliseconds(600))
                     await showcaseCapture("pip")
                     Self.extraLayers = []

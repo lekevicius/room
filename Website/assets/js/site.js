@@ -185,6 +185,7 @@
   if (picker) {
     const buttons = $$('button', picker);
     const backdrop = $('[data-icon-backdrop]');
+    const backdropNext = $('[data-icon-backdrop-next]');
     const nameLabel = $('[data-icon-name]');
     const favicon = $('#favicon');
     const brandIcon = $('[data-brand-icon]');
@@ -227,10 +228,24 @@
       });
       layout();
       nameLabel.textContent = button.getAttribute('aria-label');
-      backdrop.classList.add('is-changing');
-      const next = new Image();
-      next.onload = () => { backdrop.style.backgroundImage = `url(assets/art/${print}-1536.avif)`; backdrop.classList.remove('is-changing'); };
-      next.src = `assets/art/${print}-1536.avif`;
+      // The next print fades in over the current one, then takes its place.
+      const url = `url("assets/art/${print}-1536.avif")`;
+      if (backdrop.style.backgroundImage !== url) {
+        const preload = new Image();
+        preload.onload = () => {
+          backdropNext.style.backgroundImage = url;
+          backdropNext.classList.remove('is-next');
+          clearTimeout(backdropNext.swap);
+          backdropNext.swap = setTimeout(() => {
+            backdrop.style.backgroundImage = url;
+            backdropNext.style.transition = 'none';
+            backdropNext.classList.add('is-next');
+            void backdropNext.offsetWidth;
+            backdropNext.style.transition = '';
+          }, 820);
+        };
+        preload.src = `assets/art/${print}-1536.avif`;
+      }
       $$('.mark').forEach((m) => { m.style.backgroundImage = `url(assets/icons/${name}-glyph.webp)`; });
       $$('[data-room-icon]').forEach((img) => { img.src = iconSrc(name); });
       if (favicon) { favicon.href = `assets/icons/${name}.webp`; favicon.type = 'image/webp'; }
