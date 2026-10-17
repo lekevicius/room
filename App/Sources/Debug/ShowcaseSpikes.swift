@@ -213,10 +213,11 @@ extension SpikeRunner.Context {
         guard let studio = showcaseSpace("Studio") else { return }
         sidebar.showSpace(studio.id, animated: false)
         await showcaseShow("la-grande-jatte")
-        // Every space's page loaded and tidied before the camera rolls.
-        for name in ["Reading", "Work", "Travel"] {
+        // Every space's page chosen, loaded and tidied before the camera rolls.
+        for (name, fragment) in [("Reading", "themarginalian"), ("Work", "swift.org/blog"), ("Travel", "Curonian_Spit")] {
             guard let space = showcaseSpace(name) else { continue }
             sidebar.showSpace(space.id, animated: false)
+            await showcaseShow(fragment)
             if let page = tabs.current {
                 await waitLoaded(page, timeout: 20); await tidy(page, scrollY: nil)
                 // Until it gives a real frame, so the camera has one to stand in while it repaints.

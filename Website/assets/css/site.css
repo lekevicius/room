@@ -292,24 +292,17 @@ code {
   width: min(1240px, 86vw);
   margin: calc(-1 * clamp(44px, 6.2vw, 92px)) auto 0;
 }
-/* At the fold: the download floats on the window. */
+/* Under the window, in the page's flow: the download and its note. */
 .hero-cta {
-  position: absolute; left: 50%; top: var(--cta-top, calc(100vh - 128px));
-  translate: -50% 0;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-top: clamp(40px, 6vh, 64px);
 }
-.hero-cta .button { position: relative; z-index: 1; height: 56px; padding: 0 30px 0 26px; font-size: 17px; box-shadow: 0 1px 0 rgb(255 255 255 / 0.12) inset, 0 18px 40px -14px rgb(30 20 10 / 0.6); }
-.hero-meta {
-  -webkit-user-select: text; user-select: text;
-  font-size: 13px; color: var(--ink-2);
-  padding: 4px 12px; border-radius: 999px;
-  background: color-mix(in oklab, var(--paper) 80%, transparent);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-}
+.hero-cta .button { position: relative; z-index: 1; height: 56px; padding: 0 30px 0 26px; font-size: 17px; }
+.hero-meta { -webkit-user-select: text; user-select: text; font-size: 13px; color: var(--ink-3); }
 @media (max-width: 640px) {
   .hero-title { font-size: 34vw; }
   .hero .hero-window { width: 92vw; margin-top: -7vw; }
-  .hero-cta { position: relative; top: auto; left: auto; translate: none; margin-top: 28px; }
+  .hero-cta { margin-top: 32px; }
 }
 
 /* ---------- Screenshots ---------- */
@@ -428,7 +421,7 @@ section { position: relative; }
 .letter {
   width: min(var(--max), 100% - 2 * var(--gutter));
   margin: 0 auto;
-  padding: clamp(48px, 8vh, 96px) 0 clamp(96px, 14vh, 160px);
+  padding: clamp(96px, 16vh, 200px) 0 clamp(96px, 14vh, 160px);
   display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(40px, 6vw, 96px); align-items: center;
 }
 .letter-paper {
@@ -619,9 +612,10 @@ section { position: relative; }
 .migrate-from { list-style: none; margin: 0; padding: 0; }
 .migrate-from li {
   position: absolute; left: calc(50% + var(--x)); top: var(--y);
+  width: 50px;  /* not shrink-to-fit: near the edge that would squeeze the icon */
   translate: -50% -50%;
 }
-.migrate-from img { width: 50px; filter: drop-shadow(0 6px 10px rgb(var(--shadow-ink) / 0.2)); transition: transform 0.35s var(--ease); }
+.migrate-from img { width: 50px; max-width: none; filter: drop-shadow(0 6px 10px rgb(var(--shadow-ink) / 0.2)); transition: transform 0.35s var(--ease); }
 .migrate-from li:hover img { transform: translateY(-3px) scale(1.08); }
 .js .cell-import .migrate-from li { opacity: 0; transform: translateY(10px) scale(0.85); }
 .cell-import.in .migrate-from li {

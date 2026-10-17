@@ -12,21 +12,6 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
   };
 
-  // ---------- The download at the fold, or on the window's foot if that comes first ----------
-
-  const heroWindow = $('[data-hero-window]');
-  const heroCta = $('.hero-cta');
-  if (heroWindow && heroCta) {
-    const placeCta = () => {
-      if (matchMedia('(max-width: 640px)').matches) { heroCta.style.removeProperty('--cta-top'); return; }
-      const foot = heroWindow.offsetTop + heroWindow.offsetHeight;
-      heroCta.style.setProperty('--cta-top', `${Math.min(innerHeight - 128, foot - 136)}px`);
-    };
-    addEventListener('resize', placeCta);
-    new ResizeObserver(placeCta).observe(heroWindow);
-    placeCta();
-  }
-
   // ---------- Nav: arrives once the name has scrolled away ----------
 
   const nav = $('[data-nav]');
