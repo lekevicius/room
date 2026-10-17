@@ -7,6 +7,7 @@
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "content/public/renderer/render_frame.h"
 #include "gin/converter.h"
@@ -244,8 +245,13 @@ void CosmeticFilterAgent::HandleCookieMessage(const std::string& json) {
     reply.Set("type", "evalResp");
     reply.Set("id", *id);
     reply.Set("result", result);
-    RunInWorld("globalThis.roomCookieReceive && globalThis.roomCookieReceive(" +
-               base::WriteJson(reply).value_or("{}") + ");");
+    // Later, not now: autoconsent files the request as pending only after
+    // its send returns, so a reply inside the send would be dropped.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&CosmeticFilterAgent::RunInWorld, weak_factory_.GetWeakPtr(),
+                       "globalThis.roomCookieReceive && globalThis.roomCookieReceive(" +
+                           base::WriteJson(reply).value_or("{}") + ");"));
     return;
   }
   if ((*type == "optOutResult" || *type == "autoconsentDone") && host_ &&
