@@ -54,9 +54,32 @@ extension SpikeRunner.Context {
 
     // MARK: engine: the bundled lists
 
+    /// The browser process's physical footprint (Room's own process: the engine lives here).
+    static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
+    }
+
     func adblockEngine(_ blocking: ContentBlockingController) async {
+        // Off, then the defaults: the engine's share of the browser process.
+        blocking.update {
+            $0 = ContentBlockingSettings()
+            $0.blockAds = false
+            $0.blockTrackers = false
+            $0.cookieBanners = .off
+        }
+        await blocking.apply()
+        try? await Task.sleep(for: .seconds(2))
+        let off = Self.footprintMB()
         blocking.update { $0 = ContentBlockingSettings() }
         await blocking.apply()
+        try? await Task.sleep(for: .seconds(2))
+        let on = Self.footprintMB()
+        SpikeRunner.record("adblock_footprint", String(format: "browser process %.1f MB with no lists, %.1f MB with the defaults (+%.1f MB)", off, on, on - off))
         let report = blocking.lastReport
         SpikeRunner.record("adblock_lists", blocking.ruleCounts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
         SpikeRunner.record("adblock_engine", String(format: "%@ in %.0f ms, %ld bytes, problems=%ld",
