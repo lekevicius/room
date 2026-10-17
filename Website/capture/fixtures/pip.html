@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A slow look at a print</title>
+<!-- Showcase fixture (Website/capture): a video for picture in picture, served over HTTP so its frame can be read back. -->
+<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#161411}video{width:80vw}</style>
+<video id="video" src="print.webm" loop muted playsinline></video>
+<button id="pip">Picture in picture</button>
+<script>
+  const video = document.getElementById('video');
+  document.getElementById('pip').addEventListener('click', async () => { await video.play(); await video.requestPictureInPicture(); });
+  // The current frame as a JPEG data URL, for the capture to lay into the PiP window.
+  window.roomFrame = () => { const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0); return c.toDataURL('image/jpeg', 0.92); };
+</script>

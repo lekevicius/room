@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Gymnopédie No. 1</title>
+<!-- Showcase fixture (Website/capture): a page that plays, with now-playing metadata and a print as its artwork. -->
+<style>body{margin:0;display:grid;place-items:center;height:100vh;background:#f3ece0;font:16px -apple-system}img{width:320px;border-radius:12px}</style>
+<img src="artwork.jpg" alt="">
+<audio id="audio" src="tone.webm" loop></audio>
+<button id="play">Play</button>
+<script>
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'Gymnopédie No. 1', artist: 'Erik Satie', album: 'Trois Gymnopédies',
+    artwork: [{ src: new URL('artwork.jpg', location.href).href, sizes: '512x512', type: 'image/jpeg' }],
+  });
+  document.getElementById('play').addEventListener('click', () => document.getElementById('audio').play());
+</script>

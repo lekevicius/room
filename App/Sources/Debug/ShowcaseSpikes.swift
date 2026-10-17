@@ -24,6 +24,9 @@ import UIKitCore
 /// - `-RoomShowcaseBackdrop <image>`: a borderless window behind Room filled with the image, so
 ///   the sidebar's material samples a chosen wallpaper rather than whatever is on the desktop.
 ///
+/// - `-RoomShowcaseFixtures <http base>`: `Website/capture/fixtures` served (by `capture.sh`) for the
+///   `music` and `pip` scenes.
+///
 /// Every page gets `tidy` after it loads: consent banners hidden (captures are made from
 /// the EU), the page scrolled to its scene's offset.
 extension SidebarFixtures {
@@ -118,7 +121,7 @@ extension SidebarFixtures {
 
 extension SpikeRunner.Context {
     private var showcaseScenes: [String] {
-        let all = ["hero", "sidebar", "spaces", "palette", "peek", "split", "reader", "hidden"]
+        let all = ["hero", "sidebar", "spaces", "palette", "peek", "split", "reader", "hidden", "music", "pip", "screenshot"]
         guard let only = UserDefaults.standard.string(forKey: "RoomShowcaseOnly") else { return all }
         let wanted = Set(only.split(separator: ",").map(String.init))
         return all.filter(wanted.contains)
@@ -349,8 +352,23 @@ extension SpikeRunner.Context {
             }
         }
         let result: CGImage? = out.withUnsafeMutableBytes { raw in
-            CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
-                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+            guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                          space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+            // Windows Chromium draws on the GPU (picture in picture), laid in with their shadow and corners.
+            for layer in Self.extraLayers {
+                let r = CGRect(x: layer.rect.minX * scale, y: layer.rect.minY * scale, width: layer.rect.width * scale, height: layer.rect.height * scale)
+                let path = CGPath(roundedRect: r, cornerWidth: layer.radius * scale, cornerHeight: layer.radius * scale, transform: nil)
+                context.saveGState()
+                context.setShadow(offset: CGSize(width: 0, height: -14 * scale), blur: 40 * scale, color: CGColor(gray: 0, alpha: 0.38))
+                context.addPath(path); context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fillPath()
+                context.restoreGState()
+                context.saveGState()
+                context.addPath(path); context.clip()
+                context.interpolationQuality = .high
+                context.draw(layer.image, in: r)
+                context.restoreGState()
+            }
+            return context.makeImage()
         }
         guard let result, let data = NSBitmapImageRep(cgImage: result).representation(using: .png, properties: [:]) else { return "no png" }
         do { try data.write(to: url) } catch { return "write: \(error)" }
@@ -377,6 +395,18 @@ extension SpikeRunner.Context {
     }
 
     @MainActor private static var backdrop: NSWindow?
+    /// Images composed over the window at a rect in window points, with corner radius.
+    @MainActor private static var extraLayers: [(image: CGImage, rect: CGRect, radius: CGFloat)] = []
+
+    private var fixturesBase: String? { UserDefaults.standard.string(forKey: "RoomShowcaseFixtures") }
+
+    /// A JS data URL (as the engine returns it, JSON-quoted) as an image.
+    private func image(fromDataURL json: String) -> CGImage? {
+        let string = json.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        guard let comma = string.firstIndex(of: ","), let data = Data(base64Encoded: String(string[string.index(after: comma)...])),
+              let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
 
     func showcase() async {
         SpikeRunner.record("window_id", window.windowNumber)
@@ -488,6 +518,56 @@ extension SpikeRunner.Context {
                 try? await Task.sleep(for: .milliseconds(800))
                 await showcaseCapture("hidden")
                 controller.isSidebarOpen = true
+                continue
+            case "music":
+                // Something playing in another space: the media row above the footer, with its artwork.
+                guard let base = fixturesBase, let travel = showcaseSpace("Travel") else { continue }
+                sidebar.showSpace(travel.id, animated: false)
+                guard let player = await open(URL(string: "\(base)/music.html")!) else { continue }
+                await click(player, "#play")
+                _ = await waitUntil(8) { player.mediaSession?.playbackState == .playing }
+                await showcaseShow("la-grande-jatte")
+                _ = await waitUntil(6) { self.sidebar.mediaRowContent != nil }
+                try? await Task.sleep(for: .milliseconds(1_200))
+                await showcaseCapture("music")
+                _ = await js(player, "document.getElementById('audio').pause()")
+                if let entry = tabs.entryID(for: player) { _ = try? store.remove(entry) }
+                continue
+            case "pip":
+                // A video in picture in picture over the window's corner.
+                guard let base = fixturesBase, let video = await open(URL(string: "\(base)/pip.html")!) else { continue }
+                await click(video, "#pip")
+                let others = { NSApp.windows.filter { $0 !== self.window && $0.isVisible && $0.frame.width < self.window.frame.width * 0.6
+                    && String(describing: Swift.type(of: $0)).hasPrefix("NativeWidget") } }
+                _ = await waitUntil(8) { !others().isEmpty }
+                try? await Task.sleep(for: .seconds(2.5))
+                if let pip = others().first, let frame = image(fromDataURL: await js(video, "roomFrame()")) {
+                    await showcaseShow("la-grande-jatte")
+                    let size = NSSize(width: 400, height: 225)
+                    let origin = NSPoint(x: window.frame.maxX - size.width - 36, y: window.frame.minY + 36)
+                    pip.setFrame(NSRect(origin: origin, size: size), display: true)
+                    Self.extraLayers = [(frame, CGRect(x: origin.x - window.frame.minX, y: origin.y - window.frame.minY,
+                                                       width: size.width, height: size.height), 12)]
+                    try? await Task.sleep(for: .milliseconds(600))
+                    await showcaseCapture("pip")
+                    Self.extraLayers = []
+                } else {
+                    SpikeRunner.record("showcase_missing", "picture in picture window or frame")
+                }
+                _ = await js(video, "document.exitPictureInPicture && document.exitPictureInPicture()")
+                if let entry = tabs.entryID(for: video) { _ = try? store.remove(entry) }
+                continue
+            case "screenshot":
+                // ⇧⌘2 with the painting selected: the bar with Copy, Save and Open as Tab.
+                guard let app = AppDelegate.current, let page = await showcaseShow("la-grande-jatte") else { continue }
+                let painting = await rect(of: "main img, .m-article-header img, img", in: page)
+                guard let painting, let controller = await openOverlay(app) else { continue }
+                let inset = painting.insetBy(dx: -10, dy: -10)
+                dragOverlay(controller.overlay, from: CGPoint(x: inset.minX, y: inset.minY), to: CGPoint(x: inset.maxX, y: inset.maxY))
+                _ = await waitUntil(5) { controller.image != nil }
+                try? await Task.sleep(for: .milliseconds(600))
+                await showcaseCapture("screenshot")
+                escapeKey()
                 continue
             default:
                 continue

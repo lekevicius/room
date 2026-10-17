@@ -39,6 +39,13 @@ args=(-RoomSidebarFixture showcase -RoomFixtureReplaces YES
 [[ "${ROOM_SHOWCASE_DEBUG:-0}" == 1 ]] && args+=(-RoomShowcaseDebug YES)
 [[ $# -gt 0 ]] && args+=(-RoomShowcaseOnly "$1")
 
+# The music and picture-in-picture fixtures, over HTTP (a video frame is read back from a canvas).
+FIXTURE_PORT="${ROOM_SHOWCASE_FIXTURE_PORT:-8790}"
+python3 -m http.server "$FIXTURE_PORT" --bind 127.0.0.1 --directory Website/capture/fixtures >/dev/null 2>&1 &
+fixtures=$!
+trap 'kill $fixtures 2>/dev/null || true' EXIT
+args+=(-RoomShowcaseFixtures "http://127.0.0.1:$FIXTURE_PORT")
+
 ROOM_APP="$APP" ROOM_SPIKE_OUT="$OUT" scripts/run-spike.sh showcase "${args[@]}" >/dev/null &
 runner=$!
 captured=()
