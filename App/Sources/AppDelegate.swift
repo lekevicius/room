@@ -117,6 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let defaultBrowser = DefaultBrowser()
     /// Sparkle and Sentry behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
     private(set) var optIns: OptInServices?
+    /// Room's built-in blocker (B-30): Settings ▸ Privacy and the site panel.
+    private(set) var contentBlocking: ContentBlockingController?
     /// Settings ▸ Appearance ▸ App Icon follows the light or dark appearance (`applyAppIcon`).
     private var appIconAppearance: NSKeyValueObservation?
     /// The icon and rendition the Dock shows now (`nil`: the bundle's own).
@@ -194,6 +196,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// loads the selected entry once its profile exists. Then the DEBUG runners.
     private func startSession() async {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
+        // Before any page: a page's requests are matched by the factories its document gets at commit.
+        await startContentBlocking()
         do {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where engineProfiles[model.id] == nil {
@@ -295,6 +299,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #endif
         return OptInServices(dsn: dsn, makeUpdater: { SparkleUpdater(feedOverride: feed) },
                              makeCrashReporter: { SentryCrashReporter() })
+    }
+
+    /// Room's built-in blocker follows Settings ▸ Privacy from here on (B-30).
+    private func startContentBlocking() async {
+        guard contentBlocking == nil, let blocker = engine.contentBlocking, let settings = store?.settings else { return }
+        let engine = engine
+        let controller = ContentBlockingController(engine: blocker, settings: settings, stateDirectory: Self.stateDirectory,
+                                                   site: { engine.site(of: $0) })
+        contentBlocking = controller
+        let started = ContinuousClock.now
+        await controller.start()
+        Self.launchLog.append("content blocking: ready in \(ContinuousClock.now - started)")
     }
 
     /// The services follow the two settings at once, from the first run's card or Settings ▸ Privacy.
@@ -1511,6 +1527,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
                 canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
                 extensions: { [weak self] in self?.extensions },
+                contentBlocking: { [weak self] in self?.contentBlocking },
                 shownPage: { [weak self] in
                     guard let page = self?.tabs?.focusedPage, let profile = self?.sidebar?.activeSpace?.profileID else { return nil }
                     return (page, profile)
@@ -1681,7 +1698,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 self?.showSettings(section: .extensions)
             }
         }
-        let model = SitePanelModel(origin: origin, security: page.securityState, profile: profile, extensions: extensionsSection) {
+        var blockingSection: SitePanelBlocking?
+        if let blocker = contentBlocking, let site = engine.site(of: origin) {
+            blockingSection = SitePanelBlocking(
+                site: site, isBlocking: blocker.settingsValue.blocks(on: site),
+                blockedCount: { [weak page] in page?.blockedRequestCount ?? 0 },
+                setBlocking: { [weak blocker] on in blocker?.setBlocking(on, on: site) })
+        }
+        let model = SitePanelModel(origin: origin, security: page.securityState, profile: profile, extensions: extensionsSection,
+                                   blocking: blockingSection) {
             [weak page] in page?.reload()
         }
         if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {

@@ -38,6 +38,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var rootBackgroundColor: NSColor?
     public private(set) var securityState = SecurityState.none
     public private(set) var isAudible = false
+    public private(set) var blockedRequestCount = 0
     public private(set) var state = WebContentsState.alive
     public private(set) var findResult: FindResult?
     /// `MediaStreamCaptureIndicator` through RoomCore's `captureState`.
@@ -112,6 +113,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             page.observe(\.securityLevel) { _, _ in weakSelf.refresh() },
             page.observe(\.hasMixedContent) { _, _ in weakSelf.refresh() },
             page.observe(\.isAudible) { _, _ in weakSelf.refresh() },
+            page.observe(\.blockedRequestCount) { _, _ in weakSelf.refresh() },
             page.observe(\.isMuted) { _, _ in weakSelf.refresh() },
             page.observe(\.zoomFactor) { _, _ in weakSelf.refresh() },
             page.observe(\.lifecycleState) { _, _ in weakSelf.refresh() },
@@ -164,6 +166,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
             uiDelegate?.webContents(self, didChangeAudible: isAudible)
         }
         if isMuted != page.isMuted { isMuted = page.isMuted }
+        if blockedRequestCount != page.blockedRequestCount { blockedRequestCount = page.blockedRequestCount }
         if abs(zoomFactor - page.zoomFactor) > 0.0001 { zoomFactor = page.zoomFactor }
         let lifecycle: WebContentsState = switch page.lifecycleState {
         case .discarded: .discarded
@@ -554,6 +557,10 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     /// `WebContentsObserver::PrimaryMainFrameRenderProcessGone`: the host's
     /// crashed-page view.
+    public func webContents(_ webContents: RoomWebContents, didHandleCookieBanner consentPlatform: String, optedOut: Bool) {
+        uiDelegate?.webContents(self, didHandleCookieBanner: consentPlatform, optedOut: optedOut)
+    }
+
     public func webContents(_ webContents: RoomWebContents, renderProcessGone status: RoomTerminationStatus) {
         let mapped: TerminationStatus = switch status {
         case .normal: .normal

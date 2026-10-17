@@ -114,6 +114,8 @@ struct SettingsServices {
     let canCheckForUpdates: () -> Bool
     /// Chrome extensions per profile (3.6a); `nil` on an engine without them (no engine, the fakes).
     let extensions: () -> ExtensionsCenter?
+    /// Room's built-in blocker (B-30); `nil` without an engine.
+    let contentBlocking: () -> ContentBlockingController?
     /// The page in the browser window's card and its Room profile (4.5:
     /// Settings ▸ Extensions sets site access for its host).
     let shownPage: () -> (page: any WebContents, profile: UUID)?
@@ -271,6 +273,9 @@ private struct SettingsSectionView: View {
     // MARK: Privacy (2.8b; 4.4b: permissions per site, Clear browsing data, site data, the statements)
 
     @ViewBuilder private var privacy: some View {
+        if let blocking = services.contentBlocking() {
+            ContentBlockingSettingsView(controller: blocking)
+        }
         SitePermissionsView(sidebar: services.sidebar, profiles: services.profiles)
         Section {
             LabeledContent {

@@ -35,6 +35,10 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
         if host.hasSuffix(".") { host.removeLast() }
         return RoomApplication.site(forHost: host)
     }
+    /// Room's blocker (`RoomContentBlocker`, adblock-rust in `//room`).
+    public var contentBlocking: (any ContentBlocking)? { blocker }
+    private lazy var blocker = RoomCoreContentBlocking()
+
     /// Chromium's `browser_shutdown::IsTryingToQuit()`: true while a quit
     /// closes the pages, false again after a beforeunload "stay".
     public var isTerminating: Bool { core.isTerminating }

@@ -122,13 +122,16 @@ public final class SitePanelModel {
     public private(set) var isClearing = false
     /// The Extensions section (4.5); `nil` without an extension system.
     public let extensions: SitePanelExtensions?
+    /// Room's blocker on this site (B-30); `nil` without one.
+    public let blocking: SitePanelBlocking?
 
     public init(origin: URL, security: SecurityState, profile: any Profile, extensions: SitePanelExtensions? = nil,
-                reload: @escaping () -> Void) {
+                blocking: SitePanelBlocking? = nil, reload: @escaping () -> Void) {
         self.origin = origin
         self.security = security
         self.profile = profile
         self.extensions = extensions
+        self.blocking = blocking
         reloadPage = reload
         refresh()
     }
@@ -148,6 +151,13 @@ public final class SitePanelModel {
     }
 
     public var hasStoredSettings: Bool { !stored.isEmpty }
+
+    /// The blocker's switch for this site; the page shows the change after a reload.
+    public func setBlocking(_ on: Bool) {
+        guard let blocking, on != blocking.isBlocking else { return }
+        blocking.set(on)
+        needsReload = true
+    }
 
     /// Every permission back to its default, and the site's certificate
     /// decisions with them ("Visit … Anyway" is forgotten: B-43).
@@ -193,6 +203,32 @@ public final class SitePanelModel {
             }
         }
         stored = values
+    }
+}
+
+/// The site panel's blocker switch (B-30): Room's ads and trackers
+/// blocking on the page's site (its registrable domain), and what it
+/// stopped on the page.
+@Observable
+public final class SitePanelBlocking {
+    public let site: String
+    public private(set) var isBlocking: Bool
+    @ObservationIgnored private let count: () -> Int
+    @ObservationIgnored private let write: (Bool) -> Void
+
+    /// `blockedCount` reads the page's observable count (the panel follows it).
+    public init(site: String, isBlocking: Bool, blockedCount: @escaping () -> Int, setBlocking: @escaping (Bool) -> Void) {
+        self.site = site
+        self.isBlocking = isBlocking
+        count = blockedCount
+        write = setBlocking
+    }
+
+    public var blockedCount: Int { count() }
+
+    func set(_ on: Bool) {
+        isBlocking = on
+        write(on)
     }
 }
 
@@ -346,6 +382,22 @@ struct SitePanelView: View {
                 Button("Reset Permissions") { Task { await model.resetPermissions() } }
                     .buttonStyle(.link)
                     .accessibilityIdentifier("site-reset-permissions")
+            }
+            if let blocking = model.blocking {
+                Divider()
+                Toggle(isOn: Binding(get: { blocking.isBlocking }, set: { model.setBlocking($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Block ads and trackers")
+                        Text(blocking.isBlocking
+                             ? (blocking.blockedCount == 1 ? "1 request blocked on this page"
+                                                           : "\(blocking.blockedCount) requests blocked on this page")
+                             : "Off for \(blocking.site)")
+                            .font(Font(Typography.secondary))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .accessibilityIdentifier("site-blocking")
             }
             if let extensions = model.extensions, !extensions.rows.isEmpty {
                 Divider()

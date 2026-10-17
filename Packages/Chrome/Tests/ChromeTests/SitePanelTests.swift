@@ -35,6 +35,26 @@ struct SitePanelTests {
         #expect(SitePanelRules.origin(of: URL(string: "file:///tmp/a.html")) == nil)
     }
 
+    @Test("The blocker switch writes the site's setting once, follows the page's count, and offers a reload (B-30)")
+    func blockingSwitch() async throws {
+        let engine = FakeApplication()
+        try engine.initialize(EngineConfiguration(userDataDirectory: FileManager.default.temporaryDirectory))
+        let profile = try engine.profile(named: "Work")
+        var written: [Bool] = []
+        var count = 3
+        let blocking = SitePanelBlocking(site: "a.example", isBlocking: true, blockedCount: { count },
+                                         setBlocking: { written.append($0) })
+        let model = SitePanelModel(origin: URL(string: "https://www.a.example")!, security: SecurityState(level: .secure),
+                                   profile: profile, blocking: blocking) {}
+        #expect(blocking.blockedCount == 3)
+        count = 5
+        #expect(blocking.blockedCount == 5)
+        model.setBlocking(true)
+        #expect(written.isEmpty && !model.needsReload)
+        model.setBlocking(false)
+        #expect(written == [false] && !blocking.isBlocking && model.needsReload)
+    }
+
     @Test("Changing a row writes the page's profile for its origin only; the default removes it; Reset clears all; a reload is offered")
     func modelOnFakeProfile() async throws {
         let engine = FakeApplication()
