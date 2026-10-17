@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import ImageIO
 import Engine
 import Model
 import Store
@@ -192,6 +193,98 @@ extension SpikeRunner.Context {
     }
 
 
+
+    // MARK: Recording (no Screen Recording permission: frames composed in process)
+
+    /// `-RoomShowcaseRecord <clip> -RoomShowcaseDirectory <dir>` (`Website/capture/film.sh`): plays the
+    /// clip's choreography with the window's animations slowed `-RoomShowcaseSlowdown` times (default
+    /// 5) and composes frames as fast as it can meanwhile, each stamped with its time in the clip
+    /// (real time / slowdown). Frames go to `<dir>/<clip>/<n>.jpg` at 1920 px, times to `times.txt`.
+    private func showcaseRecord(_ clip: String) async {
+        let slowdown = max(1, UserDefaults.standard.double(forKey: "RoomShowcaseSlowdown").nonZero ?? 5)
+        guard let directory = UserDefaults.standard.string(forKey: "RoomShowcaseDirectory") else {
+            return SpikeRunner.record("error", "record needs -RoomShowcaseDirectory")
+        }
+        let folder = URL(fileURLWithPath: directory).appending(path: clip)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let appearance = showcaseAppearances.first ?? "light"
+        NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+        guard let studio = showcaseSpace("Studio") else { return }
+        sidebar.showSpace(studio.id, animated: false)
+        await showcaseShow("la-grande-jatte")
+        // Every space's page loaded and tidied before the camera rolls.
+        for name in ["Reading", "Work", "Travel"] {
+            guard let space = showcaseSpace(name) else { continue }
+            sidebar.showSpace(space.id, animated: false)
+            if let page = tabs.current {
+                await waitLoaded(page, timeout: 20); await tidy(page, scrollY: nil)
+                // Until it gives a real frame, so the camera has one to stand in while it repaints.
+                for _ in 0..<12 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    if let image = await viewport(of: page), !Self.isBlank(image) { break }
+                }
+            }
+        }
+        sidebar.showSpace(studio.id, animated: false)
+        try? await Task.sleep(for: .seconds(1.5))
+        if let page = tabs.current { _ = await viewport(of: page) }
+        guard window.occlusionState.contains(.visible) else { return SpikeRunner.record("capture_failed", "\(clip): not on screen") }
+
+        // Slow every Core Animation animation in the window (and Room's own slide) by the same factor.
+        let rootLayer = window.contentView?.superview?.layer ?? window.contentView?.layer
+        rootLayer?.speed = Float(1 / slowdown)
+        sidebar.debugSetSlideSlowdown(slowdown)
+        defer { rootLayer?.speed = 1; sidebar.debugSetSlideSlowdown(1) }
+
+        Self.pagesFrozen = true
+        defer { Self.pagesFrozen = false }
+        let roll = Roll()
+        let start = Date()
+        let camera = Task { @MainActor in
+            while roll.rolling {
+                let stamp = Date().timeIntervalSince(start) / slowdown
+                let (image, _) = await self.composeImage()
+                if let image {
+                    self.writeFrame(image, to: folder.appending(path: String(format: "%05d.jpg", roll.times.count)))
+                    roll.times.append(stamp)
+                }
+                await Task.yield()
+            }
+        }
+        func hold(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds * slowdown)) }
+        switch clip {
+        default: // "hero", "spaces": a loop through every space and back to Studio.
+            await hold(1.0)
+            for digit in [2, 3, 4, 1] {
+                sidebar.showSpace(digit: digit)
+                await hold(1.6)
+            }
+            await hold(0.4)
+        }
+        roll.rolling = false
+        await camera.value
+        let times = roll.times
+        try? times.map { String(format: "%.4f", $0) }.joined(separator: "\n").write(to: folder.appending(path: "times.txt"), atomically: true, encoding: .utf8)
+        SpikeRunner.record("recorded", "\(clip) frames=\(times.count) seconds=\(String(format: "%.2f", times.last ?? 0)) slowdown=\(slowdown)")
+    }
+
+    /// A frame at 1920 px wide as JPEG.
+    private func writeFrame(_ image: CGImage, to url: URL) {
+        let width = 1920, height = Int((Double(image.height) / Double(image.width) * 1920).rounded())
+        guard let space = CGColorSpace(name: CGColorSpace.displayP3),
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        // Window corners on the paper colour of the site, so the video's corners blend into its frame.
+        context.setFillColor(CGColor(red: 0.953, green: 0.925, blue: 0.878, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let scaled = context.makeImage(), let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.jpeg" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, scaled, [kCGImageDestinationLossyCompressionQuality: 0.92] as CFDictionary)
+        CGImageDestinationFinalize(destination)
+    }
+
     // MARK: Capture
 
     /// The script's window-server capture, or a composed one with `-RoomShowcaseDirectory`.
@@ -267,15 +360,65 @@ extension SpikeRunner.Context {
     /// order: each page goes in where it is, and whatever Room draws above a page (Peek's dim and
     /// frame, the palette, the screenshot overlay) goes back over it. Returns nil on success.
     private func composeCapture(to url: URL) async -> String? {
+        let (image, failure) = await composeImage()
+        guard let image else { return failure ?? "no image" }
+        guard let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { return "no png" }
+        do { try data.write(to: url) } catch { return "write: \(error)" }
+        return nil
+    }
+
+    /// A page's viewport, or nil after two seconds (a page being hidden mid-switch never answers).
+    private func viewport(of page: any WebContents) async -> NSImage? {
+        // While a clip rolls the pages hold still: their frames from before the camera started.
+        if Self.pagesFrozen, let image = Self.lastViewport[ObjectIdentifier(page.nativeView)] { return image }
+        let box = ViewportBox()
+        let capture = Task { @MainActor in box.image = try? await page.captureViewport(); box.done = true }
+        let deadline = Date().addingTimeInterval(2)
+        while !box.done, Date() < deadline { try? await Task.sleep(for: .milliseconds(10)) }
+        if !box.done { capture.cancel(); SpikeRunner.record("viewport_timeout", page.url?.host() ?? "?") }
+        // A page that was hidden a moment ago answers blank until it paints again: its last real
+        // frame stands in.
+        let key = ObjectIdentifier(page.nativeView)
+        if let image = box.image, !Self.isBlank(image) {
+            Self.lastViewport[key] = image
+            return image
+        }
+        return Self.lastViewport[key] ?? box.image
+    }
+
+    @MainActor private static var lastViewport: [ObjectIdentifier: NSImage] = [:]
+    @MainActor private static var pagesFrozen = false
+
+    /// Whether an image is (nearly) one flat colour: fewer than 2% of a 24×24 grid off its first cell.
+    private static func isBlank(_ image: NSImage) -> Bool {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return true }
+        let side = 24
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn = pixels.withUnsafeMutableBytes { raw -> Bool in
+            guard let context = CGContext(data: raw.baseAddress, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drawn else { return true }
+        var off = 0
+        for i in stride(from: 0, to: pixels.count, by: 4) where abs(Int(pixels[i]) - Int(pixels[0])) + abs(Int(pixels[i + 1]) - Int(pixels[1])) + abs(Int(pixels[i + 2]) - Int(pixels[2])) > 12 {
+            off += 1
+        }
+        return Double(off) / Double(side * side) < 0.02
+    }
+
+    /// The composed window (see `composeCapture`), or what went wrong.
+    private func composeImage() async -> (CGImage?, String?) {
         if let backdrop = Self.backdrop { backdrop.order(.below, relativeTo: window.windowNumber) }
         let pages = visiblePages
         var images: [ObjectIdentifier: CGImage] = [:]
         for page in pages {
-            if let image = try? await page.captureViewport(), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            if let image = await viewport(of: page), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
                 images[ObjectIdentifier(page.nativeView)] = cg
             }
         }
-        guard let base = windowImage(), let root = window.contentView else { return "no window image" }
+        guard let base = windowImage(), let root = window.contentView else { return (nil, "no window image") }
         let pageViews = pages.map(\.nativeView)
         func isPageOrInside(_ view: NSView) -> Bool { pageViews.contains { view === $0 || view.isDescendant(of: $0) } }
         func containsPage(_ view: NSView) -> Bool { pageViews.contains { $0.isDescendant(of: view) } }
@@ -326,7 +469,7 @@ extension SpikeRunner.Context {
         let scale = CGFloat(width) / window.frame.width
         let space = base.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return "no context" }
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return (nil, "no context") }
         let full = CGRect(x: 0, y: 0, width: width, height: height)
         context.draw(base, in: full)
         context.interpolationQuality = .high
@@ -379,11 +522,7 @@ extension SpikeRunner.Context {
             context.draw(layer.image, in: r)
             context.restoreGState()
         }
-        guard let result = context.makeImage(), let data = NSBitmapImageRep(cgImage: result).representation(using: .png, properties: [:]) else {
-            return "no png"
-        }
-        do { try data.write(to: url) } catch { return "write: \(error)" }
-        return nil
+        return (context.makeImage(), nil)
     }
 
     /// A borderless window under Room, filled with the backdrop image.
@@ -413,7 +552,9 @@ extension SpikeRunner.Context {
 
     /// A JS data URL (as the engine returns it, JSON-quoted) as an image.
     private func image(fromDataURL json: String) -> CGImage? {
-        let string = json.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        // The engine returns the result as JSON: a quoted string, with "/" possibly escaped.
+        let string = (try? JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed)) as? String
+            ?? json.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
         guard let comma = string.firstIndex(of: ","), let data = Data(base64Encoded: String(string[string.index(after: comma)...])),
               let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -448,6 +589,12 @@ extension SpikeRunner.Context {
         }
         sidebar.showSpace(studio.id, animated: false)
         try? await Task.sleep(for: .seconds(2))
+
+        if let clip = UserDefaults.standard.string(forKey: "RoomShowcaseRecord") {
+            await showcaseRecord(clip)
+            NSApp.appearance = nil
+            return
+        }
 
         if let stage = UserDefaults.standard.string(forKey: "RoomShowcaseStage") {
             let appearance = showcaseAppearances.first ?? "light"
@@ -552,7 +699,11 @@ extension SpikeRunner.Context {
                     && String(describing: Swift.type(of: $0)).hasPrefix("NativeWidget") } }
                 _ = await waitUntil(8) { !others().isEmpty }
                 try? await Task.sleep(for: .seconds(2.5))
-                if let pip = others().first, let frame = image(fromDataURL: await js(video, "roomFrame()")) {
+                SpikeRunner.record("pip_state", "windows=\(NSApp.windows.filter(\.isVisible).map { "\(Swift.type(of: $0)) \(NSStringFromRect($0.frame))" }) "
+                    + "video=\(await js(video, "JSON.stringify({pip: !!document.pictureInPictureElement, ready: document.getElementById('video').readyState, w: document.getElementById('video').videoWidth})"))")
+                let frameJSON = await js(video, "(() => { const v = document.getElementById('video'); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c.toDataURL('image/jpeg', 0.92); })()")
+                SpikeRunner.record("pip_frame", "length=\(frameJSON.count) head=\(frameJSON.prefix(60))")
+                if let pip = others().first, let frame = image(fromDataURL: frameJSON) {
                     await showcaseShow("la-grande-jatte")
                     let size = NSSize(width: 400, height: 225)
                     let origin = NSPoint(x: window.frame.maxX - size.width - 36, y: window.frame.minY + 36)
@@ -589,5 +740,22 @@ extension SpikeRunner.Context {
         }
         NSApp.appearance = nil
     }
+}
+#endif
+
+#if DEBUG
+@MainActor private final class ViewportBox {
+    var image: NSImage?
+    var done = false
+}
+
+/// The camera's state while a clip rolls (main actor only).
+@MainActor private final class Roll {
+    var rolling = true
+    var times: [Double] = []
+}
+
+private extension Double {
+    var nonZero: Double? { self == 0 ? nil : self }
 }
 #endif
