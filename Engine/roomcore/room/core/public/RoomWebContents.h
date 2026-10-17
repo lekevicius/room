@@ -491,6 +491,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // The link under the pointer or keyboard focus changed; nil when none.
 - (void)webContents:(RoomWebContents*)webContents
     didChangeStatusText:(nullable NSString*)text;
+// Room's blocker handled a cookie banner on the current page (autoconsent,
+// cookie banners: Reject): `consentPlatform` is the platform's name,
+// `optedOut` whether its opt-out succeeded (NO: it was only hidden).
+- (void)webContents:(RoomWebContents*)webContents
+    didHandleCookieBannerOfPlatform:(NSString*)consentPlatform
+                           optedOut:(BOOL)optedOut
+    NS_SWIFT_NAME(webContents(_:didHandleCookieBanner:optedOut:));
 // Chrome wants the address field focused (IDC_FOCUS_LOCATION through the
 // command dispatch, chrome::FocusLocationBar, LocationBar::FocusLocation):
 // the host focuses its own field for this page.
@@ -680,6 +687,9 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly) BOOL hasMixedContent;
 // Playing sound now (WebContents::IsCurrentlyAudible, both edges).
 @property(nonatomic, readonly, getter=isAudible) BOOL audible;
+// Requests Room's blocker stopped on the current page (its frames and
+// workers; 0 again when another page commits). KVO-observable.
+@property(nonatomic, readonly) NSInteger blockedRequestCount;
 @property(nonatomic, getter=isMuted) BOOL muted;
 // Page zoom, 1 is 100% (Chrome's ZoomController: per host, so the host's
 // other pages change with it).

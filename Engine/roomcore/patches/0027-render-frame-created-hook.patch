@@ -1,0 +1,40 @@
+Room: Room's content-blocking agent joins every renderer frame.
+
+Room blocks ads and trackers itself (B-30; research/notes/adblock-approach.md,
+option c, the user's decision 2026-10-17). Hiding elements, scriptlets and
+cookie-banner handling have to happen inside each document before its own
+scripts run, which takes a content::RenderFrameObserver per frame: the
+browser pushes each document's resources over the frame's associated
+interfaces at ReadyToCommitNavigation (subresource_filter's push model) and
+the agent applies them at DidCreateDocumentElement.
+
+No existing hook: RenderFrameObservers are created only by the
+ContentRendererClient (ChromeContentRendererClient::RenderFrameCreated);
+subclassing it would replace Chrome's for one call. //room sets the hook
+from a static initializer when the framework loads in a renderer, as it
+does for patch 0007's media hook.
+
+2026-10-17. //room: room/core/content_blocking/cosmetic_filter_agent.cc.
+diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
+index 3b030af0de2d7..285acb8f5ab86 100644
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -639,8 +639,18 @@ void ChromeContentRendererClient::ExposeInterfacesToBrowser(
+   ExposeChromeRendererInterfacesToBrowser(this, binders);
+ }
+ 
++namespace room {
++// Room: set by //room/core when the framework loads in a renderer. Gives
++// each frame Room's content-blocking agent (cosmetic filters, scriptlets,
++// cookie banners; B-30).
++void (*g_render_frame_created_hook)(content::RenderFrame*) = nullptr;
++}  // namespace room
++
+ void ChromeContentRendererClient::RenderFrameCreated(
+     content::RenderFrame* render_frame) {
++  if (room::g_render_frame_created_hook) {
++    room::g_render_frame_created_hook(render_frame);
++  }
+   ChromeRenderFrameObserver* render_frame_observer =
+       new ChromeRenderFrameObserver(render_frame, web_cache_impl_.get());
+   service_manager::BinderRegistry* registry = render_frame_observer->registry();

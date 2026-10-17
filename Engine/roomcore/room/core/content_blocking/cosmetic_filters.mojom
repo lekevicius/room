@@ -1,0 +1,39 @@
+// Copyright 2026 Jonas Lekevicius. All rights reserved.
+
+module room.mojom;
+
+// What one document gets from Room's blocker (B-30), pushed by the browser
+// when the document is about to commit in the frame.
+struct CosmeticResources {
+  // Hidden with a user-origin stylesheet.
+  array<string> hide_selectors;
+  // Exceptions for the generic class/id selectors (kept by the browser too).
+  array<string> exceptions;
+  // Scriptlets, run in the main world before the page's own scripts.
+  string scriptlets;
+  // Set: no generic class/id hiding on this document.
+  bool generichide;
+  // Run the generic class/id collector (false when nothing could match).
+  bool collect_class_ids;
+  // autoconsent (cookie banners: Reject); empty when the mode is not Reject.
+  string cookie_script;
+};
+
+// Renderer side, an associated interface of each frame.
+interface CosmeticFilterAgent {
+  // For the next document committed in this frame only.
+  ActivateForNextCommittedLoad(CosmeticResources resources,
+                               pending_remote<CosmeticFilterHost> host);
+};
+
+// Browser side, one per activated document (the remote rides along with the
+// activation, so no binder is registered).
+interface CosmeticFilterHost {
+  // Generic hide selectors for the classes and ids seen in the document.
+  HiddenClassIdSelectors(array<string> classes, array<string> ids)
+      => (array<string> selectors);
+  // autoconsent handled the document's cookie banner: `cmp` is the consent
+  // platform's name, `opted_out` whether its opt-out steps succeeded (false
+  // when only hidden).
+  CookieBannerHandled(string cmp, bool opted_out);
+};

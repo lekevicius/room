@@ -76,6 +76,8 @@
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+#include "room/core/content_blocking/cosmetic_filter_tab_helper.h"
+#include "room/core/content_blocking/network_blocking.h"
 #import "room/core/room_browser_internal.h"
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_profile_internal.h"
@@ -162,6 +164,7 @@ extern void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&)
 @property(nonatomic, readwrite) RoomSecurityLevel securityLevel;
 @property(nonatomic, readwrite) BOOL hasMixedContent;
 @property(nonatomic, readwrite, getter=isAudible) BOOL audible;
+@property(nonatomic, readwrite) NSInteger blockedRequestCount;
 @property(nonatomic, readwrite) RoomLifecycleState lifecycleState;
 @property(nonatomic, readwrite) RoomCaptureState captureState;
 @property(nonatomic, readwrite, nullable) RoomMediaSessionInfo* mediaSession;
@@ -171,6 +174,8 @@ extern void (*g_navigation_throttles_hook)(content::NavigationThrottleRegistry&)
 - (void)room_refreshFavicon;
 - (void)room_setLoadProgress:(double)progress;
 - (void)room_setAudible:(BOOL)audible;
+- (void)room_blockedRequestCountChanged:(int)count;
+- (void)room_cookieBannerHandled:(const std::string&)platform optedOut:(bool)optedOut;
 - (void)room_mutingChanged;
 - (void)room_zoomChanged;
 - (void)room_didFinishNavigation:(content::NavigationHandle*)handle;
@@ -201,6 +206,13 @@ class WrapperLink : public content::WebContentsUserData<WrapperLink> {
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(WrapperLink);
+
+// Room's blocker on every Room page (B-30): the per-document cosmetic push
+// and the blocked-request count (the proxy decides on its own).
+void AttachContentBlocking(content::WebContents* contents) {
+  room::CosmeticFilterTabHelper::CreateForWebContents(contents);
+  room::BlockedRequestCounter::CreateForWebContents(contents);
+}
 
 // RoomCore's isolated world for the host's scripts. Chrome reserves this id
 // for AppleScript's "execute javascript", the same job (an embedding app
@@ -795,6 +807,18 @@ RoomDiscardBlockers ToRoomBlockers(
 namespace room {
 
 void InstallWebContentsHooks() {
+  BlockedRequestCounter::SetChangedCallback(
+      base::BindRepeating([](content::WebContents* contents, int count) {
+        [[RoomWebContents room_existingWrapperFor:contents]
+            room_blockedRequestCountChanged:count];
+      }));
+  CosmeticFilterTabHelper::SetCookieBannerCallback(base::BindRepeating(
+      [](content::WebContents* contents, const std::string& platform,
+         bool opted_out) {
+        [[RoomWebContents room_existingWrapperFor:contents]
+            room_cookieBannerHandled:platform
+                            optedOut:opted_out];
+      }));
   g_update_target_url_hook = +[](content::WebContents* source,
                                  const GURL& url) -> bool {
     // Only Room pages have a wrapper; Chrome's own (headless) Browsers keep
@@ -888,6 +912,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 @synthesize securityLevel = _securityLevel;
 @synthesize hasMixedContent = _hasMixedContent;
 @synthesize audible = _audible;
+@synthesize blockedRequestCount = _blockedRequestCount;
 @synthesize lifecycleState = _lifecycleState;
 @synthesize captureState = _captureState;
 @synthesize mediaSession = _mediaSession;
@@ -903,6 +928,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     _loadProgress = 1;
     UnhideNativeView(_contents);
     WrapperLink::CreateForWebContents(_contents, self);
+    AttachContentBlocking(_contents);
     _observer = std::make_unique<Observer>(_contents, self);
     [self room_refresh];
   }
@@ -919,6 +945,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     _loadProgress = 1;
     UnhideNativeView(_contents);
     WrapperLink::CreateForWebContents(_contents, self);
+    AttachContentBlocking(_contents);
     _observer = std::make_unique<Observer>(_contents, self);
     // Chrome inserted it into a tab strip: its tab helpers exist.
     _observer->ObserveTabHelpers();
@@ -942,6 +969,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
     _loadProgress = 1;
     UnhideNativeView(_contents);
     WrapperLink::CreateForWebContents(_contents, self);
+    AttachContentBlocking(_contents);
     _observer = std::make_unique<Observer>(_contents, self);
     [self room_refresh];
   }
@@ -1184,6 +1212,7 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   UnhideNativeView(_contents);
   [self didChangeValueForKey:@"nativeView"];
   WrapperLink::CreateForWebContents(_contents, self);
+  AttachContentBlocking(_contents);
   _observer = std::make_unique<Observer>(_contents, self);
   _observer->ObserveTabHelpers();
   MarkNotAutoDiscardable(_contents);
@@ -1308,6 +1337,23 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
 - (void)room_setAudible:(BOOL)audible {
   if (audible != _audible) {
     self.audible = audible;
+  }
+}
+
+- (void)room_blockedRequestCountChanged:(int)count {
+  if (count != _blockedRequestCount) {
+    self.blockedRequestCount = count;
+  }
+}
+
+- (void)room_cookieBannerHandled:(const std::string&)platform
+                        optedOut:(bool)optedOut {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector
+                (webContents:didHandleCookieBannerOfPlatform:optedOut:)]) {
+    [delegate webContents:self
+        didHandleCookieBannerOfPlatform:base::SysUTF8ToNSString(platform)
+                               optedOut:optedOut];
   }
 }
 
