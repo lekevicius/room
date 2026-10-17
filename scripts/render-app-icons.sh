@@ -36,7 +36,6 @@ CHOICES=(
   "dusk:App/Resources/AppIcons/Dusk.icon"
   "harbor:App/Resources/AppIcons/Harbor.icon"
   "newsprint:App/Resources/AppIcons/Newsprint.icon"
-  "watercolor:App/Resources/AppIcons/Watercolor.icon"
 )
 
 TMP="$(mktemp -d)"

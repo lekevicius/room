@@ -51,7 +51,6 @@ icons=(
   "Room-Alt4:dusk"
   "Room-Alt5:harbor"
   "Room-Alt6:newsprint"
-  "Room-v0:watercolor"
 )
 for entry in "${icons[@]}"; do
   name="${entry%%:*}"; slug="${entry##*:}"

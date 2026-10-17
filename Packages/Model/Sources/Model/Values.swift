@@ -592,9 +592,10 @@ public enum AppearanceSetting: String, Hashable, Sendable, Codable, CaseIterable
 }
 
 /// Settings ▸ Appearance ▸ App Icon: Room's own icon or one of the
-/// alternates (the raw value names the rendered PNGs in the bundle).
+/// alternates (the raw value names the rendered PNGs in the bundle). A stored
+/// choice that is no longer offered (Watercolor, removed 2026-10-17) decodes to Room.
 public enum AppIconChoice: String, Hashable, Sendable, Codable, CaseIterable {
-    case room, sunrise, lagoon, ember, dusk, harbor, newsprint, watercolor
+    case room, sunrise, lagoon, ember, dusk, harbor, newsprint
 
     public var displayName: String {
         switch self {
@@ -605,7 +606,6 @@ public enum AppIconChoice: String, Hashable, Sendable, Codable, CaseIterable {
         case .dusk: "Dusk"
         case .harbor: "Harbor"
         case .newsprint: "Newsprint"
-        case .watercolor: "Watercolor"
         }
     }
 }

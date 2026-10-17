@@ -1,7 +1,7 @@
 import Model
 import SwiftUI
 
-/// Settings ▸ Appearance ▸ App Icon: the choices in two rows of four, each in
+/// Settings ▸ Appearance ▸ App Icon: the choices in rows of four, each in
 /// the rendition of the window's appearance, the chosen one ringed in the
 /// accent colour.
 struct AppIconPicker: View {
