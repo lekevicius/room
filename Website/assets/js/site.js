@@ -161,8 +161,12 @@
     figure.querySelector('picture')?.replaceWith(box);
     figure.classList.add('has-clip');
 
+    // Keyboard-led clips have no pointer track, and then no cursor.
     let track = null;
-    fetch(`assets/clips/${name}.cursor.json`).then((r) => r.json()).then((t) => { track = t; }).catch(() => {});
+    cursor.hidden = true;
+    fetch(`assets/clips/${name}.cursor.json`).then((r) => (r.ok ? r.json() : null)).then((t) => {
+      if (t && t.events && t.events.length) { track = t; cursor.hidden = reduceMotion.matches; }
+    }).catch(() => {});
     new ResizeObserver(([e]) => {
       if (track) box.style.setProperty('--k', (e.contentRect.width / track.width).toFixed(4));
     }).observe(box);

@@ -564,9 +564,9 @@ section { position: relative; }
   border-top: 1px solid var(--line);
 }
 .crop img { position: absolute; max-width: none; width: var(--w); left: var(--l); top: var(--t); }
-.crop-music { --ar: 1.45; --w: 400%; --l: 0%; --t: -246%; }
+.crop-music { --ar: 1.5; --w: 480%; --l: 0%; --t: -345%; }
 .crop-pip { --ar: 1.53; --w: 248%; --l: -148%; --t: -137%; }
-.crop-capture { --ar: 1.9; --w: 150%; --l: -38%; --t: -9%; margin-top: 22px; }
+.crop-capture { --ar: 1.53; --w: 147%; --l: -38.8%; --t: -35.9%; margin-top: 22px; }
 
 .from {
   list-style: none; margin: auto 0 0; padding: 26px 0 0;
