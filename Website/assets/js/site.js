@@ -12,72 +12,16 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
   };
 
-  // ---------- Hero ----------
-  //
-  // The window is there from the first frame, over the foot of the name. p runs 0 → 1 over the
-  // hero's scroll: the window rises to the middle and comes to full size, the line and the name
-  // drift up and fade, the paper arc sinks with the download on it, and at the end the print
-  // draws in from the edges to a panel. The window never leaves the view.
+  // ---------- Nav: arrives once the name has scrolled away ----------
 
-  const hero = $('[data-hero]');
-  if (hero) {
-    const stage = $('.hero-stage', hero);
-    const copy = $('[data-hero-copy]', hero);
-    const title = $('.hero-title', hero);
-    const ground = $('[data-hero-ground]', hero);
-    const win = $('[data-hero-window]', hero);
-    const settle = 0.6;
-    let geo = null;
-    let ticking = false;
-
-    const measure = () => {
-      const vw = stage.clientWidth;
-      const vh = stage.clientHeight;
-      copy.style.setProperty('--copy-y', '0px');
-      const height = win.offsetHeight;
-      const scale0 = vw < 700 ? 1 : 0.94;
-      // The window's top starts a little above the name's baseline, so it covers the name's foot.
-      const top0 = copy.offsetTop + title.offsetTop + title.offsetHeight * (vw < 700 ? 0.95 : 0.8);
-      const end = vh / 2 + 28;
-      geo = { vw, vh, scale0, winY0: top0 + (height * scale0) / 2 - end, groundH: ground.offsetHeight, range: hero.offsetHeight - vh };
-    };
-
-    const render = () => {
-      ticking = false;
-      if (!geo) measure();
-      const top = hero.getBoundingClientRect().top;
-      const p = clamp(-top / geo.range);
-      const t = easeInOut(clamp(p / settle));
-      stage.style.setProperty('--win-y', `${(geo.winY0 * (1 - t)).toFixed(2)}px`);
-      stage.style.setProperty('--win-s', (geo.scale0 + (1 - geo.scale0) * t).toFixed(4));
-      stage.style.setProperty('--print-scale', (1.06 - 0.06 * ease(t)).toFixed(4));
-      const c = clamp(p / 0.28);
-      copy.style.setProperty('--copy-o', (1 - c).toFixed(3));
-      copy.style.setProperty('--copy-y', `${(-c * 80).toFixed(1)}px`);
-      copy.style.visibility = c >= 1 ? 'hidden' : '';
-      ground.style.setProperty('--ground-y', `${(ease(clamp(p / 0.35)) * (geo.groundH + 40)).toFixed(1)}px`);
-      const e = ease(clamp((p - 0.74) / 0.26));
-      stage.style.setProperty('--edge', `${(e * Math.min(24, geo.vw * 0.04)).toFixed(2)}px`);
-      stage.style.setProperty('--edge-r', `${(e * 28).toFixed(2)}px`);
-    };
-
-    const schedule = () => { if (!ticking) { ticking = true; requestAnimationFrame(render); } };
-
-    const setMode = () => {
-      if (reduceMotion.matches) {
-        hero.setAttribute('data-static', '');
-        removeEventListener('scroll', schedule);
-        return;
-      }
-      hero.removeAttribute('data-static');
-      geo = null;
-      addEventListener('scroll', schedule, { passive: true });
-      render();
-    };
-    addEventListener('resize', () => { geo = null; schedule(); });
-    reduceMotion.addEventListener('change', setMode);
-    document.fonts?.ready.then(() => { geo = null; schedule(); });
-    setMode();
+  const nav = $('[data-nav]');
+  const heroTitle = $('[data-hero-title]');
+  if (nav && heroTitle && 'IntersectionObserver' in window) {
+    new IntersectionObserver(([e]) => {
+      nav.dataset.hidden = String(e.isIntersecting || e.boundingClientRect.top > 0);
+    }, { threshold: 0 }).observe(heroTitle);
+  } else if (nav) {
+    nav.dataset.hidden = 'false';
   }
 
   // ---------- The letter's video: shown once it exists ----------
@@ -242,7 +186,6 @@
     const buttons = $$('button', picker);
     const backdrop = $('[data-icon-backdrop]');
     const nameLabel = $('[data-icon-name]');
-    const heroPrint = $('[data-hero-print]');
     const favicon = $('#favicon');
     const brandIcon = $('[data-brand-icon]');
     const count = buttons.length;
@@ -256,8 +199,19 @@
         // The shortest way round: offsets -3…3 for seven icons.
         let o = ((i - current) % count + count) % count;
         if (o > count / 2) o -= count;
-        b.style.setProperty('--o', o);
-        b.style.setProperty('--a', Math.abs(o));
+        const before = Number(b.style.getPropertyValue('--o') || o);
+        // An icon wrapping from one end to the other jumps over unseen and fades in there,
+        // rather than flying across the stage.
+        if (Math.abs(o - before) > count / 2) {
+          b.classList.add('is-wrapping');
+          b.style.setProperty('--o', o);
+          b.style.setProperty('--a', Math.abs(o));
+          void b.offsetWidth;
+          requestAnimationFrame(() => b.classList.remove('is-wrapping'));
+        } else {
+          b.style.setProperty('--o', o);
+          b.style.setProperty('--a', Math.abs(o));
+        }
         b.style.visibility = Math.abs(o) > 3 ? 'hidden' : '';
       });
     };
@@ -277,8 +231,8 @@
       const next = new Image();
       next.onload = () => { backdrop.style.backgroundImage = `url(assets/art/${print}-1536.avif)`; backdrop.classList.remove('is-changing'); };
       next.src = `assets/art/${print}-1536.avif`;
-      if (heroPrint) heroPrint.style.backgroundImage = `url(assets/art/${print}-1536.avif)`;
       $$('.mark').forEach((m) => { m.style.backgroundImage = `url(assets/icons/${name}-glyph.webp)`; });
+      $$('[data-room-icon]').forEach((img) => { img.src = iconSrc(name); });
       if (favicon) { favicon.href = `assets/icons/${name}.webp`; favicon.type = 'image/webp'; }
       if (brandIcon) { brandIcon.href = `assets/icons/${name}.webp`; brandIcon.download = `room-icon-${name}.webp`; }
       if (persist) store.set('room.icon', name);
