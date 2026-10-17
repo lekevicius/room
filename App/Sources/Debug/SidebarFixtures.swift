@@ -38,6 +38,10 @@ enum SidebarFixtures {
             case "spaces":
                 try populateSpaces(store, first: space, window: window)
                 return
+            case "showcase":
+                // The website's captures (ShowcaseSpikes.swift, Website/capture/capture.sh).
+                try populateShowcase(store, first: space, window: window)
+                return
             case "spaces500":
                 try populateSpaces500(store, first: space, window: window)
                 return

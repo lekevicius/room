@@ -104,6 +104,7 @@ enum SpikeRunner {
         case "importlarge": await context.importLargeChecks()
         case "settings": await context.settingsChecks()
         case "profiles": await context.profilesChecks()
+        case "showcase": await context.showcase()
         default: record("error", "unknown spike")
         }
         record("end", name)
