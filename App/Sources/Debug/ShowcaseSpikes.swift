@@ -266,31 +266,16 @@ extension SpikeRunner.Context {
                 shots.append((cg, page.nativeView))
             }
         }
-        // Then the window keyed: a plain view laid just above each page (under Room's own overlays),
-        // black, then white.
+        // Keying the page (black, then white) to recover the window's own overlays over it by
+        // difference matting does not work yet: Chromium's remote content comes out opaque white in
+        // our own window's image whatever lies under or over it. Until then the pages are drawn over
+        // the window (B = W, so the result is the page): overlays inside the card (the palette, Peek's
+        // dim) are lost, everything else is right.
         let views = shots.map(\.1)
-        let keys: [NSView] = views.compactMap { view in
-            guard let superview = view.superview else { return nil }
-            let key = NSView(frame: view.frame)
-            key.autoresizingMask = view.autoresizingMask
-            key.wantsLayer = true
-            superview.addSubview(key, positioned: .above, relativeTo: view)
-            return key
-        }
-        func keyed(_ color: CGColor) async -> CGImage? {
-            for key in keys { key.layer?.backgroundColor = color; key.needsDisplay = true }
-            window.displayIfNeeded()
-            CATransaction.flush()
-            try? await Task.sleep(for: .milliseconds(250))
-            if UserDefaults.standard.bool(forKey: "RoomShowcaseDebug") {
-                SpikeRunner.record("key", "occlusion visible=\(window.occlusionState.contains(.visible)) keys=\(keys.map { NSStringFromRect($0.convert($0.bounds, to: nil)) + " hidden=\($0.isHiddenOrHasHiddenAncestor)" })")
-            }
-            return windowImage()
-        }
-        let black = await keyed(CGColor(gray: 0, alpha: 1))
-        let white = await keyed(CGColor(gray: 1, alpha: 1))
-        for key in keys { key.removeFromSuperview() }
+        let black = windowImage()
+        let white = black
         guard let black, let white else { return "no window image" }
+        _ = views
         if UserDefaults.standard.bool(forKey: "RoomShowcaseDebug") {
             try? NSBitmapImageRep(cgImage: black).representation(using: .png, properties: [:])?
                 .write(to: url.deletingPathExtension().appendingPathExtension("black.png"))
@@ -331,20 +316,38 @@ extension SpikeRunner.Context {
                 context.restoreGState()
             }
         }
+        var maskBytes = [UInt8](repeating: 0, count: width * height)
+        maskBytes.withUnsafeMutableBytes { raw in
+            guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
+                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+            context.setFillColor(gray: 1, alpha: 1)
+            for (_, view) in shots {
+                let frame = view.convert(view.bounds, to: nil)
+                let rect = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
+                context.saveGState()
+                if let corner = clippingCorner(of: view) {
+                    let r = corner.rect
+                    context.addPath(CGPath(roundedRect: CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale),
+                                           cornerWidth: corner.radius * scale, cornerHeight: corner.radius * scale, transform: nil))
+                    context.clip()
+                }
+                context.fill(rect)
+                context.restoreGState()
+            }
+        }
         guard var out = buffer({ $0.draw(black, in: full) }), let whiteBytes = buffer({ $0.draw(white, in: full) }), let pageBytes else {
             return "no buffers"
         }
-        // out = B + (W − B)·P per channel, in the window image's own space; the window's shape from W.
+        // Pages over the window, where the pages are (see above); the window's shape from W.
         out.withUnsafeMutableBufferPointer { o in
             whiteBytes.withUnsafeBufferPointer { w in
                 pageBytes.withUnsafeBufferPointer { p in
                     var i = 0
                     let count = o.count
                     while i < count {
-                        for c in 0..<3 {
-                            let b = Int(o[i + c]), k = Int(w[i + c]) - b
-                            o[i + c] = UInt8(clamping: b + (k * Int(p[i + c]) + 127) / 255)
-                        }
+                        // The page layer is opaque white outside the pages; the pages' own pixels are
+                        // told apart by the mask drawn alongside them.
+                        if maskBytes[i / 4] != 0 { o[i] = p[i]; o[i + 1] = p[i + 1]; o[i + 2] = p[i + 2] }
                         o[i + 3] = w[i + 3]
                         i += 4
                     }
