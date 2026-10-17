@@ -492,6 +492,8 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Settings ▸ Appearance ▸ App Icon (Chapter 5): the Dock's icon while Room
     /// runs; `.room` is the bundle's own icon.
     public var appIcon: AppIconChoice = .room
+    /// Settings ▸ Privacy ▸ Ads and trackers (B-30): Room's built-in blocker.
+    public var contentBlocking = ContentBlockingSettings()
 
     public init() {}
 
@@ -500,7 +502,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
-        case extensionsInIncognito, readerTextSize, appIcon
+        case extensionsInIncognito, readerTextSize, appIcon, contentBlocking
     }
 
     public init(from decoder: any Decoder) throws {
@@ -541,6 +543,8 @@ public struct Settings: Hashable, Sendable, Codable {
             ?? defaults.extensionsInIncognito
         readerTextSize = (try? container.decodeIfPresent(ReaderTextSize.self, forKey: .readerTextSize)).flatMap { $0 } ?? defaults.readerTextSize
         appIcon = (try? container.decodeIfPresent(AppIconChoice.self, forKey: .appIcon)).flatMap { $0 } ?? defaults.appIcon
+        contentBlocking = (try? container.decodeIfPresent(ContentBlockingSettings.self, forKey: .contentBlocking)).flatMap { $0 }
+            ?? defaults.contentBlocking
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).
@@ -579,6 +583,93 @@ public struct SearchEngineSetting: Hashable, Sendable, Codable, Identifiable {
 /// The side of the window the sidebar docks on; the traffic lights stay where AppKit puts them.
 public enum SidebarSide: String, Hashable, Sendable, Codable, CaseIterable {
     case left, right
+}
+
+/// Settings ▸ Privacy ▸ Ads and trackers (B-30;
+/// research/notes/adblock-approach.md §9): what Room's built-in blocker does.
+/// Ads, trackers and cookie banners are handled out of the box with the
+/// bundled lists; anything that would reach the network (an optional list, a
+/// list by URL, automatic updates) happens only when the user turns it on.
+public struct ContentBlockingSettings: Hashable, Sendable, Codable {
+    public var blockAds = true
+    public var blockTrackers = true
+    public var cookieBanners: CookieBannerSetting = .reject
+    /// Optional lists of Room's catalogue the user turned on (catalogue ids).
+    public var enabledLists: [String] = []
+    /// Lists the user added by URL.
+    public var customLists: [CustomFilterList] = []
+    /// Filter syntax, one rule per line.
+    public var customRules = ""
+    /// Sites (registrable domains, lower case) where nothing is blocked: the
+    /// site panel's switch and Settings' Allowed Sites.
+    public var allowedSites: [String] = []
+    /// Download newer versions of the lists on their own schedule. Off by
+    /// default: Room asks the lists' servers only when the user says so.
+    public var automaticListUpdates = false
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case blockAds, blockTrackers, cookieBanners, enabledLists, customLists, customRules, allowedSites
+        case automaticListUpdates
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = ContentBlockingSettings()
+        blockAds = (try? container.decodeIfPresent(Bool.self, forKey: .blockAds)).flatMap { $0 } ?? defaults.blockAds
+        blockTrackers = (try? container.decodeIfPresent(Bool.self, forKey: .blockTrackers)).flatMap { $0 } ?? defaults.blockTrackers
+        cookieBanners = (try? container.decodeIfPresent(CookieBannerSetting.self, forKey: .cookieBanners)).flatMap { $0 }
+            ?? defaults.cookieBanners
+        enabledLists = (try? container.decodeIfPresent([String].self, forKey: .enabledLists)).flatMap { $0 } ?? defaults.enabledLists
+        customLists = (try? container.decodeIfPresent([CustomFilterList].self, forKey: .customLists)).flatMap { $0 }
+            ?? defaults.customLists
+        customRules = (try? container.decodeIfPresent(String.self, forKey: .customRules)).flatMap { $0 } ?? defaults.customRules
+        allowedSites = (try? container.decodeIfPresent([String].self, forKey: .allowedSites)).flatMap { $0 } ?? defaults.allowedSites
+        automaticListUpdates = (try? container.decodeIfPresent(Bool.self, forKey: .automaticListUpdates)).flatMap { $0 }
+            ?? defaults.automaticListUpdates
+    }
+
+    /// Blocking happens on `site` (a registrable domain).
+    public func blocks(on site: String) -> Bool {
+        !allowedSites.contains(site.lowercased())
+    }
+
+    /// The site panel's switch: `site` joins or leaves the allowed sites
+    /// (kept sorted, without duplicates).
+    public mutating func setBlocking(_ blocking: Bool, on site: String) {
+        let site = site.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !site.isEmpty else { return }
+        var sites = Set(allowedSites)
+        if blocking { sites.remove(site) } else { sites.insert(site) }
+        allowedSites = sites.sorted()
+    }
+
+    public mutating func setList(_ id: String, enabled: Bool) {
+        enabledLists.removeAll { $0 == id }
+        if enabled { enabledLists.append(id) }
+    }
+}
+
+/// Cookie banners: answered with an opt-out (autoconsent), only hidden, or left alone.
+public enum CookieBannerSetting: String, Hashable, Sendable, Codable, CaseIterable {
+    case reject, hide, off
+}
+
+/// A filter list the user added by its URL (Settings ▸ Privacy ▸ Lists).
+public struct CustomFilterList: Hashable, Sendable, Codable, Identifiable {
+    public var id: UUID
+    public var url: URL
+    /// The list's own `! Title:`, once downloaded; the URL's host until then.
+    public var title: String
+    public var isEnabled: Bool
+
+    public init(id: UUID = UUID(), url: URL, title: String? = nil, isEnabled: Bool = true) {
+        self.id = id
+        self.url = url
+        self.title = title ?? url.host() ?? url.absoluteString
+        self.isEnabled = isEnabled
+    }
 }
 
 /// The reader page's three text sizes (4.7b; `ReaderMetrics` holds the points).
