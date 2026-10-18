@@ -11,4 +11,4 @@ the app as `Resources/ContentBlocking`. The app reads them with no network.
 | `redirect-resources.json` | empty script, frame, text and image bodies for `$redirect` rules, Room's own | MPL-2.0 (Room) |
 | `autoconsent-room.js` | DuckDuckGo's autoconsent `autoconsent-version.txt`, bundled with Room's entry (`scripts/content-blocking/autoconsent-room.ts`) | MPL-2.0 (`LICENSE-autoconsent`) |
 
-Lists under GPL (uBlock Origin's) are never bundled: Settings offers them as downloads the user turns on.
+Lists under GPL (uBlock Origin's) are never bundled: Settings offers them as downloads the user turns on. uBlock Origin's scriptlets come with them: fetched from uBO's pinned tag when the first uBO list is turned on and converted on the Mac (`UBlockScriptlets`), never shipped here.

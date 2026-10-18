@@ -6,7 +6,9 @@
 # rules (third-party script, pixel and fetch blocked, a $redirect served,
 # EasyList's own path rule, a site-specific and a generic hidden element, a
 # CookieYes-style banner rejected by autoconsent, the page's blocked count),
-# the per-site switch, and fixture load times with blocking off and on. Then
+# the per-site switch, fixture load times with blocking off and on, and uBO's
+# scriptlets (fetched from GitHub when the spike turns uBlock filters – Unbreak
+# on; the one section that uses the network). Then
 # the browser process's memory with the engine loaded. Serves research/spikes
 # on 127.0.0.1:8777 unless something listens there already.
 # Usage: scripts/adblock-check.sh [capture-dir] [extra spike args...]
@@ -51,8 +53,12 @@ sleep 1
 echo "== spike"
 cat "$out"
 echo
-echo "== lists and engine cache"
-ls -la "$work/state/ContentBlocking/Lists" "$work/state/ContentBlocking/Engine" 2>/dev/null || echo "none"
+# uBO's scriptlets (GPLv3) come from the network at the user's request, never with the app.
+app="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+echo "ublock_scriptlet_files_in_app: $( (grep -rlE 'safe-self\.fn|function safeSelf\(' "$app/Contents/Resources" 2>/dev/null || true) | wc -l | tr -d ' ')"
+echo
+echo "== lists, scriptlets and engine cache"
+ls -la "$work/state/ContentBlocking/Lists" "$work/state/ContentBlocking/Scriptlets" "$work/state/ContentBlocking/Engine" 2>/dev/null || echo "none"
 dumps=$(ls "$work"/engine/Crashpad/pending/*.dmp "$work"/engine/Crashpad/completed/*.dmp 2>/dev/null || true)
 echo "crashpad_dumps: $(printf '%s' "$dumps" | grep -c . || true)"
 for dump in $dumps; do
