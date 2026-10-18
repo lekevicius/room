@@ -16,6 +16,7 @@
 #include "base/timer/elapsed_timer.h"
 #include "content/public/browser/browser_thread.h"
 #include "crypto/hash.h"
+#include "components/web_cache/browser/web_cache_manager.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "room/core/content_blocking/adblock_ffi.rs.h"
 
@@ -231,6 +232,10 @@ void ContentBlocker::OnBuilt(
                  << (result->report.from_cache ? "cached" : "built") << " in "
                  << result->report.build_milliseconds << " ms, "
                  << result->report.engine_bytes << " bytes";
+    // Renderers keep fetched subresources in their memory caches and reuse
+    // them without a request: a script loaded while its site was allowed
+    // would load again unchecked after the switch is turned back on.
+    web_cache::WebCacheManager::GetInstance()->ClearCache();
     for (Observer& observer : observers_) {
       observer.OnContentBlockerChanged();
     }
