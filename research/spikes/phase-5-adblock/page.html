@@ -2,13 +2,14 @@
 <meta charset="utf-8">
 <title>Room blocker fixture</title>
 <!-- Phase 5 `adblock` spike (App/Sources/Debug/AdblockSpikes.swift), served by
-     scripts/adblock-check.sh on 127.0.0.1:8777; "third-party" files come from
-     localhost:8777, another site. The spike's custom rules:
-       ||localhost^*/ads/banner.js$script
-       ||localhost^*/tracker.gif$image
-       ||localhost^*/beacon.txt
-       ||localhost^*/ads/needed.js$script,redirect=noop.js
-       127.0.0.1##.ad-slot
+     scripts/adblock-check.sh on 127.0.0.1:8777 and opened as news.test (Chromium's
+     --host-resolver-rules maps *.test there: EasyList exempts 127.0.0.1 and
+     localhost from generic hiding); "third-party" files come from ads.test. The spike's custom rules:
+       ||ads.test^*/ads/banner.js$script
+       ||ads.test^*/tracker.gif$image
+       ||ads.test^*/beacon.txt
+       ||ads.test^*/ads/needed.js$script,redirect=noop.js
+       news.test##.ad-slot
        ##.room-generic-ad
      and EasyList's own /jquery.overlayad.js. The results go into #log. -->
 <style>
@@ -31,7 +32,7 @@
     document.cookie = 'cookieyes-consent=advertisement:' + (answer === 'rejected' ? 'no' : 'yes');
     document.getElementById('banner').remove();
   }
-  const third = 'http://localhost:8777/phase-5-adblock/';
+  const third = 'http://ads.test:8777/phase-5-adblock/';
   function load(name, src, kind) {
     return new Promise((resolve) => {
       const el = document.createElement(kind);

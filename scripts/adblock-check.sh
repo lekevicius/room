@@ -27,7 +27,8 @@ if ! lsof -nP -iTCP:8777 -sTCP:LISTEN >/dev/null 2>&1; then
     sleep 0.1
   done
 fi
-args=(-RoomStateDirectory "$work/state" -RoomEngineDirectory "$work/engine")
+# The fixture is news.test and ads.test (EasyList exempts 127.0.0.1 and localhost from generic hiding).
+args=(-RoomStateDirectory "$work/state" -RoomEngineDirectory "$work/engine" "--host-resolver-rules=MAP *.test 127.0.0.1")
 echo "state: $work"
 # The tour's appearance and switches stay; its state and engine directories give way to the run's own.
 if [[ -n "${ROOM_TOUR_ARGS:-}" ]]; then

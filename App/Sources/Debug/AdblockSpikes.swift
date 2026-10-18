@@ -6,22 +6,26 @@ import Tabs
 
 /// Built-in blocking spike `adblock` (B-30; `Room -RoomSpike adblock`, run by
 /// `scripts/adblock-check.sh`, which serves `research/spikes` on :8777).
-/// Fixture `phase-5-adblock/page.html` on 127.0.0.1 loads "third-party"
-/// files from localhost (another site) and writes what loaded, what is
+/// Fixture `phase-5-adblock/page.html`, opened as news.test (the check
+/// maps `*.test` to 127.0.0.1: EasyList exempts 127.0.0.1 and localhost from
+/// generic hiding), loads "third-party" files from ads.test and writes what loaded, what is
 /// hidden and the cookie banner's fate into `#log`. Sections
 /// (`-RoomSpikeOnly` picks): `engine` (the bundled lists' build and cache,
 /// decisions on real EasyList and EasyPrivacy URLs), `page` (the fixture
 /// with the spike's custom rules: network, cosmetic, redirect, cookie banner,
 /// the page's blocked count), `allowed` (the per-site switch: nothing blocked
-/// after a reload, then blocked again), `timing` (fixture loads with blocking
-/// off and on).
+/// after a reload, then blocked again), `timing` (`timing.html`'s load event
+/// with blocking off, the lists only, and the lists with cookie banners
+/// rejected). The engine's memory is its serialized size (`adblock_engine`):
+/// the browser process's footprint does not show it (the allocator keeps
+/// freed pages).
 extension SpikeRunner.Context {
     static let adblockRules = """
-    ||localhost^*/ads/banner.js$script
-    ||localhost^*/tracker.gif$image
-    ||localhost^*/beacon.txt
-    ||localhost^*/ads/needed.js$script,redirect=noop.js
-    127.0.0.1##.ad-slot
+    ||ads.test^*/ads/banner.js$script
+    ||ads.test^*/tracker.gif$image
+    ||ads.test^*/beacon.txt
+    ||ads.test^*/ads/needed.js$script,redirect=noop.js
+    news.test##.ad-slot
     ##.room-generic-ad
     """
 
@@ -38,7 +42,7 @@ extension SpikeRunner.Context {
         if runs("timing") { await adblockTiming(blocking) }
     }
 
-    static func adblockPage(_ name: String = "page.html", host: String = "127.0.0.1") -> URL {
+    static func adblockPage(_ name: String = "page.html", host: String = "news.test") -> URL {
         URL(string: "http://\(host):8777/phase-5-adblock/\(name)")!
     }
 
@@ -54,39 +58,16 @@ extension SpikeRunner.Context {
 
     // MARK: engine: the bundled lists
 
-    /// The browser process's physical footprint (Room's own process: the engine lives here).
-    static func footprintMB() -> Double {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
-        }
-        return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
-    }
-
     func adblockEngine(_ blocking: ContentBlockingController) async {
         // The launch's own build (or cache load), before anything changes.
         let launch = blocking.lastReport
         SpikeRunner.record("adblock_launch", String(format: "%@ in %.0f ms, %ld bytes; %@", launch?.fromCache == true ? "cached" : "built",
                                                     launch?.buildMilliseconds ?? -1, launch?.engineBytes ?? -1,
                                                     AppDelegate.launchLog.first { $0.hasPrefix("content blocking") } ?? "no launch line"))
-        // The defaults (loaded at launch), then no lists: what the engine's release gives back.
-        blocking.update { $0 = ContentBlockingSettings() }
-        await blocking.apply()
-        try? await Task.sleep(for: .seconds(2))
-        let on = Self.footprintMB()
-        blocking.update {
-            $0.blockAds = false
-            $0.blockTrackers = false
-            $0.cookieBanners = .off
-        }
-        await blocking.apply()
-        try? await Task.sleep(for: .seconds(2))
-        let off = Self.footprintMB()
-        SpikeRunner.record("adblock_footprint", String(format: "browser process %.1f MB with the defaults, %.1f MB with no lists (%.1f MB released)", on, off, on - off))
         blocking.update { $0 = ContentBlockingSettings() }
         await blocking.apply()
         let report = blocking.lastReport
+        _ = await waitUntil(5) { blocking.ruleCounts.count >= 3 }  // counted off the main thread
         SpikeRunner.record("adblock_lists", blocking.ruleCounts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
         SpikeRunner.record("adblock_engine", String(format: "%@ in %.0f ms, %ld bytes, problems=%ld",
                                                     report?.fromCache == true ? "cached" : "built", report?.buildMilliseconds ?? -1,
@@ -136,7 +117,7 @@ extension SpikeRunner.Context {
             $0 = ContentBlockingSettings()
             $0.customRules = Self.adblockRules
         }
-        guard let site = blocking.site(of: "127.0.0.1") else { return SpikeRunner.record("error", "adblock: no site for 127.0.0.1") }
+        guard let site = blocking.site(of: "news.test") else { return SpikeRunner.record("error", "adblock: no site for news.test") }
         blocking.setBlocking(false, on: site)
         await blocking.apply()
         guard let page = await open(Self.adblockPage()) else { return SpikeRunner.record("error", "adblock: the fixture did not open") }
@@ -153,33 +134,38 @@ extension SpikeRunner.Context {
     // MARK: timing: the fixture with blocking off and on
 
     func adblockTiming(_ blocking: ContentBlockingController) async {
+        // timing.html (40 allowed requests, 400 elements with classes), reloaded in one tab:
+        // the page's own navigation timing, start to load event end, ten loads per mode.
+        let modes: [(String, (inout ContentBlockingSettings) -> Void)] = [
+            ("off", { $0.blockAds = false; $0.blockTrackers = false; $0.cookieBanners = .off }),
+            ("lists", { $0.cookieBanners = .off }),
+            ("lists+reject", { $0.cookieBanners = .reject }),
+        ]
+        guard let page = await open(Self.adblockPage("timing.html")) else { return SpikeRunner.record("error", "adblock: timing.html did not open") }
+        await waitLoaded(page)
         var lines: [String] = []
-        for on in [false, true] {
-            blocking.update {
-                $0 = ContentBlockingSettings()
-                $0.customRules = Self.adblockRules
-                if !on {
-                    $0.blockAds = false
-                    $0.blockTrackers = false
-                    $0.cookieBanners = .off
-                    $0.customRules = ""
+        for _ in 0..<2 {  // two rounds, interleaved, against drift in the machine's load
+            for (name, body) in modes {
+                blocking.update {
+                    $0 = ContentBlockingSettings()
+                    body(&$0)
                 }
+                await blocking.apply()
+                var loads: [Double] = []
+                for _ in 0..<5 {
+                    page.reload()
+                    _ = await waitUntilAsync(10) { await self.js(page, "document.readyState") == "\"loading\"" }
+                    await waitLoaded(page)
+                    _ = await waitUntilAsync(5) { await self.js(page, "performance.getEntriesByType('navigation')[0].loadEventEnd > 0") == "true" }
+                    if let value = Double(await js(page, "performance.getEntriesByType('navigation')[0].loadEventEnd")) { loads.append(value) }
+                }
+                let sorted = loads.sorted()
+                lines.append(String(format: "%@ median %.0f ms (%@)", name, sorted.isEmpty ? -1 : sorted[sorted.count / 2],
+                                    sorted.map { String(format: "%.0f", $0) }.joined(separator: ",")))
             }
-            await blocking.apply()
-            var loads: [Double] = []
-            for _ in 0..<5 {
-                let start = ContinuousClock.now
-                guard let page = await open(Self.adblockPage()) else { continue }
-                await waitLoaded(page)
-                loads.append(ms(since: start))
-                page.close()
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-            let sorted = loads.sorted()
-            lines.append(String(format: "%@: median %.0f ms (n=%ld, %@)", on ? "on" : "off", sorted.isEmpty ? -1 : sorted[sorted.count / 2],
-                                sorted.count, sorted.map { String(format: "%.0f", $0) }.joined(separator: ",")))
         }
         SpikeRunner.record("adblock_timing", lines.joined(separator: "; "))
+        page.close()
         blocking.update { $0 = ContentBlockingSettings() }
         await blocking.apply()
     }

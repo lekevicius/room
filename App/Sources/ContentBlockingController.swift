@@ -165,18 +165,40 @@ final class ContentBlockingController {
         } while applyAgain
     }
 
+    /// Settings' rule counts, off the main thread (reading the bundled lists
+    /// takes a few hundred milliseconds; the first page does not wait for it).
     private func countRules(_ lists: [PlannedFilterList]) {
         var counts: [String: Int] = [:]
+        var toCount: [(id: String, url: URL)] = []
         for list in lists {
             if let record = records[list.id], list.fileURL == fileURL(for: list.id) {
                 counts[list.id] = record.ruleCount
             } else if let cached = ruleCounts[list.id] {
                 counts[list.id] = cached
-            } else if let text = try? String(contentsOf: list.fileURL, encoding: .utf8) {
-                counts[list.id] = FilterListText.ruleCount(text)
+            } else {
+                toCount.append((list.id, list.fileURL))
             }
         }
         ruleCounts = counts
+        guard !toCount.isEmpty else { return }
+        let items = toCount.map { ListFile(id: $0.id, url: $0.url) }
+        Task { [weakSelf = MainActorWeak(self)] in
+            let counted = await Task.detached(priority: .utility) { Self.countRules(in: items) }.value
+            guard let self = weakSelf.value else { return }
+            for (id, count) in counted { self.ruleCounts[id] = count }
+        }
+    }
+
+    struct ListFile: Sendable {
+        let id: String
+        let url: URL
+    }
+
+    nonisolated private static func countRules(in files: [ListFile]) -> [(String, Int)] {
+        files.compactMap { file in
+            guard let text = try? String(contentsOf: file.url, encoding: .utf8) else { return nil }
+            return (file.id, FilterListText.ruleCount(text))
+        }
     }
 
     // MARK: Lists on disk

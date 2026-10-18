@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room blocker timing</title>
+<!-- The adblock spike's timing page: 40 allowed requests (20 scripts, 20
+     images, first party, cache-busted) and a few hundred elements with
+     classes, so a load measures what the blocker adds to requests it does
+     not block (the proxy's match, the cosmetic push, the collector). -->
+<style>.cell { display: inline-block; width: 8px; height: 8px; margin: 1px; background: #888; }</style>
+<div id="grid"></div>
+<script>
+  const grid = document.getElementById('grid');
+  for (let i = 0; i < 400; i++) {
+    const d = document.createElement('div');
+    d.className = 'cell c' + i + (i % 7 ? '' : ' promo-' + i);
+    d.id = 'cell' + i;
+    grid.appendChild(d);
+  }
+  const bust = Math.random().toString(36).slice(2);
+  for (let i = 0; i < 20; i++) {
+    const s = document.createElement('script');
+    s.src = '/phase-5-adblock/app.js?' + bust + i;
+    document.head.appendChild(s);
+    const img = new Image();
+    img.src = '/phase-5-adblock/tracker.gif?' + bust + i;
+    grid.appendChild(img);
+  }
+</script>

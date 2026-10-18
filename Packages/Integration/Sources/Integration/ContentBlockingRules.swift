@@ -127,7 +127,7 @@ public struct ContentBlockingPlan: Sendable, Hashable {
 }
 
 /// Facts read from a filter list's text.
-public enum FilterListText {
+nonisolated public enum FilterListText {
     /// The header's `! Title:`, if any.
     public static func title(of text: String) -> String? {
         header(text, "Title")
@@ -184,7 +184,7 @@ public enum FilterListText {
 
 /// When a downloaded list is fetched again (only while the user's
 /// "Update lists automatically" is on; "Update Now" ignores this).
-public enum FilterListSchedule {
+nonisolated public enum FilterListSchedule {
     /// Shortest interval between two checks of one list, whatever it asks.
     public static let minimumInterval: TimeInterval = 86_400
     /// Longest interval, and the one for a list that states none.
