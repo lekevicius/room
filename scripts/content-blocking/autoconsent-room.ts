@@ -44,12 +44,20 @@ if (typeof roomCookieSend === 'function' && !scope.roomCookieReceive) {
     const send = async (message: ContentScriptMessage) => {
         roomCookieSend(JSON.stringify(message));
     };
-    const consent = new AutoConsent(send, config, {
-        autoconsent: [],
-        compact: filterCompactRules(compactRules as IndexedCMPRuleset, {
-            url: window.location.href,
-            mainFrame: window.top === window,
-        }),
-    });
-    scope.roomCookieReceive = (message: BackgroundMessage) => consent.receiveMessageCallback(message);
+    try {
+        // Constructed bare, then initialized, as autoconsent's own standalone
+        // build does: with a config the constructor initializes before its
+        // DOM helper exists (16.55.0). Its 'init' request is ignored.
+        const consent = new AutoConsent(send);
+        consent.initialize(config, {
+            autoconsent: [],
+            compact: filterCompactRules(compactRules as IndexedCMPRuleset, {
+                url: window.location.href,
+                mainFrame: window.top === window,
+            }),
+        });
+        scope.roomCookieReceive = (message: BackgroundMessage) => consent.receiveMessageCallback(message);
+    } catch (error) {
+        roomCookieSend(JSON.stringify({ type: 'autoconsentError', details: String(error && (error as Error).stack || error) }));
+    }
 }
