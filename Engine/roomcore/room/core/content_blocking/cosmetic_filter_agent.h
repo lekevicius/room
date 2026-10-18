@@ -23,7 +23,8 @@ inline constexpr int32_t kContentBlockingWorldId = (1 << 29) - 2;
 
 // Renderer side of Room's blocker, one per frame (patch 0027 creates it):
 // applies what the browser pushed for the committing document at
-// DidCreateDocumentElement, before the page's own scripts run. Hide
+// document start (DidCreateDocumentElement, then extensions' document-start
+// step), before the page's own scripts run. Hide
 // selectors go into a user-origin stylesheet the page cannot override;
 // scriptlets run in the main world; the class/id collector and autoconsent
 // run in kContentBlockingWorldId and reach back through two native functions.
@@ -55,6 +56,8 @@ class CosmeticFilterAgent : public content::RenderFrameObserver,
 
   void Bind(
       mojo::PendingAssociatedReceiver<mojom::CosmeticFilterAgent> receiver);
+  // Scriptlets, the collector and autoconsent, once script may run.
+  void RunAtDocumentStart();
   void InsertHideStyleSheet(const std::vector<std::string>& selectors);
   void RunInWorld(const std::string& script);
   void OnHiddenSelectors(const std::vector<std::string>& selectors);

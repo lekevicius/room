@@ -55,8 +55,10 @@ source_set("content_blocking") {
   deps = [
     ":adblock_ffi",
     ":mojom",
+    "//components/web_cache/browser",
     "//content/public/renderer",
     "//crypto",
+    "//extensions/renderer",
     "//gin",
     "//third_party/blink/public:blink",
     "//third_party/blink/public/common",

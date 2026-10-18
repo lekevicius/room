@@ -10,15 +10,19 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "content/public/renderer/render_frame.h"
+#include "extensions/renderer/extension_frame_helper.h"
 #include "gin/converter.h"
 #include "gin/function_template.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/platform/web_isolated_world_info.h"
+#include "third_party/blink/public/platform/web_security_origin.h"
+#include "third_party/blink/public/mojom/script/script_evaluation_params.mojom.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/web_css_origin.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_script_source.h"
+#include "url/origin.h"
 #include "v8/include/v8-context.h"
 #include "v8/include/v8-function.h"
 #include "v8/include/v8-isolate.h"
@@ -74,11 +78,11 @@ constexpr char kClassIdCollector[] = R"JS((() => {
                     attributeFilter: ['class', 'id']});
 })();)JS";
 
-// autoconsent's eval request: its rule snippets are function sources; run
-// one in the main world (where the consent platform's globals are) and
-// answer with a boolean, as DuckDuckGo's own integrations do.
+// autoconsent's eval request: an expression from its bundled rule snippets
+// ("(()=>!!window.Cookiebot)()"); run in the main world (where the consent
+// platform's globals are) and answered with a boolean.
 std::string MainWorldEvalWrapper(const std::string& code) {
-  return "(() => { try { return !!((" + code + ")()); } catch (e) { "
+  return "(() => { try { return !!(" + code + "); } catch (e) { "
          "return false; } })()";
 }
 
@@ -122,12 +126,24 @@ void CosmeticFilterAgent::DidCreateDocumentElement() {
   if (!current_) {
     return;
   }
-  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   if (!current_->hide_selectors.empty()) {
     InsertHideStyleSheet(current_->hide_selectors);
   }
+  // Script is forbidden inside this notification (Blink's
+  // ScriptForbiddenScope); extensions' document-start scripts run from the
+  // frame helper's next step, before the page's own scripts, and so do ours.
+  if (auto* helper = extensions::ExtensionFrameHelper::Get(render_frame())) {
+    helper->ScheduleAtDocumentStart(base::BindOnce(
+        &CosmeticFilterAgent::RunAtDocumentStart, weak_factory_.GetWeakPtr()));
+  }
+}
+
+void CosmeticFilterAgent::RunAtDocumentStart() {
+  if (!current_) {
+    return;
+  }
   if (!current_->scriptlets.empty()) {
-    frame->ExecuteScript(blink::WebScriptSource(
+    render_frame()->GetWebFrame()->ExecuteScript(blink::WebScriptSource(
         blink::WebString::FromUtf8(current_->scriptlets)));
   }
   if (current_->collect_class_ids && host_) {
@@ -186,16 +202,24 @@ void CosmeticFilterAgent::InsertHideStyleSheet(
 
 void CosmeticFilterAgent::RunInWorld(const std::string& script) {
   static bool named = [] {
+    // A world of its own: an opaque origin (no site's privileges) and a name
+    // for DevTools' context menu.
     blink::WebIsolatedWorldInfo info;
+    info.security_origin = blink::WebSecurityOrigin(url::Origin());
     info.human_readable_name = blink::WebString::FromUtf8("Room Blocker");
     blink::SetIsolatedWorldInfo(kContentBlockingWorldId, info);
     return true;
   }();
   (void)named;
-  render_frame()->GetWebFrame()->ExecuteScriptInIsolatedWorld(
-      kContentBlockingWorldId,
-      blink::WebScriptSource(blink::WebString::FromUtf8(script)),
-      blink::BackForwardCacheAware::kAllow);
+  const blink::WebScriptSource source(blink::WebString::FromUtf8(script));
+  render_frame()->GetWebFrame()->RequestExecuteScript(
+      kContentBlockingWorldId, base::span_from_ref(source),
+      blink::mojom::UserActivationOption::kDoNotActivate,
+      blink::mojom::EvaluationTiming::kSynchronous,
+      blink::mojom::LoadEventBlockingOption::kDoNotBlock,
+      blink::WebScriptExecutionCallback(), blink::BackForwardCacheAware::kAllow,
+      blink::mojom::WantResultOption::kNoResult,
+      blink::mojom::PromiseResultOption::kDoNotWait, blink::WebString());
 }
 
 void CosmeticFilterAgent::RequestHiddenSelectors(
