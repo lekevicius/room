@@ -22,6 +22,10 @@ public struct FilterListInfo: Sendable, Hashable, Identifiable {
     public let isHostsFormat: Bool
 
     public var isBundled: Bool { bundledFileName != nil }
+    /// uBO's own lists may call its trusted scriptlets (uBO's
+    /// `trustedListPrefixes` default, `ublock-`), and they bring uBO's
+    /// scriptlets with them (`UBlockScriptlets`).
+    public var isTrusted: Bool { id.hasPrefix("ublock-") }
 }
 
 public enum FilterListCatalog {
@@ -68,6 +72,8 @@ public struct PlannedFilterList: Sendable, Hashable {
     public let id: String
     public let fileURL: URL
     public let isHostsFormat: Bool
+    /// The list may call trusted scriptlets.
+    public let isTrusted: Bool
 }
 
 /// What the engine gets from the settings and the files on disk.
@@ -101,10 +107,10 @@ public struct ContentBlockingPlan: Sendable, Hashable {
         for info in FilterListCatalog.all where wanted(info.category) {
             if let bundled = info.bundledFileName {
                 let file = downloads[info.id] ?? bundleDirectory.appending(path: bundled)
-                lists.append(PlannedFilterList(id: info.id, fileURL: file, isHostsFormat: info.isHostsFormat))
+                lists.append(PlannedFilterList(id: info.id, fileURL: file, isHostsFormat: info.isHostsFormat, isTrusted: info.isTrusted))
             } else if settings.enabledLists.contains(info.id) {
                 if let file = downloads[info.id] {
-                    lists.append(PlannedFilterList(id: info.id, fileURL: file, isHostsFormat: info.isHostsFormat))
+                    lists.append(PlannedFilterList(id: info.id, fileURL: file, isHostsFormat: info.isHostsFormat, isTrusted: info.isTrusted))
                 } else {
                     missing.append(info.id)
                 }
@@ -113,7 +119,7 @@ public struct ContentBlockingPlan: Sendable, Hashable {
         for custom in settings.customLists where custom.isEnabled {
             let id = custom.id.uuidString
             if let file = downloads[id] {
-                lists.append(PlannedFilterList(id: id, fileURL: file, isHostsFormat: false))
+                lists.append(PlannedFilterList(id: id, fileURL: file, isHostsFormat: false, isTrusted: false))
             } else {
                 missing.append(id)
             }
