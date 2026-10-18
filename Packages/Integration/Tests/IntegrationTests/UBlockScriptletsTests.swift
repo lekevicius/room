@@ -207,3 +207,76 @@ private actor FetchLog {
     var paths: [String] = []
     func add(_ path: String) { paths.append(path) }
 }
+
+/// An index in the shape of uBO's `src/js/redirect-resources.js` (Room's own text).
+nonisolated private let redirectIndex = """
+/* A licence header. */
+
+export default new Map([
+    [ '1x1.gif', {
+        alias: '1x1-transparent.gif',
+        data: 'blob',
+    } ],
+    [ 'tagmanager_gtm.js', {
+        alias: [
+            'tagmanager.example/gtm.js',
+            'gtm-stub',
+        ],
+        data: 'text',
+    } ],
+    [ 'stub-dai.js', {
+        requiresTrust: true,
+    } ],
+    [ 'click-to-load.html', {
+        params: [ 'url' ],
+    } ],
+    [ 'empty', {
+        data: 'text',
+    } ],
+]);
+"""
+
+@Suite("uBlock Origin redirect bodies (B-30)")
+struct UBlockRedirectTests {
+    @Test("The index gives names and aliases; bodies that need URL parameters are left out")
+    func index() throws {
+        let entries = try UBlockRedirects.entries(fromIndex: redirectIndex)
+        #expect(entries.map(\.name) == ["1x1.gif", "tagmanager_gtm.js", "stub-dai.js", "empty"])
+        #expect(entries[1].aliases == ["tagmanager.example/gtm.js", "gtm-stub"] && entries[0].aliases == ["1x1-transparent.gif"])
+        #expect(entries[2].requiresTrust && !entries[1].requiresTrust)
+    }
+
+    @Test("Bodies come from web_accessible_resources at the pinned tag, by plain file names only")
+    func fetchRules() {
+        #expect(UBlockRedirects.sourceURL("noop.js").absoluteString
+            == "https://raw.githubusercontent.com/gorhill/uBlock/\(UBlockScriptlets.tag)/src/web_accessible_resources/noop.js")
+        #expect(UBlockRedirects.sourceURL(UBlockRedirects.index, base: UBlockScriptlets.baseURL) == UBlockScriptlets.sourceURL("redirect-resources.js"))
+        #expect(UBlockRedirects.isSafeName("noop-0.1s.mp3") && UBlockRedirects.isSafeName("empty"))
+        for name in ["../js/x.js", "a/b.js", ".hidden", "", "x.js?y", "https:x"] {
+            #expect(!UBlockRedirects.isSafeName(name), "\(name)")
+        }
+        #expect(throws: UBlockRedirects.Failure.unsafeName("../x.js")) {
+            try UBlockRedirects.entries(fromIndex: "export default new Map([ [ '../x.js', {} ] ]);")
+        }
+        #expect(throws: UBlockRedirects.Failure.notAnIndex) {
+            try UBlockRedirects.entries(fromIndex: "import x from './x.js';\nexport default new Map([]);")
+        }
+    }
+
+    @Test("MIME types as adblock-rust reads them; a failed body is left out; a trusted body carries the bit")
+    func resources() async throws {
+        #expect(UBlockRedirects.mime(for: "noop-1s.mp4") == "video/mp4")
+        #expect(UBlockRedirects.mime(for: "noop-vast4.xml") == "text/xml")
+        #expect(UBlockRedirects.mime(for: "empty") == "text/plain")
+        #expect(UBlockRedirects.mime(for: "x.webm") == "application/octet-stream")
+        let entries = try UBlockRedirects.entries(fromIndex: redirectIndex)
+        let bodies = await UBlockRedirects.bodies(for: entries) { name in
+            guard name != "1x1.gif" else { throw URLError(.fileDoesNotExist) }
+            return Data(name.utf8)
+        }
+        let resources = UBlockRedirects.resources(entries, bodies: bodies)
+        #expect(resources.map(\.name) == ["tagmanager_gtm.js", "stub-dai.js", "empty"])
+        #expect(resources.map(\.permission) == [nil, UBlockScriptlets.trustedPermission, nil])
+        #expect(Data(base64Encoded: resources[0].content) == Data("tagmanager_gtm.js".utf8))
+    }
+}

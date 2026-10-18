@@ -6,7 +6,8 @@ import JavaScriptCore
 /// Room never ships them: the app fetches uBO's modules from the pinned tag
 /// when the user turns on a uBlock list (an explicit request), turns them into
 /// adblock-rust resources in JavaScriptCore, and merges those with Room's own
-/// redirect bodies for the engine (research/notes/adblock-approach.md §9.8).
+/// redirect bodies for the engine, with uBO's own redirect bodies
+/// (`UBlockRedirects`; research/notes/adblock-approach.md §9.8).
 nonisolated public enum UBlockScriptlets {
     /// The uBlock Origin release the scriptlets come from. Bump deliberately
     /// with `+js()` changes in uBO's lists; the app refetches only on the
