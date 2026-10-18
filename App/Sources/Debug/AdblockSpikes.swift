@@ -19,7 +19,8 @@ import Tabs
 /// rejected), `scriptlets` (uBO's: the fixture's `+js(set-constant)` rule
 /// with no uBlock list, then with uBlock filters – Unbreak turned on, which
 /// fetches the list and uBO's scriptlets from the network, then off again;
-/// a trusted scriptlet in custom rules never runs). The engine's memory is its serialized size (`adblock_engine`):
+/// a trusted scriptlet in custom rules never runs; a `redirect=` to uBO's
+/// `googletagmanager_gtm.js` is served only with the list on). The engine's memory is its serialized size (`adblock_engine`):
 /// the browser process's footprint does not show it (the allocator keeps
 /// freed pages).
 extension SpikeRunner.Context {
@@ -176,11 +177,13 @@ extension SpikeRunner.Context {
 
     // MARK: scriptlets: uBO's, only with a uBlock list on
 
-    /// uBO's `set-constant` (any list may call it) and `trusted-set-cookie`
-    /// (only uBO's own lists; custom rules are not trusted, as in uBO).
+    /// uBO's `set-constant` (any list may call it), `trusted-set-cookie`
+    /// (only uBO's own lists; custom rules are not trusted, as in uBO) and a
+    /// redirect body only uBO has (its GTM stand-in defines `window.ga`).
     static let scriptletRules = """
     news.test##+js(set-constant, roomFlag, true)
     news.test##+js(trusted-set-cookie, roomTrusted, 1)
+    ||ads.test^*/ads/gtm.js$script,redirect=googletagmanager_gtm.js
     """
 
     func adblockScriptlets(_ blocking: ContentBlockingController) async {
@@ -195,7 +198,20 @@ extension SpikeRunner.Context {
             guard (await adblockResults(page)).contains("{") else { return "timeout" }
             let flag = await js(page, "JSON.parse(document.getElementById('log').textContent).room_flag")
             let trusted = await js(page, "document.cookie.includes('roomTrusted')")
-            return "room_flag=\(flag) trusted_cookie=\(trusted)"
+            // An inline script, so the stub's `window.ga` is read in the page's own world.
+            _ = await js(page, """
+            (() => { delete document.documentElement.dataset.roomGtm; const t = document.createElement('script');
+              t.textContent = "{ const s = document.createElement('script'); s.src = 'http://ads.test:8777/phase-5-adblock/ads/gtm.js';" +
+                "s.onload = () => { document.documentElement.dataset.roomGtm = 'served, ga ' + typeof window.ga; };" +
+                "s.onerror = () => { document.documentElement.dataset.roomGtm = 'blocked'; }; document.head.appendChild(s); }";
+              document.head.appendChild(t); return 0; })()
+            """)
+            var gtm = ""
+            _ = await waitUntilAsync(5) {
+                gtm = await self.js(page, "document.documentElement.dataset.roomGtm || ''")
+                return gtm != "\"\""
+            }
+            return "room_flag=\(flag) trusted_cookie=\(trusted) gtm_redirect=\(gtm)"
         }
         func reload() async {
             page.reload()
@@ -208,9 +224,9 @@ extension SpikeRunner.Context {
         await blocking.apply()
         let elapsed = (ContinuousClock.now - started) / .milliseconds(1)
         SpikeRunner.record("adblock_scriptlets_fetch", String(
-            format: "%@ uBlock Origin %@, %ld scriptlets, list %@, %.0f ms (list, scriptlets, engine)",
+            format: "%@ uBlock Origin %@, %ld scriptlets, %ld redirect bodies, list %@, %.0f ms (list, uBO resources, engine)",
             blocking.scriptletStatus == .idle ? "ok" : "\(blocking.scriptletStatus)", blocking.scriptlets?.tag ?? "-",
-            blocking.scriptlets?.count ?? 0, blocking.status["ublock-unbreak"].map { "\($0)" } ?? "idle", elapsed))
+            blocking.scriptlets?.count ?? 0, blocking.scriptlets?.redirects ?? -1, blocking.status["ublock-unbreak"].map { "\($0)" } ?? "idle", elapsed))
         await reload()
         SpikeRunner.record("adblock_scriptlets_on", await flags())
         blocking.update { $0.setList("ublock-unbreak", enabled: false) }

@@ -12,6 +12,7 @@
        news.test##.ad-slot
        ##.room-generic-ad
        news.test##+js(set-constant, roomFlag, true)   (the `scriptlets` section: uBO's scriptlet, present only with a uBlock list on)
+       ||ads.test^*/ads/gtm.js$script,redirect=googletagmanager_gtm.js   (the same section: uBO's redirect body, added by the spike)
      and EasyList's own /jquery.overlayad.js. The results go into #log. -->
 <style>
   .box { width: 160px; height: 40px; margin: 6px; background: #c33; color: white; font: 13px system-ui; }
