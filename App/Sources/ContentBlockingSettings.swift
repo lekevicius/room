@@ -175,7 +175,10 @@ struct ContentBlockingSettingsView: View {
             case .downloading: line += " · fetching uBlock Origin's scriptlets"
             case .failed: line += " · uBlock Origin's scriptlets unavailable"
             case .idle:
-                if let scriptlets = controller.scriptlets { line += " · \(scriptlets.count) uBlock Origin \(scriptlets.tag) scriptlets" }
+                if let scriptlets = controller.scriptlets {
+                    line += " · uBlock Origin \(scriptlets.tag): \(scriptlets.count) scriptlets"
+                    if let redirects = scriptlets.redirects { line += ", \(redirects) redirect bodies" }
+                }
             }
         }
         return line
