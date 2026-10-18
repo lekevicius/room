@@ -21,6 +21,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENT_APP="$ROOT/App/Resources/Room.entitlements"
 ENT_JIT="$ROOT/App/Resources/Helper-JIT.entitlements"
 ENT_NONE="$ROOT/App/Resources/Helper.entitlements"
+ENT_CDM="$ROOT/App/Resources/Helper-CDM.entitlements"
 now() { perl -MTime::HiRes=time -e 'printf "%.1f\n", time'; }
 sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
 
@@ -51,10 +52,17 @@ done
 # Chrome ships that helper without allow-jit (Phase 1.4 measured Chapter 2's
 # engine's GPU process running without it), and 3.1b keeps it so on RoomCore
 # (ROOM_BASE_HELPER_ENTITLEMENTS to experiment).
+# The base and plain Aperitif helpers also get disable-library-validation
+# (B-101, decided 2026-10-18): the Widevine CDM's utility process starts from
+# the Aperitif helper and must map Google's libwidevinecdm.dylib (Team
+# EQHXZ8M8AV), which the hardened runtime refuses for Team N56PMJ99UT;
+# research/notes/widevine.md measured MediaKeys created with it and refused
+# without. Arc, Dia, Brave and Vivaldi ship the same entitlement there.
 for helper in "$HELPERS"/Room\ Helper*.app; do
   case "$helper" in
     *"Renderer)"*|*"GPU)"*) ent="$ENT_JIT" ;;
-    *"Room Helper.app") ent="${ROOM_BASE_HELPER_ENTITLEMENTS:-$ENT_NONE}" ;;
+    *"Room Helper.app") ent="${ROOM_BASE_HELPER_ENTITLEMENTS:-$ENT_CDM}" ;;
+    *"Room Helper (Aperitif).app") ent="$ENT_CDM" ;;
     *) ent="$ENT_NONE" ;;
   esac
   sign --entitlements "$ent" "$helper"
