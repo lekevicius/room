@@ -449,3 +449,29 @@ Bundled defaults are permissively licensed only:
    - memory with and without blocking;
    - fixture load time with and without.
 9. By-hand steps and a progress-log entry.
+
+### 9.8 uBlock Origin's scriptlets (2026-10-18)
+
+uBO's optional lists (§9.3) call uBO's scriptlets with `+js(…)`: the YouTube and anti-adblock fixes. Room's bundled resources are only its own `$redirect` bodies, so without uBO's scriptlets those rules did nothing. The scriptlets are GPLv3 and are never bundled; they arrive with the first uBO list the user turns on.
+
+**Two ways to turn them into adblock-rust resources, measured on uBO 1.75.0** (the latest tag, 2026-09-16):
+
+| | adblock-rust's `resource-assembler` | JavaScriptCore in the app |
+|---|---|---|
+| Input | the old `scriptlets.js` (`/// name.js` sections, `{{1}}` templates), gone since uBO's 2023 move to ES modules ([18a84d2](https://github.com/gorhill/uBlock/commit/18a84d2819d49444fc31c5350677ecc5b2ec73c6)) | `src/js/resources/*.js` as published |
+| Result on 1.75.0 | **0 resources** (1.1 ms): no line starts `/// ` in any of the 32 files | **151 resources** (98 scriptlets, 53 `.fn` helpers; 33 need trust), no missing dependency |
+| The "old-format prelude" | still needs the modules evaluated in JS to produce the old text; nothing gained | n/a |
+| Cost | a `//room` feature flag and a build | linking 28 ms, evaluating 17 ms, converting 2 ms (Release harness, M-series); 35 modules, 343 KB of source, 326 KB of resources JSON |
+
+So: **JavaScriptCore**, as brave-core-crx-packager does it with Node (`builtinScriptlets` → `fn.toString()`).
+
+- **Fetch** (`UBlockScriptlets`, `ScriptletModules.collect`): from `raw.githubusercontent.com/gorhill/uBlock/1.75.0/src/js/`, starting at `resources/scriptlets.js` and following imports level by level, in parallel. Only relative `.js` specifiers that stay inside `src/js/` are followed (three modules outside `resources/`: `arglist-parser.js`, `jsonpath.js`, `urlskip.js`), at most 120 modules. The tag is pinned in the app; a new tag (a Room update) is fetched only on the user's next request (Update Now, automatic updates), the old file serving until then.
+- **When**: in the same step that downloads a list the user just turned on, when the first uBO list is in use and no converted file exists. Nothing at launch, nothing for EasyList users.
+- **Linking** (`ScriptletModules.link`): macOS's public JavaScriptCore has no module loader (no `JSScript` or loader delegate in the SDK headers), so each module becomes a function in one classic script. Top-level `import { a, b as c } from './x.js'` turns into a `const` from the dependency's export object, `export` is dropped from declarations, and modules are ordered dependencies first (a cycle is an error). Only those top-level lines change, so `fn.toString()` gives uBO's function text byte for byte.
+- **Evaluating** (`ScriptletModules.scriptlets`): a bare `JSContext` (no DOM, network or files) runs the script; `builtinScriptlets` is read back as JSON.
+- **Converting** (`ScriptletResources.resources`): `name.js` → `application/javascript` (injectable, called as `fn(args…)` by adblock-rust's function-style path); `name.fn` → `fn/javascript` (a dependency only, as in uBO); `requiresTrust` → permission bit 0, the bit `adblock_ffi.rs` grants trusted lists. uBO's MV3 build runs 22 of them in the isolated world; Room runs all in the main world, as Brave does.
+- **Merging** (`ScriptletResources.merge`): Room's redirect bodies first; an added resource whose name is taken is dropped, a taken alias is dropped from it (adblock-rust would refuse the whole resource). The engine reads `ContentBlocking/Scriptlets/resources.json` while a uBO list is in use, and the bundled `redirect-resources.json` otherwise. The file is rewritten only when it changes, so the engine cache's key holds.
+- **Trust**: uBO's own lists (`ublock-*`, uBO's `trustedListPrefixes` default) are trusted. Custom lists and custom rules are not, as in uBO by default. Checked in adblock-rust on the merged file: `+js(trusted-set-cookie, …)` injects from a trusted list only, `+js(set-constant, …)` from any.
+- **The wrapper** (`content_blocker.cc`): uBO's helpers read `scriptletGlobals`, which uBO's injector declares. Room's injected script did not, so every uBO scriptlet threw a `ReferenceError` inside adblock-rust's `try` (reproduced in JavaScriptCore on the real injected script). The script now runs inside `(function() { const scriptletGlobals = {}; … })();`, as Brave's does. That also keeps the helpers (`safeSelf`, …) off the page's globals: before, they were function declarations in the main world, visible to anti-adblock scripts.
+- **Not done**: uBO's `web_accessible_resources` redirect bodies (`googletagmanager_gtm.js` and the like). A uBO `$redirect=` rule whose body Room lacks still blocks; adblock-rust serves no body. They are GPL too, and would come the same way (adblock-rust's `assemble_web_accessible_resources` reads that format).
+- **Licence**: no uBO file is in the repository or the app bundle. The unit tests use Room's own modules written in uBO's shape.
