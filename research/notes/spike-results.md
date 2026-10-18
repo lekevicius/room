@@ -3464,3 +3464,20 @@ Measured with `scripts/adblock-check.sh` (fixture `research/spikes/phase-5-adblo
 3. Isolated-world scripts run from `DidCreateDocumentElement` were silently not run. Blink forbids script inside that notification; `ExecuteScriptInIsolatedWorld` returned nothing, and a direct `v8::Script` run hit `Check failed: !ScriptForbiddenScope::IsScriptForbidden()` (minidump). They now run from `ExtensionFrameHelper::ScheduleAtDocumentStart`, the step extensions' document-start scripts use, still before the page's own scripts.
 4. autoconsent 16.55.0's constructor initializes before creating its DOM helper when given a config (`TypeError … 'prehide'`); it is now constructed bare and initialized after, as its standalone build does.
 5. autoconsent's eval requests are already-invoked expressions (`(()=>!!window.Cookiebot)()`); the wrapper called them again, so every check answered false.
+
+### B-30 — uBlock Origin's scriptlets, the `scriptlets` section (2026-10-18, M1 Max laptop, 64 GB, branch `claude/adblock-scriptlets`)
+
+`scripts/adblock-check.sh` (full run `build/adblock-check-scriptlets.txt`, load 30). The fixture's custom rules add `news.test##+js(set-constant, roomFlag, true)` and `news.test##+js(trusted-set-cookie, roomTrusted, 1)`; the page reports `typeof roomFlag` and the cookie.
+
+| Step | `room_flag` | `roomTrusted` cookie |
+|---|---|---|
+| No uBlock list (Room's resources only) | unset | no |
+| uBlock filters – Unbreak turned on: list and uBO 1.75.0's 151 scriptlets fetched, engine rebuilt, in 2.2–2.7 s | **true** | no (custom rules are not trusted) |
+| Turned off again | unset | no |
+
+- **Conversion** (Release harness, the same Swift code): 35 modules, 343 KB fetched; linking 28 ms, JavaScriptCore 17 ms, converting 2 ms; 326 KB of resources JSON, 158 resources once merged with Room's 7.
+- **adblock-rust's `resource-assembler`** on 1.75.0's `scriptlets.js`, or on all 32 resource files concatenated: 0 resources.
+- **Trust** (adblock-rust 0.13.3 on the merged file): `+js(set-constant, …)` injects from any list (15.4 KB of script); `+js(trusted-set-cookie, …)` only from a list with the trusted bit (19.2 KB).
+- **First run found:** with the list on, `room_flag` stayed unset. uBO's helpers read `scriptletGlobals`, which uBO's injector declares and Room's did not (JavaScriptCore, the real injected script: `ReferenceError: Can't find variable: scriptletGlobals`, caught by adblock-rust's `try`). Fixed in `content_blocker.cc`: the script runs inside a function that declares it.
+- **Rest of the spike:** unchanged with the wrapper (engine, page, allowed, timing; every check as before). `ublock_scriptlet_files_in_app: 0`.
+- **Build:** `//room` incremental 48 s at 8 jobs (load 13–32), `roomcore-package.sh --app-only` 27 s.
