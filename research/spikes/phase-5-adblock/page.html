@@ -11,6 +11,7 @@
        ||ads.test^*/ads/needed.js$script,redirect=noop.js
        news.test##.ad-slot
        ##.room-generic-ad
+       news.test##+js(set-constant, roomFlag, true)   (the `scriptlets` section: uBO's scriptlet, present only with a uBlock list on)
      and EasyList's own /jquery.overlayad.js. The results go into #log. -->
 <style>
   .box { width: 160px; height: 40px; margin: 6px; background: #c33; color: white; font: 13px system-ui; }
@@ -60,6 +61,7 @@
       results.content_hidden = hidden('content');
       results.banner = document.getElementById('banner') ? (hidden('banner') === true ? 'hidden' : 'shown') : 'answered';
       results.cookie = document.cookie;
+      results.room_flag = typeof window.roomFlag === 'undefined' ? 'unset' : window.roomFlag;
       results.ran = { banner: !!window.bannerRan, needed: !!window.neededRan, overlay: !!window.overlayRan, app: !!window.appRan };
       document.getElementById('log').textContent = JSON.stringify(results);
     }, 2500);

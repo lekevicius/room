@@ -16,7 +16,10 @@ import Tabs
 /// the page's blocked count), `allowed` (the per-site switch: nothing blocked
 /// after a reload, then blocked again), `timing` (`timing.html`'s load event
 /// with blocking off, the lists only, and the lists with cookie banners
-/// rejected). The engine's memory is its serialized size (`adblock_engine`):
+/// rejected), `scriptlets` (uBO's: the fixture's `+js(set-constant)` rule
+/// with no uBlock list, then with uBlock filters – Unbreak turned on, which
+/// fetches the list and uBO's scriptlets from the network, then off again;
+/// a trusted scriptlet in custom rules never runs). The engine's memory is its serialized size (`adblock_engine`):
 /// the browser process's footprint does not show it (the allocator keeps
 /// freed pages).
 extension SpikeRunner.Context {
@@ -40,6 +43,7 @@ extension SpikeRunner.Context {
         if runs("page") { await adblockPage(blocking) }
         if runs("allowed") { await adblockAllowed(blocking) }
         if runs("timing") { await adblockTiming(blocking) }
+        if runs("scriptlets") { await adblockScriptlets(blocking) }
     }
 
     static func adblockPage(_ name: String = "page.html", host: String = "news.test") -> URL {
@@ -165,6 +169,54 @@ extension SpikeRunner.Context {
             }
         }
         SpikeRunner.record("adblock_timing", lines.joined(separator: "; "))
+        page.close()
+        blocking.update { $0 = ContentBlockingSettings() }
+        await blocking.apply()
+    }
+
+    // MARK: scriptlets: uBO's, only with a uBlock list on
+
+    /// uBO's `set-constant` (any list may call it) and `trusted-set-cookie`
+    /// (only uBO's own lists; custom rules are not trusted, as in uBO).
+    static let scriptletRules = """
+    news.test##+js(set-constant, roomFlag, true)
+    news.test##+js(trusted-set-cookie, roomTrusted, 1)
+    """
+
+    func adblockScriptlets(_ blocking: ContentBlockingController) async {
+        blocking.update {
+            $0 = ContentBlockingSettings()
+            $0.customRules = Self.adblockRules + "\n" + Self.scriptletRules
+        }
+        await blocking.apply()
+        guard let page = await open(Self.adblockPage()) else { return SpikeRunner.record("error", "adblock: the fixture did not open") }
+        await waitLoaded(page)
+        func flags() async -> String {
+            guard (await adblockResults(page)).contains("{") else { return "timeout" }
+            let flag = await js(page, "JSON.parse(document.getElementById('log').textContent).room_flag")
+            let trusted = await js(page, "document.cookie.includes('roomTrusted')")
+            return "room_flag=\(flag) trusted_cookie=\(trusted)"
+        }
+        func reload() async {
+            page.reload()
+            _ = await waitUntilAsync(10) { await self.js(page, "document.getElementById('log').textContent") == "\"pending\"" }
+            await waitLoaded(page)
+        }
+        SpikeRunner.record("adblock_scriptlets_off", "\(await flags()) scriptlets=\(blocking.hasScriptlets)")
+        let started = ContinuousClock.now
+        blocking.update { $0.setList("ublock-unbreak", enabled: true) }
+        await blocking.apply()
+        let elapsed = (ContinuousClock.now - started) / .milliseconds(1)
+        SpikeRunner.record("adblock_scriptlets_fetch", String(
+            format: "%@ uBlock Origin %@, %ld scriptlets, list %@, %.0f ms (list, scriptlets, engine)",
+            blocking.scriptletStatus == .idle ? "ok" : "\(blocking.scriptletStatus)", blocking.scriptlets?.tag ?? "-",
+            blocking.scriptlets?.count ?? 0, blocking.status["ublock-unbreak"].map { "\($0)" } ?? "idle", elapsed))
+        await reload()
+        SpikeRunner.record("adblock_scriptlets_on", await flags())
+        blocking.update { $0.setList("ublock-unbreak", enabled: false) }
+        await blocking.apply()
+        await reload()
+        SpikeRunner.record("adblock_scriptlets_off_again", await flags())
         page.close()
         blocking.update { $0 = ContentBlockingSettings() }
         await blocking.apply()
