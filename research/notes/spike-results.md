@@ -3469,13 +3469,17 @@ Measured with `scripts/adblock-check.sh` (fixture `research/spikes/phase-5-adblo
 
 `scripts/adblock-check.sh` (full run `build/adblock-check-scriptlets.txt`, load 30). The fixture's custom rules add `news.test##+js(set-constant, roomFlag, true)` and `news.test##+js(trusted-set-cookie, roomTrusted, 1)`; the page reports `typeof roomFlag` and the cookie.
 
-| Step | `room_flag` | `roomTrusted` cookie |
-|---|---|---|
-| No uBlock list (Room's resources only) | unset | no |
-| uBlock filters – Unbreak turned on: list and uBO 1.75.0's 151 scriptlets fetched, engine rebuilt, in 2.2–2.7 s | **true** | no (custom rules are not trusted) |
-| Turned off again | unset | no |
+| Step | `room_flag` | `roomTrusted` cookie | `redirect=googletagmanager_gtm.js` |
+|---|---|---|---|
+| No uBlock list (Room's resources only) | unset | no | blocked, no body |
+| uBlock filters – Unbreak turned on: list, uBO 1.75.0's 151 scriptlets and 46 redirect bodies fetched, engine rebuilt, in 0.7–2.7 s | **true** | no (custom rules are not trusted) | **served** (uBO's stand-in: `window.ga` is a function) |
+| Turned off again | unset | no | blocked, no body |
+
+The redirect column is from the second session (full run `build/adblock-check-redirects.txt`).
 
 - **Conversion** (Release harness, the same Swift code): 35 modules, 343 KB fetched; linking 28 ms, JavaScriptCore 17 ms, converting 2 ms; 326 KB of resources JSON, 158 resources once merged with Room's 7.
+- **Redirect bodies:** the index (47 entries, `click2load.html` left out) read in 1.6 ms, 46 bodies of 103 KB made into resources in 2.4 ms. The merged file is 197 resources, 469 KB. adblock-rust on it: `redirect=googletagmanager_gtm.js` serves `google-analytics_analytics.js` (an alias), `redirect=noopvast-4.0` an empty VAST, `redirect=noop.js` Room's own body, and `redirect=google-ima-dai.js` nothing (it needs trust, and permissioned resources are never redirects).
+- **Second session found:** the spike's own scripts run in an isolated world, so reading `window.ga` there said `undefined` while the stub had run. An inline script now reads it in the page's world.
 - **adblock-rust's `resource-assembler`** on 1.75.0's `scriptlets.js`, or on all 32 resource files concatenated: 0 resources.
 - **Trust** (adblock-rust 0.13.3 on the merged file): `+js(set-constant, …)` injects from any list (15.4 KB of script); `+js(trusted-set-cookie, …)` only from a list with the trusted bit (19.2 KB).
 - **First run found:** with the list on, `room_flag` stayed unset. uBO's helpers read `scriptletGlobals`, which uBO's injector declares and Room's did not (JavaScriptCore, the real injected script: `ReferenceError: Can't find variable: scriptletGlobals`, caught by adblock-rust's `try`). Fixed in `content_blocker.cc`: the script runs inside a function that declares it.
