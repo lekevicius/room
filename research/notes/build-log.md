@@ -726,3 +726,19 @@ Compare: Phase 1.5's clean branded build on this laptop, 14,620 s cumulative (20
 | Room's 37 Rust crates (`//room/third_party/rust`, adblock-rust 0.13.3) | inside the above | first compile of `adblock` and its dependencies: under a minute; build scripts for serde, serde_core, serde_json, proc-macro2, quote, thiserror and zmij; flatbuffers' build script dropped (it enables nightly features Chromium does not allow) |
 | `//room` incrementals after each fix | 20–25 | 8 rounds |
 | `roomcore-package.sh` | 55–102 | `--app-only` when only Swift or resources changed |
+
+## 2026-10-18/19 — Build 14: the first official build on the laptop (M1 Max, 64 GB, `out/release`, default jobs)
+
+The laptop had only `out/dev`; build 13 (2026-10-08) was packaged over the Mac mini's release framework. Build 14 needs the blocker (`//room` content blocking, patches 0026 and 0027, the vendored Rust crates), so `out/release` was built here from scratch.
+
+| Step | Seconds | Notes |
+|---|---|---|
+| `roomcore-build.sh` (`out/release`, `release.gn`, first attempt) | 40 | stopped at ANGLE's Metal shaders: "missing Metal Toolchain"; `xcodebuild -downloadComponent MetalToolchain` installed 27A266a (setup §1 lists it; this laptop's Xcode had lost it) |
+| `roomcore-build.sh` (`out/release`, nohup, started 21:30:33 at load 41) | **11,697 (3 h 14 min 57 s)** | about 77,600 steps; ended at load 90–303; the export-order check (B-77) passed with the blocker's classes as listed; "no debug symbols in executable" warnings twice early on |
+| `roomcore-package.sh --stage-only` (dev) | 5.8 | `build/roomcore` in this checkout still had pre-blocker headers (the blocker was staged in its worktree), and the EngineRoomCore package compiles against that stage |
+| `roomcore-package.sh --release` | 35.8 | after a Release-only compile fix (`AppDelegate.launchLog` is DEBUG-only); 414 MB app, `RoomCoreCommit f4bbb8b` |
+| `CONFIGURATION=Debug roomcore-package.sh --release --app-only` | 51.0 | the Debug app over the release engine, 434 MB |
+| `roomcore-sign.sh` with `ROOM_SIGN_COPY=build/roomcore-release-signed` | 97.8 | notarized (Accepted), stapled; the base and Aperitif helpers carry `disable-library-validation` (B-101) |
+| `sparkle-package.sh` | about 17 | `build/sparkle-14/Room-0.1.0-14.dmg`, 207,891,903 B; signed with `ROOM_SPARKLE_ED_KEY` from `local.env`, verified |
+
+Quit of the Debug app over this engine, three runs on a throwaway state at load 20–56: 0.11, 0.13, 0.14 s, exit 0, 0 helpers left. `scripts/smoke-launch.sh` on the same app reported "did not exit within 10 s" three times; not explained (the direct measurement with the same `room_quit` is clean).
