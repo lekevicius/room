@@ -1,146 +1,53 @@
-# Backlog decisions — a form
+# Backlog decisions — the form's record
 
-The questions the backlog leaves to you, one per row, with the planner's provisional choice marked `(P)`. On 2026-10-06 the user confirmed the `(P)` choices in chat ("most defaults are fine") and decided the Chapter 4 questions (ROADMAP Chapter 4 "Before the loop"); the boxes below stay open for anything you want to change later. Tick a box or write in the blank; `docs/backlog.md` has the full context for each id. When you are done, a session reads this file and applies the answers (the row is updated, the provisional choice confirmed or replaced, the code or doc changed where the answer needs it).
+The user answered the backlog's open questions twice: in chat on 2026-10-06 ("most defaults are fine", the Chapter 4 questions in ROADMAP Chapter 4 "Before the loop"), and through an interactive form on 2026-10-18. This page keeps the second set of answers. Each one has been applied to its row in `docs/backlog.md` and, where it changed a plan, to `PLAN.md` §4/§7, `ROADMAP.md` Chapter 5 "Decided 2026-10-18" and Chapter 6. The next set of questions gets a new form.
 
-## Decisions the chapter already runs on provisionally
+## 2026-10-18
 
-**B-46 — RoomCore helper bundle ids.** Chromium's suffixes under `app.room.desktop` (`.helper`, `.helper.renderer`, `.framework.AlertNotificationService`) instead of PLAN's `.helper.gpu`/`.plugin`/`.alerts`.
-- [ ] Keep Chromium's suffixes; PLAN stays amended `(P)`
-- [ ] Patch `chrome/BUILD.gn`'s helper templates to PLAN's names (one more patch to carry)
-- Notes: ________________________________________________
+**Before Chapter 5 starts**
+- How Chapter 5 begins: as written. The user's daily-use notes come next, then a checklist pass on a fresh build.
+- Rebase: once, the night before 5.4b.
+- B-97: the drag out wins; URL drags come back through ⌥-drag or the address field (5.5).
+- B-98: several incognito windows, as Chrome (5.6).
+- B-62: the user does the laptop run; 5.4b attempts a fix only if it still hangs.
 
-**B-48 — disk layout on the Mac mini.** `build/` holds 30–45 GB (staging, DerivedData, evidence, tour runs); the internal disk had 13–90 GB free during the chapter.
-- [ ] Leave it; sessions keep 10 GB free by deleting regenerable output `(P)`
-- [ ] Move `build/` to the external SSD (`/Volumes/JL4` or the Chromium volume) with a symlink; say which: ________
-- [ ] Move only DerivedData and the staged frameworks; keep evidence and tour runs internal
-- Notes: ________________________________________________
+**Product calls**
+- B-11: ⌘S stays page-first.
+- B-32: remove the card's drag band entirely; the sidebar's areas are enough. In use, a double-click at the card's top (YouTube's search field) zoomed the window.
+- 5.7's order: only the password bubble annoys.
+- B-88: keep Chrome's All Site Data page, no line needed. Review Room's branding in Chrome's surfaces instead (new B-103).
+- B-91: Save As… already shows the native dialog in use (closed).
+- B-89: the overflow button becomes "…".
+- B-94: hide the article's first heading when it repeats the title.
+- B-49: no fullscreen banner.
+- B-27: zoom per site.
+- B-64: Chrome's suggestion provider as it is. Drop the website's "0 requests idle" section; the privacy posture goes in a note (`research/notes/privacy-posture.md`).
+- B-65: take the best history match. The user noticed something else more: arrow keys do not put the selected suggestion's URL in the field, as Arc does (new B-102).
 
-**B-63 — translation.** Chrome offers to translate only with a Google API key configured; the element script itself is Google's.
-- [x] No key, no offer; a Chapter 4 Settings item states it `(P)` — confirmed 2026-10-06
-- [ ] Use a Google API key (yours; it also enables other Google services unless each is turned off: list them before enabling): ________
-- [ ] A `//room` override that loads the translate element without a key (outside the patch policy; needs the user's say-so)
-- Notes: ________________________________________________
+**Blocker, licence, going public**
+- Licence: MPL-2.0.
+- Repository: public with the first public beta (6.6), after a clean-up (new B-104).
+- B-30's missing filter types: fold into Chapter 5 where the planner sees fit; ship as is, and add filter types only where they unlock whole classes of pages.
+- Malware lists: URLhaus joins the catalogue as optional. Downloads are the user's choice; good defaults first.
+- B-77: generate the export order automatically before the next official build.
+- Merged branches and worktrees: deleted (local and remote, 2026-10-18).
 
-**B-66 — history older than 90 days.** Chromium keeps 90 days; the 3.5 import left older Chapter 2 visits out and 3.9 wrote them to `history-archive.json` beside `Room.sqlite` before dropping the tables.
-- [ ] Keep the JSON as an archive nobody reads yet; 4.1's Library may read it `(P)`
-- [ ] Delete the archive; 90 days is enough
-- [ ] Patch Chromium's retention (a `//components/history` behaviour change: against the patch policy)
-- Notes: ________________________________________________
+**Machines, CI, accounts**
+- B-93: drop GitHub CI for now; verify locally.
+- B-48: move `build/` to the external SSD, in its own APFS sparse image beside the Chromium one.
+- B-10: the SSD holds only the Chromium sparse bundle; reformat any time (the image is copied off first).
+- B-46: keep Chromium's helper suffixes.
+- Sparkle: the EdDSA key goes to the laptop too, read from `local.env` (`ROOM_SPARKLE_ED_KEY`, `docs/setup.md` §5).
+- Updates: DMGs on GitHub Releases, the feed at `updates.room.app` (bundles from GitHub, or S3).
+- Crash reports: no third-party service; find a simple self-hosted collector (new B-105).
+- Passkey entitlement: the first release ships without it; requested within a month.
 
-**B-68 — extensions' own network requests.** An installed extension talks to its own servers (Dark Reader's blog feed, uBO's lists) on its own schedule.
-- [ ] Theirs; Settings ▸ Extensions says so in one line `(P)`
-- [ ] Block extension-originated requests while the switch "extensions may use the network" is off (a Chapter 4 feature)
-- Notes: ________________________________________________
+**Checks**
+- Chapter 4 by-hand pass: ten days of daily use, but not the list. Wanted: a checklist artifact with boxes and comments, the blocker's steps included, on a fresh build.
+- 120 Hz: left to 5.1b.
+- B-26: Location turned on in System Settings (closed).
+- B-86: not tried.
+- Widevine: **fails on Netflix**, which asks to turn on protected content, already on (new B-101).
+- 1Password: works signed in.
 
-**B-69 — native messaging hosts.** 1Password's extension looks for its desktop app through native messaging host manifests under Chrome's and Chromium's directories; Room registers none, so 1Password shows no popup without an account.
-- [x] None registered; nothing special-cased for any vendor `(P)` — confirmed 2026-10-06
-- [ ] Read Chrome's directory (`~/Library/Application Support/Google/Chrome/NativeMessagingHosts`) so hosts installed for Chrome work in Room
-- [ ] Read Chromium's directory only
-- Notes: ________________________________________________
-
-**B-72 — password generation.** M154 offers generated passwords only while password Sync is active; Room has no Sync.
-- [x] No generation `(P)` — confirmed 2026-10-06
-- [ ] A `//room` behaviour hook that enables generation without Sync (one patch in `//components/password_manager`, against the patch policy; your call)
-- Notes: ________________________________________________
-
-**B-74 — "Use Enhanced Spell Check".** Chrome's context menu offers Google's spelling service (the text goes to Google).
-- [ ] Hide the item `(P)`
-- [ ] Keep it (it only acts when chosen)
-- Notes: ________________________________________________
-
-## Measurements and checks only you can do
-
-**B-16, B-18, B-20, B-21 — the 120 Hz numbers on the laptop.** The sidebar scroll, the tab switch, the palette and the space switch were all measured at 60 Hz on the Mac mini.
-- [ ] I will run them (the laptop session prompt in `docs/laptop-session-prompt.md` does it)
-- [ ] Skip until Chapter 5.4
-- Notes: ________________________________________________
-
-**B-26 — location.** Allow Room in System Settings ▸ Privacy & Security ▸ Location Services, then `permissions.html` should read "granted" after Allow.
-- [ ] Done; it reads: ________
-- [ ] Not now
-- Notes: ________________________________________________
-
-**B-32 — the drag band at the card's top with the sidebar hidden.** A press in the top 5 % of the card drags the window after 3 pt; a text selection started there moves the window instead.
-- [ ] Fine as it is
-- [ ] Skip selectable text (the band only where the page has no selection under the pointer)
-- [ ] Shrink the band to ______ pt
-- Notes: ________________________________________________
-
-**B-10 — the external drive.** The Chromium checkout lives in an APFS sparse bundle on an exFAT SSD; reformatting the SSD to APFS removes the image and the userspace exFAT driver's overhead.
-- [ ] Reformat when convenient (I will say when)
-- [ ] Leave it
-- Notes: ________________________________________________
-
-## Product questions a later chapter cannot cheaply revisit
-
-**B-27 — zoom per host or per tab.** Chrome's default (and RoomCore's today): zooming one page zooms every open page of that host at once.
-- [ ] Per host, as Chrome `(P)`
-- [ ] Per tab, with a per-host default (Chapter 4.4 Settings)
-- Notes: ________________________________________________
-
-**B-64 — search suggestions' request cadence.** With suggestions on, Chrome's `SearchProvider` sends a request about every 100 ms while typing (34 for a 120-keystroke run); Room's own client sent one per pause (3).
-- [ ] Chrome's provider as it is; the switch is the privacy control `(P)`
-- [ ] Throttle to one request per pause in `//room` (a `SearchProvider` delay setting; check it is a pref, not a patch)
-- [ ] Keep Room's own suggest client instead of Chrome's provider
-- Notes: ________________________________________________
-
-**B-49 — the fullscreen exit hint.** Chrome's "Press Esc to exit" bubble is Views anchored on a `BrowserView`; Room shows nothing on tab fullscreen, pointer lock or keyboard lock.
-- [ ] A small host banner in Chapter 4 `(P)`
-- [ ] Nothing (Esc works)
-- Notes: ________________________________________________
-
-**B-45 / clone cleanup, B-58 toasts, B-60 client certificates, B-71 extension device chooser.** Chrome surfaces Room turns off or keeps as Chrome's: no question unless you want one of them native sooner than Chapter 4/5.
-- Notes: ________________________________________________
-
-## Chapter 4 (2026-10-07)
-
-The questions the Chapter 4 loop left to you, with the planner's provisional choice `(P)`; the chapter ran on them and nothing is blocked.
-
-**B-97 — dragging a sidebar row out of Room.** Since 4.8a a row dragged beyond 40 pt past the window's edge opens a new window there (spec §A.9), which meant the row no longer offers a drag outside Room: dropping a row on the desktop or another app does nothing.
-- [ ] The drag out wins; dragging a URL into another app comes back in 5.5 through ⌥-drag or a drag from the address field `(P)`
-- [ ] The URL drag wins; the drag out moves to a context item only ("Open in New Window" exists)
-- Notes: ________________________________________________
-
-**B-98 — incognito windows.** ⇧⌘N opens one incognito window per profile and brings it forward when it exists; Chrome allows several.
-- [ ] One per profile `(P)`
-- [ ] Several, each its own twin lifetime (5.6)
-- Notes: ________________________________________________
-
-**A rebase before 5.4b.** The fork is on 155.0.8059.36 (Stable of late September) with 23 patches and twelve new `//room` members from Chapter 4. 5.4b writes the numbers table v3 and takes the engine levers; measured on 155 they would be remeasured at the first rebase anyway.
-- [ ] One rebase to the current Stable the night before 5.4b (no session attached; `scripts/roomcore-rebase.sh`, `--verify`, the official build) `(P)`
-- [ ] No rebase until 6.4; 5.4b measures on 155
-- Notes: ________________________________________________
-
-**B-62 — Web Serial and Bluetooth hanging the browser.** The laptop's run hung the main thread in `IOBluetoothDeviceInquiry` while macOS's Bluetooth dialog was pending; no session has run it with the dialogs answered.
-- [ ] Do the laptop run (`chapter-3-by-hand.md` "Laptop" 8); if it still hangs, 5.4b's engine step takes one bounded attempt `(P)`
-- [ ] Skip it; a page that asks for Serial or Bluetooth may freeze Room until Chapter 6
-- Notes: ________________________________________________
-
-**Also yours, no question:** B-93 (the GitHub billing hold: CI has not run since 2026-10-07 01:35), the by-hand pass on build 11, the week's "4.9 week" rows.
-
-## Accounts, keys and services (Chapter 2's open items)
-
-**The passkey entitlement** (`com.apple.developer.web-browser.public-key-credential`, Account Holder).
-- [ ] Filed on: ________
-- [ ] Not yet
-
-**The Sentry project and DSN** (`ROOM_SENTRY_DSN` in `xcodegen/base.yml`).
-- [ ] DSN: ________
-- [ ] No Sentry for now
-
-**The update feed URL** (`ROOM_UPDATE_FEED_URL`) and where the appcast will be hosted.
-- [ ] URL: ________
-- [ ] Not yet
-
-**The Sparkle EdDSA key** (in the Mac mini's login keychain, account `ed25519`): `scripts/sparkle-package.sh` needs your "Always Allow" once; the release machine needs the key exported and imported.
-- [ ] Done on the Mac mini
-- [ ] Exported to the laptop (`generate_keys -x`, then `-f` there)
-- [ ] Not yet
-
-**Widevine on a real service** (Netflix or Spotify Web with an account, the signed 155 build).
-- [ ] Plays: ________ (service, result)
-- [ ] Not tried
-
-**1Password with an account** (3.6b: the popup needs an account or the desktop app).
-- [ ] Works / does not: ________
-- [ ] Not tried
+**Struck:** B-51 (picture-in-picture returns later as its own item), B-67, B-70, B-61, B-63, B-68, B-69, B-72, B-76, B-52; also B-11, B-26, B-27, B-46, B-49, B-64, B-88, B-91, B-93 as decided above.
