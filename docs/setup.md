@@ -186,14 +186,18 @@ the team identity avoids that and is needed for the notarization pipeline.
    the Mac mini on 2026-10-04 with Sparkle's `generate_keys` (in the resolved
    package: `Packages/Integration/.build/artifacts/sparkle/Sparkle/bin/`); the
    private key is in that Mac's login keychain (account `ed25519`), the public
-   key is `SPARKLE_PUBLIC_ED_KEY` in `xcodegen/base.yml`. On the machine that
-   signs releases: `generate_keys -x sparkle-private-key` on the Mac mini,
-   move the file privately, `generate_keys -f sparkle-private-key` there, then
-   delete the file. Never commit it; losing it means a new key and a release
-   that every installed copy must take by hand.
+   key is `SPARKLE_PUBLIC_ED_KEY` in `xcodegen/base.yml`. Another machine that
+   signs releases (the laptop, since 2026-10-18) reads it from `local.env`
+   instead: on the Mac mini run `generate_keys -x <file>`, copy the one-line
+   key into the other machine's `local.env` as `ROOM_SPARKLE_ED_KEY=…`, and
+   delete the file; `scripts/sparkle-package.sh` passes it to Sparkle's tools
+   on stdin. (`generate_keys -f <file>` imports it into that machine's keychain
+   instead.) Never commit it; losing it means a new key and a release that
+   every installed copy must take by hand.
 5. Update feed and crash reports: `ROOM_UPDATE_FEED_URL` (a `.invalid`
-   placeholder until the product name and domain are settled, B-6) and
-   `ROOM_SENTRY_DSN` (empty until a Sentry project exists) in
+   placeholder until 6.2: the feed will be `updates.room.app`, the DMGs on
+   GitHub Releases, decided 2026-10-18) and `ROOM_SENTRY_DSN` (empty: no
+   third-party crash service; a self-hosted collector in 6.3, B-105) in
    `xcodegen/base.yml` are the one place for both.
 
 ## 6. Reference material (optional)

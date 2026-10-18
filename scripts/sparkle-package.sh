@@ -3,7 +3,8 @@
 # the update size is the number). Nothing is uploaded.
 #   1. a DMG of the app (hdiutil, HFS+, UDZO compressed);
 #   2. the EdDSA signature of the DMG (Sparkle's sign_update; the private key
-#      comes from this Mac's login keychain, account ed25519, docs/setup.md §5);
+#      is ROOM_SPARKLE_ED_KEY from the environment or local.env when set, else
+#      this Mac's login keychain, account ed25519; docs/setup.md §5);
 #   3. an appcast entry (generate_appcast over the output directory, which
 #      signs the entry from the same key) and sign_update --verify of the DMG
 #      against the signature in the appcast.
@@ -20,6 +21,19 @@ OUT="${2:?output directory required}"
 BIN="$ROOT/Packages/Integration/.build/artifacts/sparkle/Sparkle/bin"
 PREFIX="${ROOM_FEED_PREFIX:-https://updates.room.invalid/}"
 [[ -x "$BIN/sign_update" ]] || { echo "no Sparkle tools in $BIN (resolve Packages/Integration first)" >&2; exit 1; }
+# The key from local.env (gitignored) unless the environment has one; passed on
+# stdin (--ed-key-file -), never as an argument.
+if [[ -z "${ROOM_SPARKLE_ED_KEY:-}" && -f "$ROOT/local.env" ]]; then
+  ROOM_SPARKLE_ED_KEY="$(source "$ROOT/local.env" >/dev/null 2>&1; printf '%s' "${ROOM_SPARKLE_ED_KEY:-}")"
+fi
+sparkle() {
+  local tool="$1"; shift
+  if [[ -n "${ROOM_SPARKLE_ED_KEY:-}" ]]; then
+    printf '%s' "$ROOM_SPARKLE_ED_KEY" | "$BIN/$tool" --ed-key-file - "$@"
+  else
+    "$BIN/$tool" "$@"
+  fi
+}
 codesign --verify --deep --strict "$APP"
 version=$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")
 build=$(plutil -extract CFBundleVersion raw "$APP/Contents/Info.plist")
@@ -53,10 +67,11 @@ XML
   cat "$OUT/appcast-unsigned.xml"
   exit 0
 fi
-echo "== sign_update"
-"$BIN/sign_update" "$DMG" | tee "$OUT/signature.txt"
+if [[ -n "${ROOM_SPARKLE_ED_KEY:-}" ]]; then keysrc="ROOM_SPARKLE_ED_KEY"; else keysrc="login keychain"; fi
+echo "== sign_update (key: $keysrc)"
+sparkle sign_update "$DMG" | tee "$OUT/signature.txt"
 echo "== generate_appcast"
-"$BIN/generate_appcast" --download-url-prefix "$PREFIX" "$OUT"
+sparkle generate_appcast --download-url-prefix "$PREFIX" "$OUT"
 echo "== appcast.xml"
 cat "$OUT/appcast.xml"
 sig=$(grep -o 'sparkle:edSignature="[^"]*"' "$OUT/appcast.xml" | head -1 | cut -d'"' -f2)
