@@ -186,7 +186,7 @@ Every shipping browser above has the framework `.sig`; Room has none.
 
 ## 3. Proposed fix
 
-**Now (no Chromium build, no account):** a `Helper-CDM.entitlements`
+**Now (no Chromium build, no account; applied 2026-10-18 at the user's go-ahead, verified: a Debug host clone signed by the changed script gets the entitlement on exactly those two helpers and creates MediaKeys in 3.706 s, 0 Team ID errors; build 14 is the first DMG signed with it):** a `Helper-CDM.entitlements`
 (`com.apple.security.cs.disable-library-validation`) in `App/Resources`, given by
 `sign-and-notarize.sh` to `Room Helper (Aperitif).app` and `Room Helper.app`
 (the base helper as Arc, Dia and Brave do, in case a configuration launches
