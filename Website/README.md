@@ -10,7 +10,7 @@ python3 -m http.server 4747 --directory Website     # or the "website" entry in 
 
 | Path | What |
 |---|---|
-| `index.html` | The page: the hero, pillars, the feature tour, details, privacy, prints (icon picker), shortcuts, source, closing. |
+| `index.html` | The page: the hero, pillars, the feature tour, details, prints (icon picker), shortcuts, source, closing. |
 | `assets/css/site.css` | Paper and ink tokens (light and dark), the hero's punched-hole layers, sections. |
 | `assets/js/site.js` | The hero choreography, reveals, the tour, clips with a drawn cursor, the icon picker, the brand menu (right-click the header mark). |
 | `assets/art/` | The risograph prints as AVIF (1536 and 800 px). |
@@ -30,5 +30,5 @@ Choosing a print in the icon picker re-prints the page: the hero's print, the he
 ## Copy rules
 
 - No em or en dashes in visible text.
-- Every number comes from the repo: the idle network audit (`research/notes/roomcore-network-audit.md`: 0 requests in 600 s, against 62 for stock Chromium).
+- Every number comes from the repo. The idle-requests comparison (0 against 62 for stock Chromium) was taken off the page on 2026-10-18 at the user's request; Room's privacy posture is in `research/notes/privacy-posture.md`.
 - Every shortcut comes from `docs/shortcuts.md`.

@@ -273,9 +273,6 @@
     choose(saved >= 0 ? saved : 0, { persist: false });
   }
 
-  // The listening figure: dots arrive one by one.
-  $$('[data-listen] .listen-dots i').forEach((dot, i) => dot.style.setProperty('--i', i));
-
   // ---------- Brand menu: right-click (or long-press) the header mark ----------
 
   const brand = $('[data-brand]');
