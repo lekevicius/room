@@ -10,6 +10,7 @@
 #include "base/hash/sha1.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
@@ -294,7 +295,16 @@ std::optional<CosmeticPayload> ContentBlocker::CosmeticFor(
   payload.hide_selectors = ToStrings(resources.hide_selectors);
   payload.procedural_actions = ToStrings(resources.procedural_actions);
   payload.exceptions = ToStrings(resources.exceptions);
-  payload.scriptlets = std::string(resources.injected_script);
+  if (!resources.injected_script.empty()) {
+    // uBlock Origin's scriptlets read `scriptletGlobals`, which uBO's own
+    // injector declares (as Brave's does); the function also keeps their
+    // helpers (`safeSelf`…) out of the page's global scope.
+    payload.scriptlets =
+        base::StrCat({"(function() {\nconst scriptletGlobals = {};\n",
+                      std::string_view(resources.injected_script.data(),
+                                       resources.injected_script.size()),
+                      "\n})();\n"});
+  }
   payload.generichide = resources.generichide;
   if (config_.cookie_banners == CookieBannerMode::kReject) {
     payload.cookie_script = cookie_script_;
