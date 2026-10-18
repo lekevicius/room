@@ -4,9 +4,11 @@
 # the runner).
 name: CI
 
+# Off since 2026-10-18 (B-93: the account's billing hold): runs only when
+# started by hand from the Actions page; sessions run this spec locally before
+# every push (AGENTS.md "Testing"). Restore push and pull_request when billing works.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
