@@ -76,4 +76,4 @@ echo "== appcast.xml"
 cat "$OUT/appcast.xml"
 sig=$(grep -o 'sparkle:edSignature="[^"]*"' "$OUT/appcast.xml" | head -1 | cut -d'"' -f2)
 echo "== sign_update --verify (appcast's signature)"
-"$BIN/sign_update" --verify "$DMG" "$sig" && echo "verified"
+sparkle sign_update --verify "$DMG" "$sig" && echo "verified"
