@@ -715,3 +715,14 @@ The laptop's checkout was on 154.0.8037.58 with PR #1's twelve patch commits on 
 | `roomcore-baseline.sh` | 88.1 | passed: nav 14.1 s, ten-page quits 0.759 / 2.202 / 2.097 s at load 132–140, 0 helpers left, no crash reports |
 
 Compare: Phase 1.5's clean branded build on this laptop, 14,620 s cumulative (2026-10-03, partly resumed); the Mac mini's at 6 jobs, 15,284 s. Before the build, the release framework copied from the Mac mini (`docs/laptop-build.md` §A step 2, `rsync`, 9.98 s for 367 MB on the LAN; `RoomCoreCommit 43b3213` → `5c039c3`) and the Debug app built over it in 105 s (beside the sync). `roomcore-package.sh` replaces §A's `build/roomcore` link with the component stage; `build/roomcore-release` is untouched.
+
+## 2026-10-17/18 — B-30: the built-in blocker in `//room` (M1 Max laptop, 64 GB, `out/dev`, 8 jobs)
+
+`out/dev` (last built 2026-10-07) was stale for reasons not traced: the first targeted builds recompiled `net/` and V8. A toolchain or SDK change since the 7th is the likely cause. The build after adding the blocker was therefore close to a clean one.
+
+| Step | Seconds | Notes |
+|---|---|---|
+| `roomcore-build.sh` (`chrome`, `ROOM_BUILD_JOBS=8`, nohup) | **11,786 (3 h 16 min 26 s)** | started 22:44:33 at load 82–225 (aborted target builds and Xcode beside it at first); 25 patches (0026, 0027 new); about 11,400 objects of the 47,256 were already rebuilt by the aborted attempts |
+| Room's 37 Rust crates (`//room/third_party/rust`, adblock-rust 0.13.3) | inside the above | first compile of `adblock` and its dependencies: under a minute; build scripts for serde, serde_core, serde_json, proc-macro2, quote, thiserror and zmij; flatbuffers' build script dropped (it enables nightly features Chromium does not allow) |
+| `//room` incrementals after each fix | 20–25 | 8 rounds |
+| `roomcore-package.sh` | 55–102 | `--app-only` when only Swift or resources changed |

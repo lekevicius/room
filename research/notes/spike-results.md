@@ -3411,3 +3411,56 @@ The release framework lists 4 fewer checks per appearance: the per-step crash ch
 | Suggestions on, requests for three queries | 34 / 34 | [34 / 34] | 34 (3.5, B-64) |
 
 The release framework's memory rows read higher at rest than 3.9-2's (baseline 731–745 against 559 MB) and lower with ten loaded pages (4,448–4,499 against 4,801 MB): the tour's state now carries more (Archive rows, backups, imported profiles, extensions from earlier steps) and the live sites differ by day; not chased (5.4). No cold launch of a Release app and no DMG size in 4.9: no release app was built (the DMG is build 10's, 188,415,784 B).
+
+## B-30 — built-in ad and tracker blocking, the `adblock` spike (2026-10-18, M1 Max laptop, 64 GB, RoomCore 155.0.8059.36 + patches 0026/0027, component dev build, Debug app)
+
+Measured with `scripts/adblock-check.sh` (fixture `research/spikes/phase-5-adblock/`, served on 127.0.0.1:8777 and opened as `news.test`, with third-party files from `ads.test`, via `--host-resolver-rules`). The final run is `build/adblock-check-final.txt` (load 10.6); its capture is `research/screenshots/chapter-5/adblock-fixture.png`.
+
+**Engine**
+
+| What | Number |
+|---|---|
+| Rules in the bundled lists | EasyList 83,332; EasyPrivacy 56,345; EasyList Cookie List 25,318 |
+| Engine built from text, first launch | 128–139 ms; serialized 7,305,837 B, which is also the cache file |
+| Engine read from cache, later launches | 37–39 ms |
+| Launch wait before the first page | 0.14 s first launch, 38–40 ms cached (0.30–0.40 s before the rule counting moved off the main thread) |
+| Rebuild after a custom-rule edit | 117–124 ms, off the UI thread; pages keep the old engine until the new one is in |
+
+**Decisions on real list URLs** (source `https://news.example/`)
+- Blocked: `pagead2.googlesyndication.com/.../adsbygoogle.js`, `securepubads.g.doubleclick.net/tag/js/gpt.js`, `www.google-analytics.com/analytics.js`, `facebook.com/tr?…` (image).
+- Allowed: the site's own script and a cdnjs script.
+
+**The fixture page with the spike's custom rules**
+
+| Request or element | Result |
+|---|---|
+| Third-party script, pixel and `fetch` | blocked |
+| EasyList's own `/jquery.overlayad.js` | blocked |
+| `$redirect=noop.js` script | served the empty body: `onload` fired, the original did not run |
+| First-party script | loaded |
+| Site-specific `news.test##.ad-slot` | hidden |
+| Generic `##.room-generic-ad` | hidden: the class collector asked the browser and got a user-origin stylesheet back |
+| Content | visible |
+| CookieYes-style banner | autoconsent detected `cookieyes`, clicked Reject in one click (3 ms), cookie `advertisement:no`, banner gone |
+| Page's blocked count | 5 |
+
+**Per-site switch**
+- With `news.test` allowed, after a reload: everything loaded, nothing hidden, the banner left alone, count 0.
+- Blocked again, after a reload: everything blocked again, count 5. This needs the renderers' memory cache cleared when the configuration changes; without it the scripts loaded while the site was allowed came back from memory unchecked (first run).
+
+**Load time** (`timing.html`: 40 allowed requests, 400 elements with classes, reloaded in one tab, `performance` load event end, medians of 5, two interleaved rounds)
+
+| Mode | Median |
+|---|---|
+| Blocking off | 62–63 ms |
+| Lists only | 62–63 ms (no measurable cost) |
+| Lists + cookie banners Reject | 80–85 ms (+18–22 ms: autoconsent's 426 KB script, parsed in every document) |
+
+**Memory.** The browser process's footprint does not show the engine (114.3 MB with the defaults, 115.1 MB with no lists: the allocator keeps freed pages). The engine's own size is its 7.3 MB flatbuffer.
+
+**What the first runs found** (fixed, one commit each)
+1. The RoomCore app's spec did not copy `Resources/ContentBlocking`, so the engine had only the custom rules (869 B).
+2. EasyList exempts `127.0.0.1` and `localhost` from generic hiding (`@@://127.0.0.1$generichide`); the fixture moved to `.test` hosts.
+3. Isolated-world scripts run from `DidCreateDocumentElement` were silently not run. Blink forbids script inside that notification; `ExecuteScriptInIsolatedWorld` returned nothing, and a direct `v8::Script` run hit `Check failed: !ScriptForbiddenScope::IsScriptForbidden()` (minidump). They now run from `ExtensionFrameHelper::ScheduleAtDocumentStart`, the step extensions' document-start scripts use, still before the page's own scripts.
+4. autoconsent 16.55.0's constructor initializes before creating its DOM helper when given a config (`TypeError … 'prehide'`); it is now constructed bare and initialized after, as its standalone build does.
+5. autoconsent's eval requests are already-invoked expressions (`(()=>!!window.Cookiebot)()`); the wrapper called them again, so every check answered false.
