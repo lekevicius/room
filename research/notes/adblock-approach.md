@@ -403,10 +403,14 @@ Bundled defaults are permissively licensed only:
 - Redirect hops are not re-checked in the first version. That is a stated limitation; Brave checks them.
 
 **Cosmetic.** At `ReadyToCommitNavigation` the browser pushes the URL's cosmetic resources: hide selectors, exceptions, the scriptlet script and the generic-hide flag.
-- At `DidCreateDocumentElement` the renderer:
-  - inserts one user-origin stylesheet (`WebDocument::InsertStyleSheet`, `kUser`);
+- At `DidCreateDocumentElement` the renderer inserts one user-origin stylesheet (`WebDocument::InsertStyleSheet`, `kUser`).
+- At `ExtensionFrameHelper::ScheduleAtDocumentStart`, the next step, it:
   - runs the scriptlets in the main world;
-  - starts the generic class/id collector in the isolated world, which asks the browser for `hidden_class_id_selectors` over the reply remote.
+  - starts the generic class/id collector in the isolated world, which asks the browser for `hidden_class_id_selectors` over the reply remote;
+  - starts autoconsent there.
+- Why the document-start step: extensions' document-start scripts use it, and script is forbidden inside `DidCreateDocumentElement` itself. It still comes before the page's own scripts.
+
+**Cache.** Applying a new configuration clears the renderers' memory caches (`WebCacheManager::ClearCache`). Otherwise a subresource fetched while a site was allowed is reused without a request after blocking resumes.
 
 **Counts.** Blocked requests are counted per page and reported to the host. The site panel shows them, and they are the website's "Ads blocked" figure.
 
@@ -421,6 +425,15 @@ Bundled defaults are permissively licensed only:
 - `WebContents.blockedRequestCount` (observable) and a `cookieBannerResult`.
 - `FakeContentBlocking` implements the same matching over a tiny subset of the syntax (`||host^`, `##selector`), so Store and Settings tests run without an engine.
 - One `engine-api.md` row.
+
+### 9.6b Measured (2026-10-18; `spike-results.md` "B-30")
+
+- **Engine:** built in 128–139 ms from the bundled lists (EasyList, EasyPrivacy, the cookie list: 165k rules), 7.3 MB serialized; read from the cache in 37–39 ms.
+- **Launch:** waits 0.14 s on a first launch, 38–40 ms afterwards.
+- **Page load, allowed requests:**
+  - lists only: no measurable cost (62–63 ms, the same as off);
+  - cookie banners Reject: +18–22 ms per document, for autoconsent's 426 KB bundle.
+- **Fixture:** every network, cosmetic, redirect, cookie-banner and per-site check passes.
 
 ### 9.7 Order of work in Step 2
 

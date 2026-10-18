@@ -18,6 +18,7 @@ Before you start: if uBlock Origin Lite is installed, turn it off (⌘, ▸ Exte
    - The site's cookie settings, if you reopen them, show only the necessary purposes on.
    - Set **Hide** and open another such site in a new tab: the banner never shows and nothing is answered.
    - Set **Leave alone**: banners show.
+   - Reject costs about 20 ms per page (autoconsent's script). If pages feel slower, note it.
 
 4. **Trackers only.** In ⌘, ▸ Privacy, turn **Block ads** off and keep **Block trackers** on, then reload the news site.
    - Ads show.
@@ -50,3 +51,4 @@ Before you start: if uBlock Origin Lite is installed, turn it off (⌘, ▸ Exte
 - **Procedural cosmetic filters** (`:has-text`, `:upward`…) are not run.
 - **uBlock's scriptlets are not loaded:** its lists' `+js()` rules do nothing.
 - **Allowed sites and cookie-banner changes** reach open pages when they reload.
+- **The DMG:** an official build's export list has the new classes placed by guess (`room_core.exports`); the first release build checks them, as 3.9-2 did.
