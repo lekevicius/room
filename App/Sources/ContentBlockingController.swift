@@ -11,6 +11,9 @@ import Store
 /// list, adding one by URL, Update Now, or the "Update lists automatically"
 /// switch (off by default; CLAUDE.md "no network calls the user did not ask
 /// for"). The bundled lists (App/Resources/ContentBlocking) need no network.
+/// uBlock Origin's scriptlets (GPLv3, never bundled) come with uBO's lists:
+/// fetched from the pinned tag when the first one is turned on, converted in
+/// JavaScriptCore and merged with Room's redirect bodies (`UBlockScriptlets`).
 @Observable
 final class ContentBlockingController {
     /// One downloaded list's facts, kept beside the files.
@@ -21,6 +24,13 @@ final class ContentBlockingController {
         var title: String?
     }
 
+    /// uBO's scriptlets as converted, kept beside the lists.
+    struct ScriptletsRecord: Codable, Hashable {
+        var tag: String
+        var fetched: Date
+        var count: Int
+    }
+
     enum ListStatus: Hashable {
         case idle
         case downloading
@@ -29,6 +39,8 @@ final class ContentBlockingController {
 
     private(set) var records: [String: ListRecord] = [:]
     private(set) var status: [String: ListStatus] = [:]
+    private(set) var scriptlets: ScriptletsRecord?
+    private(set) var scriptletStatus: ListStatus = .idle
     private(set) var lastReport: ContentBlockingReport?
     /// Rules per list id of the lists in use (bundled ones counted once).
     private(set) var ruleCounts: [String: Int] = [:]
@@ -39,6 +51,7 @@ final class ContentBlockingController {
     @ObservationIgnored private let bundleDirectory: URL
     @ObservationIgnored private let listsDirectory: URL
     @ObservationIgnored private let cacheDirectory: URL
+    @ObservationIgnored private let scriptletsDirectory: URL
     @ObservationIgnored private let session: URLSession
     @ObservationIgnored private var lastApplied: ContentBlockingConfiguration?
     @ObservationIgnored private var updateTimer: Timer?
@@ -54,11 +67,13 @@ final class ContentBlockingController {
         self.bundleDirectory = bundleDirectory
         listsDirectory = stateDirectory.appending(path: "ContentBlocking/Lists")
         cacheDirectory = stateDirectory.appending(path: "ContentBlocking/Engine")
+        scriptletsDirectory = stateDirectory.appending(path: "ContentBlocking/Scriptlets")
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         session = URLSession(configuration: configuration)
         records = Self.readRecords(at: recordsURL)
+        scriptlets = (try? Data(contentsOf: scriptletsRecordURL)).flatMap { try? JSONDecoder().decode(ScriptletsRecord.self, from: $0) }
     }
 
     var settingsValue: ContentBlockingSettings { settings.settings.contentBlocking }
@@ -110,6 +125,7 @@ final class ContentBlockingController {
     func updateNow() async {
         let ids = sourcesInUse().map(\.id)
         await download(ids, reason: "update now")
+        await updateScriptletsIfStale(reason: "update now")
         await apply()
     }
 
@@ -143,12 +159,19 @@ final class ContentBlockingController {
                 await download(plan.missing.filter { status[$0] != .downloading }, reason: "turned on")
                 plan = ContentBlockingPlan.make(settings: current, bundleDirectory: bundleDirectory, downloads: downloads())
             }
+            // uBO's lists bring uBO's scriptlets; turning the first one on is their request too.
+            let wantsScriptlets = UBlockScriptlets.needed(by: plan.lists)
+            if wantsScriptlets, !hasScriptlets, scriptletStatus != .downloading {
+                await fetchScriptlets(reason: "turned on")
+            }
             scheduleUpdates(current.automaticListUpdates)
             let configuration = ContentBlockingConfiguration(
                 isEnabled: plan.isEnabled,
-                lists: plan.lists.map { ContentBlockingList(fileURL: $0.fileURL, isHostsFormat: $0.isHostsFormat) },
+                lists: plan.lists.map {
+                    ContentBlockingList(fileURL: $0.fileURL, isHostsFormat: $0.isHostsFormat, isTrusted: $0.isTrusted)
+                },
                 customRules: plan.customRules,
-                resourcesURL: bundleDirectory.appending(path: "redirect-resources.json"),
+                resourcesURL: wantsScriptlets && hasScriptlets ? await mergedResources() : roomResourcesURL,
                 cacheDirectory: cacheDirectory,
                 allowedSites: plan.allowedSites,
                 cookieBanners: CookieBannerMode(current.cookieBanners),
@@ -278,6 +301,87 @@ final class ContentBlockingController {
         }
     }
 
+    // MARK: uBlock Origin's scriptlets
+
+    private var roomResourcesURL: URL { bundleDirectory.appending(path: "redirect-resources.json") }
+    private var scriptletsURL: URL { scriptletsDirectory.appending(path: "ublock-scriptlets.json") }
+    private var scriptletsRecordURL: URL { scriptletsDirectory.appending(path: "ublock-scriptlets-record.json") }
+    /// Room's redirect bodies and uBO's scriptlets: the engine's resources while a uBO list is on.
+    private var mergedResourcesURL: URL { scriptletsDirectory.appending(path: "resources.json") }
+
+    var hasScriptlets: Bool { scriptlets != nil && FileManager.default.fileExists(atPath: scriptletsURL.path) }
+
+    /// A new pinned tag (a Room update) is fetched only on the user's next
+    /// request: Update Now or an automatic update. Until then the old ones serve.
+    private func updateScriptletsIfStale(reason: String) async {
+        let plan = ContentBlockingPlan.make(settings: settingsValue, bundleDirectory: bundleDirectory, downloads: downloads())
+        guard UBlockScriptlets.needed(by: plan.lists), scriptlets?.tag != UBlockScriptlets.tag,
+              scriptletStatus != .downloading else { return }
+        await fetchScriptlets(reason: reason)
+    }
+
+    /// uBO's modules from the pinned tag, linked and evaluated in
+    /// JavaScriptCore off the main thread; the result is adblock-rust resources.
+    private func fetchScriptlets(reason: String) async {
+        NSLog("Room: content blocking: fetching uBlock Origin %@ scriptlets (%@): %@",
+              UBlockScriptlets.tag, reason, UBlockScriptlets.baseURL.absoluteString)
+        scriptletStatus = .downloading
+        let session = session
+        let started = ContinuousClock.now
+        do {
+            let resources = try await Task.detached(priority: .userInitiated) {
+                let modules = try await ScriptletModules.collect { path in
+                    try await Self.text(at: UBlockScriptlets.sourceURL(path), session: session)
+                }
+                let scriptlets = try ScriptletModules.scriptlets(fromLinked: try ScriptletModules.link(modules))
+                return ScriptletResources.resources(from: scriptlets)
+            }.value
+            try FileManager.default.createDirectory(at: scriptletsDirectory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(resources).write(to: scriptletsURL, options: .atomic)
+            let record = ScriptletsRecord(tag: UBlockScriptlets.tag, fetched: .now, count: resources.count)
+            try JSONEncoder().encode(record).write(to: scriptletsRecordURL, options: .atomic)
+            scriptlets = record
+            scriptletStatus = .idle
+            let missing = ScriptletResources.missingDependencies(resources)
+            NSLog("Room: content blocking: %d uBlock Origin scriptlets in %.0f ms%@", resources.count,
+                  (ContinuousClock.now - started) / .milliseconds(1),
+                  missing.isEmpty ? "" : ", missing dependencies: " + missing.joined(separator: ", "))
+        } catch {
+            NSLog("Room: content blocking: uBlock Origin scriptlets failed: %@", String(describing: error))
+            scriptletStatus = .failed(String(describing: error))
+        }
+    }
+
+    /// Writes Room's resources merged with uBO's (only when they changed, so
+    /// the engine's cache key holds); Room's alone when that fails.
+    private func mergedResources() async -> URL {
+        let room = roomResourcesURL, ublock = scriptletsURL, merged = mergedResourcesURL
+        let written = await Task.detached(priority: .userInitiated) { () -> Bool in
+            do {
+                let decoder = JSONDecoder()
+                let resources = ScriptletResources.merge(
+                    room: try decoder.decode([AdblockResource].self, from: Data(contentsOf: room)),
+                    added: try decoder.decode([AdblockResource].self, from: Data(contentsOf: ublock)))
+                let data = try JSONEncoder().encode(resources)
+                if (try? Data(contentsOf: merged)) != data { try data.write(to: merged, options: .atomic) }
+                return true
+            } catch {
+                NSLog("Room: content blocking: merging resources failed: %@", String(describing: error))
+                return false
+            }
+        }.value
+        return written ? merged : room
+    }
+
+    nonisolated private static func text(at url: URL, session: URLSession) async throws -> String {
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse, userInfo: [NSURLErrorFailingURLErrorKey: url])
+        }
+        guard let text = String(data: data, encoding: .utf8) else { throw URLError(.cannotDecodeContentData) }
+        return text
+    }
+
     // MARK: Automatic updates (opt-in)
 
     private func scheduleUpdates(_ on: Bool) {
@@ -300,8 +404,10 @@ final class ContentBlockingController {
         let due = sourcesInUse().filter {
             FilterListSchedule.isDue(lastFetched: records[$0.id]?.fetched, expiry: records[$0.id]?.expiry, now: .now)
         }
-        guard !due.isEmpty else { return }
+        let staleScriptlets = scriptlets.map { $0.tag != UBlockScriptlets.tag } ?? false
+        guard !due.isEmpty || staleScriptlets else { return }
         await download(due.map(\.id), reason: "automatic update")
+        await updateScriptletsIfStale(reason: "automatic update")
         await apply()
     }
 

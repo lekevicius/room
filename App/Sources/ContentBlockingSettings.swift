@@ -170,6 +170,14 @@ struct ContentBlockingSettingsView: View {
         let size = ByteCountFormatter.string(fromByteCount: Int64(report.engineBytes), countStyle: .memory)
         var line = "\(rules.formatted()) rules in use, \(size)"
         if !report.problems.isEmpty { line += " · \(report.problems.count) unreadable" }
+        if value.enabledLists.contains(where: { FilterListCatalog.info($0)?.isTrusted == true }) {
+            switch controller.scriptletStatus {
+            case .downloading: line += " · fetching uBlock Origin's scriptlets"
+            case .failed: line += " · uBlock Origin's scriptlets unavailable"
+            case .idle:
+                if let scriptlets = controller.scriptlets { line += " · \(scriptlets.count) uBlock Origin \(scriptlets.tag) scriptlets" }
+            }
+        }
         return line
     }
 
