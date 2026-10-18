@@ -23,7 +23,7 @@
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
-  <header class="nav" data-nav>
+  <header class="nav" data-nav data-hidden="true">
     <a class="nav-brand" href="#top" data-brand aria-label="Room, home">
       <span class="mark" aria-hidden="true"></span>
       <span class="nav-word">Room</span>
@@ -31,8 +31,7 @@
     <nav class="nav-links" aria-label="Sections">
       <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
-      <a href="#prints">Icons</a>
-      <a href="https://github.com/lekevicius/room">Source</a>
+      <a class="nav-github" href="https://github.com/lekevicius/room"><svg class="nav-gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a>
     </nav>
     <a class="button button-small" href="https://github.com/lekevicius/room/releases/latest" data-download>Download</a>
   </header>
@@ -42,30 +41,46 @@
     <!-- Hero: a hole punched in the paper, shaped like Room's mark, with a print beneath.
          Scrolling widens the hole until the print fills the screen and the app settles on it. -->
     <section class="hero" id="top" data-hero>
-      <div class="hero-stage">
-        <div class="hero-print" data-hero-print aria-hidden="true"></div>
-        <div class="hero-paper" data-hero-paper aria-hidden="true"></div>
-
-        <div class="hero-copy" data-hero-copy>
-          <div class="hero-mark-space" aria-hidden="true"></div>
-          <h1 class="hero-title">Room</h1>
-          <p class="hero-lede">A new browser to enjoy every moment on the web.</p>
-          <div class="hero-actions">
-            <a class="button" href="https://github.com/lekevicius/room/releases/latest" data-download>
-              <svg class="button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 8.5c0-1.6 1.3-2.4 1.4-2.4-.8-1.1-2-1.3-2.4-1.3-1-.1-2 .6-2.5.6s-1.3-.6-2.2-.6c-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.7.6.8 1.2 1.7 2 1.7s1.1-.5 2.1-.5 1.2.5 2.1.5 1.4-.8 1.9-1.7c.6-.9.9-1.8.9-1.8s-1.4-.6-1.4-2.9zM9.6 3.6c.4-.5.7-1.2.6-2-.6 0-1.4.4-1.8.9-.4.5-.7 1.2-.6 1.9.7.1 1.4-.3 1.8-.8z" fill="currentColor"/></svg>
-              Download for Mac
-            </a>
-            <p class="hero-meta">Free and open source. For macOS&nbsp;26 on Apple&nbsp;silicon.</p>
-          </div>
-        </div>
-
-        <figure class="hero-window shot" data-hero-window>
-          <picture>
-            <source srcset="assets/shots/hero-dark.webp" media="(prefers-color-scheme: dark)">
-            <img src="assets/shots/hero-light.webp" width="1280" height="800" alt="A Room window with a tinted sidebar of Essentials, pinned pages and today’s tabs, showing a gallery site." fetchpriority="high">
-          </picture>
-        </figure>
+      <div class="hero-print" data-hero-print aria-hidden="true"></div>
+      <div class="hero-copy">
+        <p class="hero-lede">A new browser to enjoy every moment on the web.</p>
+        <h1 class="hero-title" data-hero-title>Room</h1>
       </div>
+      <figure class="hero-window shot" data-hero-window data-shot="hero">
+        <picture>
+          <source srcset="assets/shots/hero-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="assets/shots/hero-light.webp" width="1280" height="800" alt="A Room window: the Studio space’s tinted sidebar of Essentials, pinned pages and today’s tabs, beside Seurat’s A Sunday on La Grande Jatte." fetchpriority="high">
+        </picture>
+      </figure>
+      <div class="hero-cta">
+        <a class="button" href="https://github.com/lekevicius/room/releases/latest" data-download>
+          <svg class="button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 8.5c0-1.6 1.3-2.4 1.4-2.4-.8-1.1-2-1.3-2.4-1.3-1-.1-2 .6-2.5.6s-1.3-.6-2.2-.6c-1.1 0-2.2.7-2.7 1.7-1.2 2-.3 5 .8 6.7.6.8 1.2 1.7 2 1.7s1.1-.5 2.1-.5 1.2.5 2.1.5 1.4-.8 1.9-1.7c.6-.9.9-1.8.9-1.8s-1.4-.6-1.4-2.9zM9.6 3.6c.4-.5.7-1.2.6-2-.6 0-1.4.4-1.8.9-.4.5-.7 1.2-.6 1.9.7.1 1.4-.3 1.8-.8z" fill="currentColor"/></svg>
+          Download for Mac
+        </a>
+        <p class="hero-meta">Free and <a href="https://github.com/lekevicius/room">open source</a>. For macOS&nbsp;26 on Apple&nbsp;silicon.</p>
+      </div>
+    </section>
+
+    <!-- A letter from Jonas, and (soon) a video of him reading it. -->
+    <section class="letter" id="letter" aria-labelledby="letter-title">
+      <article class="letter-paper" data-reveal>
+        <h2 class="visually-hidden" id="letter-title">Why Room exists</h2>
+        <p class="letter-lede">I <em>loved</em> Arc browser.</p>
+        <p>It introduced an amazing vertical sidebar, where even the address bar moved to the side to give more room to the web itself. It reinvented bookmarks as tabs that don’t get cleared. It blocked ads and trackers. It ran on Chromium, still the most powerful web engine. And most delightfully, they went all out to make Chromium live inside a truly native Mac&nbsp;app.</p>
+        <p>I loved Arc more than any other browser. Sadly, they pivoted to Dia, got acquired by Atlassian, and now Arc barely gets engine&nbsp;updates.</p>
+        <p>Room is my love letter to the greatest browser ever made. Now open source, but still a true Mac app with a de-Googled Chromium heart. I hope it can become a new home for everyone else who has been looking for a new browser, just like me. Try Room, and let me know how it can be even&nbsp;better.</p>
+        <p class="letter-close">Let’s build the next greatest browser, together.</p>
+        <footer class="letter-sign">
+          <span class="letter-name">— Jonas</span>
+          <span class="letter-role">Creator of Room</span>
+        </footer>
+      </article>
+      <figure class="letter-video" data-reveal data-letter-video data-src="assets/video/letter.mp4">
+        <div class="letter-video-frame" style="background-image: url(assets/art/amoeba-1536.avif)">
+          <span class="letter-video-mark mark" aria-hidden="true"></span>
+          <p class="letter-video-soon">A short video from Jonas is on its&nbsp;way.</p>
+        </div>
+      </figure>
     </section>
 
     <!-- Pillars -->
@@ -103,28 +118,6 @@
           <p>A real Mac app, written in Swift and AppKit. Native menus and text, the shortcuts your hands already know, and Liquid Glass where macOS uses it. It feels at home because it was made&nbsp;here.</p>
         </article>
       </div>
-    </section>
-
-    <!-- A letter from Jonas, and (soon) a video of him reading it. -->
-    <section class="letter" id="letter" aria-labelledby="letter-title">
-      <article class="letter-paper" data-reveal>
-        <h2 class="visually-hidden" id="letter-title">Why Room exists</h2>
-        <p class="letter-lede">I <em>loved</em> Arc browser.</p>
-        <p>It introduced an amazing vertical sidebar, where even the address bar moved to the side to give more room to the web itself. It reinvented bookmarks as tabs that don’t get cleared. It blocked ads and trackers. It ran on Chromium, still the most powerful web engine. And most delightfully, they went all out to make Chromium live inside a truly native Mac&nbsp;app.</p>
-        <p>I loved Arc more than any other browser. Sadly, they pivoted to Dia, got acquired by Atlassian, and now Arc barely gets engine&nbsp;updates.</p>
-        <p>Room is my love letter to the greatest browser ever made. Now open source, but still a true Mac app with a de-Googled Chromium heart. I hope it can become a new home for everyone else who has been looking for a new browser, just like me. Try Room, and let me know how it can be even&nbsp;better.</p>
-        <p class="letter-close">Let’s build the next greatest browser, together.</p>
-        <footer class="letter-sign">
-          <span class="letter-name">Jonas</span>
-          <span class="letter-role">Creator of Room</span>
-        </footer>
-      </article>
-      <figure class="letter-video" data-reveal data-letter-video data-src="assets/video/letter.mp4">
-        <div class="letter-video-frame" style="background-image: url(assets/art/amoeba-1536.avif)">
-          <span class="letter-video-mark mark" aria-hidden="true"></span>
-          <p class="letter-video-soon">A short video from Jonas is on its&nbsp;way.</p>
-        </div>
-      </figure>
     </section>
 
     <!-- Feature tour: steps on the left, a pinned stage on the right. -->
@@ -202,12 +195,15 @@
         <article class="cell cell-music" data-reveal>
           <h3>Music keeps&nbsp;playing</h3>
           <p>Whatever is playing, in any space, waits above the sidebar’s&nbsp;footer.</p>
-          <figure class="crop crop-music"><picture><source srcset="assets/shots/music-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/music-light.webp" alt="The sidebar’s now-playing row, with the track’s artwork." loading="lazy" width="1280" height="800"></picture></figure>
+          <figure class="corner corner-left"><picture><source srcset="assets/shots/music-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/music-light.webp" alt="The bottom corner of Room’s sidebar: Gymnopédie No. 1 by Erik Satie playing, with its artwork and controls." loading="lazy" width="1280" height="800"></picture></figure>
         </article>
         <article class="cell cell-pip" data-reveal>
           <h3>Picture in&nbsp;picture</h3>
           <p>Pop a video out and keep it in the corner while you work.</p>
-          <figure class="crop crop-pip"><picture><source srcset="assets/shots/pip-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/pip-light.webp" alt="A video floating in picture in picture over the corner of Room’s window." loading="lazy" width="1280" height="800"></picture></figure>
+          <div class="corner-frame corner-frame-right">
+            <figure class="corner corner-right"><picture><source srcset="assets/shots/pip-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/pip-light.webp" alt="" loading="lazy" width="1280" height="800"></picture></figure>
+            <picture class="pip-layer"><source srcset="assets/shots/pip-dark-layer.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/pip-light-layer.webp" alt="A video floating in picture in picture over the bottom corner of Room’s window." loading="lazy" width="800" height="450"></picture>
+          </div>
         </article>
         <article class="cell cell-hide" data-reveal>
           <div class="bigkeys" aria-hidden="true"><kbd>⌘</kbd><kbd>S</kbd></div>
@@ -226,7 +222,11 @@
             <h3>Moving in takes a&nbsp;minute</h3>
             <p>Bring your bookmarks, history and passwords along. Coming from Arc? Your spaces and pinned tabs come&nbsp;too.</p>
           </div>
-          <ul class="from" aria-label="Import from"><li><img src="assets/logos/browsers/arc.webp" alt="" width="256" height="256" loading="lazy"><span>Arc</span></li><li><img src="assets/logos/browsers/chrome.webp" alt="" width="256" height="256" loading="lazy"><span>Chrome</span></li><li><img src="assets/logos/browsers/safari.webp" alt="" width="256" height="256" loading="lazy"><span>Safari</span></li><li><img src="assets/logos/browsers/firefox.webp" alt="" width="256" height="256" loading="lazy"><span>Firefox</span></li><li><img src="assets/logos/browsers/brave.webp" alt="" width="256" height="256" loading="lazy"><span>Brave</span></li><li><img src="assets/logos/browsers/edge.webp" alt="" width="256" height="256" loading="lazy"><span>Edge</span></li><li><img src="assets/logos/browsers/vivaldi.webp" alt="" width="256" height="256" loading="lazy"><span>Vivaldi</span></li></ul>
+          <div class="migrate" aria-label="Import from Arc, Chrome, Safari, Firefox, Brave, Edge and Vivaldi">
+            <svg class="migrate-paths" viewBox="-200 0 400 260" aria-hidden="true"><path d="M-143.6 181.1 Q-64.6 171.5 0 196" pathLength="1"/><path d="M-114.5 127.7 Q-51.5 144.8 0 196" pathLength="1"/><path d="M-63.3 90.9 Q-28.5 126.5 0 196" pathLength="1"/><path d="M0.0 77.8 Q0.0 119.9 0 196" pathLength="1"/><path d="M63.3 90.9 Q28.5 126.5 0 196" pathLength="1"/><path d="M114.5 127.7 Q51.5 144.8 0 196" pathLength="1"/><path d="M143.6 181.1 Q64.6 171.5 0 196" pathLength="1"/></svg>
+            <ul class="migrate-from"><li style="--x:-143.6px; --y:163.1px; --i:0"><img src="assets/logos/browsers/arc.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Arc</span></li><li style="--x:-114.5px; --y:109.7px; --i:1"><img src="assets/logos/browsers/chrome.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Chrome</span></li><li style="--x:-63.3px; --y:72.9px; --i:2"><img src="assets/logos/browsers/safari.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Safari</span></li><li style="--x:0.0px; --y:59.8px; --i:3"><img src="assets/logos/browsers/firefox.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Firefox</span></li><li style="--x:63.3px; --y:72.9px; --i:4"><img src="assets/logos/browsers/brave.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Brave</span></li><li style="--x:114.5px; --y:109.7px; --i:5"><img src="assets/logos/browsers/edge.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Edge</span></li><li style="--x:143.6px; --y:163.1px; --i:6"><img src="assets/logos/browsers/vivaldi.webp" alt="" width="256" height="256" loading="lazy"><span class="visually-hidden">Vivaldi</span></li></ul>
+            <img class="migrate-room" src="assets/icons/room.webp" alt="" width="512" height="512" loading="lazy" data-room-icon>
+          </div>
         </article>
       </div>
     </section>
@@ -272,6 +272,7 @@
       </div>
       <div class="prints-stage" data-reveal>
         <div class="prints-backdrop" data-icon-backdrop style="background-image: url(assets/art/pigment-1536.avif)"></div>
+        <div class="prints-backdrop is-next" data-icon-backdrop-next></div>
         <button class="prints-step" data-step-by="-1" aria-label="Previous icon">‹</button>
         <div class="icon-cycle" role="radiogroup" aria-label="Icon" data-icon-picker><button role="radio" aria-checked="true" data-icon="room" data-print="pigment" aria-label="Room"><img src="assets/icons/room.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="sunrise" data-print="blobs" aria-label="Sunrise"><img src="assets/icons/sunrise.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="lagoon" data-print="fields" aria-label="Lagoon"><img src="assets/icons/lagoon.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="ember" data-print="quilt" aria-label="Ember"><img src="assets/icons/ember.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="dusk" data-print="amoeba" aria-label="Dusk"><img src="assets/icons/dusk.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="harbor" data-print="flow" aria-label="Harbor"><img src="assets/icons/harbor.webp" alt="" width="512" height="512"></button><button role="radio" aria-checked="false" data-icon="newsprint" data-print="newsprint" aria-label="Newsprint"><img src="assets/icons/newsprint.webp" alt="" width="512" height="512"></button></div>
         <button class="prints-step" data-step-by="1" aria-label="Next icon">›</button>
@@ -283,18 +284,7 @@
     <section class="shortcuts" aria-labelledby="shortcuts-title">
       <h2 class="section-title" id="shortcuts-title" data-reveal>Every shortcut you know.<br><em>Each one yours to change.</em></h2>
       <div class="marquee" aria-hidden="true">
-        <div class="marquee-track">
-          <span class="combo"><kbd>⌘</kbd><kbd>T</kbd> New tab</span>
-          <span class="combo"><kbd>⌘</kbd><kbd>L</kbd> Edit address</span>
-          <span class="combo"><kbd>⌃</kbd><kbd>Tab</kbd> Recent tabs</span>
-          <span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>T</kbd> Reopen closed</span>
-          <span class="combo"><kbd>⌘</kbd><kbd>S</kbd> Hide sidebar</span>
-          <span class="combo"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>→</kbd> Next space</span>
-          <span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>K</kbd> Clear today</span>
-          <span class="combo"><kbd>⌘</kbd><kbd>Y</kbd> History</span>
-          <span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>N</kbd> Incognito</span>
-          <span class="combo"><kbd>⌘</kbd><kbd>F</kbd> Find</span>
-        </div>
+        <div class="marquee-track" data-marquee><span class="combo"><kbd>⌘</kbd><kbd>T</kbd> New tab</span><span class="combo"><kbd>⌘</kbd><kbd>L</kbd> Edit the address</span><span class="combo"><kbd>⌃</kbd><kbd>Tab</kbd> Recent tabs</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>T</kbd> Reopen closed</span><span class="combo"><kbd>⌘</kbd><kbd>S</kbd> Hide the sidebar</span><span class="combo"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>→</kbd> Next space</span><span class="combo"><kbd>⌃</kbd><kbd>1</kbd> First space</span><span class="combo"><kbd>⌘</kbd><kbd>D</kbd> Pin a page</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>D</kbd> Make it essential</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>K</kbd> Clear today</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>=</kbd> Split</span><span class="combo"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>G</kbd> Grid of panes</span><span class="combo"><kbd>⌘</kbd><kbd>O</kbd> Keep a Peek</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>C</kbd> Copy the address</span><span class="combo"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>R</kbd> Reader</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>2</kbd> Screenshot</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>L</kbd> Library</span><span class="combo"><kbd>⌘</kbd><kbd>Y</kbd> History</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>M</kbd> Mute the tab</span><span class="combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>N</kbd> Incognito</span><span class="combo"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> Full screen</span><span class="combo"><kbd>⌘</kbd><kbd>F</kbd> Find</span></div>
       </div>
       <p class="shortcuts-note" data-reveal>Rebind any of them in Settings, under Shortcuts. The keys Room needs stay with Room, so a page can never take <kbd>⌘</kbd><kbd>T</kbd> from&nbsp;you.</p>
     </section>
@@ -319,7 +309,7 @@
         <div class="closing-mark" aria-hidden="true"></div>
         <h2 class="closing-title" id="closing-title">Make yourself at&nbsp;home.</h2>
         <a class="button button-paper" href="https://github.com/lekevicius/room/releases/latest" data-download>Download for Mac</a>
-        <p class="closing-meta">Free and open source. For macOS&nbsp;26 on Apple&nbsp;silicon.</p>
+        <p class="closing-meta">Free and <a href="https://github.com/lekevicius/room">open source</a>. For macOS&nbsp;26 on Apple&nbsp;silicon.</p>
       </div>
     </section>
   </main>
