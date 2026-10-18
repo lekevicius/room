@@ -308,9 +308,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let controller = ContentBlockingController(engine: blocker, settings: settings, stateDirectory: Self.stateDirectory,
                                                    site: { engine.site(of: $0) })
         contentBlocking = controller
+        #if DEBUG
         let started = ContinuousClock.now
         await controller.start()
         Self.launchLog.append("content blocking: ready in \(ContinuousClock.now - started)")
+        #else
+        await controller.start()
+        #endif
     }
 
     /// The services follow the two settings at once, from the first run's card or Settings ▸ Privacy.
