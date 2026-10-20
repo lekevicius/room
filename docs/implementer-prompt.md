@@ -59,8 +59,11 @@ Working rules:
   them under research/screenshots/ with the phase id in the filename.
 - Tests follow CLAUDE.md "Testing": unit tier for spec rules and real bugs
   only, window suites tagged `.window` and skipped on CI, no pixel or
-  timing assertions, no driving the app through accessibility or
-  computer-use. Checks that need a click go in the report for the user.
+  timing assertions. Verify your own work (since 2026-10-21): spike hooks
+  first, live sites for checks about real pages, then computer use on your
+  own Debug process on a throwaway state (never the user's Room), one
+  attempt of at most ten minutes per check. Only what needs the user
+  (accounts, their real state, hardware, taste) goes in the report for them.
 
 Finish with a short report: what was built, the measured numbers, anything
 that deviated from the spec, and whether each exit criterion is met.
