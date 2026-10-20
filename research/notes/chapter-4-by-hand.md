@@ -4,6 +4,13 @@ What the Chapter 4 sessions could not check without a click, a device, an accoun
 
 **74 steps in nine groups** (Setup and Phases 4.1–4.8): 74 to do, none wholly stale; 8 carry a merged or stale part (7, 10, 20, 24, 34, 59, 66, 74) and two group notes were stale (4.7b's "no DMG yet", 4.8a's "until the Phase 4.8 DMG"). Steps that need your real state, an account or the signed build say "the DMG"; the rest run on a throwaway state with the launch command of their group.
 
+## Results, 2026-10-21 (the user, build 14)
+
+From the by-hand checklist artifact; the notes from ten days of use are backlog rows B-106 to B-122.
+- **Works (38):** Setup 1–4; the blocker's ten (`adblock-by-hand.md`, YouTube included); 1, 17, 30–32, 37 (`geo: position, notifications: granted, camera: granted`), 39–41, 44, 48–50, 55–63, 69 (a wish for thumbnails: B-119), 70–72.
+- **Problems:** 34 (no save panel with "Ask where to save": B-106); 51, 52 (PiP's back-to-tab: B-107); 53 (the fixture link did not load: B-107); X2 (Netflix: the CDM loads, the licence is refused: B-101's VMP step).
+- **Skipped (the user: "this seems like something you can check"):** 2–16, 18–29, 33, 35, 36, 38, 42, 43, 45–47, 54, 64–68, 73, 74, Setup 5, X1. Phase 5.0b runs them itself (spike hooks, live sites, computer use on its own process) and keeps for the user only what needs the user's accounts, browsers or real state.
+
 ## The current DMG
 
 - **The chapter's DMG, build 11: `build/sparkle-4.9/Room-0.1.0-11.dmg`** (the 4.8b framework plus 4.9's two app changes: the Screenshots folder pruned at launch, the Settings Section menu items validated). Install this one; everything below that says build 10 applies to it. Landed 2026-10-07 07:05, 188,436,895 B, notarized and stapled; Room.app 391 MB.
