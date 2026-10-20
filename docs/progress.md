@@ -445,12 +445,25 @@ Spec: `ROADMAP.md` Chapter 4 (written 2026-10-06). One line per task; exit crite
 
 Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). One line per task; exit criteria last. Each phase ends with a review sheet under `research/screenshots/phase-5.x/`; the user's marks go to `research/notes/ui-iteration.md` (5.8).
 
+### Phase 5.0 — The pass's bugs, and the sessions' own checks (added 2026-10-21)
+- [ ] 5.0a: The dev bundle id `app.room.desktop.dev` for the Debug app; the wrappers follow
+- [ ] 5.0a: Computer use on the session's own process: the setup note and one end-to-end check (Restore Sidebar…)
+- [ ] 5.0a: `scripts/live-check.sh`: the blocker on delfi.lt and two news sites, a cookie banner, YouTube's player
+- [ ] 5.0a: B-106 (save panel per download), B-107 (PiP back to tab; the fixture link), B-108 (row background on resize), B-109 (close button after a slide)
+- [ ] 5.0a: B-100 (the tour's import check)
+- [ ] 5.0b: Every skipped Chapter 4 step run by the session, a result line each in `chapter-5-by-hand.md` "Run by the sessions"
+- [ ] 5.0b: B-62's Bluetooth/Serial run
+- [ ] 5.0b: The user's remaining steps (at most ten)
+- [ ] Exit: B-106 to B-109 fixed and shown; every skipped step has a result or is on the user's ten; the live check passes; the dev bundle id in every wrapper
+
 ### Phase 5.1 — Motion
 - [ ] 5.1a: The motion harness (frame timestamps, dropped frames, duration and curve read back); the table
 - [ ] 5.1a: The sidebar's motion audited and fixed (pill, rows, space slide, folders, grid, dot swap, rename pulse)
 - [ ] 5.1a: Reduce Motion variants with a test
 - [ ] 5.1b: Overlays, toasts, downloads, split, the cluster audited and fixed
 - [ ] 5.1b: The 120 Hz run on the laptop (B-16's fling by hand)
+- [ ] 5.1b: Hover and press feedback with small animations (B-111)
+- [ ] 5.1b: The hidden sidebar: no traffic-light pill, a faster reveal (B-114)
 - [ ] 5.1b: Review sheet
 - [ ] Exit: every §I.1 animation at its value with 0 dropped frames at 60 Hz and the 120 Hz run recorded; Reduce Motion tested
 
@@ -462,6 +475,8 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [ ] 5.2b: Inactive desaturation, mono traffic lights, the tint opacity control (B-23)
 - [ ] 5.2b: Menu key glyphs (B-37)
 - [ ] 5.2b: The icon placeholder and its slot (the icon itself: user)
+- [ ] 5.2b: One metric for header and footer controls (B-110), the selected row's shadow (B-112), split as two cards (B-113), the folder glyph (B-115), "…" overflow (B-89)
+- [ ] 5.2b: Engine step: Chromium's branding out of every visible surface (B-103); incremental, package, baseline
 - [ ] 5.2b: Review sheet
 - [ ] Exit: the matrix; 0 undeclared literals or each deliberate; every theme sample at 4.5:1; inactive and B-37 in captures; the placeholder ships
 
@@ -491,6 +506,7 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [ ] 5.5a: History swipe verified or implemented; never together with the space swipe
 - [ ] 5.5b: The drop matrix (six sources × two targets); drags out to other apps
 - [ ] 5.5b: The overflow indicator, the status pill's dodge, hover sublabels
+- [ ] 5.5a: The field shows the selected suggestion's destination (B-102); inline completion from the best history match (B-65)
 - [ ] 5.5b: Haptics audit; the gesture by-hand script
 - [ ] Exit: `keys` with IME; buttons 4 and 5; swipe back with the arrow; the drop matrix on fixtures; the gesture script run
 
@@ -498,18 +514,32 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [ ] 5.6a: Empty states; titles and unread dots; Change Icon… for entries and folders; the rename pulse; reader's repeated heading hidden (B-94) (the fullscreen banner dropped: B-49, 2026-10-18)
 - [ ] 5.6b: Engine step: the toast bridge `didRequestToast(kind:)` (B-58); incremental, package, baseline
 - [ ] 5.6b: the card's drag band removed (B-32), ⌘S page-first kept (B-11); the hidden-sidebar toasts; the Dock menu, Window menu, Services; review sheet
+- [ ] 5.6: Several incognito windows (B-98); Prevent additional dialogs (B-116); nested folders reachable (B-117); Clear on hover (B-118); ⌃Tab thumbnails if cheap (B-119)
 - [ ] Exit: every §I item done, captured or on the iteration list; Copy Link Address's toast
 
-### Phase 5.7 — Native bubbles, by measured annoyance
-- [ ] 5.7a: Engine step: the password save and update members and the `//room` autofill bubble handler; Views suppressed where the host implements the member; incremental, package, baseline, the 3.7a fixtures
-- [ ] 5.7a: The host's popovers (passwords; address and card)
-- [ ] 5.7b: The translate bubble (if B-63 says yes)
-- [ ] 5.7b: The autofill suggestions popup, bounded
-- [ ] 5.7b: Choosers and client certificates (B-60, B-71) if the week asked
-- [ ] 5.7b: PLAN §4 Hybrid UI rewritten; review sheet
+### Phase 5.7 — Settings and onboarding (added 2026-10-21)
+- [ ] 5.7a: Every pane scrolls, the window fits the display; ⌘W closes Settings
+- [ ] 5.7a: Each setting once; no Notes; Default browser compact; routing only in Spaces; Extensions' profile switcher
+- [ ] 5.7a: Privacy rebuilt: a short pane, lists in sheets, site permissions as a list
+- [ ] 5.7a: Search engines list; Shortcuts redesigned without ◆
+- [ ] 5.7a: Archive's Never as the default; Show Toolbar hidden (code kept)
+- [ ] 5.7a: The right-hand sidebar removed everywhere
+- [ ] 5.7a: Review sheet
+- [ ] 5.7b: The space window (B-122); the in-sidebar editor removed
+- [ ] 5.7b: Onboarding with import (B-121); the first-run card removed
+- [ ] 5.7b: Review sheet
+- [ ] Exit: panes scroll and fit; each setting once; Privacy's lists in sheets; Never default; no right-sidebar code; the space window and onboarding in place
+
+### Phase 5.8 — Native bubbles, by measured annoyance (5.7 before 2026-10-21)
+- [ ] 5.8a: Engine step: the password save and update members and the `//room` autofill bubble handler; Views suppressed where the host implements the member; incremental, package, baseline, the 3.7a fixtures
+- [ ] 5.8a: The host's popovers (passwords; address and card)
+- [ ] 5.8b: The translate bubble (if B-63 says yes)
+- [ ] 5.8b: The autofill suggestions popup, bounded
+- [ ] 5.8b: Choosers and client certificates (B-60, B-71) if the week asked
+- [ ] 5.8b: PLAN §4 Hybrid UI rewritten; review sheet
 - [ ] Exit: password and autofill-save popovers pass the 3.7a fixtures; each remaining Views bubble named with its reason
 
-### Phase 5.8 — Integration, release, review, the iteration list
+### Phase 5.9 — Integration, release, review, the iteration list (5.8 before 2026-10-21)
 - [ ] The full tour on both builds
 - [ ] The release as in 4.9 (the incremental official build if `//room` changed; package, sign, the DMG)
 - [ ] `chapter-5-review.md`
