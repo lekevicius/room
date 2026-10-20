@@ -24,6 +24,10 @@ session=2.8a
 DIR="${ROOM_CAPTURE_DIR:-research/screenshots/phase-$session}"
 APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
 APP_ABS="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
+source scripts/lib/room-process.sh
+# The app's own defaults domain and AppleEvent address: app.room.desktop.dev for a
+# Debug build (5.0a), never the user's app.room.desktop.
+BUNDLE_ID="$(room_bundle_id "$APP_ABS")"
 captures=YES
 appearances=()
 while [[ $# -gt 0 ]]; do
@@ -74,7 +78,7 @@ for appearance in "${appearances[@]}"; do
   if [[ $session == 2.8b ]]; then
     # Sparkle keeps its schedule in the app's defaults (SULastCheckTime …): each run starts from none.
     for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
-      defaults delete app.room.desktop "$key" 2>/dev/null || true
+      defaults delete "$BUNDLE_ID" "$key" 2>/dev/null || true
     done
   fi
   OUT="$work/spike-$spike-$appearance.txt"
@@ -104,7 +108,7 @@ for appearance in "${appearances[@]}"; do
         [[ " $done_names " == *" $name "* ]] && continue
         case "$method" in
           open) sent=$(now); open -a "$APP_ABS" "$url" ;;
-          applescript) sent=$(now); osascript -e "tell application id \"app.room.desktop\" to open location \"$url\"" ;;
+          applescript) sent=$(now); osascript -e "tell application id \"$BUNDLE_ID\" to open location \"$url\"" ;;
           workspace) sent=$("$work/open-with-workspace" "$APP_ABS" "$url") ;;
         esac
         echo "$sent" > "$OUT.ack-$name"

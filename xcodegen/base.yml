@@ -25,6 +25,15 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     CLANG_CXX_LANGUAGE_STANDARD: c++20
     CLANG_ENABLE_OBJC_ARC: YES
+    # PLAN §4 Identity: the shipping id is app.room.desktop (Release, the DMG).
+    ROOM_BUNDLE_ID_SUFFIX: ""
+  configs:
+    # 5.0a: every Debug app (Room.app over either engine, the embryo host, the
+    # engine-free CI build) is app.room.desktop.dev, so computer use, TCC grants,
+    # AppleEvents, defaults and LaunchServices never reach the user's Room; its
+    # default state is ~/Library/Application Support/Room Dev (Infra's AppPaths).
+    Debug:
+      ROOM_BUNDLE_ID_SUFFIX: .dev
 packages:
   Engine:
     path: Packages/Engine
@@ -62,8 +71,9 @@ settingGroups:
   RoomApp:
     PRODUCT_NAME: Room
     PRODUCT_MODULE_NAME: Room
-    # PLAN §4 Identity (2026-10-04): app.room.desktop, helpers app.room.desktop.helper*.
-    PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop
+    # PLAN §4 Identity (2026-10-04): app.room.desktop, helpers app.room.desktop.helper*
+    # (the framework's, the same for every configuration); Debug adds .dev (5.0a).
+    PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop$(ROOM_BUNDLE_ID_SUFFIX)
     CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
     # The one place for the update feed and the crash-report DSN (2.8b report).
     # Placeholder feed until the domain serves one; `.invalid` never resolves.
@@ -214,5 +224,6 @@ schemes:
         - package: Library/LibraryTests
         - package: Import/ImportTests
         - package: Integration/IntegrationTests
+        - package: Infra/InfraTests
     archive:
       config: Release

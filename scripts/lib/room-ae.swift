@@ -1,7 +1,7 @@
 // B-47: sends one AppleEvent to one process, addressed by pid, never by
-// bundle id. Room.app on RoomCore, the engine-free CI build and the RoomCore embryo
-// host share app.room.desktop; an event addressed by bundle id goes to
-// whichever LaunchServices picks, and launches one when none runs. An event
+// bundle id. Every Debug build shares app.room.desktop.dev (5.0a; the Release
+// app and the DMG are app.room.desktop); an event addressed by bundle id goes
+// to whichever copy LaunchServices picks, and launches one when none runs. An event
 // addressed by pid goes to that process or fails (procNotFound) when it has
 // exited; nothing is ever launched. (JXA's Application(pid).activate() was
 // tried first and relaunched the app when the spike quit mid-call.)

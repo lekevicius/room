@@ -109,7 +109,7 @@ targets:
       base:
         PRODUCT_NAME: Room
         PRODUCT_MODULE_NAME: RoomCoreHost
-        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop
+        PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop$(ROOM_BUNDLE_ID_SUFFIX)
         INFOPLIST_FILE: App/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor

@@ -134,7 +134,9 @@ scripts/roomcore-watchdog.sh <new-dir> [20]   # B-38: both shutdown harnesses N 
 
 The spike wrappers talk to Room by pid (`scripts/lib/room-process.sh`,
 `scripts/lib/room-ae.swift`, compiled on first use into `build/tools`), never
-by bundle id: three builds share `app.room.desktop` (B-47).
+by bundle id: every Debug build shares `app.room.desktop.dev` (B-47, 5.0a);
+a wrapper that resets the app's defaults reads the domain from the app's
+`Info.plist` (`room_bundle_id`).
 
 The full Chromium history is needed (the `room` branch is rebased onto new
 tags); do not use `--no-history`.
@@ -163,12 +165,19 @@ ANGLE, Dawn, WebRTC there) and everything below a changed header
 
 ## 5. Signing (user)
 
-Identity (PLAN §4): bundle id `app.room.desktop` for Room.app and the embryo
-host; the RoomCore framework's helpers take Chromium's own suffixes under the
-same id (`.helper`, `.helper.renderer`, `.framework.AlertNotificationService`;
-B-46). The
-defaults domain is `app.room.desktop` (it was `com.lekevicius.room` through
-Chapter 2).
+Identity (PLAN §4): bundle id `app.room.desktop` for the Release Room.app
+(the DMG) and the Release embryo host; the RoomCore framework's helpers take
+Chromium's own suffixes under the same id (`.helper`, `.helper.renderer`,
+`.framework.AlertNotificationService`; B-46). The defaults domain is
+`app.room.desktop` (it was `com.lekevicius.room` through Chapter 2). **Every
+Debug build is `app.room.desktop.dev`** (5.0a; `ROOM_BUNDLE_ID_SUFFIX` in
+`xcodegen/base.yml`): its own defaults domain, TCC grants, LaunchServices
+entry and AppleEvent address, and its own default state
+`~/Library/Application Support/Room Dev` (engine root `Room Dev/RoomCore`,
+logs `~/Library/Logs/Room Dev`; `AppPaths`), so a Debug launch never hands
+off to, opens the state of, or receives clicks meant for the user's Room.
+macOS asks the camera, microphone, location and Bluetooth questions again
+for the new id.
 
 Ad-hoc builds get a new code identity per build, so the login keychain asks
 for the password whenever Chromium reads its Safe Storage item. Signing with

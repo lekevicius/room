@@ -562,7 +562,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// overrides it; DEBUG snapshot and spike runs use a throwaway directory
     /// so they never touch the user's sidebar.
     /// The state directory this launch opens (`-RoomStateDirectory`, a
-    /// DEBUG throwaway, else `~/Library/Application Support/Room`).
+    /// DEBUG throwaway, else `~/Library/Application Support/Room`, or `Room Dev`
+    /// for the Debug app's `app.room.desktop.dev`: `AppPaths`, 5.0a).
     static var stateDirectory: URL {
         var directory = AppPaths.applicationSupport
         if let override = UserDefaults.standard.string(forKey: "RoomStateDirectory") {

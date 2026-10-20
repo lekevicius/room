@@ -23,6 +23,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+source scripts/lib/room-process.sh
+# The app's own defaults domain: app.room.desktop.dev for a Debug build (5.0a).
+BUNDLE_ID="$(room_bundle_id "$APP")"
 OUTDIR="${1:-$(mktemp -d)}"
 mkdir -p "$OUTDIR"
 work="$(mktemp -d)"
@@ -50,7 +53,7 @@ done
 : > "$endpoints"   # the readiness probes are not Room's
 # Sparkle has never run for this check (its defaults would only matter once it is created).
 for key in SUHasLaunchedBefore SULastCheckTime SUEnableAutomaticChecks SUUpdateGroupIdentifier SUSkippedVersion; do
-  defaults delete app.room.desktop "$key" 2>/dev/null || true
+  defaults delete "$BUNDLE_ID" "$key" 2>/dev/null || true
 done
 
 nettop -L 0 -n -x -s 1 > "$work/nettop.csv" 2>/dev/null &

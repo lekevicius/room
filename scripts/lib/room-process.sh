@@ -1,10 +1,12 @@
 # Sourced by the spike wrappers: talk to one Room process by its pid, never
-# by bundle id (B-47). Room.app on RoomCore, the engine-free CI build and the RoomCore
-# embryo host all share app.room.desktop; an AppleEvent addressed by bundle
-# id goes to whichever LaunchServices picks and, when none is running,
-# launches one, which then opens the real state directory. scripts/lib/room-ae.swift
-# sends the event to the pid itself: when that process has gone the send
-# fails (procNotFound) and nothing launches.
+# by bundle id (B-47). Every Debug build (Room.app over either engine, the
+# engine-free CI build, the RoomCore embryo host) is app.room.desktop.dev
+# since 5.0a, the Release app and the DMG app.room.desktop; an AppleEvent
+# addressed by bundle id goes to whichever copy LaunchServices picks and,
+# when none is running, launches one. scripts/lib/room-ae.swift sends the
+# event to the pid itself: when that process has gone the send fails
+# (procNotFound) and nothing launches. room_bundle_id gives the id an app was
+# built with, for the defaults domain a wrapper resets.
 
 _room_repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROOM_AE="$_room_repo/build/tools/room-ae"
@@ -24,6 +26,11 @@ room_scope() {
   ROOM_HELPER_PATTERN="${1#./}/Contents/.*Room Helper"
 }
 room_scope "${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app}"
+
+# room_bundle_id <app>: CFBundleIdentifier of that Room.app (its defaults domain).
+room_bundle_id() {
+  /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist"
+}
 
 # room_activate <pid>: bring that process frontmost (the AppleEvent `activate`,
 # as `osascript … activate` did; macOS refuses a script-launched app's own

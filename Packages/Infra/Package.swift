@@ -7,5 +7,6 @@ let package = Package(
     products: [.library(name: "Infra", targets: ["Infra"])],
     targets: [
         .target(name: "Infra"),
+        .testTarget(name: "InfraTests", dependencies: ["Infra"]),
     ]
 )
