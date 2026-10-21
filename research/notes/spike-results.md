@@ -3531,3 +3531,65 @@ Dev and release the same: `b108_resize: width 300 → 420: before pill x=8 w=284
 
 - Baseline on the dev host after the step: nav assertions passed (21.3 s), three ten-page quits 0.343 / 0.738 / 0.424 s, 0 helpers left, no crash reports (load 29–39).
 - `grand-tour.sh --no-build --only palettemeasure,import light`: dev 65 / 65 (0.9 min), release 65 / 65; `history_search` found all four fixture rows by title search (`Swift.org=https://swift.org/ visits=1`), so the new `via=row` fallback was not needed in these runs (the full tour, 5.9, is where it was).
+
+## Phase 5.0b — the skipped Chapter 4 steps, `-RoomSpike skipped` (2026-10-21, M1 Max laptop, 64 GB, 60 Hz Pro Display XDR main, RoomCore 155.0.8059.36, series 25, `RoomCoreCommit 981429c`, no engine change)
+
+Load average 17–25 throughout (no Chromium build). Dev = `build/roomcore/…/Debug/Room.app`; release = the Debug app over the official framework (`build/roomcore-release/…/Debug/Room.app`); both `app.room.desktop.dev`. `scripts/skipped-steps.sh <dir> [41 … 48]`: one launch per group (two for 42, 45 and 48: the relaunch on the same state), each on its own state under `/tmp/room-5/skipped/`, search suggestions off; output `build/5.0b/{dev,release}/`. Every line below is the same on both builds unless it says otherwise.
+
+### 4.1 (group 41, `archive`)
+
+- Step 3, the context menu's items through `performActionForItem`, the toast's button through `ToastQueue.performAction` (the button's own path): Archive Tab `gone=true row=manual toast="1 tab archived" button=Undo`, Undo `back=true order abcde→abcde`; Archive Tabs Below on the first of five `archived=4 of 4`, toast "4 tabs archived", Undo restores the order; the item is disabled on the last row; Archive 2 Tabs on a ⌘-click pair (the clicked menu, `debugClickedMenu`) `toast="2 tabs archived"`, rows reason `manual`.
+- Step 2: the Library `archive=3 (manual=3)`; Restore of a tab navigated to a second page `top=true selected=true url=a2 canGoBack=true` (the row kept its back/forward list); × (`deleteArchived`, the row button's closure) `rows 2→1`, nothing restored; Clear Archive… asks "Clear the Archive?", Cancel keeps the rows.
+- Step 5: ⌘↩ on the palette's Archived row (index 2) `today 3→4 copy=true copy_selected=true row_kept=true`.
+- Step 4: `ArchivePolicy.afterHoursOptions` = 12, 24, 168, 720 h; with 24 h a tab unused for 13 h (the store's clock moved) stays (`archived=0`), with 12 h it goes (`archived=3`, the selected one kept).
+- Step 6: Delete Space with its toast left to go (`"Deleted “Skipped Gone”" button=Undo`, rows `spaceDeleted` ×2), then Restore from the Library lands in the active space, selected. The rows' chip reads "Deleted space" (B-124).
+- Step 7: History `rows=6` under one day, a row's click (`onOpen`) opens a new tab, Delete All from 127.0.0.1 leaves 0 rows of the host. Downloads: `scripts/download-remove-check.sh` on both builds `result: passed` (the Library's Remove and the popover's Clear stay gone after a relaunch; the kept one is listed again).
+- Step 8: Help ▸ Restore Sidebar… (`showRestoreSidebar:` sent through the responder chain) after a backup and a real deletion: the sheet lists the backup ("4 entries · 2 spaces · 5 archived"); the Restore button's closure brings the space back, the toast "Sidebar restored from 21 Oct 2026 at 5:39", the selection loaded; reopened, two rows, the newest first and labelled `before-restore`. (5.0a's click check a, by the sheet's own closures.)
+
+### 4.2 (group 42, `routing` on the routing fixture, then `routingverify`)
+
+- Step 11, links from another process: the wrapper runs `open -a <app> <url>` for each line the spike asks for (LaunchServices' event; `debugIncomingLog` `event` → `requested`): `other.html?route=work` → `space=Work shown=Space toast="Opened in Work" button=Switch 5 s`; `localhost:8770/site.html` → Play with "Opened in Play"; `site.html?x` → Space, no toast.
+- Step 12: the pointer over the toast (`setHovering(true)`) holds it 6 s past its 5 s; Switch shows Work with the routed tab in the card, the toast gone.
+- Step 13: the sheet from the space's menu (`onRoutingSettings`): rule 2 unticked and back; rule 3 up and down by the chevrons' `move(by:)`; rule 1 edited to `equals example.com → Work`; a regex `([a-z` → inline "Not a valid regular expression (…)", Save greyed; Try a URL `localhost:8770 → Opens in Play (rule 2)`, `apple.com → Opens in the default: Space`; the relaunch reads `1.equals example.com→Work | 2.equals localhost→Play | 3.contains site.html→Work off`. Return and Esc as synthetic key events to the sheet: Return did not save the valid regex (`saved_by_return=false`, the model's save then did), Esc closed the whole sheet with an edit open (`sheet_open=false`); the field had no keyboard focus (the model was set directly), so real keys in the field are a click check.
+- Step 14: Add Route for Domain… on a Today tab (`pattern=localhost`: that row was the routed localhost tab) and on a pinned entry (`pattern=127.0.0.1 target=Space`); Cancel adds no rule (`rules 3→3`).
+- Step 16: with "Route links between spaces" on, a ⌘-click on the page's `#offsite` (localhost) goes to Play with the toast; off, it opens directly under Home with no toast; ⇧-click opens Peek and a plain same-site click navigates in place, on and off alike.
+- Step 18: ⌘D pinned the Home tab; its off-site link in Peek, ⌘O (`expandPeek:`) → the first Today tab, selected; from a Today tab with tabs below it, ⇧-click then ⌘O → directly under it.
+- Step 19: Delete Space on Work takes its rule (`1.equals localhost→Play` left); the toast's Undo brings the space and the rules back in their order (`same=true`).
+
+### 4.3 (group 43, `importsheet` on the 4.3 fixtures)
+
+- Step 20: ⌘T `import`: the command is row 2 under the typed text; ↓ Enter opens the sheet, nothing picked, Import greyed; Chrome's fixture: "Person 1", "31 bookmarks in 9 folders", "10 pages, 16 visits", extensions "2 found" unticked, passwords unticked; the preview: "Will add 1 new space, 7 folders, 27 pinned, 9 history pages." → bar into Essentials "… 15 pinned, 12 essentials …" with "2 past the Essentials cap (12) pinned instead" → one space per folder "4 new spaces, 5 folders" → into Space "3 new spaces" → no history (the history part gone); Cancel: `spaces=1 entries=0` before and after.
+- Step 21: the open panel's answer (`addChosen`): `safari` "10 bookmarks in 4 folders", "4 pages, 6 visits"; `netscape/bookmarks.html` "7 bookmarks in 3 folders"; `pages` "Room cannot import from pages: choose a browser's folder, a profile folder or a bookmarks .html file." The chosen source is read but not listed first (the fixtures stay above it).
+- Step 22: the toast and the summary "Imported from chrome (fixture): 1 space, 15 pinned tabs, 7 folders, 12 essentials, 8 history pages" (the step's text); Google Chrome: Site 11, Site 12, Work, L1 (L2–L5 inside), Beta, Reading, Example, Mobile; 12 essentials; ⌘T `typed three` → the history row "Typed three times".
+- Step 23: Arc's Home: News, [Projects], Mail, Calendar pinned, Today "Search"; Work on profile Work with its own grid (Chat, shown).
+- Step 24: spaces Safari, Dev, Recipes, Reading List, Travel; ⌘T `swift.org` → the top hit "Swift" (the history row).
+
+### 4.4 (group 44, `search`)
+
+- Step 33 through the editor's save path: a URL without %s refused ("Put %s in the search URL where the search terms go."); MDN (on the local server) saved and made the profile's default; its Remove refused ("It is a default: choose another default first."); ⌘T `fetch api` Enter → `site.html?mdn=fetch%20api`; `yt` Tab → the YouTube chip, `cats` Enter → `https://www.youtube.com/results?search_query=cats` (the one live request); back to the default, MDN removed. ⌘T sent as a synthetic key with the results page focused (`RenderWidgetHostViewCocoa`) did not open the palette in this run; the palette was opened directly for the keyword part (the `keys` tour step covers ⌘T from a page).
+
+### 4.5 (group 45, `extensions` with the 3.6 fixture, then `extensionsverify`)
+
+- Step 47, Details: `version=1.0`, "Unpacked from …/research/spikes/phase-3.6/extension", ID `kdlkcobhfhjkbkgckadmghlkpbinlpen`, 57 KB, "Read and change all your data on all websites"; Allow in incognito stored, still stored after the relaunch; the engine's bit is set when an incognito window opens (`engine=false` before, `true` after).
+- Step 46: On click: the site panel's row with Run; its menu: Unpin (the header loses the action) and Pin again, Options opens the options page as a tab, Manage Extensions… closes the panel and shows Settings ▸ Extensions; Run, Always on 127.0.0.1, reload: badge `T1` without Run.
+- Step 73 (fixture): in the incognito window the allowed extension's button is in the header and its popup opens over the incognito window (`over_incognito=true`).
+
+### 4.6, 4.7 (groups 46, 47)
+
+- Step 54: the Privacy line "Autoplay follows Chromium's default: sound may start only after you interact with a site."; before any click an unmuted `play()` → `NotAllowedError` (muted audio too: Chromium allows muted autoplay for video only; not probed), after a click → `played`, audible.
+- Step 64: a click into the page, ⌘P as a key → the preview has the keyboard; three Tabs keep it there; Return **not pressed**: this Mac has three printers and the preview's default destination is the system's (the tour's and this group's first runs printed three real pages, B-126); Esc closes the preview.
+
+### 4.8 (group 48, `windows` then `windowsrelaunch`)
+
+- Step 66: ⌘D in window 1 → the entry pinned and listed in window 2; a pinned reorder shows in window 2's rows (C at y 36 above A at 72); ⇧⌘D → in both windows' grids; ⌘T in each window opens that window's palette and puts the tab in its own Today list only; Open in New Window on a pinned entry → a third window, cascaded 22,22, still pinned.
+- Step 74: a pinned page with a script variable and a half-filled input moved to window 2 and back: the same page object, `[74,"half-filled"]` both times, the other window releasing it.
+- Step 65: a pinned entry's drag ending 200 pt past the window: a new window on the same space with it selected and loaded, still pinned and listed in both.
+- Step 68: three windows on three spaces at 900×640, 980×680, 1060×720, each with its selection; after the relaunch every one is back with its space, size and selection, the Window menu names them by space, only the front one loaded; a background window loads its selection when it becomes key.
+- Step 67: all three closed: no window, the Window menu empty, their Today tabs archived (`windowClosed 0→4`); the Dock's reopen (`applicationShouldHandleReopen`) brings a window back with the same frame, space and selection.
+
+### The tour steps that already drove skipped steps (`grand-tour.sh --no-build --only …`, light)
+
+- Dev (`build/grand-tour/20261021-045427-roomcore`, 9.1 min, archive, recovery, settings, settings2, extensions, media, documents, reader, routing, import, windows, incognito): **367 passed, 5 failed**: settings2's "spaces reordered" (the subset's shared state held recovery's two spaces; alone `--only settings2`: 26/26), extensions' two header checks (B-125, stale since the top bar design), reader's "Return → save panel" (the preview's default was the laptop's printer: the Return printed, B-126; after `7c3f0a9` alone 34/34, Return not pressed), windows' two renderer DCHECK minidumps (B-76's dev-build condition; 0 on release).
+- Release (`build/grand-tour/20261021-053228-roomcore`, archive, recovery, settings, settings2, extensions, reader, routing, import, windows, incognito): **295 passed, 3 failed**: settings2's reorder (the same shared-state cause; alone 26/26, `20261021-053829-roomcore`) and B-125's two.
+- `scripts/download-remove-check.sh` (steps 7, 10): `result: passed` on both builds.
+- The print jobs: CUPS lists `HP_LaserJet_MFP_M234sdw__8BA835_-67` (04:58:37, the tour's reader step), `-68` (05:07:20) and `-69` (05:08:10, the first two runs of the `print` section), 52,224 B each, completed; none after the guard.
