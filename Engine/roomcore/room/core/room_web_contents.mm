@@ -330,8 +330,36 @@ void EndRendererIfIdle(int process_id, const char* what) {
       host->FastShutdownStarted()) {
     return;  // Chrome ended it.
   }
-  if (host->IsSpare() || host->GetActiveViewCount() > 0) {
-    return;  // Another page's (process reuse) or the spare.
+  const base::ProcessId pid = host->GetProcess().Pid();
+  if (host->IsSpare()) {
+    LOG(INFO) << "RoomCore: renderer pid " << pid << " is the spare (B-56)";
+    return;
+  }
+  // Which pages' main-frame widgets the process still holds (5.4b: 156's
+  // discards left every old renderer with one view 2 s and 10 s later).
+  const size_t widgets = host->GetActiveViewCount();
+  size_t discarded = 0;
+  size_t live_pages = 0;
+  std::string holders;
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* strip = browser->GetTabStripModel();
+    for (int i = 0; i < strip->count(); ++i) {
+      content::WebContents* page = strip->GetWebContentsAt(i);
+      content::RenderFrameHost* main = page->GetPrimaryMainFrame();
+      if (!main || main->GetProcess() != host) {
+        continue;
+      }
+      const bool was_discarded = page->WasDiscarded();
+      const bool live = main->IsRenderFrameLive();
+      if (was_discarded && !live) {
+        ++discarded;
+      } else {
+        ++live_pages;
+      }
+      holders += std::string(holders.empty() ? "" : ",") +
+                 (was_discarded ? "discarded" : "page") +
+                 (live ? "(live)" : "(not live)");
+    }
   }
   size_t service_workers = 0;
   if (auto* partition = host->GetStoragePartition()) {
@@ -348,16 +376,25 @@ void EndRendererIfIdle(int process_id, const char* what) {
   const size_t shutdown_delays = host->GetShutdownDelayRefCount();
   const int pending_reuse = host->GetPendingReuseRefCountForTesting();
   const std::string keep_alive = host->GetKeepAliveDurations();
-  const base::ProcessId pid = host->GetProcess().Pid();
-  const bool ended = host->FastShutdownIfPossible();
+  // Ended only when nothing but discarded pages' never-rendered replacements
+  // (no document in the renderer) and Chrome's own refusals allow it; a
+  // page in use keeps its process.
+  bool ended = false;
+  if (live_pages == 0 && widgets <= discarded) {
+    ended = host->FastShutdownIfPossible(discarded);
+  }
   LOG(WARNING) << "RoomCore: a " << what << " page's renderer (pid " << pid
-               << ") hosts no view " << kRendererCheckDelay.InSeconds()
-               << " s later: frames=" << frames
+               << ") " << kRendererCheckDelay.InSeconds()
+               << " s later: widgets=" << widgets << " pages=[" << holders
+               << "] frames=" << frames
                << " service_workers=" << service_workers
                << " shutdown_delays=" << shutdown_delays
                << " pending_reuse=" << pending_reuse << " keep_alive=["
                << keep_alive << "]; fast shutdown "
-               << (ended ? "started" : "refused") << " (B-56)";
+               << (ended ? "started"
+                         : (live_pages > 0 ? "not tried (a page in use)"
+                                           : "refused"))
+               << " (B-56)";
 }
 
 void CheckRenderersAfter(content::WebContents* contents, const char* what) {
