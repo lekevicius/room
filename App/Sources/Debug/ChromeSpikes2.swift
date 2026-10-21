@@ -830,6 +830,10 @@ final class DelegateRecorder: WebContentsUIDelegate, NavigationDelegate, Downloa
         note("didChangeStatusText")
         target?.webContents(webContents, didChangeStatusText: text)
     }
+    func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind) {
+        note("didRequestToast", "\(kind)")
+        target?.webContents(webContents, didRequestToast: kind)
+    }
     func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         note("willShowContextMenu", "link=\(element.linkURL?.absoluteString ?? "nil") text=\(element.linkText ?? "nil") "
             + "media=\(element.mediaType) editable=\(element.isEditable) misspelled=\(element.misspelledWord ?? "nil") "

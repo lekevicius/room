@@ -594,6 +594,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     /// One of Chrome's confirmation toasts (`RoomToastController`, B-58): the
     /// host shows its own.
+    @objc(webContents:didRequestToast:)
     public func webContents(_ webContents: RoomWebContents, didRequestToast kind: String) {
         uiDelegate?.webContents(self, didRequestToast: ToastKind(engineName: kind))
     }
