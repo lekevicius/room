@@ -748,3 +748,19 @@ Quit of the Debug app over this engine, three runs on a throwaway state at load 
 The `//room` change (commit `981429c`, no patch: "patches: 0 applied, 25 already on the room branch" for dev and release): `RoomBrowserWindowClient::OnActivationRequested` reported from `RoomBrowserWindow::Activate` (`room_browser_window.h/.mm` +12), `RoomBrowser`'s client and the `pip-back-to-tab` spike action (`room_browser.mm` +14), `-room_requestActivation` (`room_web_contents.mm` +7, internal header +2), `-webContentsDidRequestActivation:` (`RoomWebContents.h` +7). **out/dev: "build done in 38 s"** (load 6.7 at the start). **out/release: "build done in 250 s"** (4 min 10 s; started 04:16:34, load 30 at the start with packaging and a live check beside it): siso 24 steps, 0 failed, no `gn` step; the framework's ThinLTO link 219.5 s at 13.33 GiB `max_rss` (the Mac mini's 4.8b: 407.5 s at 8.21 GiB, 6 jobs), `room_browser.o` 18.4 s at 1.60 GiB, `room_browser_window.o` 16.4 s; `run_verify_chrome_framework_order` passed (0.16 s; the member is a protocol method and a C++ virtual inside `//room`, nothing joins `room_core.exports`) and `run_verify_libraries_chrome_app` (0.06 s).
 
 Packaging: `roomcore-package.sh` (dev, framework + host + app) 1 min 43 s real the first time with the new bundle id (host 30.9 s, app 67.3 s), `--app-only` rebuilds 18–26 s; `--release` and `CONFIGURATION=Debug --release --app-only` (app 20.9–26.2 s). `RoomCoreCommit 981429c` on both stages.
+
+## 2026-10-21 — Phase 5.2b: B-103's engine step (M1 Max, 64 GB, default jobs, load 18–60 from other apps)
+
+The `//room` change (commits `c5a4032`, no patch: "patches: 0 applied, 25 already on the room branch"): the new `//room/branding` target (a `string_ids` action over six grit headers and `room_branded_strings.cc`, linked through `//room/core`), the AppController hook's first call installing the string overrides, and the "room" theme directories turned from links to Chromium's into copies with Room's logos and the helpers' mac icons (`room/branding/tools/install_theme.sh` from `roomcore-apply.sh`; the icons compiled by actool from `App/Resources/AppIcon.icon` into the gitignored `room/branding/theme/gen/mac`).
+
+| Step | Seconds | Notes |
+|---|---|---|
+| `roomcore-apply.sh` (first, with actool) | 25.9 | the theme install compiles the icon once (stamp of the `.icon` document); later applies 21.9 |
+| `roomcore-build.sh` (out/dev), first attempt | 35 (12.8 of build) | 7 of 428 steps, then a compile error (`UTF8ToUTF16` of a literal) |
+| `roomcore-build.sh` (out/dev) | 41 (**19 s of build**) | the remaining steps: grit's theme packs, the repack, `//room` objects, the link |
+| two rebuilds for the bundle fix | 28 (7) and 8 | `bundle_data` had copied the theme's symlinks as links into the helpers (`app.icns → …/Code/room/…`): the install now copies (APFS clones, touched) |
+| the attribution fix (`Chromium</a> open source project`) | 39 (16) | |
+| `roomcore-package.sh` (dev) | 30–36 | `RoomCoreCommit c5a4032` after the commit |
+| `roomcore-baseline.sh` | 90 | passed |
+
+The official incremental (out/release) is the planner's, for the DMG. For it: no exported symbol changed (`room_core.exports` untouched; the new code is C++ in namespace `room`), so B-77's export order is unaffected; resource changes rebuild grit's theme packs and the locale-independent `chrome_*_percent.pak` repack besides the `//room` objects and the ThinLTO link; `roomcore-apply.sh` must run first on the machine (it installs the theme directories; `install_theme.sh` needs Xcode's actool).

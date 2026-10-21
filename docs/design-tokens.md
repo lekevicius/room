@@ -489,3 +489,30 @@ The matrix (`-RoomSpike matrix`, `scripts/visual-matrix.sh`) shoots every surfac
 |---|---|---|
 | `Packages/Engine/Sources/FakeEngine/FakePageView.swift` | monospaced 13 | FakeEngine's stand-in page for tests and the engine-free app, not the chrome |
 
+
+## Added in Phase 5.2b (theme contrast, inactive windows, mono traffic lights, B-23, B-37, the icon's slots, Chromium's branding)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `Palette.sidebarSecondaryLabel`, `Palette.sidebarSecondaryAlpha` | the label colour at 0.64 light / 0.82 dark (was AppKit's `secondaryLabelColor`, black 0.50 / white 0.55): sublabels, the folder glyph, the unloaded split titles, the footer's space name, Clear, the Essentials grid's empty label | the theme contrast rule (task 4): 800 of 800 samples were under 4.5:1 for secondary text, 0 after; primary text was never under (minimum 4.67 dark, Triadic #FDD835 at the highest opacity). Table in `spike-results.md` "Phase 5.2" |
+| Inactive tint | `SpaceTintView.inactiveFactor` 0.6 × the alpha and the colours' saturation × `SidebarMetrics.inactiveSaturation` 0.8, faded over `Motion.standard` with the sidebar's content | spec §I.12; 5.2b found the inactive stops never reached the layer (read back: alpha 0.175 inactive as active) |
+| `TrafficLightMetrics.monochromeSaturation` | 0 (a `CIColorControls` filter on each button; Settings ▸ Appearance ▸ Grey window buttons, off by default) | spec §I.12 (mono traffic lights optional); the close button read #F57974 → #9FA0A1 |
+| `TintOpacityControl` | a slider 0–100 % of `Space.themeOpacity` (→ `Materials.tintOpacityRange` 0.10–0.25) under the algorithm in the space form; a view of its own for 5.7b's space window | B-23 |
+| Menu key glyphs | `MenuKey.display`: a shifted digit or punctuation key drawn as ⇧ with its base key (⇧⌘], ⌃⇧1); a hidden alias on the typed character (`MenuKey.equivalent`, identifier suffix `#shifted`) matches the key | B-37 |
+
+### Theme contrast
+
+The rule (5.2b task 4): over every space theme the sidebar's primary text (AppKit's label colour, 85 %) and secondary text (`Palette.sidebarSecondaryLabel`) hold 4.5:1. Measured by `scripts/theme-contrast.sh` (five algorithms × eight colours × five wallpaper fixtures, light and dark, opacity 0.5 and 1.0): worst primary 4.67 (dark, Triadic #FDD835 at 1.0), worst secondary 4.51 after the rule (2.95 before). The fixtures did not reach the captures (the behind-window material renders without its backdrop in a window capture; B-132). An inactive window's text is below the line by design (B-131). The table: `research/notes/spike-results.md` "Phase 5.2", 5.2b.
+
+### The app icon's slots (task 7)
+
+The icon is the user's (Icon Composer, 2026-10-08; `1c885c1` made the newer one the default), so no placeholder was generated. Where a designer's icon goes:
+
+| Slot | File | Made by |
+|---|---|---|
+| The app (Dock, Finder, notifications of Room itself) | `App/Resources/AppIcon.icon` (Icon Composer document; layers in `Assets/`) | actool at build time (`ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` in `xcodegen/base.yml`) → `Assets.car`, `AppIcon.icns` |
+| Settings ▸ Appearance ▸ App Icon alternates | `App/Resources/AppIcons/<Name>.icon` (sources) → `App/Resources/AppIcons/Rendered/<raw>{,-dark}.png` 1024 × 1024 | `scripts/render-app-icons.sh` (ictool), committed |
+| The engine's helpers (macOS shows the alerts helper's icon on web notifications) | `chrome/app/theme/room/mac/app.icns`, `Assets.car` in the checkout | `Engine/roomcore/room/branding/tools/install_theme.sh` compiles `App/Resources/AppIcon.icon` with actool into `room/branding/theme/gen/mac/` (gitignored) when the document changes |
+| Chrome's pages' corner logo, the larger product logos, the wordmark | `Engine/roomcore/room/branding/theme/{room,default_100_percent,default_200_percent}/product_logo_*.png`, `product_logo_name_22*.png` (16–256 px; the wordmark 97 × 22 pt) | `room/branding/tools/render_theme.swift` from the icon's glyph layer (`Assets/Image.png`), committed |
+
+A new icon: replace the `.icon` document (and its glyph layer), run `scripts/render-app-icons.sh` and `swift Engine/roomcore/room/branding/tools/render_theme.swift .`, then `scripts/roomcore-apply.sh` and the engine build.

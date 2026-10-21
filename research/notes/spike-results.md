@@ -3920,3 +3920,93 @@ Two more dev runs after the fixes (`motion-after-dev-2.txt`, `motion-after-dev-r
 1×: no 1× display is attached (the built-in panel and the XDR are both 2×) and AppKit has no per-window backing scale override; the rule (`Hairline.width(scale:)` = 1 / scale: 1 px at 1×, 2× and 3×) is a Design unit test.
 
 **B-125**: the top bar's extension strip at the default 300 pt width was 62 pt wide (the toggle at x 94: macOS 27's traffic lights end at 79, the design's at 77), so the second of two pinned actions went to the overflow menu (`matrix_extensions_two: bar={{130, 10}, {62, 32}} pinned=2 shown=0 overflow_button=true` — neither shows, the overflow takes both). Packed against Back: 66 pt, `shown=2 overflow_button=false`. Tour `--only extensions,layoutmodes light`: **69/69** on dev (1.9 min) and **69/69** on the release framework (1.6 min); `header_initial: buttons=["fixture", "second"] shown=["fixture", "second"] bar_width=66 overflow=0 overflow_button=false`. layoutmodes (the split's resizer, now over the gap): split create → laid out 7.63 ms median, resizer drag no frame over 1.5 × median, double-click equalises.
+
+## Phase 5.2 — 5.2b: theme contrast, inactive windows, B-37, B-103 (2026-10-21, M1 Max laptop, 60 Hz Pro Display XDR main at 2×, RoomCore 155.0.8059.36, series 25, `RoomCoreCommit c5a4032` on dev; load 18–60 from other apps: CloudMounter, Spotlight, media analysis)
+
+**Theme contrast** (`scripts/theme-contrast.sh <out>`, `-RoomSpike contrast`, `App/Sources/Debug/ThemeSpikes.swift`): a throwaway state, the window 1200 × 780 pt at 2×, the sidebar 300 pt with its body hidden; twelve probe labels of "████" in the sidebar (six heights, the rows' `Typography.sidebarRow` in the primary label colour and `Typography.secondary` in the secondary), each read as the text pixel against the mean of the material 6 pt either side, WCAG ratio, the minimum of the six per sample. Five algorithms × eight colours (#E53935, #FB8C00, #FDD835, #43A047, #1E88E5, #5E35B1, #D81B60, #37474F; Floating with a second well three samples on) × five fixtures (plain mid grey, black-and-white stripes, saturated confetti, a night palette, a bright sky palette: a borderless window of the spike's own behind Room's) × light and dark × opacity 0.5 (the default, alpha 0.175) and 1.0 (the highest, 0.25): 800 samples per run, 2 min 50 s–3 min.
+
+- **The fixtures do not reach the measurement:** a window-list capture (`WindowSnapshot`) renders the behind-window material without what is behind the window: the untinted material read #E9E9E9 light and #464646 dark over all five fixtures, and the largest spread across the fixtures for one theme is 0.09 (the probes' anti-aliasing). The table is therefore the tint over the material as captured. The display as seen needs Screen Recording; Room never asks for it, and a capture helper run from the session's shell raised macOS's "bypass the private window picker" prompt for the Claude app (twice, 08:37–08:39; not answered by the session, the helper deleted): the display-level check is the planner's (`-RoomContrastHold <s>` holds each fixture with Triadic #FDD835 at 1.0 for a screenshot from outside; B-132).
+- **Before** (AppKit's `secondaryLabelColor`, black 0.50 / white 0.55): primary text never under 4.5:1 (minimum 4.67, dark, Triadic #FDD835 at 1.0; 9.00 light); secondary text under 4.5:1 in **800 of 800** samples (worst 3.38 light at 1.0, 2.95 dark at 1.0; untinted 3.8 light, 4.1 dark).
+- **The rule** (one token, `Palette.sidebarSecondaryLabel`): the sidebar's secondary text is the label colour at **0.64 light / 0.82 dark**, the smallest alphas that hold 4.5:1 over the worst sample of each appearance (computed from the before backgrounds: light needs 0.60, dark 0.81), with a margin. Tint unchanged.
+- **After:** **0 of 800** under 4.5:1; worst primary 4.67 (dark, 1.0), worst secondary 4.51 (dark, Triadic #FDD835 at 1.0), 5.10 (dark, 0.5), 5.16 (light, 1.0).
+- **An inactive window** (`-RoomContrastInactive YES`, opacity 1.0): 380 of 400 samples under 4.5:1 (primary 3.74 light / 3.99 dark at worst; secondary 2.57 / 3.81): the content's `inactiveContentAlpha` 0.6 (§I.12's look); a record, B-131.
+
+Minimum over the five fixtures, primary / secondary before → after:
+
+| algorithm | colour | light 0.5 | light 1.0 | dark 0.5 | dark 1.0 |
+|---|---|---|---|---|---|
+| complementary | #E53935 | 11.0 / 3.6 → 5.8 | 10.3 / 3.5 → 5.6 | 6.5 / 3.7 → 6.1 | 6.1 / 3.6 → 5.8 |
+| complementary | #FB8C00 | 11.2 / 3.6 → 5.8 | 10.5 / 3.5 → 5.6 | 6.2 / 3.7 → 6.0 | 5.8 / 3.5 → 5.6 |
+| complementary | #FDD835 | 11.6 / 3.7 → 5.9 | 11.1 / 3.6 → 5.7 | 5.8 / 3.5 → 5.7 | 5.3 / 3.3 → 5.2 |
+| complementary | #43A047 | 11.0 / 3.6 → 5.7 | 10.1 / 3.5 → 5.5 | 6.4 / 3.7 → 6.0 | 6.0 / 3.5 → 5.7 |
+| complementary | #1E88E5 | 11.1 / 3.6 → 5.8 | 10.4 / 3.5 → 5.5 | 6.5 / 3.8 → 6.2 | 6.2 / 3.6 → 5.9 |
+| complementary | #5E35B1 | 10.6 / 3.6 → 5.7 | 9.7 / 3.5 → 5.4 | 6.6 / 3.8 → 6.2 | 6.2 / 3.6 → 5.9 |
+| complementary | #D81B60 | 10.8 / 3.6 → 5.7 | 10.0 / 3.5 → 5.5 | 6.4 / 3.7 → 6.1 | 6.1 / 3.6 → 5.8 |
+| complementary | #37474F | 10.2 / 3.5 → 5.5 | 9.2 / 3.4 → 5.2 | 7.3 / 4.1 → 7.0 | 7.4 / 4.1 → 7.0 |
+| split | #E53935 | 11.3 / 3.7 → 5.9 | 10.7 / 3.6 → 5.7 | 5.7 / 3.4 → 5.4 | 5.1 / 3.2 → 5.0 |
+| split | #FB8C00 | 11.9 / 3.7 → 6.0 | 11.6 / 3.7 → 5.9 | 5.4 / 3.3 → 5.2 | 4.8 / 3.0 → 4.6 |
+| split | #FDD835 | 11.9 / 3.7 → 6.0 | 11.4 / 3.6 → 5.9 | 5.7 / 3.5 → 5.6 | 5.2 / 3.2 → 5.0 |
+| split | #43A047 | 10.6 / 3.5 → 5.6 | 9.6 / 3.4 → 5.3 | 6.5 / 3.8 → 6.3 | 6.2 / 3.7 → 6.0 |
+| split | #1E88E5 | 10.6 / 3.6 → 5.6 | 9.7 / 3.5 → 5.4 | 6.8 / 3.9 → 6.5 | 6.6 / 3.8 → 6.3 |
+| split | #5E35B1 | 10.8 / 3.6 → 5.8 | 10.0 / 3.6 → 5.6 | 6.0 / 3.5 → 5.7 | 5.4 / 3.3 → 5.2 |
+| split | #D81B60 | 11.1 / 3.6 → 5.9 | 10.3 / 3.6 → 5.6 | 5.7 / 3.4 → 5.5 | 5.1 / 3.2 → 4.9 |
+| split | #37474F | 10.1 / 3.5 → 5.5 | 9.0 / 3.4 → 5.2 | 7.4 / 4.2 → 7.1 | 7.4 / 4.2 → 7.1 |
+| analogous | #E53935 | 10.8 / 3.6 → 5.7 | 10.0 / 3.5 → 5.5 | 7.0 / 4.0 → 6.6 | 6.8 / 3.9 → 6.4 |
+| analogous | #FB8C00 | 10.6 / 3.6 → 5.6 | 9.8 / 3.5 → 5.4 | 6.4 / 3.7 → 6.1 | 6.0 / 3.6 → 5.8 |
+| analogous | #FDD835 | 11.4 / 3.6 → 5.9 | 10.9 / 3.6 → 5.6 | 5.9 / 3.5 → 5.7 | 5.4 / 3.3 → 5.2 |
+| analogous | #43A047 | 11.3 / 3.6 → 5.9 | 10.7 / 3.6 → 5.7 | 6.1 / 3.6 → 5.8 | 5.6 / 3.4 → 5.4 |
+| analogous | #1E88E5 | 11.6 / 3.7 → 6.0 | 11.1 / 3.6 → 5.8 | 5.6 / 3.4 → 5.3 | 5.0 / 3.1 → 4.8 |
+| analogous | #5E35B1 | 10.3 / 3.6 → 5.6 | 9.3 / 3.4 → 5.3 | 7.1 / 4.0 → 6.8 | 7.1 / 4.0 → 6.8 |
+| analogous | #D81B60 | 10.6 / 3.6 → 5.6 | 9.7 / 3.5 → 5.4 | 6.8 / 3.9 → 6.5 | 6.6 / 3.8 → 6.3 |
+| analogous | #37474F | 10.3 / 3.5 → 5.5 | 9.3 / 3.4 → 5.2 | 7.3 / 4.1 → 6.9 | 7.2 / 4.1 → 6.9 |
+| triadic | #E53935 | 11.3 / 3.7 → 5.9 | 10.7 / 3.6 → 5.7 | 5.7 / 3.4 → 5.5 | 5.2 / 3.2 → 5.0 |
+| triadic | #FB8C00 | 11.9 / 3.7 → 6.0 | 11.5 / 3.7 → 6.0 | 5.4 / 3.2 → 5.1 | 4.7 / 3.0 → 4.5 |
+| triadic | #FDD835 | 12.5 / 3.8 → 6.1 | 12.4 / 3.7 → 6.1 | 5.4 / 3.2 → 5.1 | 4.7 / 3.0 → 4.5 |
+| triadic | #43A047 | 10.3 / 3.5 → 5.5 | 9.4 / 3.4 → 5.3 | 6.6 / 3.8 → 6.4 | 6.3 / 3.8 → 6.1 |
+| triadic | #1E88E5 | 10.7 / 3.6 → 5.6 | 9.8 / 3.5 → 5.5 | 6.8 / 3.9 → 6.5 | 6.5 / 3.8 → 6.3 |
+| triadic | #5E35B1 | 10.6 / 3.6 → 5.7 | 9.6 / 3.5 → 5.3 | 6.6 / 3.8 → 6.3 | 6.4 / 3.7 → 6.0 |
+| triadic | #D81B60 | 11.1 / 3.6 → 5.8 | 10.3 / 3.6 → 5.7 | 5.7 / 3.4 → 5.5 | 5.0 / 3.1 → 4.9 |
+| triadic | #37474F | 10.1 / 3.5 → 5.5 | 9.0 / 3.4 → 5.2 | 7.4 / 4.1 → 7.0 | 7.4 / 4.2 → 7.1 |
+| floating | #E53935 | 10.8 / 3.6 → 5.7 | 10.0 / 3.5 → 5.5 | 6.7 / 3.9 → 6.4 | 6.5 / 3.8 → 6.1 |
+| floating | #FB8C00 | 11.3 / 3.6 → 5.8 | 10.7 / 3.6 → 5.7 | 6.1 / 3.6 → 5.9 | 5.7 / 3.5 → 5.5 |
+| floating | #FDD835 | 11.5 / 3.6 → 5.9 | 10.9 / 3.6 → 5.7 | 5.7 / 3.5 → 5.5 | 5.2 / 3.2 → 5.1 |
+| floating | #43A047 | 10.8 / 3.6 → 5.7 | 10.0 / 3.5 → 5.4 | 6.4 / 3.8 → 6.2 | 6.1 / 3.6 → 5.8 |
+| floating | #1E88E5 | 10.7 / 3.5 → 5.6 | 9.8 / 3.5 → 5.4 | 6.7 / 3.9 → 6.5 | 6.5 / 3.8 → 6.2 |
+| floating | #5E35B1 | 10.4 / 3.5 → 5.6 | 9.4 / 3.5 → 5.3 | 7.2 / 4.1 → 6.9 | 7.2 / 4.1 → 6.8 |
+| floating | #D81B60 | 10.7 / 3.6 → 5.7 | 9.9 / 3.5 → 5.5 | 6.6 / 3.8 → 6.3 | 6.3 / 3.6 → 6.0 |
+| floating | #37474F | 10.7 / 3.6 → 5.7 | 9.8 / 3.5 → 5.5 | 6.3 / 3.7 → 6.0 | 5.9 / 3.5 → 5.6 |
+
+
+**Inactive windows** (`scripts/theme-contrast.sh <out> -RoomSpikeOnly inactive`; Triadic #1E88E5 at 0.5, light; a systemRed swatch in the sidebar and the tint in the card's gap, read from captures; `activityOverride`):
+
+| | Active | Inactive before | Inactive after |
+|---|---|---|---|
+| Swatch (sidebar content) | #FF373C, HSL saturation 1.000 | #EE868C, 0.754 (×0.75: `CIColorControls` 0.8 and alpha 0.6) | #EF8C90, 0.756 |
+| Tint layer stops (read back) | alpha 0.175, (0.12, 0.53, 0.90) | **alpha 0.175, unchanged**: `needsDisplay` never reached `updateLayer` | alpha 0.105 (×0.6), (0.27, 0.61, 0.90): saturation ×0.8 |
+| Tint in the gap (chroma, max − min) | 0.063 | 0.059 (×0.94) | 0.031 (×0.50) |
+
+**Mono traffic lights** (same check): the close button's middle #F57974 (saturation 0.866) → #9FA0A1 (0.011) with Settings ▸ Appearance ▸ Grey window buttons on.
+
+**B-37:** `MenuTableTests` "B-37 …" builds the menu bar from the table and presses ⇧⌘] (characters "}", key code 30) through `NSMenu.performKeyEquivalent`: matched, Select Next Tab's tag 1; with the hidden aliases removed the drawn item alone does not match (why the alias exists); a remap to ⌥⇧⌘] moves both, ⌥⌘] drops the alias. The menus' own windows captured while tracking (`phase-5.2-menus.png`): ⇧⌘] ⇧⌘[ ⇧⌘2 ⇧⌘= ⌃⇧− ⌃⇧1…4 ⌃⇧] ⌃⇧[ (were ⌘} ⌘{ ⌘@ ⌘+ ⌃_ ⌃! ⌃} ⌃{). `grand-tour.sh --no-build --only app28a light` (the menu walk; the command set's shape changed): **29/29 on dev and 29/29 on the release framework**.
+
+**B-103, Chrome's pages** (`scripts/branding-check.sh <out>`, `-RoomSpike branding`, `App/Sources/Debug/BrandingSpikes.swift`; each page a tab on a throwaway state, its text nodes and labels across shadow roots read for "Chromium", the open-source attribution counted apart; the logos opened as images and averaged):
+
+| Page | Dev before (`981429c`) | Dev after (`c5a4032`) |
+|---|---|---|
+| chrome://settings | 24 ("About Chromium", "Link Chromium and other Google services…") | 0 |
+| chrome://settings/help (About) | 11 ("About Chromium", "Chromium logo", "Get help with Chromium") + 1 attribution | 0 + 1 attribution ("Room is made possible by the Chromium open source project…") |
+| chrome://settings/privacy | 3 | 0 |
+| chrome://settings/defaultBrowser | 2 | 0 |
+| chrome://settings/autofill | 3 | 0 |
+| chrome://history | 1 ("Chromium history") | 0 |
+| chrome://downloads, extensions, print, bookmarks | 0 | 0 |
+| chrome://password-manager | 2 | 0 |
+| chrome://version | 2 + 2 attribution (copyright "The Chromium Authors") | 0 (copyright "2026 Jonas Lekevicius"; the wordmark image still Chromium's: B-130) |
+| **Total visible** | **48** | **0** |
+| The corner logo (`chrome://theme/current-channel-logo@2x`, 64 px mean) | 103,157,237 (Chromium's blue) | 211,136,124 (Room's glyph) |
+| `chrome://theme/IDR_PRODUCT_LOGO@2x` (version page, 342 × 64) | 100,135,185 | 100,135,185 (unchanged: B-130) |
+| The alerts helpers' icon (notifications), 64 px mean | 160,200,243 (Chromium); `app.icns` ≠ Room's | 221,184,179; `app.icns` byte-equal to Room.app's `AppIcon.icns`; Room's own 222,184,179 |
+
+The startup override: "RoomCore: branded strings: 608 of 13418 overridden in 2881 us" (3215 us on the second launch; `RoomCore.log`). The release framework (`981429c`, built before this step) still reads 48 and Chromium's icons: it changes with the planner's official incremental. `loadTimeData` was not readable from the script's world (0 on both; the visible text is the measure).
+
+**Baseline** after the engine step (`scripts/roomcore-baseline.sh build/baseline/5.2b-final`): nav assertions passed (19.6 s); three ten-page quits 0.64 / 0.47 / 0.38 s, 0 helpers left, no crash report (load 37–53).
