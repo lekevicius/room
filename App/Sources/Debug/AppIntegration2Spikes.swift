@@ -151,14 +151,18 @@ extension SpikeRunner.Context {
         guard let controller = app.onboardingWindow else { return }
         let onboarding = controller.onboarding
         await capture2("onboarding-welcome", windowNumber: controller.window?.windowNumber)
-        // Import: the import sheet, over onboarding's window.
+        // Import: the import sheet on the browser window, onboarding aside meanwhile and back at its step after.
         onboarding.next()
         controller.model.openImport()
-        _ = await waitUntil(3) { app.importSheet != nil && controller.window?.attachedSheet === app.importSheet }
-        SpikeRunner.record("onboarding_import", "step=\(onboarding.step) sheet=\(app.importSheet != nil) "
-            + "over onboarding=\(controller.window?.attachedSheet === app.importSheet) sources=\(app.importModel?.sources.count ?? -1)")
+        let browser = app.windowController?.window
+        _ = await waitUntil(3) { app.importSheet != nil && browser?.attachedSheet === app.importSheet }
+        let aside = controller.window?.isVisible == false
+        let shown = app.importSheet != nil && browser?.attachedSheet === app.importSheet
+        let sources = app.importModel?.sources.count ?? -1
         app.closeImportSheet()
-        _ = await waitUntil(2) { controller.window?.attachedSheet == nil }
+        let returned = await waitUntil(3) { controller.window?.isVisible == true && browser?.attachedSheet == nil }
+        SpikeRunner.record("onboarding_import", "step=\(onboarding.step) sheet on browser=\(shown) "
+            + "onboarding aside=\(aside) back after=\(returned) sources=\(sources)")
         // Default browser: the button's request goes to the spike's stub, never to macOS.
         onboarding.next()
         let wasDefault = app.defaultBrowser.isDefault

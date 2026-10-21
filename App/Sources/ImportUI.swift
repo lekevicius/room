@@ -15,9 +15,9 @@ extension AppDelegate {
     /// is written before Import.
     @objc func showImportSheet(_ sender: Any?) { presentImportSheet(over: nil) }
 
-    /// The import sheet over `parent` (the browser window by default; onboarding's import step, 5.7b);
-    /// `announced` hears the summary the toast shows.
-    func presentImportSheet(over parent: NSWindow?, announced: ((String) -> Void)? = nil) {
+    /// The import sheet over `parent` (the browser window by default); `announced` hears the summary the
+    /// toast shows and `onClose` runs when the sheet closes (onboarding's import step, 5.7b).
+    func presentImportSheet(over parent: NSWindow?, announced: ((String) -> Void)? = nil, onClose: (() -> Void)? = nil) {
         guard let store else { return }
         if let sheet = importSheet {
             sheet.makeKeyAndOrderFront(nil)
@@ -48,6 +48,7 @@ extension AppDelegate {
         sheet.contentViewController = NSHostingController(rootView: content)
         importSheet = sheet
         importModel = model
+        importSheetOnClose = onClose
         window.makeKeyAndOrderFront(nil)
         window.beginSheet(sheet)
     }
@@ -58,6 +59,9 @@ extension AppDelegate {
         importSheet = nil
         importModel = nil
         sheet.sheetParent?.endSheet(sheet)
+        let onClose = importSheetOnClose
+        importSheetOnClose = nil
+        onClose?()
     }
 
     /// Where the browsers' folders are looked for: the user's home, or DEBUG

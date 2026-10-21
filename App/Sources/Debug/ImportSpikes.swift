@@ -386,8 +386,9 @@ extension SpikeRunner.Context {
         if let onboarding = app.onboardingWindow {
             onboarding.onboarding.next()
             onboarding.model.openImport()
-            _ = await waitUntil(3) { app.importSheet != nil && onboarding.window?.attachedSheet === app.importSheet }
-            SpikeRunner.record("first_run_import", "onboarding=true step=\(onboarding.onboarding.step) sheet=\(app.importSheet != nil && onboarding.window?.attachedSheet === app.importSheet) "
+            _ = await waitUntil(3) { app.importSheet != nil && window.attachedSheet === app.importSheet }
+            SpikeRunner.record("first_run_import", "onboarding=true step=\(onboarding.onboarding.step) sheet=\(app.importSheet != nil && window.attachedSheet === app.importSheet) "
+                + "onboarding aside=\(onboarding.window?.isVisible == false) "
                 + "sources=\(app.importModel?.sources.map(\.name).joined(separator: ",") ?? "none")")
             // A fixture imported from there: the summary comes back to the step.
             if let model = app.importModel,
@@ -402,7 +403,8 @@ extension SpikeRunner.Context {
                 SpikeRunner.record("onboarding_import_done", "source=\(source.name) summary=\(onboarding.model.importSummary ?? "none")")
             }
             app.closeImportSheet()
-            _ = await waitUntil(2) { onboarding.window?.attachedSheet == nil }
+            let back = await waitUntil(3) { onboarding.window?.isVisible == true }
+            SpikeRunner.record("onboarding_back_after_import", "visible=\(back) step=\(onboarding.onboarding.step) summary shown=\(onboarding.model.importSummary != nil)")
             onboarding.onboarding.skip()
             _ = await waitUntil(2) { app.onboardingWindow == nil }
         } else {

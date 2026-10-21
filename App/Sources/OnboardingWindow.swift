@@ -154,7 +154,7 @@ struct OnboardingView: View {
         case .defaultBrowser:
             "Links from other apps open in Room, in the space a routing rule names. macOS asks you to confirm."
         case .theme:
-            "A colour for “\(model.spaceName())” tints the window; every space can have its own in its Space Settings…."
+            "A colour for “\(model.spaceName())” tints the window. Every space can have its own: Space Settings… in its menu."
         case .search:
             "Crash reports and update checks stay off unless you turn them on here or in Settings ▸ Privacy."
         }
@@ -295,8 +295,16 @@ extension AppDelegate {
         let controller = OnboardingWindowController(onboarding: onboarding, model: model) { [weak self] in
             self?.onboardingWindow = nil
         }
+        // The import sheet is the browser window's (580 × 760, larger than onboarding's panel): onboarding steps
+        // aside while it shows and comes back at its import step, with the summary, when it closes.
         model.openImport = { [weak self, weak controller, weak model] in
-            self?.presentImportSheet(over: controller?.window) { summary in model?.importSummary = summary }
+            guard let self, let controller else { return }
+            controller.window?.orderOut(nil)
+            presentImportSheet(over: nil, announced: { summary in model?.importSummary = summary }) { [weak self, weak controller] in
+                guard let controller, controller.onboarding.ending == nil else { return }
+                controller.show(over: self?.windowController?.window)
+            }
+            if importSheet == nil { controller.show(over: windowController?.window) }
         }
         model.makeDefault = { [weak self] in
             #if DEBUG

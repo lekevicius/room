@@ -11,7 +11,7 @@ extension SpikeRunner.Context {
     var onboardingNotes: [String] {
         [String(format: "Onboarding (5.7b, B-121): a window of its own, %.0f × %.0f pt, padding %.0f, the step's symbol %.0f pt, "
                 + "dots %.0f pt, swatches %.0f pt; Skip Setup at every step, Back, Continue / Done (Return). "
-                + "Steps: welcome, import (the import sheet over the window), default browser, theme (the shown space's colour, "
+                + "Steps: welcome, import (the import sheet on the browser window, onboarding aside until it closes), default browser, theme (the shown space's colour, "
                 + "the appearance), search and the two opt-ins.",
                 OnboardingMetrics.width, OnboardingMetrics.height, OnboardingMetrics.padding, OnboardingMetrics.symbolSize,
                 OnboardingMetrics.dotSize, OnboardingMetrics.swatchSize)]
@@ -45,12 +45,23 @@ extension SpikeRunner.Context {
         var states = Onboarding.Step.allCases.map { step in
             MatrixState(label: step.title, setup: { await open(at: step) }, shoot: { await shoot() }, teardown: { await close() })
         }
-        states.insert(MatrixState(label: "Import: the sheet over onboarding", setup: {
+        states.insert(MatrixState(label: "Import: the sheet on the browser window (onboarding aside)", setup: {
             await open(at: .importData)
             app.onboardingWindow?.model.openImport()
             _ = await self.waitUntil(3) { app.importSheet != nil }
             try? await Task.sleep(for: .milliseconds(600))
-        }, shoot: { await shoot() }, teardown: { await close() }), at: 2)
+        }, shoot: {
+            guard let sheet = app.importSheet else { return nil }
+            // The sheet's own window: its parent's activity follows the column only as far as AppKit lets a sheet's.
+            self.window.makeKeyAndOrderFront(nil)
+            try? await Task.sleep(for: .milliseconds(400))
+            return await self.matrixShot(in: sheet, scale: 0.5)
+        }, teardown: { await close() }), at: 2)
+        states.insert(MatrixState(label: "Import: back after an import (the summary)", setup: {
+            await open(at: .importData)
+            app.onboardingWindow?.model.importSummary = "Imported from netscape (fixture): 1 space, 5 pinned tabs, 3 folders"
+            try? await Task.sleep(for: .milliseconds(400))
+        }, shoot: { await shoot() }, teardown: { await close() }), at: 3)
         return states
     }
 }

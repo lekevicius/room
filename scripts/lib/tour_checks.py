@@ -1005,7 +1005,8 @@ def _import(c):
     c.contains("home_firefox", "bookmarks=10", "profiles=default-release", "errors=0", label="Firefox's profile found under Profiles/")
     c.contains("permission_denied", "needs_access=true", "error=true", "Choose a File or Folder", label="a file macOS refuses: the sheet offers the open panel")
     c.contains("settings_import", "sheet=true", label="Settings ▸ General ▸ Import… opens the sheet")
-    c.contains("first_run_import", "onboarding=true", "step=importData", "sheet=true", "(fixture)", label="onboarding's import step opens the sheet on the fixtures (5.7b)")
+    c.contains("first_run_import", "onboarding=true", "step=importData", "sheet=true", "onboarding aside=true", "(fixture)", label="onboarding's import step opens the sheet on the fixtures, onboarding aside (5.7b)")
+    c.contains("onboarding_back_after_import", "visible=true", "step=importData", "summary shown=true", label="onboarding comes back at its import step with the summary")
     c.contains("onboarding_import_done", "(fixture)", "summary=Imported", label="a fixture imported from onboarding's sheet: the summary back in the step")
     for key in ("read_chrome", "read_safari", "read_netscape", "read_arc", "read_firefox", "chrome_applied", "passwords_sheet"):
         c.number(key)
@@ -1433,7 +1434,7 @@ def _app28b(c):
     c.contains("opt_ins_launch", "updater created=false", "crash reporter created=false", label="at launch with both opt-ins off, neither Sparkle nor Sentry exists")
     # 5.7b (B-121): onboarding in its own window replaced the first-run card.
     c.contains("first_run_launch", "done=false", "onboarding=shown step=welcome", "over browser=true", label="a first launch shows onboarding over the window")
-    c.contains("onboarding_import", "step=importData", "sheet=true", "over onboarding=true", label="the import step's button opens the import sheet over onboarding")
+    c.contains("onboarding_import", "step=importData", "sheet on browser=true", "onboarding aside=true", "back after=true", label="the import step's button opens the import sheet; onboarding steps aside and comes back")
     c.contains("onboarding_default_browser", "requests=1 (stub)", label="the default-browser step asks (the spike's stub, never macOS)")
     v = c.first("onboarding_default_browser") or ""
     m = re.search(r"default before=(\w+) after=(\w+)", v)

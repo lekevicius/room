@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Space routing (spec §B, 4.2): external links and links between spaces; the rules sheet.
     private(set) var spaceRouter: SpaceRouter?
     var routingSheet: NSWindow?
+    /// Run once when the import sheet closes (onboarding comes back after its import step, 5.7b).
+    var importSheetOnClose: (() -> Void)?
     /// The space window while it shows (`SpaceWindow.swift`, 5.7b).
     var spaceWindow: SpaceWindowController?
     var routingModel: RoutingRulesModel?
