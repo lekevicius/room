@@ -5,6 +5,10 @@
 # research/screenshots/phase-5.2/ (phase-5.2-<surface><suffix>.png), on a fresh
 # throwaway state and engine directory under /tmp/room-5/matrix/, search
 # suggestions off. Rerunnable: later phases shoot it again for before/after.
+# 5.3b: `-RoomMatrixColumns modes` (normal, Increase Contrast, Reduce Transparency, Differentiate Without
+# Colour, each light and dark: DisplayOptions set in-process, never System Settings) or `sizes` (Settings ▸
+# Appearance ▸ Sidebar text small, medium, large, light and dark; each capture of the rows and the palette also
+# reads the text frames back against their rows, the `clip_` lines); `-RoomMatrixPhase 5.3` names the sheets.
 # Usage: scripts/visual-matrix.sh <out-file> [suffix] [extra app args, e.g. -RoomSpikeOnly rows,footer]
 #   suffix: appended to each sheet's name after a dash ("before" → -before; "" for the current state).
 # ROOM_APP picks the app (default the dev build's Debug app; the release

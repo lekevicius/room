@@ -100,26 +100,49 @@ extension SpikeRunner.Context {
         ]
         // The name without its dash (an argument value starting with "-" would read as a flag).
         let suffix = (UserDefaults.standard.string(forKey: "RoomMatrixSuffix") ?? "").isEmpty ? "" : "-" + UserDefaults.standard.string(forKey: "RoomMatrixSuffix")!
+        // 5.3b: `-RoomMatrixColumns modes|sizes` shoots the display options or the text sizes as the columns
+        // (each light and dark, active) instead of light/dark × active/inactive; `-RoomMatrixPhase` names the sheets.
+        let columns = matrixColumns()
+        let phase = UserDefaults.standard.string(forKey: "RoomMatrixPhase") ?? "5.2"
         for (name, title, notes, states) in surfaces where runs(name) {
-            var rows: [SheetRow] = []
-            for state in states {
-                await state.setup()
-                var cells: [CGImage?] = []
-                for variant in Self.matrixVariants {
-                    NSApp.appearance = NSAppearance(named: variant.dark ? .darkAqua : .aqua)
-                    for session in AppDelegate.current?.windows.all ?? [] { session.controller.activityOverride = variant.active }
-                    matrixActive = variant.active
-                    try? await Task.sleep(for: .milliseconds(450))
-                    cells.append(await state.shoot())
+            var rows = states.map { SheetRow(label: $0.label, cells: []) }
+            func shoot(_ state: MatrixState, _ column: MatrixColumn) async -> CGImage? {
+                let image = await state.shoot()
+                if let readBack = column.readBack, ["rows", "palette"].contains(name) {
+                    SpikeRunner.record("clip_\(name)_\(column.key)", "\(state.label): " + readBack(name))
                 }
-                await state.teardown()
-                rows.append(SheetRow(label: state.label, cells: cells))
+                return image
+            }
+            if columns.contains(where: \.setupPerColumn) {
+                // A text size is set before a state is set up (the palette measures its panel as it opens).
+                for column in columns {
+                    await column.apply()
+                    try? await Task.sleep(for: .milliseconds(450))
+                    for (index, state) in states.enumerated() {
+                        await state.setup()
+                        try? await Task.sleep(for: .milliseconds(300))
+                        rows[index].cells.append(await shoot(state, column))
+                        await state.teardown()
+                    }
+                }
+            } else {
+                for (index, state) in states.enumerated() {
+                    await state.setup()
+                    for column in columns {
+                        await column.apply()
+                        try? await Task.sleep(for: .milliseconds(450))
+                        rows[index].cells.append(await shoot(state, column))
+                    }
+                    await state.teardown()
+                }
             }
             NSApp.appearance = nil
             for session in AppDelegate.current?.windows.all ?? [] { session.controller.activityOverride = true }
-            let sheet = ContactSheet(title: "Phase 5.2 — \(title)\(suffix.isEmpty ? "" : " (\(suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-"))))")",
-                                     columns: Self.matrixVariants.map(\.name), notes: notes, rows: rows)
-            let file = matrixDirectory.appending(path: "phase-5.2-\(name)\(suffix).png")
+            await resetMatrixColumns()
+            let columnNotes = columns.first?.notes ?? []
+            let sheet = ContactSheet(title: "Phase \(phase) — \(title)\(suffix.isEmpty ? "" : " (\(suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-"))))")",
+                                     columns: columns.map(\.name), notes: notes + columnNotes, rows: rows)
+            let file = matrixDirectory.appending(path: "phase-\(phase)-\(name)\(suffix).png")
             SpikeRunner.record("sheet_\(name)", sheet.write(to: file) ? "\(file.lastPathComponent) \(rows.count) rows, \(rows.reduce(0) { $0 + $1.cells.compactMap { $0 }.count }) captures" : "failed")
         }
         controller.activityOverride = nil
@@ -219,7 +242,26 @@ extension SpikeRunner.Context {
                 }
                 try? await Task.sleep(for: .milliseconds(500))
             }, shoot: { await self.matrixShot(rect(), scale: 0.75) }, teardown: { self.sidebar.select(fixture.today[2]) }),
-        ]
+        ] + (UserDefaults.standard.string(forKey: "RoomMatrixColumns") == "modes" ? [modeRowState(fixture, rect: rect)] : [])
+    }
+
+    /// 5.3b's modes sheet: the marks Differentiate Without Colour changes, at rest (no hover): Pinned 0
+    /// changed (left so by the first state), a muted Today tab, an Essential changed.
+    private func modeRowState(_ fixture: MotionFixture, rect: @escaping () -> CGRect) -> MatrixState {
+        let essential = { self.store.essentials(profile: self.sidebar.activeSpace?.profileID ?? UUID()).first?.id }
+        return MatrixState(label: "changed dots (row, tile), a muted tab", setup: {
+            if let id = essential(), let entry = self.store.entry(id),
+               let page = self.tabs.contents(for: id) ?? self.tabs.loadInBackground(entry) {
+                await self.waitLoaded(page, timeout: 10)
+                page.load(URL(string: Self.server + "find.html?essential-away")!)
+                await self.waitLoaded(page, timeout: 10)
+            }
+            if let entry = self.store.entry(fixture.today[1]), self.tabs.contents(for: entry.id) == nil { self.tabs.loadInBackground(entry) }
+            try? await Task.sleep(for: .milliseconds(500))
+            self.tabs.setMuted(true, entry: fixture.today[1])
+            self.sidebar.select(fixture.today[2])
+            try? await Task.sleep(for: .milliseconds(500))
+        }, shoot: { await self.matrixShot(rect(), scale: 0.75) }, teardown: { self.tabs.setMuted(false, entry: fixture.today[1]) })
     }
 
     // MARK: Header and footer (B-110, B-89)
