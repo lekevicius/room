@@ -113,6 +113,40 @@ public enum SplitGeometry {
         }
     }
 
+    /// Where `divider`'s drag position (as `ratios(dragging:to:)` takes it)
+    /// makes the two panes it separates the same length: the split's
+    /// alignment point (ROADMAP 5.5 task 6). `nil` when the panes are not there.
+    public static func equalPosition(of divider: Divider, in bounds: CGRect, layout: Layout, count: Int, ratios: [Double],
+                                     gap: CGFloat = SplitMetrics.paneGap) -> CGFloat? {
+        let along = divider.axis == .vertical
+        let start = along ? bounds.minX : bounds.minY
+        let length = along ? bounds.width : bounds.height
+        switch effective(layout, count) {
+        case .hbox, .vbox:
+            let parts = fractions(ratios, count)
+            let available = length - gap * CGFloat(count - 1)
+            guard available > 0, parts.indices.contains(divider.index + 1) else { return nil }
+            let before = parts[..<divider.index].reduce(0, +)
+            let pairStart = start + CGFloat(before) * available + gap * CGFloat(divider.index)
+            let pair = CGFloat(parts[divider.index] + parts[divider.index + 1]) * available
+            return pairStart + pair / 2
+        case .grid:
+            let available = length - gap
+            guard available > 0 else { return nil }
+            return start + available / 2
+        }
+    }
+
+    /// A drag `position` within `distance` of the divider's equal point
+    /// lands on it (`snapped` true); elsewhere it stays where it is.
+    public static func snap(_ position: CGFloat, dragging divider: Divider, in bounds: CGRect, layout: Layout, count: Int,
+                            ratios: [Double], gap: CGFloat = SplitMetrics.paneGap,
+                            distance: CGFloat = SplitMetrics.snapDistance) -> (position: CGFloat, snapped: Bool) {
+        guard let equal = equalPosition(of: divider, in: bounds, layout: layout, count: count, ratios: ratios, gap: gap),
+              abs(position - equal) <= distance else { return (position, false) }
+        return (equal, true)
+    }
+
     /// The smallest a pane may get along an axis of `available` points:
     /// `SplitMetrics.minimumPaneFraction` of it, at least
     /// `SplitMetrics.minimumPaneLength`, never more than an equal share.

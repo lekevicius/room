@@ -762,6 +762,9 @@ public enum SplitMetrics {
     public static let minimumPaneFraction: CGFloat = 0.07
     /// … nor smaller than this, while the split has room for it (chosen).
     public static let minimumPaneLength: CGFloat = 120
+    /// A divider dragged this close to the point where its two panes are equal snaps to it,
+    /// with a haptic tick (ROADMAP 5.5 task 6; chosen: about a finger's jitter).
+    public static let snapDistance: CGFloat = 8
     /// The header a pane shows on hover: domain, grip, layout, × (spec §D: 24 px).
     public static let paneHeaderHeight: CGFloat = 24
     /// The header shows while the pointer is this close to the pane's top (chosen: the header and a little below).
