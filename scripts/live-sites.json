@@ -1,0 +1,6 @@
+[
+  {"name": "delfi", "url": "https://www.delfi.lt/", "expect": {"blocked_on_min": 10, "blocked_off_max": 0, "banner_gone_on": true}, "note": "EasyList has no delfi.lt hiding rules and its generic ones matched none of delfi's elements (5.0a, 2026-10-21); the blocked requests and the cookie banner are its checks"},
+  {"name": "15min", "url": "https://www.15min.lt/", "expect": {"blocked_on_min": 10, "blocked_off_max": 0, "banner_gone_on": true, "list_hidden_on_min": 1}},
+  {"name": "dailymail", "url": "https://www.dailymail.com/", "expect": {"blocked_on_min": 10, "blocked_off_max": 0, "list_hidden_on_min": 1}},
+  {"name": "youtube", "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw", "settle": 10, "present": ["#movie_player", "video"], "expect": {"present_on": ["#movie_player"], "banner_gone_on": true}}
+]
