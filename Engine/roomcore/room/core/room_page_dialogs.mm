@@ -17,6 +17,9 @@
 //   Chrome's Cocoa factory for every other page.
 // - the hung-page dialog: each Room page's TabDialogs is wrapped by a //room
 //   TabDialogs that asks the host and forwards the rest to Chrome's.
+// - the password save, update and saved bubbles (5.8a): the same TabDialogs'
+//   ShowManagePasswordsBubble/HideManagePasswordsBubble, the seam
+//   ManagePasswordsUIController shows and hides its bubble through.
 
 #import "room/core/room_page_ui_internal.h"
 #import "room/core/room_web_contents_internal.h"
@@ -33,9 +36,13 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/chrome_browser_application_mac.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/ui/javascript_dialogs/javascript_tab_modal_dialog_manager_delegate_desktop.h"
+#include "chrome/browser/ui/passwords/bubble_controllers/password_bubble_controller_base.h"
+#include "chrome/browser/ui/passwords/bubble_controllers/save_update_bubble_controller.h"
+#include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "components/javascript_dialogs/app_modal_dialog_controller.h"
 #include "components/javascript_dialogs/app_modal_dialog_manager.h"
@@ -43,6 +50,8 @@
 #include "components/javascript_dialogs/tab_modal_dialog_manager.h"
 #include "components/javascript_dialogs/tab_modal_dialog_manager_delegate.h"
 #include "components/javascript_dialogs/tab_modal_dialog_view.h"
+#include "components/password_manager/core/browser/password_form.h"
+#include "components/password_manager/core/common/password_manager_ui.h"
 #include "content/public/browser/javascript_dialog_manager.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -337,10 +346,184 @@ class RoomAppModalDialogView : public javascript_dialogs::AppModalDialogView {
   base::WeakPtrFactory<RoomAppModalDialogView> weak_factory_{this};
 };
 
+// MARK: - Password offers (5.8a)
+
+// The password manager's automatic bubbles of one page offered to the host:
+// ManagePasswordsUIController shows its bubble through the page's TabDialogs
+// (ShowManagePasswordsBubble), which the Views bubble would read its state
+// from. For the save and update states the host is asked first; when it takes
+// the offer, Chrome's own SaveUpdateBubbleController (no view) stands in for
+// the bubble, so the answer goes through the same controller calls, metrics
+// and dismissal counts as the Views buttons, and its destruction reports the
+// bubble hidden. The saved confirmations are confirmed by the host or drawn by
+// Chrome. Everything else (the manage bubble from a user action, generation's
+// add-username, biometrics, move to account, leak and post-save bubbles) is
+// Chrome's.
+class PasswordOffers {
+ public:
+  explicit PasswordOffers(content::WebContents* contents)
+      : contents_(contents) {}
+  PasswordOffers(const PasswordOffers&) = delete;
+  PasswordOffers& operator=(const PasswordOffers&) = delete;
+  ~PasswordOffers() = default;
+
+  // TabDialogs::ShowManagePasswordsBubble without a user action: true when
+  // the host took it (Chrome then draws nothing).
+  bool Show() {
+    base::WeakPtr<PasswordsModelDelegate> model =
+        PasswordsModelDelegateFromWebContents(contents_);
+    if (!model) {
+      return false;
+    }
+    const password_manager::ui::State state = model->GetState();
+    const bool pending =
+        state == password_manager::ui::PENDING_PASSWORD_STATE ||
+        state == password_manager::ui::PENDING_PASSWORD_UPDATE_STATE;
+    // The saved confirmation (UPDATE_CONFIRMATION_STATE has no pending
+    // password to read and stays Chrome's; both follow a generated password,
+    // which Room's builds do not offer without Sync, B-72).
+    const bool confirmation =
+        state == password_manager::ui::SAVE_CONFIRMATION_STATE;
+    if (!pending && !confirmation) {
+      return false;
+    }
+    NSURL* origin = OriginURL(model->GetOrigin());
+    if (!origin) {
+      return false;
+    }
+    const password_manager::PasswordForm& form = model->GetPendingPassword();
+    NSString* username = base::SysUTF16ToNSString(form.username_value);
+    const NSInteger length = static_cast<NSInteger>(form.password_value.size());
+    if (confirmation) {
+      RoomWebContents* wrapper = room::WrapperAnswering(
+          contents_, @selector(webContents:didSavePasswordForOrigin:username:
+                                                         passwordLength:));
+      if (!wrapper || ![wrapper.delegate webContents:wrapper
+                             didSavePasswordForOrigin:origin
+                                             username:username
+                                       passwordLength:length]) {
+        return false;
+      }
+      LOG(INFO) << "RoomCore: password saved, the host confirms it";
+      // What the confirmation bubble's controller tells the model: shown,
+      // then hidden (the state moves on to MANAGE_STATE).
+      model->OnBubbleShown();
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(
+                         [](base::WeakPtr<PasswordsModelDelegate> model) {
+                           if (model) {
+                             model->OnBubbleHidden();
+                           }
+                         },
+                         model));
+      return true;
+    }
+    RoomWebContents* wrapper = room::WrapperAnswering(
+        contents_,
+        @selector(webContents:willOfferPasswordForOrigin:username:passwordLength:
+                                                   update:completion:));
+    if (!wrapper) {
+      return false;
+    }
+    Withdraw();  // An earlier offer still open (not expected: Chrome hides first).
+    const bool update =
+        state == password_manager::ui::PENDING_PASSWORD_UPDATE_STATE;
+    const int offer = ++offer_;
+    base::WeakPtr<PasswordOffers> weak = weak_factory_.GetWeakPtr();
+    BOOL taken = [wrapper.delegate webContents:wrapper
+                    willOfferPasswordForOrigin:origin
+                                      username:username
+                                passwordLength:length
+                                        update:update
+                                    completion:^(NSString* response) {
+                                      // Never inside the host's call or a
+                                      // controller callback: the next turn.
+                                      std::string answer =
+                                          base::SysNSStringToUTF8(response ?: @"");
+                                      base::SequencedTaskRunner::GetCurrentDefault()
+                                          ->PostTask(
+                                              FROM_HERE,
+                                              base::BindOnce(&PasswordOffers::Answer,
+                                                             weak, offer,
+                                                             std::move(answer)));
+                                    }];
+    if (!taken) {
+      ++offer_;  // A late answer to the refused offer is ignored.
+      return false;
+    }
+    LOG(INFO) << "RoomCore: password " << (update ? "update" : "save")
+              << " offer taken by the host";
+    // Shown: OnBubbleShown and the shown metrics, as the Views bubble's.
+    controller_ = std::make_unique<SaveUpdateBubbleController>(
+        model, PasswordBubbleControllerBase::DisplayReason::kAutomatic);
+    update_ = update;
+    return true;
+  }
+
+  // TabDialogs::HideManagePasswordsBubble: true when the host's offer was
+  // the bubble (it is withdrawn; Chrome's own has nothing to close).
+  bool Hide() { return Withdraw(); }
+
+ private:
+  bool Withdraw() {
+    if (!controller_) {
+      return false;
+    }
+    ++offer_;
+    LOG(INFO) << "RoomCore: password offer withdrawn";
+    // As a closing Views bubble: its controller goes on the next turn
+    // (reporting no interaction to a model that still listens, and hidden).
+    base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(
+        FROM_HERE, std::move(controller_));
+    RoomWebContents* wrapper = room::WrapperAnswering(
+        contents_, @selector(webContentsDidWithdrawPasswordOffer:));
+    [wrapper.delegate webContentsDidWithdrawPasswordOffer:wrapper];
+    return true;
+  }
+
+  // The host's answer: the Views bubble's buttons.
+  void Answer(int offer, std::string response) {
+    if (offer != offer_ || !controller_) {
+      return;  // Withdrawn or replaced meanwhile.
+    }
+    ++offer_;
+    std::unique_ptr<SaveUpdateBubbleController> controller =
+        std::move(controller_);
+    LOG(INFO) << "RoomCore: the host answers the password "
+              << (update_ ? "update" : "save") << " offer: " << response;
+    base::WeakPtr<PasswordsModelDelegate> model =
+        PasswordsModelDelegateFromWebContents(contents_);
+    const password_manager::ui::State offered =
+        update_ ? password_manager::ui::PENDING_PASSWORD_UPDATE_STATE
+                : password_manager::ui::PENDING_PASSWORD_STATE;
+    if (!model || model->GetState() != offered) {
+      LOG(INFO) << "RoomCore: the password offer's state is gone";
+      return;  // The controller closes as an unanswered bubble.
+    }
+    if (response == "save") {
+      controller->OnSaveClicked();
+    } else if (response == "never" && !update_) {
+      controller->OnNeverForThisSiteClicked();
+    } else if (update_) {
+      controller->OnNoThanksClicked();
+    } else {
+      controller->OnNotNowClicked();
+    }
+    // The bubble closes: interactions reported, OnBubbleHidden.
+    controller.reset();
+  }
+
+  raw_ptr<content::WebContents> contents_;
+  std::unique_ptr<SaveUpdateBubbleController> controller_;
+  bool update_ = false;
+  int offer_ = 0;
+  base::WeakPtrFactory<PasswordOffers> weak_factory_{this};
+};
+
 // MARK: - The hung-page question
 
-// Chrome's TabDialogs for the page with the hung-page question going to the
-// host. Everything else is Chrome's (forwarded).
+// Chrome's TabDialogs for the page with the hung-page question and the
+// password offers going to the host. Everything else is Chrome's (forwarded).
 class RoomTabDialogs : public TabDialogs {
  public:
   static void Adopt(content::WebContents* contents) {
@@ -358,7 +541,7 @@ class RoomTabDialogs : public TabDialogs {
 
   RoomTabDialogs(content::WebContents* contents,
                  std::unique_ptr<TabDialogs> chrome)
-      : contents_(contents), chrome_(std::move(chrome)) {}
+      : contents_(contents), chrome_(std::move(chrome)), passwords_(contents) {}
   ~RoomTabDialogs() override = default;
 
   // TabDialogs:
@@ -435,9 +618,15 @@ class RoomTabDialogs : public TabDialogs {
                                                                web_contents);
   }
   void ShowManagePasswordsBubble(bool user_action) override {
+    if (!user_action && passwords_.Show()) {
+      return;
+    }
     chrome_->ShowManagePasswordsBubble(user_action);
   }
   void HideManagePasswordsBubble() override {
+    if (passwords_.Hide()) {
+      return;
+    }
     chrome_->HideManagePasswordsBubble();
   }
 
@@ -464,6 +653,7 @@ class RoomTabDialogs : public TabDialogs {
 
   raw_ptr<content::WebContents> contents_;
   std::unique_ptr<TabDialogs> chrome_;
+  PasswordOffers passwords_;
   bool asking_ = false;
   int question_ = 0;
   int process_id_ = 0;

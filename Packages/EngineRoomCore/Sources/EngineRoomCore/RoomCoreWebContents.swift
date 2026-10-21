@@ -599,6 +599,48 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate?.webContents(self, didRequestToast: ToastKind(engineName: kind))
     }
 
+    // MARK: Password offers (5.8a): Chrome's save, update and saved bubbles
+    // (`RoomTabDialogs` beside `ManagePasswordsUIController`). Exposed by
+    // their selectors: EngineRoomCore compiles against the dev framework's
+    // headers, which lack them until the dev engine has the adapter.
+
+    @objc(webContents:willOfferPasswordForOrigin:username:passwordLength:update:completion:)
+    public func webContents(_ webContents: RoomWebContents, willOfferPasswordFor origin: URL, username: String,
+                            passwordLength: Int, update: Bool,
+                            completion: @escaping (String) -> Void) -> Bool {
+        guard let uiDelegate else { return false }
+        let offer = PasswordOffer(kind: update ? .update : .save, origin: origin, username: username,
+                                  maskedPassword: PasswordOffer.mask(length: passwordLength))
+        let answer: (PasswordOfferResponse) -> Void = { response in
+            completion(Self.engineName(of: response))
+        }
+        return update
+            ? uiDelegate.webContents(self, willOfferPasswordUpdate: offer, completion: answer)
+            : uiDelegate.webContents(self, willOfferPasswordSave: offer, completion: answer)
+    }
+
+    @objc(webContents:didSavePasswordForOrigin:username:passwordLength:)
+    public func webContents(_ webContents: RoomWebContents, didSavePasswordFor origin: URL, username: String,
+                            passwordLength: Int) -> Bool {
+        let offer = PasswordOffer(kind: .save, origin: origin, username: username,
+                                  maskedPassword: PasswordOffer.mask(length: passwordLength))
+        return uiDelegate?.webContents(self, didSavePassword: offer) ?? false
+    }
+
+    @objc(webContentsDidWithdrawPasswordOffer:)
+    public func webContentsDidWithdrawPasswordOffer(_ webContents: RoomWebContents) {
+        uiDelegate?.webContentsDidWithdrawPasswordOffer(self)
+    }
+
+    /// The answer's name in RoomCore's API (`-webContents:willOfferPasswordForOrigin:…`).
+    nonisolated static func engineName(of response: PasswordOfferResponse) -> String {
+        switch response {
+        case .save: "save"
+        case .never: "never"
+        case .notNow: "notNow"
+        }
+    }
+
     /// Where Chrome's Views bubbles point (`RoomToolbarButtonProvider` and the
     /// window's bubble anchor, 3.7a): the host's site button.
     public func webContentsBubbleAnchorRect(_ webContents: RoomWebContents) -> NSRect {

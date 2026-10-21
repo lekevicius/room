@@ -647,6 +647,33 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
     NS_SWIFT_NAME(webContentsRendererDidBecomeUnresponsive(_:completion:));
 // The renderer answers again: the question is withdrawn.
 - (void)webContentsRendererDidBecomeResponsive:(RoomWebContents*)webContents;
+// Chrome's password manager would offer to save (`update` NO) or update
+// (YES) the password the page just submitted (ManagePasswordsUIController's
+// pending state, the bubble shown without a user action). `origin` is the
+// site (scheme, host, port), `username` the form's (empty without one),
+// `passwordLength` the password's length: the value never crosses. YES: the
+// host presents the offer and calls `completion` once on the main thread
+// with @"save", @"never" (save offers only) or @"notNow"; Chrome shows
+// nothing. NO (or not implemented): Chrome's Views bubble.
+- (BOOL)webContents:(RoomWebContents*)webContents
+    willOfferPasswordForOrigin:(NSURL*)origin
+                      username:(NSString*)username
+                passwordLength:(NSInteger)passwordLength
+                        update:(BOOL)update
+                    completion:(void (^)(NSString* response))completion
+    NS_SWIFT_NAME(webContents(_:willOfferPasswordFor:username:passwordLength:update:completion:));
+// Chrome stored a password without asking (its saved or updated
+// confirmation): YES, the host confirms it itself and Chrome shows nothing.
+- (BOOL)webContents:(RoomWebContents*)webContents
+    didSavePasswordForOrigin:(NSURL*)origin
+                    username:(NSString*)username
+              passwordLength:(NSInteger)passwordLength
+    NS_SWIFT_NAME(webContents(_:didSavePasswordFor:username:passwordLength:));
+// Chrome withdrew the offer the host took (a later submit replaced it, the
+// page closed): the host closes its popover unanswered; the completion is
+// no longer heard.
+- (void)webContentsDidWithdrawPasswordOffer:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(webContentsDidWithdrawPasswordOffer(_:));
 // The page asks to open `request.URL` in another application; YES opens it
 // (ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck), NO blocks it.
 // Not implemented: Chrome's own dialog.

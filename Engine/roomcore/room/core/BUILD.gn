@@ -145,6 +145,8 @@ source_set("core") {
     "//chrome/browser/ui/autofill",
     "//chrome/browser/autofill",
     "//chrome/browser/ui/views/passwords:password_bubble_view_base",
+    "//chrome/browser/ui/passwords",
+    "//chrome/browser/ui/passwords/bubble_controllers",
     "//chrome/browser/ui/views/frame:toolbar_button_provider",
     "//components/autofill/core/browser",
     "//components/autofill/content/browser",
