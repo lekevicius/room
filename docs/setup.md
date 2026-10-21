@@ -209,6 +209,47 @@ the team identity avoids that and is needed for the notarization pipeline.
    third-party crash service; a self-hosted collector in 6.3, B-105) in
    `xcodegen/base.yml` are the one place for both.
 
+## 5a. Computer use on a session's own process (5.0a)
+
+Sessions verify a click path, a menu, a drag or a system panel themselves
+(AGENTS.md "Testing"), through the `mcp__computer-use__*` tools of the Claude
+app, on their **own** Debug process and a throwaway state, never the user's
+Room or real state. One attempt of at most ten minutes per check; then the
+step goes to the user's list with what was tried.
+
+- **Grants** (the Claude app's Screen Recording and Accessibility, then one
+  `request_access` per session for the apps): `app.room.desktop.dev` (every
+  Debug build since 5.0a; requested by the planner while the user is
+  present, since the approval is the user's), Finder (Open and Save panels'
+  folders, the Desktop), and clipboard read/write. `app.room.desktop` (the
+  user's Room and the DMG) is never driven while the user's Room runs; it
+  was the only id before 5.0a, so computer use then ran only while
+  `pgrep -x Room` was empty.
+- **Finding your own window:** launch the Debug app with its own state,
+  e.g. `build/roomcore-release/DerivedData/Build/Products/Debug/Room.app/Contents/MacOS/Room -RoomStateDirectory /tmp/room-5/<check> -RoomSidebarFixture spaces`
+  (engine root `<state>/engine`), note its pid (`pgrep -f <app path>`),
+  then `app_list_windows` with `app.room.desktop.dev`: the window whose
+  title is the selected tab's on the fixture (the fixture's names are not
+  the user's) is yours. With two Debug apps running, both are
+  `app.room.desktop.dev`: run one at a time.
+- **Driving:** `app_screenshot` for coordinates and the accessibility summary,
+  `app_menu` for menu items (Help ▸ Restore Sidebar…), `app_click`/`app_key`
+  in the background; context menus, hovers and drags need full-screen
+  control (`request_full_control`), which the user approves once per
+  session. Read results back from files (`<state>/Backups`, the spike
+  output, `RoomCore.log`) rather than from pixels where a file says it.
+- **Afterwards:** quit through `scripts/lib/room-process.sh` (`room_quit <pid>`),
+  delete the state directory, and write the result line under "Run by the
+  sessions" in the chapter's by-hand file.
+
+The pattern check (chapter-4-by-hand.md step 8, Restore Sidebar…):
+launch Room-B on `/tmp/room-5/restore` (`-RoomSidebarFixture spaces`), quit
+and relaunch once (the launch backup: `ls /tmp/room-5/restore/Backups`),
+delete the second space from its footer menu (Delete Space…, let the toast
+go), Help ▸ Restore Sidebar…, pick the newest backup, Restore; read back:
+the space is in the footer again, the toast "Sidebar restored from …",
+and a "before restore" file in `Backups/`.
+
 ## 6. Reference material (optional)
 
 `research/repos/` is gitignored. Recreate what a task needs:
