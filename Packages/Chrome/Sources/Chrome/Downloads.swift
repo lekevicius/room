@@ -174,7 +174,10 @@ public final class DownloadList: DownloadsDelegate {
         let destination = DownloadRules.destination(for: item.suggestedFilename, in: folder) { url in
             reserved.contains(url.standardizedFileURL) || fileExists(url)
         }
-        if askWhereToSave(), let chooseDestination {
+        let asks = askWhereToSave()
+        NSLog("Room: download %@ (%@): %@", item.id, item.suggestedFilename,
+              asks ? (chooseDestination == nil ? "ask where to save, no panel available" : "asking where to save") : "to \(destination.path)")
+        if asks, let chooseDestination {
             chooseDestination(destination) { [weak self, weak profile] chosen in
                 guard let self, let profile, let chosen else {
                     self?.declined.insert(item.id)

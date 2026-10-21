@@ -1449,6 +1449,39 @@ extension SidebarController {
         }
     }
 
+    /// B-108: the pill's frame and the selected row's pill rect, in the outline's coordinates.
+    public var debugPillAndRow: (pill: NSRect, row: NSRect)? {
+        guard let id = selectedEntryID, let node = tree.displayedNode(for: id), !outline.pill.isHidden else { return nil }
+        let row = outline.row(forItem: node)
+        return row >= 0 ? (outline.pill.frame, SidebarRowView.pillRect(in: outline.rect(ofRow: row))) : nil
+    }
+
+    /// B-109: holds the outline's pointer still over `id`'s row (nil: the real pointer again)
+    /// and re-evaluates hover as a layout change does; the hovered entry after it.
+    @discardableResult
+    public func debugStillPointer(over id: UUID?) -> UUID? {
+        if let id, let node = tree.displayedNode(for: id) {
+            let rect = outline.rect(ofRow: outline.row(forItem: node))
+            let point = NSPoint(x: rect.midX, y: rect.midY)
+            outline.pointerLocation = { point }
+        } else if id == nil {
+            outline.pointerLocation = { [weak outline] in
+                guard let outline, let window = outline.window else { return nil }
+                return outline.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            }
+        }
+        outline.refreshHover()
+        return hoveredNode?.entryID
+    }
+
+    /// The hovered row's entry and whether its cell shows the close button.
+    public var debugHoveredEntry: (id: UUID?, closeShown: Bool) {
+        guard let node = hoveredNode, let id = node.entryID else { return (nil, false) }
+        let row = outline.row(forItem: node)
+        let cell = row >= 0 ? outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? EntryCellView : nil
+        return (id, cell?.debugCloseButtonShown ?? false)
+    }
+
     /// Rebuilds everything from the store (timing the full reload).
     public func debugReloadAll() { reloadAll() }
 

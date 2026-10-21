@@ -306,6 +306,9 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     // MARK: Buttons
 
     @objc private func resetClicked() { model.map { actions?.resetButtonClicked($0.entry.id) } }
+    /// Spikes (B-109): whether the row's close button shows.
+    var debugCloseButtonShown: Bool { !closeButton.isHidden }
+
     @objc private func closeClicked() { model.map { actions?.closeButtonClicked($0.entry.id) } }
     @objc private func audioClicked() { model.map { actions?.audioButtonClicked($0.entry.id) } }
 
