@@ -4227,3 +4227,17 @@ Both reports (`ExcUserFault_Room-2026-10-21-045904.ips`, dev, the tour's `routin
 | First launch of the new dev build | `launch_to_spike_s` 829 s once, then 2.1–7.0 s |
 | `rg -i 'right.*sidebar|sidebar.*right|trailing' \| wc -l` | 265 → 225 |
 | CI spec locally | BUILD and TEST SUCCEEDED, 706 tests, 0 failed, 2 min 8 s |
+
+## Phase 5.7 — 5.7b: the space window and onboarding (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's and 5.6a's Debug Rooms running beside it; load 4.5–8.9)
+
+| Check | Result |
+|---|---|
+| `spacewindow` (dev, release framework) | from Settings and the menu's four items: shown, inside the visible frame, 420 × 672; Save read back: name, icon, colours `["#3E9B5B"]`, triadic, 0.80, profile Outdoors, routes `contains:garden.example:on`, `equals:plants.test:off`; Cancel and close button unchanged; New Space 1 → 2 spaces, shown; 0 form views in the sidebar |
+| First launch, fresh state, no flags | "onboarding shown (first launch)" 78 ms after the state opened |
+| `app28b` (light, no captures) | 28 / 29 dev, 28 / 29 release framework; Done → window gone in 44–55 ms; the feed check's log is another session's (the request is in it 25 ms (dev) and 18 ms (release) after the opt-in) |
+| `import` | 53 / 53 dev, 53 / 53 release framework |
+| `settings2` (dev) | 25 / 26 (Clear browsing data kept the cookie once), rerun 26 / 26 |
+| `rg` editor symbols / card symbols | 41 → 0 / 55 → 3 (the web card's own `accessoryHeight`) |
+| `scripts/design-audit.sh` | 0 undeclared |
+| Unit tests | Sidebar 49, Model 113, Integration 34, UIKitCore 62 |
+| CI spec locally | BUILD and TEST SUCCEEDED, 709 tests, 0 failed, 2 min 44 s |
