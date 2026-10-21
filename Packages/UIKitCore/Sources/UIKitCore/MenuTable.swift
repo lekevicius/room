@@ -340,6 +340,25 @@ public enum MenuKey {
         return (key, modifiers)
     }
 
+    /// How the menu draws the shortcut (B-37): a shifted digit or punctuation key as ⇧ with its base
+    /// key (⇧⌘], as Safari draws it), which a key press never matches (the event carries "}");
+    /// `MainMenuBuilder` pairs such an item with a hidden alias on `equivalent(for:)` that does the
+    /// matching. Letters and every other key draw as they match.
+    public static func display(for shortcut: ReservedShortcuts.Shortcut) -> (key: String, modifiers: NSEvent.ModifierFlags) {
+        if case .character(let character) = shortcut.key, shortcut.modifiers.contains(.shift), shiftedUS[character] != nil {
+            return (character, shortcut.modifiers)
+        }
+        return equivalent(for: shortcut)
+    }
+
+    /// Whether the drawn key differs from the matched one (an alias item does the matching).
+    public static func needsMatchingAlias(_ shortcut: ReservedShortcuts.Shortcut) -> Bool {
+        display(for: shortcut).key != equivalent(for: shortcut).key
+    }
+
+    /// The identifier suffix of the hidden item that matches a shifted key for its visible item.
+    public static let matchingAliasSuffix = "#shifted"
+
     /// The US layout's shifted characters for the digits and punctuation the table uses.
     public static let shiftedUS: [String: String] = [
         "1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
@@ -375,7 +394,11 @@ public enum MainMenuBuilder {
                 item.submenu = submenu
                 menu.addItem(item)
             case .item(let spec):
-                menu.addItem(makeItem(spec, appTarget: appTarget))
+                let item = makeItem(spec, appTarget: appTarget)
+                menu.addItem(item)
+                if let key = spec.key, !spec.isAlias, MenuKey.needsMatchingAlias(key) {
+                    menu.addItem(matchingAlias(for: item, key: key))
+                }
             }
         }
     }
@@ -383,6 +406,8 @@ public enum MainMenuBuilder {
     /// Sets every item's key equivalent from `table` in place (4.4a: a remap
     /// changes the bar without rebuilding it, so the Window menu keeps its
     /// windows); an id that two items share (New Space) keys the first only.
+    /// A shifted digit or punctuation key is drawn on the item and matched by
+    /// its hidden alias (B-37), which is added, updated or removed here too.
     /// Returns the number of items whose key changed.
     @discardableResult
     public static func apply(_ table: ShortcutTable, to menu: NSMenu) -> Int {
@@ -393,17 +418,47 @@ public enum MainMenuBuilder {
                 if let submenu = item.submenu { walk(submenu) }
                 guard let id = item.identifier?.rawValue, table.action(id) != nil else { continue }
                 let key = seen.insert(id).inserted ? table.key(for: id) : nil
-                let equivalent: (key: String, modifiers: NSEvent.ModifierFlags) = key.map { MenuKey.equivalent(for: $0) } ?? ("", [])
-                let mask = item.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control])
-                if item.keyEquivalent != equivalent.key || (!equivalent.key.isEmpty && mask != equivalent.modifiers) {
-                    item.keyEquivalent = equivalent.key
-                    item.keyEquivalentModifierMask = equivalent.modifiers
-                    changed += 1
+                // A hidden alias of the table (⌘←, ⌃⇧=) is matched only: it keeps the matching form.
+                let shown: (key: String, modifiers: NSEvent.ModifierFlags) = key.map { item.isHidden ? MenuKey.equivalent(for: $0) : MenuKey.display(for: $0) } ?? ("", [])
+                if set(item, shown) { changed += 1 }
+                // The matching alias right after its item.
+                let index = menu.index(of: item)
+                let aliasID = id + MenuKey.matchingAliasSuffix
+                let existing = menu.items.indices.contains(index + 1) && menu.items[index + 1].identifier?.rawValue == aliasID ? menu.items[index + 1] : nil
+                if let key, item.isHidden == false, MenuKey.needsMatchingAlias(key) {
+                    if let existing {
+                        _ = set(existing, MenuKey.equivalent(for: key))
+                    } else {
+                        menu.insertItem(matchingAlias(for: item, key: key), at: index + 1)
+                    }
+                } else if let existing {
+                    menu.removeItem(existing)
                 }
             }
         }
+        func set(_ item: NSMenuItem, _ equivalent: (key: String, modifiers: NSEvent.ModifierFlags)) -> Bool {
+            let mask = item.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control])
+            guard item.keyEquivalent != equivalent.key || (!equivalent.key.isEmpty && mask != equivalent.modifiers) else { return false }
+            item.keyEquivalent = equivalent.key
+            item.keyEquivalentModifierMask = equivalent.modifiers
+            return true
+        }
         walk(menu)
         return changed
+    }
+
+    /// The hidden item that matches `item`'s shifted key by the character it types (B-37): same
+    /// action, target and tag, never shown.
+    static func matchingAlias(for item: NSMenuItem, key: ReservedShortcuts.Shortcut) -> NSMenuItem {
+        let equivalent = MenuKey.equivalent(for: key)
+        let alias = NSMenuItem(title: item.title, action: item.action, keyEquivalent: equivalent.key)
+        alias.keyEquivalentModifierMask = equivalent.modifiers
+        alias.target = item.target
+        alias.tag = item.tag
+        alias.identifier = item.identifier.map { NSUserInterfaceItemIdentifier($0.rawValue + MenuKey.matchingAliasSuffix) }
+        alias.isHidden = true
+        alias.allowsKeyEquivalentWhenHidden = true
+        return alias
     }
 
     public static func makeItem(_ spec: MenuItemSpec, appTarget: AnyObject?) -> NSMenuItem {
@@ -411,9 +466,10 @@ public enum MainMenuBuilder {
         let action = spec.chapter == nil ? spec.action.map(NSSelectorFromString) : nil
         let item = NSMenuItem(title: spec.title, action: action, keyEquivalent: "")
         if let key = spec.key {
-            let equivalent = MenuKey.equivalent(for: key)
-            item.keyEquivalent = equivalent.key
-            item.keyEquivalentModifierMask = equivalent.modifiers
+            // Hidden aliases are matched only, so they keep the matching form.
+            let shown = spec.isAlias ? MenuKey.equivalent(for: key) : MenuKey.display(for: key)
+            item.keyEquivalent = shown.key
+            item.keyEquivalentModifierMask = shown.modifiers
         }
         item.tag = spec.tag
         item.identifier = NSUserInterfaceItemIdentifier(spec.id)

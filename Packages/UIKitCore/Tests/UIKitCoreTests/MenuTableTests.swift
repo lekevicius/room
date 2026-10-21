@@ -170,4 +170,43 @@ struct MenuTableTests {
         #expect(MenuKey.equivalent(for: ReservedShortcuts.Shortcut(.character("t"), [.command, .shift])).key == "T")
         #expect(equivalent(.character("="), .command) == "=|\(NSEvent.ModifierFlags.command.rawValue)")
     }
+
+    @Test("B-37: a shifted key is drawn as ⇧ and its base key, and ⇧⌘] still selects the next tab")
+    func shiftedGlyphs() throws {
+        let menu = MainMenuBuilder.make(MainMenuTable.menus(), appTarget: nil)
+        let tab = try #require(menu.item(withTitle: "Tab")?.submenu)
+        let next = try #require(tab.items.first { $0.title == "Select Next Tab" && !$0.isHidden })
+        #expect(next.keyEquivalent == "]" && next.keyEquivalentModifierMask == [.command, .shift])
+        let alias = try #require(tab.items.first { $0.isHidden && $0.action == next.action && $0.tag == next.tag })
+        #expect(alias.keyEquivalent == "}" && alias.keyEquivalentModifierMask == .command && alias.allowsKeyEquivalentWhenHidden)
+        // What AppKit matches: the event of ⇧⌘] carries "}" (the US layout, key code 30).
+        _ = NSApplication.shared
+        let target = KeyTarget()
+        for item in [next, alias] { item.target = target }
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+                                                  windowNumber: 0, context: nil, characters: "}", charactersIgnoringModifiers: "}",
+                                                  isARepeat: false, keyCode: 30))
+        #expect(tab.performKeyEquivalent(with: event))
+        #expect(target.tags == [1])
+        // A remap keeps the pair: ⌥⇧⌘] drawn, ⌥⌘} matched; a key without Shift drops the alias.
+        let id = try #require(next.identifier?.rawValue)
+        MainMenuBuilder.apply(ShortcutTable(overrides: [id: "⌥⇧⌘]"]), to: menu)
+        #expect(next.keyEquivalent == "]" && next.keyEquivalentModifierMask == [.command, .shift, .option])
+        #expect(alias.keyEquivalent == "}" && alias.keyEquivalentModifierMask == [.command, .option])
+        MainMenuBuilder.apply(ShortcutTable(overrides: [id: "⌥⌘]"]), to: menu)
+        #expect(next.keyEquivalent == "]" && next.keyEquivalentModifierMask == [.command, .option])
+        #expect(!tab.items.contains { $0.identifier?.rawValue == id + MenuKey.matchingAliasSuffix })
+        // Without its alias the drawn item alone does not match the key (why the alias exists).
+        let bare = try #require(MainMenuBuilder.make(MainMenuTable.menus(), appTarget: nil).item(withTitle: "Tab")?.submenu)
+        for item in bare.items where item.identifier?.rawValue.hasSuffix(MenuKey.matchingAliasSuffix) == true { bare.removeItem(item) }
+        for item in bare.items { item.target = target }
+        #expect(!bare.performKeyEquivalent(with: event))
+    }
+}
+
+/// Records the tags of the items it receives (B-37's key match).
+@MainActor
+final class KeyTarget: NSObject {
+    var tags: [Int] = []
+    @objc func selectAdjacentTab(_ sender: NSMenuItem) { tags.append(sender.tag) }
 }

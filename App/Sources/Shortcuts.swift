@@ -73,7 +73,8 @@ extension AppDelegate {
         session.pageDelegate?.reservedKeys = shortcutTable.reservedKeys
         session.sidebar?.shortcutKey = { [weakSelf = MainActorWeak(self)] id in
             guard let key = weakSelf.value?.shortcutTable.key(for: id) else { return ("", []) }
-            return MenuKey.equivalent(for: key)
+            // Context menus only draw the key (B-37's glyphs).
+            return MenuKey.display(for: key)
         }
     }
 }
