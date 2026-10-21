@@ -144,6 +144,21 @@ public final class TabSwitcher {
 
     @objc private func windowResignedKey(_ notification: Notification) { cancel() }
 
+    /// Builds the list ahead of the first ⌃Tab (B-129: the first show built the glass and solved
+    /// its constraints for the first time, 20–30 ms against 7–10 for a later one) and keeps it in
+    /// the host view, hidden. The app calls it once the window is up.
+    public func prewarm() {
+        guard builtPanel == nil, let hostView else { return }
+        let panel = TabSwitcherPanel()
+        builtPanel = panel
+        panel.isHidden = true
+        hostView.addSubview(panel, positioned: .above, relativeTo: nil)
+        let row = TabSwitcherPanel.Row(title: " ", domain: "", favicon: nil, isLoaded: true)
+        panel.setRows([row, row], highlighted: 0)
+        panel.frame = NSRect(origin: .zero, size: panel.fittingSize)
+        panel.layoutSubtreeIfNeeded()
+    }
+
     private func showPanel() {
         guard state != nil, panel == nil, let hostView else { return }
         let panel = builtPanel ?? TabSwitcherPanel()

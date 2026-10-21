@@ -932,7 +932,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
         if let window = controller.window {
-            session.switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
+            let switcher = TabSwitcher(window: window, hostView: controller.cardView, sidebar: sidebar, tabs: tabs)
+            session.switcher = switcher
+            // Its glass list too, after the window's first frame (B-129).
+            DispatchQueue.main.async { [weak switcher] in switcher?.prewarm() }
         }
         // "Open in New Window" and the drag out (spec §A.9).
         if !session.isIncognito {

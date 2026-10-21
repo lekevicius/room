@@ -238,6 +238,16 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         }
         overlay.panel.frame = NSRect(x: 0, y: 0, width: PaletteMetrics.width, height: PaletteMetrics.fieldHeight)
         overlay.panel.layoutSubtreeIfNeeded()
+        // The first ⌘T was also the window's first text editing (B-129, 5.4a's profile: ~60 % of its
+        // 17–35 ms): the window's field editor, the caret's indicator whose first use loads AppKit's
+        // glow effect, and the text input system's first activation (its process-wide controllers).
+        // All made here, nothing focused: the editor's context is activated and deactivated at once.
+        let editor = hostView?.window?.fieldEditor(true, for: overlay.panel.field) as? NSTextView
+        _ = NSTextInsertionIndicator(frame: .zero)
+        if let context = editor?.inputContext, NSTextInputContext.current == nil {
+            context.activate()
+            context.deactivate()
+        }
     }
 
     private func preparedOverlay() -> PaletteOverlayView {
