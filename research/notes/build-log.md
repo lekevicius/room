@@ -811,3 +811,22 @@ Mac mini (M4, 24 GB) commits and pushes, the M1 Max laptop builds (`/Volumes/JL4
 | `58-2` dev (`check=apply`) | requested 01:42, `DONE` 01:49:09: **71 s** ("build done in 34 s", load 47–240) | the series' "0 applied / 25 already" not in the `DONE` file (asked, not reported, as for `54b-1`) |
 | request → framework here | 38 min for `58-1` (all of it the queue), 7 min for `58-2` | the 30-minute rule passed while the queue was stalled; the planner's 01:42 note reopened it |
 | packaging here | Debug app over release 27 s, dev app 29 s, RoomCore Host 27 s, the Release app 128 s | `ROOM_PACKAGE_STAGED=1` |
+
+## 2026-10-21/22 — Rebase 155.0.8059.36 → 156.0.8078.48 (laptop)
+
+The M1 Max laptop (64 GB, default jobs, `ROOM_BUILD_JOBS` unset) ran the rebase and both first builds at 156 for the Mac mini's loop, from the command line only (no app launched: `--verify` was the mini's). Load 20–525 from the build itself.
+
+| Step | Time | Notes |
+|---|---|---|
+| `git fetch` of the 156 tags | 51 s | `--dry-run` does not fetch: fetch first |
+| dry run (predict + replay in a scratch index) | 14 s + 16 s | 9 patches exact, 15 with offsets, 1 conflict (0026); upstream 10,258 commits, the BrowserWindow headers +7 lines |
+| the conflict, by hand | minutes | 0026-url-loader-factory-hook: 156 put `glic::GlicSubresourceProxyingURLLoaderFactory::MaybeProxyRequest` at the hook's place in `WillCreateURLLoaderFactory`; both kept, Glic first, the hook before `MaybeSetTargetNetwork` (signature unchanged) |
+| `--continue --no-build` | switch 12 s, sync 102 s, runhooks 26 s, stubs 0 s, apply 28 s | "patches: 0 applied, 25 already"; the stub generator added `GetPinnedToolbarActions()` (`7bbca0a`) |
+| official `out/release`, first attempt | **2 h 49 min**, stopped at 55,255 of 57,190 steps | first `//room` compile error (19:35 → 22:25) |
+| `//room` fixes and two keep-going passes (`autoninja -k 0`) | 5 min 24 s, then about 9 min | five files: `room_location_bar.cc` (`LocationBarModel::From`, upstream db047ab9388e9), `room_permissions.mm` (`RequestType::kAmbientLogin`), `room_autocomplete.mm` (`AutocompleteProvider::Type` and `omnibox::AutocompleteMatchType` as enum classes), `room_extension_popups.mm` (`CommandExecuted` takes the accelerator), `room_history.mm` (`QueryOptions::hostname_suffix` for `host_only`, upstream e1b5c984138da); commits `1088c94`, `8b56048`, `30a60f7`. Official build done 22:44 |
+| stage (`--release --stage-only`) and copy to the mini | 4 s and 29 s | `156/roomcore-release/`, RoomCoreCommit `30a60f7` |
+| `out/dev` at 156 (component, the first after the rebase) | **2 h 53 min** ("build done in 10,380 s", 22:46 → 01:39) | partly concurrent with request `54b-1`'s official incremental |
+
+Cost of the rebase in `//room`: one conflicting hunk (0026), one generated stub, five call sites to 156's API changes; no new patch, no DCHECK touched, the series still 25. **Rough total on the laptop:** about 6 h of builds (2 h 49 min + about 15 min official, 2 h 53 min dev), most of it the two near-full rebuilds; the fix work itself under 30 minutes.
+
+The requests after the rebase (the mini's `/Volumes/JL4/laptop-engines/requests/`, served by the laptop's watcher, `build/rebase-156/watch-requests.sh`) each report "patches: 0 applied, 25 already on the room branch" in their build logs: `54b-1` dev and release, `54b-2` release, `58-1` release, `58-2` dev, `59-1` dev and release. Official `//room` incrementals 215–509 s ("build done in"), dev 11–34 s, the copy 30–60 s; the watcher's `DONE` lines are in the 5.4b and 5.8e sections above.
