@@ -468,12 +468,20 @@ extension SidebarController {
     func dragMoved(_ session: NSDraggingSession, to screenPoint: NSPoint) {
         guard let ids = drag?.ids, !ids.isEmpty, let frame = outline.window?.frame else { return }
         session.animatesToStartingPositionsOnCancelOrFail = DragOutRule.slidesBack(at: screenPoint, windowFrame: frame, count: ids.count)
+        #if DEBUG
+        if debugSlidesBack != session.animatesToStartingPositionsOnCancelOrFail {
+            NSLog("Room drag: slides back %@ at %@", session.animatesToStartingPositionsOnCancelOrFail ? "yes" : "no", NSStringFromPoint(screenPoint))
+        }
+        #endif
         debugSlidesBack = session.animatesToStartingPositionsOnCancelOrFail
     }
 
     /// A drag that no target took (`operation` empty), of one entry, ending
     /// beyond the drag-out distance outside the window: a new window there.
     func dragEnded(_ ids: [UUID], at screenPoint: NSPoint, operation: NSDragOperation) {
+        #if DEBUG
+        NSLog("Room drag: ended at %@ operation %lu", NSStringFromPoint(screenPoint), operation.rawValue)
+        #endif
         guard operation.isEmpty, ids.count == 1, let id = ids.first, let frame = outline.window?.frame,
               DragOutRule.opensWindow(at: screenPoint, windowFrame: frame), let onOpenInNewWindow else { return }
         onOpenInNewWindow(id, screenPoint)

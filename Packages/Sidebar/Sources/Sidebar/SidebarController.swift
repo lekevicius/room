@@ -1231,6 +1231,11 @@ public final class SidebarBodyView: NSView {
         overflowBottom.isHidden = !below
     }
 
+    /// Which overflow lines show (spikes).
+    public var debugOverflow: (top: Bool, bottom: Bool) { (!overflowTop.isHidden, !overflowBottom.isHidden) }
+    /// Clicks the shown line (as a press and release on it would).
+    public func debugClickOverflow() { (overflowTop.isHidden ? overflowBottom : overflowTop).onClick?() }
+
     // MARK: Switching lists (spec §B, §I.1)
 
     /// Shows `incoming` in place of the active list: both slide horizontally
@@ -1485,6 +1490,21 @@ final class ListContainerView: NSView {
 extension SidebarController {
     /// Shows the hover state of an entry's row or tile as if the pointer were on it
     /// (`onIcon`: over the favicon / reset icon; `command`: ⌘ held).
+    /// The sublabel a row shows now (nil: none).
+    public func debugSublabel(_ id: UUID) -> String? {
+        guard let node = tree.displayedNode(for: id) else { return nil }
+        let row = outline.row(forItem: node)
+        guard row >= 0 else { return nil }
+        return (outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? EntryCellView)?.debugSublabel
+    }
+
+    /// Whether `id`'s row is inside the list's visible rect.
+    public func debugRowVisible(_ id: UUID) -> Bool {
+        guard let node = tree.displayedNode(for: id) else { return false }
+        let row = outline.row(forItem: node)
+        return row >= 0 && outline.visibleRect.intersects(outline.rect(ofRow: row))
+    }
+
     public func debugHover(_ id: UUID?, onIcon: Bool = false, command: Bool = false) {
         setHoveredForDebug(id.flatMap { tree.displayedNode(for: $0) })
         isCommandHeld = command

@@ -342,6 +342,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     // MARK: Buttons
 
     @objc private func resetClicked() { model.map { actions?.resetButtonClicked($0.entry.id) } }
+    /// Spikes (5.5b): the sublabel shown, if any.
+    var debugSublabel: String? { sublabel.isHidden ? nil : sublabel.stringValue }
     /// Spikes (B-109): whether the row's close button shows.
     var debugCloseButtonShown: Bool { !closeButton.isHidden }
 

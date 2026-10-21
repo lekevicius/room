@@ -133,13 +133,21 @@ final class CardDropView: NSView {
         }
     }
 
-    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { update(sender) }
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        #if DEBUG
+        NSLog("Room card drop: entered (%@)", sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "")
+        #endif
+        return update(sender)
+    }
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation { update(sender) }
     override func draggingExited(_ sender: (any NSDraggingInfo)?) { leavePage(sender) }
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool { true }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         let content = classify(sender)
+        #if DEBUG
+        NSLog("Room card drop: performed by %@", "\(owner(content))")
+        #endif
         switch owner(content) {
         case .page:
             guard let target else { return false }

@@ -32,8 +32,12 @@ extension SpikeRunner.Context {
             $0.searchEngine = "local"
         }
         SpikeRunner.record("haptics_at_start", Haptics.alignmentCount)
+        if runs("routing") { await dropRouting() }
         if runs("matrix") { await dropMatrix() }
         if runs("haptics") { await hoverTicks() }
+        if runs("overflow") { await overflowRecheck() }
+        if runs("sublabels") { await sublabelRecheck() }
+        if runs("pill") { await pillCaptures() }
         if runs("split") { await splitSnap() }
     }
 
@@ -278,6 +282,137 @@ extension SpikeRunner.Context {
         let added = newToday(since: before)
         SpikeRunner.record("drop_card_text_into_field", "\(value.contains("dropped words") && added.isEmpty ? "PASS" : "FAIL") ops=\(ops) accepted=\(accepted) "
                            + "by=\(drop.debugLastDrop ?? "nil") value=\(value) tabs added=\(added.count)")
+    }
+
+    // MARK: AppKit's routing
+
+    /// Which view AppKit makes the destination of a drag of `types` at a window point: its own lookup
+    /// (`-[NSView _hitTest:dragTypes:]`, the private method the drag machinery uses; it ignores `hitTest:`),
+    /// so the card's drop view is proved to sit in front of the engine's view without a real drag.
+    private func destination(at point: NSPoint, types: [NSPasteboard.PasteboardType]) -> String {
+        let selector = NSSelectorFromString("_hitTest:dragTypes:")
+        guard let content = window.contentView, let method = class_getInstanceMethod(NSView.self, selector) else { return "no lookup" }
+        typealias Lookup = @convention(c) (AnyObject, Selector, UnsafeMutablePointer<NSPoint>, NSSet) -> AnyObject?
+        let lookup = unsafeBitCast(method_getImplementation(method), to: Lookup.self)
+        var local = point  // the content view's superview (the frame view) has window coordinates
+        return lookup(content, selector, &local, NSSet(array: types.map(\.rawValue))).map { String(describing: Swift.type(of: $0)) } ?? "nil"
+    }
+
+    private func dropRouting() async {
+        guard let host = AppDelegate.current?.debugPageHost else { return }
+        guard let page = await open(URL(string: Self.dropSite + "site.html?drop=routing")!, timeout: 10) else { return }
+        _ = page
+        try? await Task.sleep(for: .milliseconds(400))
+        let split = host.splitView
+        let card = split.convert(NSPoint(x: split.bounds.midX, y: split.bounds.midY), to: nil)
+        let url = destination(at: card, types: [.URL])
+        let text = destination(at: card, types: [.string])
+        let custom = destination(at: card, types: [NSPasteboard.PasteboardType("org.chromium.web-custom-data")])
+        let entryHidden = destination(at: card, types: [SidebarDragTypes.entry, .URL])
+        split.dropOverlay.isHidden = false
+        let entryShown = destination(at: card, types: [SidebarDragTypes.entry, .URL])
+        split.dropOverlay.isHidden = true
+        let today = store.today(space: sidebar.activeSpaceID, window: sidebar.windowID)
+        let row = today.first.flatMap { sidebar.debugRowPoint($0.id, fraction: 0.5) }.map { destination(at: $0, types: [.URL]) } ?? "no row"
+        let pass = url == "CardDropView" && text == "CardDropView" && custom == "WebContentsViewCocoa" && entryShown == "SplitDropOverlayView"
+        SpikeRunner.record("drop_routing", "\(pass ? "PASS" : "FAIL") over the card: a URL → \(url), text → \(text), only Chromium's custom type → \(custom), "
+                           + "a sidebar entry with this window's drag overlay hidden → \(entryHidden), shown → \(entryShown); over a row: a URL → \(row)")
+    }
+
+    // MARK: Task 5's rechecks
+
+    /// The overflow indicator (spec §I.11): the selected row scrolled out shows the line at that edge; a click brings it back.
+    private func overflowRecheck() async {
+        let space = sidebar.activeSpaceID
+        var ids: [UUID] = []
+        for index in 0..<40 {
+            if let entry = try? store.addEntry(.today, url: Self.dropSite + "site.html?row=\(index)", title: "Row \(index)", space: space,
+                                               window: sidebar.windowID) { ids.append(entry.id) }
+        }
+        guard let selected = ids.first(where: { sidebar.debugRowPoint($0, fraction: 0.5) != nil }) else { return }
+        sidebar.select(selected)
+        try? await Task.sleep(for: .milliseconds(500))
+        let outline = sidebar.debugOutline
+        let top = sidebar.debugRowVisible(selected) ? "visible" : "hidden"
+        outline.scrollRowToVisible(outline.numberOfRows - 1)
+        try? await Task.sleep(for: .milliseconds(400))
+        let scrolled = sidebar.bodyView.debugOverflow
+        captureDrop("overflow-line-light")
+        sidebar.bodyView.debugClickOverflow()
+        try? await Task.sleep(for: .milliseconds(700))
+        let back = sidebar.bodyView.debugOverflow
+        let visible = sidebar.debugRowVisible(selected)
+        captureDrop("overflow-clicked-light")
+        // The selected row below the list: the bottom line.
+        if let last = ids.last { sidebar.select(last) }
+        try? await Task.sleep(for: .milliseconds(300))
+        outline.scrollRowToVisible(0)
+        try? await Task.sleep(for: .milliseconds(400))
+        let below = sidebar.bodyView.debugOverflow
+        let pass = scrolled.top && !scrolled.bottom && !back.top && !back.bottom && visible && below.bottom && !below.top
+        SpikeRunner.record("overflow", "\(pass ? "PASS" : "FAIL") selected row at start \(top); scrolled to the end: top=\(scrolled.top) bottom=\(scrolled.bottom); "
+                           + "after the click: top=\(back.top) bottom=\(back.bottom) row visible=\(visible); last row selected, list at the top: bottom=\(below.bottom) top=\(below.top)")
+        for id in ids { _ = try? store.remove(id) }
+    }
+
+    /// Hover sublabels (spec §I.3, §I.4) on a changed pinned entry: the live title; over the icon what a click does; ⌘ on the selected row only.
+    private func sublabelRecheck() async {
+        let space = sidebar.activeSpaceID
+        guard let pinned = try? store.addEntry(.pinned, url: Self.dropSite + "site.html", title: "Pinned Home", space: space) else { return }
+        sidebar.select(pinned.id)
+        guard let page = tabs.contents(for: pinned.id) else { return SpikeRunner.record("sublabels", "FAIL no page") }
+        await waitLoaded(page, timeout: 10)
+        _ = await js(page, "location.href = '\(Self.dropSite)site.html?moved=1'; 0")
+        try? await Task.sleep(for: .milliseconds(1200))
+        await waitLoaded(page, timeout: 10)
+        var lines: [String] = []
+        sidebar.debugHover(pinned.id)
+        try? await Task.sleep(for: .milliseconds(250))
+        let title = sidebar.debugSublabel(pinned.id)
+        lines.append("row=\(title ?? "nil")")
+        captureDrop("sublabel-title-light")
+        sidebar.debugHover(pinned.id, onIcon: true)
+        try? await Task.sleep(for: .milliseconds(250))
+        let icon = sidebar.debugSublabel(pinned.id)
+        lines.append("icon=\(icon ?? "nil")")
+        captureDrop("sublabel-reset-light")
+        sidebar.debugHover(pinned.id, onIcon: true, command: true)
+        try? await Task.sleep(for: .milliseconds(250))
+        let command = sidebar.debugSublabel(pinned.id)
+        lines.append("icon+⌘ selected=\(command ?? "nil")")
+        captureDrop("sublabel-separate-light")
+        // Another row selected: ⌘ over the changed row's icon still resets.
+        if let other = try? store.addEntry(.today, url: Self.dropOther + "site.html?other", title: "Other", space: space, window: sidebar.windowID) {
+            sidebar.select(other.id)
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        sidebar.debugHover(pinned.id, onIcon: true, command: true)
+        try? await Task.sleep(for: .milliseconds(250))
+        let unselected = sidebar.debugSublabel(pinned.id)
+        lines.append("icon+⌘ not selected=\(unselected ?? "nil")")
+        sidebar.debugHover(nil)
+        try? await Task.sleep(for: .milliseconds(250))
+        let gone = sidebar.debugSublabel(pinned.id)
+        lines.append("no hover=\(gone ?? "nil")")
+        let pass = title != nil && icon == "Back to pinned URL" && command == "Separate from pinned tab" && unselected == "Back to pinned URL" && gone == nil
+        SpikeRunner.record("sublabels", "\(pass ? "PASS" : "FAIL") " + lines.joined(separator: "; "))
+    }
+
+    /// The status pill (spec §I.14) bottom-left, then dodged to the right with the pointer near it (the
+    /// pointer path itself: `chromesurfaces2 -RoomSpikeOnly status`'s `status_pill_dodge`).
+    private func pillCaptures() async {
+        guard let pill = AppDelegate.current?.statusPill, await open(URL(string: Self.dropSite + "site.html?pill")!, timeout: 10) != nil else { return }
+        try? await Task.sleep(for: .milliseconds(400))
+        pill.setStatus(Self.dropSite + "an/article/on/this/site.html?with=a&query=that&is=long")
+        _ = await waitUntil(2) { pill.state.isVisible }
+        let leading = pill.pillView.map { NSStringFromRect($0.frame) } ?? "nil"
+        captureDrop("status-pill-light")
+        pill.state.pointerMoved(nearLeading: true, nearTrailing: false)
+        try? await Task.sleep(for: .milliseconds(300))
+        let trailing = pill.pillView.map { NSStringFromRect($0.frame) } ?? "nil"
+        captureDrop("status-pill-dodged-light")
+        SpikeRunner.record("status_pill_captures", "\(pill.state.side == .trailing ? "PASS" : "FAIL") leading \(leading) → \(trailing)")
+        pill.setStatus(nil)
     }
 
     // MARK: Haptics (task 6)
