@@ -43,7 +43,7 @@ public final class NavigationButtonsView: NSView {
         forward.isEnabled = canGoForward
         reload.isEnabled = hasPage
         let symbol: Symbol = isLoading ? .stop : .reload
-        reload.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: isLoading ? "Stop" : "Reload")
+        reload.image = symbol.image(.control, accessibilityDescription: isLoading ? "Stop" : "Reload")
         reload.toolTip = isLoading ? "Stop (⌘.)" : "Reload (⌘R)"
     }
 
@@ -63,7 +63,7 @@ public final class NavigationButtonsView: NSView {
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
         let button = HoverButton()
         button.contentTintColor = .labelColor
-        button.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: tip)
+        button.image = symbol.image(.control, accessibilityDescription: tip)
         button.toolTip = tip
         return button
     }

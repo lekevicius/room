@@ -315,7 +315,7 @@ final class SelectionPillView: NSView {
         layer.cornerCurve = .continuous
         layer.backgroundColor = Palette.sidebarSelection.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
-        layer.shadowOpacity = effectiveAppearance.isDark ? 0 : SidebarMetrics.pillShadowOpacity
+        layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark)
         layer.shadowRadius = SidebarMetrics.pillShadowRadius
         layer.shadowOffset = SidebarMetrics.pillShadowOffset
     }

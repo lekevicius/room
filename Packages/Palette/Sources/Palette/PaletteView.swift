@@ -45,7 +45,7 @@ final class PalettePanelView: NSView {
     private let glass = NSGlassEffectView()
     private let content = FlippedView()
     private let searchIcon = NSImageView()
-    private let separator = NSBox()
+    private let separator = HairlineView()
     /// The site-search chip ("YouTube") left of the field (spec §C).
     private let chip = NSView()
     private let chipLabel = NSTextField(labelWithString: "")
@@ -56,9 +56,8 @@ final class PalettePanelView: NSView {
         glass.cornerRadius = Radius.large
         glass.frame = bounds
         glass.autoresizingMask = [.width, .height]
-        searchIcon.image = Symbol.search.image(pointSize: 15, accessibilityDescription: nil)
+        searchIcon.image = Symbol.search.image(.paletteField, accessibilityDescription: nil)
         searchIcon.contentTintColor = .secondaryLabelColor
-        separator.boxType = .separator
         chip.wantsLayer = true
         chip.layer?.cornerRadius = PaletteMetrics.chipHeight / 2
         chip.isHidden = true
@@ -132,7 +131,7 @@ final class PalettePanelView: NSView {
         field.frame = NSRect(x: x, y: ((PaletteMetrics.fieldHeight - fieldHeight) / 2).rounded(), width: max(0, width - x - inset),
                              height: fieldHeight)
         separator.isHidden = visibleRowCount == 0
-        separator.frame = NSRect(x: 0, y: PaletteMetrics.fieldHeight, width: width, height: 1)
+        separator.frame = NSRect(x: 0, y: PaletteMetrics.fieldHeight, width: width, height: separator.thickness)
         // The list keeps its full size; without rows the content view clips it away.
         let top = PaletteMetrics.fieldHeight + 1
         // Always the height of every slot (the content view clips it), so its size changes only with the width.

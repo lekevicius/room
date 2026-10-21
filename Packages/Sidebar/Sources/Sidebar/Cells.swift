@@ -35,8 +35,8 @@ private func makeLabel(font: NSFont, color: NSColor) -> NSTextField {
 }
 
 @MainActor
-private func makeIconButton(_ symbol: Symbol, size: CGFloat, label: String) -> NSButton {
-    let button = NSButton(image: symbol.image(pointSize: size, weight: .medium, accessibilityDescription: label) ?? NSImage(),
+private func makeIconButton(_ symbol: Symbol, style: IconStyle, label: String) -> NSButton {
+    let button = NSButton(image: symbol.image(style, accessibilityDescription: label) ?? NSImage(),
                           target: nil, action: nil)
     button.isBordered = false
     button.bezelStyle = .accessoryBarAction
@@ -84,12 +84,12 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let folderIcon = NSImageView()
     let titleField = makeLabel(font: Typography.sidebarRow, color: .labelColor)
     private let sublabel = makeLabel(font: Typography.secondary, color: .secondaryLabelColor)
-    private let resetButton = makeIconButton(.resetPinned, size: 11, label: "Back to pinned URL")
+    private let resetButton = makeIconButton(.resetPinned, style: .rowAction, label: "Back to pinned URL")
     private let closeButton: NSButton = {
         let button = HoverButton()
         button.layer?.cornerRadius = SidebarMetrics.rowButtonCornerRadius
         button.contentTintColor = .labelColor
-        button.image = Symbol.closeTab.image(pointSize: SidebarMetrics.rowButtonSymbolSize, weight: .medium, accessibilityDescription: "Close Tab")
+        button.image = Symbol.closeTab.image(.rowButton, accessibilityDescription: "Close Tab")
         button.setAccessibilityLabel("Close Tab")
         button.toolTip = "Close Tab"
         return button
@@ -118,7 +118,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         // A long title fades out over its last points (`updateTrailingFade`).
         titleField.lineBreakMode = .byClipping
         titleField.cell?.truncatesLastVisibleLine = false
-        folderIcon.imageScaling = .scaleProportionallyDown
+        folderIcon.imageScaling = .scaleNone
         folderIcon.contentTintColor = .secondaryLabelColor
         sublabel.isHidden = true
         resetButton.isHidden = true
@@ -137,7 +137,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         captureIndicator.setAccessibilityIdentifier("row-capture")
         readerIndicator.isHidden = true
         readerIndicator.contentTintColor = .secondaryLabelColor
-        readerIndicator.image = Symbol.readerMode.image(pointSize: 11, weight: .medium, accessibilityDescription: "Reader mode")
+        readerIndicator.image = Symbol.readerMode.image(.rowAction, accessibilityDescription: "Reader mode")
         readerIndicator.toolTip = "Reader mode (⌥⇧⌘R or Esc to exit)"
         readerIndicator.setAccessibilityIdentifier("row-reader")
         for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator, readerIndicator] as [NSView] {
@@ -159,7 +159,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         folderIcon.isHidden = !isFolder
         if isFolder {
             let open = !entry.isCollapsed
-            folderIcon.image = (open ? Symbol.folderOpen : Symbol.folder).image(pointSize: 13)
+            folderIcon.image = (open ? Symbol.folderOpen : Symbol.folder).image(.folder)
         } else {
             favicon.image = model.page.favicon
             favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
@@ -183,7 +183,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         if audible {
             let symbol: Symbol = model.page.isMuted ? .muted : .audible
             let label = model.page.isMuted ? "Unmute Tab" : "Mute Tab"
-            audioButton.image = symbol.image(pointSize: SidebarMetrics.rowButtonSymbolSize, weight: .medium, accessibilityDescription: label)
+            audioButton.image = symbol.image(.rowButton, accessibilityDescription: label)
             audioButton.toolTip = label
             audioButton.setAccessibilityLabel(label)
             audioButton.removeAllSymbolEffects()
@@ -198,7 +198,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             case .camera: (.camera, "Using your camera")
             case .microphone: (.microphone, "Using your microphone")
             }
-            captureIndicator.image = symbol.image(pointSize: 11, weight: .medium, accessibilityDescription: label)
+            captureIndicator.image = symbol.image(.rowAction, accessibilityDescription: label)
             captureIndicator.toolTip = label
             captureIndicator.setAccessibilityLabel(label)
         }
@@ -275,7 +275,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         super.layout()
         let icon = iconRect
         favicon.frame = icon
-        folderIcon.frame = icon
+        // The folder glyph is wider than a favicon (B-115), centred where the favicon's centre is.
+        let glyph = SidebarMetrics.folderGlyphSize
+        folderIcon.frame = NSRect(x: (icon.midX - glyph.width / 2).rounded(), y: (icon.midY - glyph.height / 2).rounded(),
+                                  width: glyph.width, height: glyph.height)
         resetButton.frame = icon.insetBy(dx: -2, dy: -2)
         // Buttons and indicators line up from the pill's trailing edge; the
         // title ends `Spacing.s` before the pill's edge, or `Spacing.xs` before the first of them.
@@ -445,8 +448,8 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     private let iconField = makeLabel(font: Typography.spaceTitle, color: .secondaryLabelColor)
     private let iconImage = NSImageView()
     private let nameField = makeLabel(font: Typography.spaceTitle, color: .labelColor)
-    let chevron = makeIconButton(.disclosure, size: 9, label: "Collapse Pinned")
-    let moreButton = makeIconButton(.more, size: 11, label: "Space Menu")
+    let chevron = makeIconButton(.disclosure, style: .rowChevron, label: "Collapse Pinned")
+    let moreButton = makeIconButton(.more, style: .rowAction, label: "Space Menu")
     var onToggle: (() -> Void)?
     /// "…" was clicked: the space menu, below the button.
     var onMore: ((NSButton) -> Void)?
@@ -492,7 +495,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
         case .symbol(let name):
             iconField.stringValue = ""
             iconImage.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold))
+                .withSymbolConfiguration(IconStyle.spaceTitle.configuration)
         case .none:
             iconField.stringValue = ""
             iconImage.image = nil
@@ -524,7 +527,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     private func updateChevron() {
         chevron.isHidden = isNote || !(isHovered || isCollapsed)
         moreButton.isHidden = isNote || !isHovered || isRenaming
-        chevron.image = (isCollapsed ? Symbol.forward : Symbol.disclosure).image(pointSize: 9, weight: .medium,
+        chevron.image = (isCollapsed ? Symbol.forward : Symbol.disclosure).image(.rowChevron,
                                                                                  accessibilityDescription: chevron.accessibilityLabel())
     }
 
@@ -609,13 +612,12 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
 final class SeparatorCellView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("separator")
 
-    private let line = NSBox()
+    private let line = HairlineView()
     let clearButton = NSButton(title: "Clear", target: nil, action: nil)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
-        line.boxType = .separator
         clearButton.isBordered = false
         clearButton.font = Typography.secondary
         clearButton.contentTintColor = .secondaryLabelColor
@@ -642,7 +644,7 @@ final class SeparatorCellView: NSTableCellView {
         let trailing = bounds.width - inset
         clearButton.frame = NSRect(x: trailing - buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
         let lineEnd = clearButton.isHidden ? trailing : trailing - buttonWidth - Spacing.s
-        line.frame = NSRect(x: inset, y: (bounds.height / 2).rounded(), width: max(0, lineEnd - inset), height: 1)
+        line.frame = NSRect(x: inset, y: (bounds.height / 2).rounded(), width: max(0, lineEnd - inset), height: line.thickness)
     }
 }
 
@@ -656,7 +658,7 @@ final class NewTabCellView: NSTableCellView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
-        icon.image = Symbol.newTab.image(pointSize: 12)
+        icon.image = Symbol.newTab.image(.rowGlyph)
         icon.contentTintColor = .secondaryLabelColor
         label.stringValue = "New Tab"
         setAccessibilityLabel("New Tab")

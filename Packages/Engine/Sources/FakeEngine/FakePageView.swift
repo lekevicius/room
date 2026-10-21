@@ -11,7 +11,7 @@ final class FakePageView: NSScrollView {
         super.init(frame: .zero)
         textView.isEditable = false
         textView.isSelectable = true
-        textView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        textView.font = .monospacedSystemFont(ofSize: 13, weight: .regular) // design-audit: FakeEngine's stand-in page for tests and the engine-free app, not the chrome
         textView.textContainerInset = NSSize(width: 16, height: 16)
         documentView = textView
         hasVerticalScroller = true

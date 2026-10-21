@@ -21,6 +21,10 @@ public enum Palette {
     public static var accent: NSColor { .controlAccentColor }
     /// Rows in the ⌘/⇧-click multi-selection and the drop-onto target (§A.9, §A.6).
     public static var sidebarMultiSelection: NSColor { NSColor.controlAccentColor.withAlphaComponent(0.18) }
+    /// Behind a dragged row's image in dark appearance (light: white) (chosen, 2.2b; a token since 5.2a).
+    public static let dragImageFillDark = NSColor(white: 0.2, alpha: 1)
+    /// A new theme colour well when the algorithm offers no hue (chosen, 2.5: a calm blue).
+    public static let themeWellDefaultHex = "#5B8DEF"
 
     // MARK: Incognito (4.8b)
 

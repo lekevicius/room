@@ -187,7 +187,7 @@ struct ToastView: View {
         HStack(spacing: Spacing.s) {
             if let symbol = content.symbol {
                 Image(systemName: symbol.name)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Font(Typography.toast as CTFont))
                     .foregroundStyle(.secondary)
             }
             Text(content.message)

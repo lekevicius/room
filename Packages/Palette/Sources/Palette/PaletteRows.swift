@@ -147,7 +147,7 @@ final class PaletteRowView: NSView {
     private var hintSize = NSSize.zero
 
     /// Symbol icons: 13 pt, secondary label colour (2.4b look).
-    private static let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+    private static let symbolConfiguration = IconStyle.paletteRow.configuration
     /// Looking a symbol up in the catalogue on every row update showed in the profile (2.6a).
     private static var symbolImages: [String: NSImage] = [:]
     /// One line of `Typography.row` (labels are never measured per row).
@@ -374,7 +374,7 @@ private final class PaletteDeleteButton: NSButton {
         bezelStyle = .shadowlessSquare
         imagePosition = .imageOnly
         image = NSImage(systemSymbolName: Symbol.closeTab.name, accessibilityDescription: "Remove from History")?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold))
+            .withSymbolConfiguration(IconStyle.paletteDelete.configuration)
         contentTintColor = .secondaryLabelColor
         setAccessibilityLabel("Remove from History")
     }

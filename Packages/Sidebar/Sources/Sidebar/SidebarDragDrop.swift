@@ -546,7 +546,7 @@ enum DragImage {
                 shadow.shadowColor = NSColor.black.withAlphaComponent(SidebarMetrics.dragShadowOpacity)
                 shadow.set()
                 // An opaque base so the translucent pill colour still reads off the sidebar.
-                (appearance.isDark ? NSColor(white: 0.2, alpha: 1) : NSColor.white).setFill()
+                (appearance.isDark ? Palette.dragImageFillDark : NSColor.white).setFill()
                 shape.fill()
                 NSGraphicsContext.restoreGraphicsState()
                 Palette.sidebarSelection.setFill()
@@ -565,7 +565,7 @@ enum DragImage {
 
     private static func drawIcon(_ entry: Entry, page: EntryPageState, in rect: NSRect) {
         if entry.kind == .folder {
-            let symbol = (entry.isCollapsed ? Symbol.folder : Symbol.folderOpen).image(pointSize: 13)
+            let symbol = (entry.isCollapsed ? Symbol.folder : Symbol.folderOpen).image(.folder)
             symbol?.withSymbolConfiguration(.init(hierarchicalColor: .secondaryLabelColor))?
                 .draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         } else if let favicon = page.favicon {

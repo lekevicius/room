@@ -129,7 +129,7 @@ final class SplitGroupCellView: NSTableCellView {
             }
             if index < dividers.count {
                 dividers[index].isHidden = index == frames.count - 1
-                dividers[index].frame = NSRect(x: frame.maxX, y: frame.minY + 4, width: SplitMetrics.dividerWidth, height: frame.height - 8)
+                dividers[index].frame = NSRect(x: frame.maxX, y: frame.minY + 4, width: Hairline.width(in: self), height: frame.height - 8)
             }
         }
         for index in frames.count..<dividers.count { dividers[index].isHidden = true }

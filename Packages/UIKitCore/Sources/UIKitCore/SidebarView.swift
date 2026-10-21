@@ -106,7 +106,7 @@ public final class SidebarView: NSView {
         badgeField.isHidden = true
         badgeField.setAccessibilityIdentifier("sidebar-badge")
         contentView.addSubview(badgeField)
-        toggleButton.image = Symbol.toggleSidebar.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Toggle Sidebar")
+        toggleButton.image = Symbol.toggleSidebar.image(.control, accessibilityDescription: "Toggle Sidebar")
         toggleButton.contentTintColor = .labelColor
         toggleButton.toolTip = "Toggle Sidebar (⌘S)"
         toggleButton.target = self

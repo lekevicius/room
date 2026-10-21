@@ -84,7 +84,7 @@ final class EssentialsGridView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        fullBadge.font = .systemFont(ofSize: 10, weight: .semibold)
+        fullBadge.font = Typography.badgeLarge
         fullBadge.textColor = .white
         fullBadge.alignment = .center
         fullBadge.wantsLayer = true
@@ -313,7 +313,7 @@ final class EssentialTileView: NSView {
         layer?.addSublayer(multiSelectionLayer)
         setAccessibilityRole(.button)
         setAccessibilityIdentifier("essential")
-        resetButton.image = Symbol.resetPinned.image(pointSize: 13, weight: .medium, accessibilityDescription: "Back to pinned URL")
+        resetButton.image = Symbol.resetPinned.image(.tileReset, accessibilityDescription: "Back to pinned URL")
         resetButton.isBordered = false
         resetButton.imagePosition = .imageOnly
         resetButton.contentTintColor = .labelColor
@@ -352,7 +352,7 @@ final class EssentialTileView: NSView {
         favicon.isLoading = page.isLoading
         let audible = page.isAudible || page.isMuted
         audio.isHidden = !audible
-        audio.image = (page.isMuted ? Symbol.muted : Symbol.audible).image(pointSize: 8, weight: .semibold)
+        audio.image = (page.isMuted ? Symbol.muted : Symbol.audible).image(.tileBadge)
         toolTip = EntryLabel.title(entry)
         setAccessibilityLabel(EntryLabel.title(entry))
         update()
@@ -380,7 +380,7 @@ final class EssentialTileView: NSView {
             : hovering ? Palette.sidebarSelection.withAlphaComponent(SidebarMetrics.essentialHoverAlpha) : Palette.sidebarHover
         layer.backgroundColor = fill.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
-        layer.shadowOpacity = isSelected && !effectiveAppearance.isDark ? SidebarMetrics.pillShadowOpacity : 0
+        layer.shadowOpacity = isSelected ? SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark) : 0
         layer.shadowRadius = SidebarMetrics.essentialShadowRadius
         layer.shadowOffset = SidebarMetrics.pillShadowOffset
         multiSelectionLayer.frame = layer.bounds

@@ -68,7 +68,7 @@ final class LibraryHeaderCell: NSTableCellView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        chevron.image = Symbol.disclosure.image(pointSize: 11, weight: .semibold)
+        chevron.image = Symbol.disclosure.image(.disclosure)
         chevron.contentTintColor = .secondaryLabelColor
         title.font = Typography.spaceTitle
         count.font = Typography.secondary
@@ -88,8 +88,8 @@ final class LibraryHeaderCell: NSTableCellView {
         // Right when collapsed, down when open (no rotation: the cell's geometry is not a layer's).
         chevron.image = collapsed
             ? NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Expand")?
-                .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
-            : Symbol.disclosure.image(pointSize: 11, weight: .semibold)
+                .withSymbolConfiguration(IconStyle.disclosure.configuration)
+            : Symbol.disclosure.image(.disclosure)
         if let action {
             button.title = action.0
             button.handler = action.1

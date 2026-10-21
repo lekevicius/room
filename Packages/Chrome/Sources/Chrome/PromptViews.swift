@@ -180,7 +180,7 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
             widthAnchor.constraint(equalToConstant: PromptMetrics.dialogWidth),
         ])
 
-        let title = label(PromptText.dialogTitle(dialog), font: .systemFont(ofSize: 13, weight: .semibold))
+        let title = label(PromptText.dialogTitle(dialog), font: Typography.headline)
         stack.addArrangedSubview(title)
         setAccessibilityElement(true)
         setAccessibilityRole(.sheet)
@@ -399,17 +399,17 @@ final class CertificateInterstitialView: NSView {
             column.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 24),
         ])
 
-        let icon = NSImageView(image: Symbol.siteInsecure.image(pointSize: PromptMetrics.interstitialIconSize, weight: .regular) ?? NSImage())
+        let icon = NSImageView(image: Symbol.siteInsecure.image(.interstitial) ?? NSImage())
         icon.contentTintColor = .systemRed
         column.addArrangedSubview(icon)
         let title = NSTextField(labelWithString: PromptText.dialogTitle(.certificate(error)))
-        title.font = .systemFont(ofSize: 24, weight: .semibold)
+        title.font = Typography.interstitialTitle
         column.addArrangedSubview(title)
         column.addArrangedSubview(paragraph(
             "The certificate of \(host) \(PromptText.certificateProblem(error)). Someone could be pretending to be the site "
                 + "to read what you send it, such as passwords, messages or card numbers."))
         let code = NSTextField(labelWithString: error.description)
-        code.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        code.font = Typography.code
         code.textColor = .secondaryLabelColor
         code.isSelectable = true
         column.addArrangedSubview(code)
@@ -464,7 +464,7 @@ final class CertificateInterstitialView: NSView {
 
     private func paragraph(_ text: String) -> NSTextField {
         let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 14)
+        label.font = Typography.interstitialText
         label.textColor = .secondaryLabelColor
         label.preferredMaxLayoutWidth = PromptMetrics.interstitialWidth
         label.widthAnchor.constraint(equalToConstant: PromptMetrics.interstitialWidth).isActive = true
@@ -517,7 +517,7 @@ final class PermissionPromptViewController: NSViewController {
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         let host = PromptText.displayHost(pending.requests.first?.origin) ?? pending.requests.first?.origin.absoluteString ?? "This page"
         let title = NSTextField(wrappingLabelWithString: "“\(host)” wants to")
-        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        title.font = Typography.headline
         stack.addArrangedSubview(title)
         var seen: Set<String> = []
         for request in pending.requests {
@@ -538,7 +538,7 @@ final class PermissionPromptViewController: NSViewController {
         // The site's Allow gives nothing while macOS blocks Room itself (3.4a).
         if pending.requests.contains(where: { $0.systemAuthorization == .denied }) {
             let note = NSTextField(wrappingLabelWithString: "macOS doesn’t allow Room to do this. Turn it on in System Settings › Privacy & Security.")
-            note.font = .systemFont(ofSize: 11)
+            note.font = Typography.secondary
             note.textColor = .secondaryLabelColor
             note.setAccessibilityIdentifier("permission-system-denied")
             stack.addArrangedSubview(note)

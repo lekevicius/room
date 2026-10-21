@@ -190,7 +190,7 @@ final class FindBarView: NSView, NSTextFieldDelegate {
         glass.cornerRadius = Radius.large
         glass.contentView = content
         addSubview(glass)
-        let icon = NSImageView(image: Symbol.search.image(pointSize: 12) ?? NSImage())
+        let icon = NSImageView(image: Symbol.search.image(.controlSmall) ?? NSImage())
         icon.contentTintColor = .secondaryLabelColor
         icon.identifier = NSUserInterfaceItemIdentifier("icon")
         content.addSubview(icon)
@@ -204,7 +204,7 @@ final class FindBarView: NSView, NSTextFieldDelegate {
         field.cell?.wraps = false
         field.setAccessibilityIdentifier("find-field")
         content.addSubview(field)
-        countLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        countLabel.font = Typography.counter
         countLabel.textColor = .secondaryLabelColor
         countLabel.alignment = .right
         countLabel.setAccessibilityIdentifier("find-count")
@@ -212,7 +212,7 @@ final class FindBarView: NSView, NSTextFieldDelegate {
         for (button, symbol, label, action) in [(previous, Symbol.findPrevious, "Previous (⇧⌘G)", #selector(previousClicked)),
                                                 (next, Symbol.findNext, "Next (⌘G)", #selector(nextClicked)),
                                                 (closeButton, Symbol.closeTab, "Done (Esc)", #selector(closeClicked))] {
-            button.image = symbol.image(pointSize: 11, weight: .semibold, accessibilityDescription: label)
+            button.image = symbol.image(.findButton, accessibilityDescription: label)
             button.toolTip = label
             button.target = self
             button.action = action

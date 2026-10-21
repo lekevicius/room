@@ -244,8 +244,7 @@ final class StatusPillView: NSView {
         background.wantsLayer = true
         background.layer?.cornerRadius = Radius.small
         background.layer?.cornerCurve = .continuous
-        background.layer?.borderWidth = 0.5
-        background.layer?.borderColor = NSColor.separatorColor.cgColor
+                background.layer?.borderColor = NSColor.separatorColor.cgColor
         addSubview(background)
         label.font = Typography.secondary
         label.textColor = .secondaryLabelColor
@@ -262,6 +261,7 @@ final class StatusPillView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func layout() {
+        background.layer?.borderWidth = Hairline.width(in: self)
         super.layout()
         background.frame = bounds
         let height = ceil(label.cell?.cellSize.height ?? 14)

@@ -229,11 +229,92 @@ public enum Symbol: CaseIterable, Sendable {
         }
     }
 
-    /// A template image for this symbol (vibrancy tints template images).
-    public func image(pointSize: CGFloat = 13, weight: NSFont.Weight = .regular, accessibilityDescription: String? = nil) -> NSImage? {
+    /// A template image for this symbol in `style` (vibrancy tints template images).
+    public func image(_ style: IconStyle = .menu, accessibilityDescription: String? = nil) -> NSImage? {
         let base = NSImage(systemSymbolName: name, accessibilityDescription: accessibilityDescription)
-        let image = base?.withSymbolConfiguration(.init(pointSize: pointSize, weight: weight))
+        let image = base?.withSymbolConfiguration(style.configuration)
         image?.isTemplate = true
         return image
     }
+}
+
+/// The icon-weights table (5.2a): every SF Symbol the chrome draws takes its
+/// point size and weight from one of these roles (`Symbol.image(_:)`, or
+/// `configuration` for a symbol a person picked, a space's icon), so one line
+/// changes a role everywhere. `docs/design-tokens.md` "Icon weights" lists them.
+public enum IconStyle: String, CaseIterable, Sendable {
+    /// Menu items and list icons (AppKit's own menu glyph size).
+    case menu
+    /// The one control metric's glyph (B-110): the top bar's buttons, the
+    /// site button, the extensions' overflow, the footer's downloads and New
+    /// Tab, Peek's header (the Room Browser design: SF Pro 13).
+    case control
+    /// Smaller controls inside a field or panel: Copy URL, the zoom buttons,
+    /// the find bar's search glyph, an extension action without an icon.
+    case controlSmall
+    /// A split pane's header (24 pt) buttons and grip.
+    case paneControl
+    /// The find bar's previous, next and done.
+    case findButton
+    /// The Library's section chevrons.
+    case disclosure
+    /// A row's × and audio buttons (24 pt hover squares).
+    case rowButton
+    /// A row's reset button, the space title's "…", the reader and capture indicators.
+    case rowAction
+    /// The space title's and a folder's collapse chevron.
+    case rowChevron
+    /// The New Tab row's "+".
+    case rowGlyph
+    /// A folder row's glyph (B-115: Finder's and Notes' sidebar folder: larger than a favicon, regular weight).
+    case folder
+    /// A space's SF Symbol beside its title.
+    case spaceTitle
+    /// A space's SF Symbol in the footer.
+    case spaceIcon
+    /// The dot of a space without an icon.
+    case spaceDot
+    /// An Essentials tile's reset glyph.
+    case tileReset
+    /// An Essentials tile's audio badge.
+    case tileBadge
+    /// The media row's buttons and its placeholder glyph.
+    case media
+    /// The downloads button's arrow inside the progress ring.
+    case downloadProgress
+    /// The palette field's search glyph.
+    case paletteField
+    /// A palette row's symbol (commands, the URL row).
+    case paletteRow
+    /// A palette row's ×.
+    case paletteDelete
+    /// The certificate interstitial's and the crashed page's symbol.
+    case interstitial
+
+    public var pointSize: CGFloat {
+        switch self {
+        case .menu, .control, .tileReset, .paletteRow: 13
+        case .controlSmall, .rowGlyph, .spaceTitle, .spaceIcon: 12
+        case .paneControl, .findButton, .disclosure, .rowAction, .media, .downloadProgress: 11
+        case .rowButton, .paletteDelete: 10
+        case .rowChevron: 9
+        case .folder: 15
+        case .tileBadge: 8
+        case .spaceDot: SpaceIconMetrics.dotSize
+        case .paletteField: 15
+        case .interstitial: PromptMetrics.interstitialIconSize
+        }
+    }
+
+    public var weight: NSFont.Weight {
+        switch self {
+        case .menu, .control, .controlSmall, .paneControl, .rowGlyph, .folder, .spaceDot, .media, .downloadProgress,
+             .paletteField, .paletteRow, .interstitial: .regular
+        case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset: .medium
+        case .findButton, .disclosure, .spaceTitle, .tileBadge, .paletteDelete: .semibold
+        }
+    }
+
+    /// The symbol configuration for this role.
+    public var configuration: NSImage.SymbolConfiguration { NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight) }
 }

@@ -59,7 +59,7 @@ final class SpaceFormModel {
     func addWell() {
         guard wells.count < ThemePalette.maxColors else { return }
         let derived = ThemePalette.colors(themeColors, algorithm: algorithm == .floating ? .triadic : algorithm)
-        let next = derived.indices.contains(wells.count) ? derived[wells.count] : "#5B8DEF"
+        let next = derived.indices.contains(wells.count) ? derived[wells.count] : Palette.themeWellDefaultHex
         wells.append(Self.color(hex: next) ?? .blue)
     }
 
@@ -163,7 +163,7 @@ struct SpaceFormView: View {
         Button(action: action) {
             label()
                 .frame(width: SpaceFormMetrics.iconCell, height: SpaceFormMetrics.iconCell)
-                .background(selected ? Color.accentColor.opacity(0.25) : .clear, in: .rect(cornerRadius: 6))
+                .background(selected ? Color.accentColor.opacity(SpaceFormMetrics.selectionAlpha) : .clear, in: .rect(cornerRadius: SpaceFormMetrics.cornerRadius))
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -206,10 +206,10 @@ struct SpaceFormView: View {
             .labelsHidden()
             .accessibilityIdentifier("space-form-algorithm")
             // What the window tint will show.
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: SpaceFormMetrics.cornerRadius)
                 .fill(model.paletteColors.isEmpty
-                      ? AnyShapeStyle(Color.secondary.opacity(0.12))
-                      : AnyShapeStyle(LinearGradient(colors: model.paletteColors.count == 1 ? [model.paletteColors[0], model.paletteColors[0].opacity(0.4)]
+                      ? AnyShapeStyle(Color.secondary.opacity(SpaceFormMetrics.emptyPreviewAlpha))
+                      : AnyShapeStyle(LinearGradient(colors: model.paletteColors.count == 1 ? [model.paletteColors[0], model.paletteColors[0].opacity(SpaceFormMetrics.previewFadeAlpha)]
                                                      : model.paletteColors, startPoint: .leading, endPoint: .trailing)))
                 .frame(height: SpaceFormMetrics.previewHeight)
                 .accessibilityLabel("Theme preview")
@@ -256,11 +256,6 @@ struct SpaceFormView: View {
 }
 
 /// Space form geometry (chosen; `docs/design-tokens.md`).
-enum SpaceFormMetrics {
-    static let padding: CGFloat = 12
-    static let iconCell: CGFloat = 26
-    static let previewHeight: CGFloat = 18
-}
 
 /// The form's hosting view: a list in the sidebar's list container.
 final class SpaceFormHostingView: NSHostingView<SpaceFormView> {

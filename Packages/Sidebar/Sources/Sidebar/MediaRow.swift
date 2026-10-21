@@ -66,7 +66,7 @@ final class MediaRowView: NSView {
             (nextButton, Symbol.nextTrack, "Next Track", #selector(nextClicked)),
             (closeButton, Symbol.closeTab, "Hide", #selector(closeClicked)),
         ] {
-            button.image = symbol.image(pointSize: MediaRowMetrics.symbolPointSize, accessibilityDescription: label)
+            button.image = symbol.image(.media, accessibilityDescription: label)
             button.isBordered = false
             button.imagePosition = .imageOnly
             button.contentTintColor = .secondaryLabelColor
@@ -94,9 +94,9 @@ final class MediaRowView: NSView {
         titleLabel.stringValue = content.title
         subtitleLabel.stringValue = content.subtitle
         subtitleLabel.isHidden = content.subtitle.isEmpty
-        imageView.image = content.image ?? Symbol.audible.image(pointSize: MediaRowMetrics.symbolPointSize, accessibilityDescription: nil)
+        imageView.image = content.image ?? Symbol.audible.image(.media, accessibilityDescription: nil)
         let (symbol, label) = content.isPlaying ? (Symbol.pause, "Pause") : (Symbol.play, "Play")
-        playButton.image = symbol.image(pointSize: MediaRowMetrics.symbolPointSize, accessibilityDescription: label)
+        playButton.image = symbol.image(.media, accessibilityDescription: label)
         playButton.toolTip = label
         nextButton.isEnabled = content.canGoNext
         toolTip = content.subtitle.isEmpty ? content.title : "\(content.title) — \(content.subtitle)"

@@ -253,7 +253,8 @@ final class PeekHeaderView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.separatorColor.setFill()
-        NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
+        let line = Hairline.width(in: self)
+        NSRect(x: 0, y: bounds.height - line, width: bounds.width, height: line).fill()
     }
 
     override func layout() {
@@ -274,7 +275,7 @@ final class PeekHeaderView: NSView {
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
         let button = HoverButton()
-        button.image = symbol.image(pointSize: 13, accessibilityDescription: tip)
+        button.image = symbol.image(.control, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
         button.toolTip = tip
         return button

@@ -132,13 +132,13 @@ final class ZoomIndicatorView: NSView {
         content.edgeInsets = NSEdgeInsets(top: 0, left: Spacing.s, bottom: 0, right: Spacing.s)
         glass.contentView = content
         addSubview(glass)
-        label.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        label.font = Typography.zoomValue
         label.alignment = .center
         label.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         label.setAccessibilityIdentifier("zoom-level")
         for (button, symbol, help, action) in [(minus, Symbol.zoomOut, "Zoom Out (⌘-)", #selector(minusClicked)),
                                                (plus, Symbol.zoomIn, "Zoom In (⌘=)", #selector(plusClicked))] {
-            button.image = symbol.image(pointSize: 12, accessibilityDescription: help)
+            button.image = symbol.image(.controlSmall, accessibilityDescription: help)
             button.isBordered = false
             button.imagePosition = .imageOnly
             button.contentTintColor = .secondaryLabelColor

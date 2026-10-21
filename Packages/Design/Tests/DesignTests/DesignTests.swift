@@ -65,4 +65,19 @@ struct DesignTests {
         #expect(try #require(NSAppearance(named: .darkAqua)).isDark)
         #expect(try !#require(NSAppearance(named: .aqua)).isDark)
     }
+
+    @Test("Hairlines are one device pixel at 1×, 2× and 3× (5.2a task 3)")
+    func hairline() {
+        for scale: CGFloat in [1, 2, 3] {
+            #expect(Hairline.width(scale: scale) * scale == 1)
+        }
+    }
+
+    @Test("B-110: the footer's buttons and space icons are the top bar's one control metric")
+    func oneControlMetric() {
+        #expect(SidebarMetrics.topBarButtonSize == ControlMetrics.size)
+        #expect(SidebarMetrics.footerButtonSize == ControlMetrics.size)
+        #expect(SpaceIconMetrics.pitch == ControlMetrics.size)
+        #expect(IconStyle.control.pointSize == 13)
+    }
 }

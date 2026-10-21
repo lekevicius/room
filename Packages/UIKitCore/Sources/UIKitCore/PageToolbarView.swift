@@ -11,7 +11,7 @@ public final class PageToolbarView: NSView {
     public var onURLClick: (() -> Void)?
 
     private let urlField = ToolbarURLView()
-    private let separator = NSBox()
+    private let separator = HairlineView()
 
     /// Content starts this far from the bar's leading edge (past the traffic lights while the sidebar is hidden).
     public var leadingInset: CGFloat = ToolbarMetrics.padding {
@@ -26,7 +26,6 @@ public final class PageToolbarView: NSView {
     public override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("page-toolbar")
-        separator.boxType = .separator
         urlField.onClick = { [weak self] in self?.onURLClick?() }
         addSubview(navigation)
         addSubview(urlField)
@@ -66,7 +65,7 @@ public final class PageToolbarView: NSView {
         let urlX = navigation.frame.maxX + ToolbarMetrics.padding
         urlField.frame = NSRect(x: urlX, y: center - ToolbarMetrics.urlHeight / 2,
                                 width: max(0, bounds.width - urlX - ToolbarMetrics.padding), height: ToolbarMetrics.urlHeight)
-        separator.frame = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
+        separator.frame = NSRect(x: 0, y: bounds.height - separator.thickness, width: bounds.width, height: separator.thickness)
     }
 }
 

@@ -15,6 +15,34 @@ public enum Radius {
     public static let large: CGFloat = 12
 }
 
+/// One metric for the chrome's icon buttons (B-110, 5.2a): the top bar's
+/// toggle, extensions, Back, Forward and Reload, and the footer's downloads,
+/// New Tab and space icons are squares of this size at this pitch, with the
+/// one hover and press style (`ControlFeedback`) on this corner, their
+/// glyphs `IconStyle.control`.
+public enum ControlMetrics {
+    /// A button's square (the Room Browser design's top bar: 32 pt at a 32 pt pitch).
+    public static let size: CGFloat = 32
+    /// The narrowest a button gets when the sidebar is too narrow for all of them (chosen).
+    public static let minSize: CGFloat = 24
+    /// Between groups of buttons (the toggle and the extensions).
+    public static let groupGap: CGFloat = Spacing.xs
+    /// The hover fill's corner.
+    public static let cornerRadius: CGFloat = Radius.small
+}
+
+/// Hairlines (5.2a): one device pixel at the display's scale, never a point
+/// (a 1 pt line is two pixels on a Retina display).
+public enum Hairline {
+    /// The line's width in points at `scale` (the window's `backingScaleFactor`): 1 px.
+    public static func width(scale: CGFloat) -> CGFloat { 1 / max(scale, 1) }
+
+    /// The width for `view` (its window's scale, else the main screen's, else 2×).
+    @MainActor public static func width(in view: NSView) -> CGFloat {
+        width(scale: view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2)
+    }
+}
+
 /// Sidebar geometry (feature spec §E).
 public enum SidebarMetrics {
     /// The Room Browser design (2026-10-07, Figma `UI` ▸ window): 304 in a
@@ -34,14 +62,12 @@ public enum SidebarMetrics {
     /// Gap between the zoom button and the sidebar toggle (the design: lights 17…77, toggle at 92).
     public static let topBarLeadingGap: CGFloat = 15
     /// The top bar's buttons (sidebar toggle, extensions, Back, Forward,
-    /// Reload): 32 pt squares at a 32 pt pitch (the Room Browser design).
-    public static let topBarButtonSize: CGFloat = 32
+    /// Reload): `ControlMetrics` squares at their own pitch (the Room Browser design).
+    public static let topBarButtonSize: CGFloat = ControlMetrics.size
     /// The narrowest a top-bar button gets when the sidebar is too narrow for all of them.
-    public static let topBarButtonMinSize: CGFloat = 24
-    /// Between the sidebar toggle and the extensions, and between the extensions and Back.
-    public static let topBarGroupGap: CGFloat = Spacing.xs
-    /// The top bar's symbols (SF Pro 13 in the design).
-    public static let topBarSymbolSize: CGFloat = 13
+    public static let topBarButtonMinSize: CGFloat = ControlMetrics.minSize
+    /// Between the sidebar toggle and the extensions (the extensions pack against Back, B-125).
+    public static let topBarGroupGap: CGFloat = ControlMetrics.groupGap
     /// Between the top bar and the address row, and the address row and the body.
     public static let addressRowGap: CGFloat = Spacing.s
     /// Inset from the sidebar edges for header elements when no traffic lights are beside them.
@@ -58,11 +84,15 @@ public enum SidebarMetrics {
     /// Height of an entry row; the selection pill leaves `pillVerticalInset` above and below.
     public static let rowHeight: CGFloat = 36
     public static let pillVerticalInset: CGFloat = 0
-    /// The pill is "slightly elevated": in light mode only, the design's
-    /// `0 0.5 2 rgba(0,0,0,.15)` (blur 2 = radius 1).
-    public static let pillShadowOpacity: Float = 0.15
-    public static let pillShadowRadius: CGFloat = 1
-    public static let pillShadowOffset = CGSize(width: 0, height: -0.5)
+    /// The pill is "slightly elevated" (B-112, 5.2a: a subtle shadow under
+    /// the selected row, as Arc's and Dia's; was the design's `0 0.5 2` at
+    /// 15%, light only, which did not read): `0 1 4` at 12% light, 30% dark.
+    public static let pillShadowOpacity: Float = 0.12
+    public static let pillShadowOpacityDark: Float = 0.3
+    public static let pillShadowRadius: CGFloat = 2
+    public static let pillShadowOffset = CGSize(width: 0, height: -1)
+    /// The pill's shadow opacity in an appearance.
+    public static func pillShadowOpacity(dark: Bool) -> Float { dark ? pillShadowOpacityDark : pillShadowOpacity }
     /// The rows' pill, hover fill, Essentials tiles and the address field (the design: 12).
     public static let pillCornerRadius: CGFloat = Radius.large
     /// Width of the fade that ends a title too long for its row (the design: 12 pt, no ellipsis).
@@ -75,20 +105,22 @@ public enum SidebarMetrics {
     public static let faviconTitleGap: CGFloat = 10
     /// Extra leading inset per folder level (chosen).
     public static let folderIndent: CGFloat = 14
+    /// A folder row's glyph box (B-115, 5.2a: the folder at Finder's and Notes' sidebar size,
+    /// `IconStyle.folder`), centred where a favicon sits; wider than the favicon.
+    public static let folderGlyphSize = CGSize(width: 20, height: 18)
     /// Close × on Today rows (spec §I.4), and its gap to the pill's trailing edge.
     public static let closeButtonSize: CGFloat = 24
     public static let closeButtonInset: CGFloat = 6
-    /// The row's small buttons (×, audio): their hover square's corner and their symbol size.
+    /// The row's small buttons (×, audio): their hover square's corner (their glyphs `IconStyle.rowButton`).
     public static let rowButtonCornerRadius: CGFloat = 4
-    public static let rowButtonSymbolSize: CGFloat = 10
     /// Audio button on a row (spec §I.5): after the favicon, the title
     /// `Spacing.s` after it; filled only on hover (the Room Browser design).
     public static let audioIndicatorWidth: CGFloat = 24
     /// Small corner badges on Essentials tiles (audio) and their inset (chosen).
     public static let tileBadgeSize: CGFloat = 11
     public static let tileBadgeInset: CGFloat = 3
-    /// Footer buttons and the space-title chevron hit area (chosen).
-    public static let footerButtonSize: CGFloat = 28
+    /// Footer buttons (B-110: the top bar's `ControlMetrics`; was 28) and the space-title chevron hit area (chosen).
+    public static let footerButtonSize: CGFloat = ControlMetrics.size
     public static let chevronSize: CGFloat = 20
     /// Text field width in sidebar popovers (Edit Pinned URL…, Rename) (chosen).
     public static let popoverFieldWidth: CGFloat = 280
@@ -147,6 +179,37 @@ public enum SidebarMetrics {
     public static let dragThreshold: CGFloat = 3
 }
 
+/// Footer space icons (spec §B; chosen sizes, `docs/design-tokens.md`).
+public enum SpaceIconMetrics {
+    /// An icon's glyph box (its emoji or symbol); the dot of a space without an icon is smaller.
+    public static let size: CGFloat = 20
+    /// Icon spacing along the row, and each icon's square hit area and hover fill
+    /// (B-110, 5.2a: the top bar's `ControlMetrics.size`; was 26 with a 20 pt box).
+    public static let pitch: CGFloat = ControlMetrics.size
+    public static let dotSize: CGFloat = 6
+    /// The active icon's scale (spec §B).
+    public static let activeScale: CGFloat = 1.15
+    /// The highlight behind the active icon extends this far around it.
+    public static let indicatorPadding: CGFloat = 2
+    /// An inactive icon's opacity.
+    public static let inactiveAlpha: CGFloat = 0.55
+    /// Pointer travel that turns a press on an icon into a reorder drag (Zen: 5 px).
+    public static let reorderThreshold: CGFloat = 5
+}
+
+/// The space form (spec §B; 2.5, chosen; the space window replaces it in 5.7b).
+public enum SpaceFormMetrics {
+    public static let padding: CGFloat = Spacing.m
+    public static let iconCell: CGFloat = 26
+    public static let previewHeight: CGFloat = 18
+    /// The icon grid's selected cell (accent at this alpha) and the preview's corner.
+    public static let selectionAlpha: CGFloat = 0.25
+    public static let cornerRadius: CGFloat = Radius.small
+    /// The theme preview with no colours (secondary at this alpha), and a one-colour gradient's fade.
+    public static let emptyPreviewAlpha: CGFloat = 0.12
+    public static let previewFadeAlpha: CGFloat = 0.4
+}
+
 /// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at
 /// the rows' width (chosen sizes; Chapter 5 revisits).
 public enum MediaRowMetrics {
@@ -154,9 +217,8 @@ public enum MediaRowMetrics {
     /// The artwork or favicon.
     public static let imageSize: CGFloat = 24
     public static let imageCornerRadius: CGFloat = Radius.small / 2
-    /// Play/pause, next and ×.
+    /// Play/pause, next and × (their glyphs `IconStyle.media`).
     public static let buttonSize: CGFloat = 24
-    public static let symbolPointSize: CGFloat = 11
     /// Above the footer and below the list.
     public static let gap: CGFloat = Spacing.xs
 }
@@ -264,6 +326,9 @@ public enum CardMetrics {
 }
 
 /// Type styles. SF Pro through the system font so vibrancy and Dynamic Type-ish scaling behave.
+/// Against the HIG's macOS scale (5.2a, `docs/design-tokens.md` Typography): `row` is Body (13),
+/// `secondary` Subheadline (11), `headline` Headline (13, semibold where the HIG says bold);
+/// the others are the design's or chosen sizes between the HIG's styles.
 public enum Typography {
     /// Rows outside the sidebar (palette, menus, panels).
     public static var row: NSFont { .systemFont(ofSize: 13, weight: .regular) }
@@ -275,6 +340,27 @@ public enum Typography {
     public static var secondary: NSFont { .systemFont(ofSize: 11, weight: .regular) }
     /// The palette's text field (chosen; Arc's command bar is a size up from its rows).
     public static var paletteField: NSFont { .systemFont(ofSize: 18, weight: .regular) }
+
+    // Added in 5.2a (the token-drift audit: each was a literal at its call site).
+
+    /// Titles of the page's dialogs and sheets ("example.com says"): the space title's style.
+    public static var headline: NSFont { spaceTitle }
+    /// The certificate interstitial's and the crashed page's title (chosen; HIG Large Title is 26 regular).
+    public static var interstitialTitle: NSFont { .systemFont(ofSize: 24, weight: .semibold) }
+    /// Their text (chosen; between HIG Body 13 and Title 3 15, the sidebar rows' size).
+    public static var interstitialText: NSFont { .systemFont(ofSize: 14, weight: .regular) }
+    /// Error codes and other machine text.
+    public static var code: NSFont { .monospacedSystemFont(ofSize: 11, weight: .regular) }
+    /// Counts that change in place ("3 of 12" in the find bar).
+    public static var counter: NSFont { .monospacedDigitSystemFont(ofSize: 11, weight: .regular) }
+    /// The zoom indicator's percentage.
+    public static var zoomValue: NSFont { .monospacedDigitSystemFont(ofSize: 13, weight: .medium) }
+    /// A toast's message (chosen, 2.2a).
+    public static var toast: NSFont { .systemFont(ofSize: 12, weight: .semibold) }
+    /// Badges: the Essentials "12/12" badge, the downloads count, an extension action's badge (chosen).
+    public static var badgeLarge: NSFont { .systemFont(ofSize: 10, weight: .semibold) }
+    public static var badge: NSFont { .systemFont(ofSize: 9, weight: .semibold) }
+    public static var badgeSmall: NSFont { .systemFont(ofSize: 8, weight: .semibold) }
 }
 
 /// Window and overlay materials.
@@ -599,10 +685,14 @@ public enum PeekMetrics {
 
 /// Split view (spec §D): up to four panes in the card.
 public enum SplitMetrics {
-    /// The visible line between panes; the card's fill shows through it (spec §D: 1 px).
+    /// The line between a split row's segments in the sidebar (spec §D: 1 px).
     public static let dividerWidth: CGFloat = 1
-    /// The resizer's hit area, centred on the line (spec §D: 7 px).
-    public static let resizerHitWidth: CGFloat = 7
+    /// Split view's panes are cards of their own (B-113, 5.2a: each with the card's corner,
+    /// border and shadow) with this gap between them: the card's inset from the window.
+    public static let paneGap: CGFloat = CardMetrics.inset
+    /// The resizer's hit area, centred in the gap (spec §D: 7 px around a 1 px line;
+    /// B-113: the gap and a point either side).
+    public static let resizerHitWidth: CGFloat = paneGap + 2
     /// No pane gets smaller than this share of the split along the dragged
     /// axis (Zen `min-resize-width`: 7 percent) …
     public static let minimumPaneFraction: CGFloat = 0.07

@@ -192,21 +192,21 @@ final class CrashedPageView: NSView {
             top,
             column.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 24),
         ])
-        let icon = NSImageView(image: Symbol.pageCrashed.image(pointSize: PromptMetrics.interstitialIconSize) ?? NSImage())
+        let icon = NSImageView(image: Symbol.pageCrashed.image(.interstitial) ?? NSImage())
         icon.contentTintColor = .secondaryLabelColor
         column.addArrangedSubview(icon)
         let title = NSTextField(labelWithString: Self.title(for: status))
-        title.font = .systemFont(ofSize: 24, weight: .semibold)
+        title.font = Typography.interstitialTitle
         column.addArrangedSubview(title)
         let what = host.map { "Something went wrong while showing \($0)." } ?? "Something went wrong while showing this page."
         let text = NSTextField(wrappingLabelWithString: what + " Reload to try again; what you typed into the page may be lost.")
-        text.font = .systemFont(ofSize: 14)
+        text.font = Typography.interstitialText
         text.textColor = .secondaryLabelColor
         text.preferredMaxLayoutWidth = PromptMetrics.interstitialWidth
         text.widthAnchor.constraint(equalToConstant: PromptMetrics.interstitialWidth).isActive = true
         column.addArrangedSubview(text)
         let code = NSTextField(labelWithString: Self.code(for: status))
-        code.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        code.font = Typography.code
         code.textColor = .secondaryLabelColor
         code.isSelectable = true
         column.addArrangedSubview(code)
@@ -238,15 +238,15 @@ final class CrashedPageView: NSView {
             top,
             column.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 24),
         ])
-        let icon = NSImageView(image: Symbol.pageUnresponsive.image(pointSize: PromptMetrics.interstitialIconSize) ?? NSImage())
+        let icon = NSImageView(image: Symbol.pageUnresponsive.image(.interstitial) ?? NSImage())
         icon.contentTintColor = .secondaryLabelColor
         column.addArrangedSubview(icon)
         let title = NSTextField(labelWithString: "This Page Is Not Responding")
-        title.font = .systemFont(ofSize: 24, weight: .semibold)
+        title.font = Typography.interstitialTitle
         column.addArrangedSubview(title)
         let what = host.map { "\($0) stopped responding." } ?? "This page stopped responding."
         let text = NSTextField(wrappingLabelWithString: what + " You can wait for it, or exit the page; what you typed into it may be lost.")
-        text.font = .systemFont(ofSize: 14)
+        text.font = Typography.interstitialText
         text.textColor = .secondaryLabelColor
         text.preferredMaxLayoutWidth = PromptMetrics.interstitialWidth
         text.widthAnchor.constraint(equalToConstant: PromptMetrics.interstitialWidth).isActive = true
