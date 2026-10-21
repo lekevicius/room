@@ -12,6 +12,13 @@ public enum KeyboardAccess {
     /// Whether Tab reaches buttons too.
     public static var allControls: Bool { allControlsOverride ?? NSApplication.shared.isFullKeyboardAccessEnabled }
 
+    /// A click presses a control without taking the keyboard from where it was (the page keeps it, and the
+    /// palette's Esc returns there): the window asks `acceptsFirstResponder` on the mouse-down.
+    public static var isMouseDown: Bool {
+        guard let type = NSApplication.shared.currentEvent?.type else { return false }
+        return type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown
+    }
+
     /// Space, Return and Enter press a focused control (no ⌘, ⌃ or ⌥).
     public static func isPressKey(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
@@ -55,7 +62,7 @@ open class PressableView: NSView {
     /// What a click, Space, Return or VoiceOver's press does.
     open func performPress() {}
 
-    open override var acceptsFirstResponder: Bool { isAlwaysKeyView || KeyboardAccess.allControls }
+    open override var acceptsFirstResponder: Bool { (isAlwaysKeyView || KeyboardAccess.allControls) && !KeyboardAccess.isMouseDown }
     open override var canBecomeKeyView: Bool { acceptsFirstResponder && window != nil && !isHiddenOrHasHiddenAncestor }
 
     open override func keyDown(with event: NSEvent) {

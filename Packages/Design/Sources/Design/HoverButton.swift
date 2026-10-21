@@ -60,7 +60,9 @@ open class HoverButton: NSButton {
     }
 
     /// A key view while Full Keyboard Access is on (`KeyboardAccess`), as AppKit's buttons.
-    open override var acceptsFirstResponder: Bool { isEnabled && !refusesFirstResponder && KeyboardAccess.allControls }
+    open override var acceptsFirstResponder: Bool {
+        isEnabled && !refusesFirstResponder && KeyboardAccess.allControls && !KeyboardAccess.isMouseDown
+    }
     /// AppKit's button asks the system's setting itself here; Room's asks `KeyboardAccess` (5.3a: the keyboard spike).
     open override var canBecomeKeyView: Bool { acceptsFirstResponder && window != nil && !isHiddenOrHasHiddenAncestor }
 

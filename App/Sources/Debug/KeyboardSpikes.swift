@@ -130,6 +130,26 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(200))
         SpikeRunner.record("keyboard_address_field", "focus \(onAddress); Space → palette \(opened.prefix(40)); Esc → open=\(palette?.isOpen ?? false), focus \(await focusName())")
 
+        // 4b. A click on the address field opens the palette without taking the keyboard from the page:
+        // Esc returns it to the page (spec §C), as before the field became a key view.
+        if let page = tabs.current {
+            focusPage(page)
+            let field = sidebar.addressField
+            let point = field.convert(NSPoint(x: field.bounds.midX - 30, y: field.bounds.midY), to: nil)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    NSApp.sendEvent(event)
+                }
+            }
+            _ = await waitUntil(2) { palette?.isOpen == true }
+            let clicked = palette?.isOpen == true
+            press(.escape)
+            _ = await waitUntil(2) { palette?.isOpen == false }
+            try? await Task.sleep(for: .milliseconds(250))
+            SpikeRunner.record("keyboard_address_click", "click → palette open=\(clicked); Esc → focus \(await focusName()) (expected the page)")
+        }
+
         // 5. The palette by keyboard alone: ⌘T, type, ↓/⏎ to another tab.
         sendKey("t", keyCode: 17, [.command])
         _ = await waitUntil(2) { palette?.isOpen == true }
