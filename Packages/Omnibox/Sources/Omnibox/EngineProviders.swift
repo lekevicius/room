@@ -6,8 +6,8 @@ import Model
 // search suggestions feed the palette. The engine's matches are mapped into
 // Room's bands here; Room's scorer (`OmniboxResult`), groups, commands and
 // site search stay as they are. Chrome's relevance is not Room's: matches are
-// placed in a band by their rank inside the provider, and only the engine's
-// default match may take the inline band.
+// placed in a band by their rank inside the provider, and only the best
+// history match Chrome allows to be default may take the inline band (B-65).
 
 /// Which of the engine's providers a keystroke asks (ROADMAP 3.5 task 2):
 /// the profile's own data always; the default engine's suggestions only
@@ -55,10 +55,12 @@ public enum EngineHistoryProvider {
             return host == siteHost || host.hasSuffix("." + siteHost)
         }
         history = Array(history.prefix(limit))
-        // Only the engine's default match completes inline (Chrome's rule), and
+        // The best history match allowed to be default completes inline (B-65, the user 2026-10-18:
+        // with suggestions on, Chrome's default is often its verbatim search, which hid the completion),
         // only in normal mode with inline completion allowed.
-        let inlineOffset: Int? = if input.mode == .normal, !input.preventsInlineCompletion, let first = engine.first,
-                                    first.kind.isHistory, first.allowedToBeDefault, !first.inlineCompletion.isEmpty { 0 } else { nil }
+        let inlineOffset: Int? = if input.mode == .normal, !input.preventsInlineCompletion {
+            history.first { $0.element.allowedToBeDefault && !$0.element.inlineCompletion.isEmpty }?.offset
+        } else { nil }
         return history.enumerated().map { rank, element in
             let (offset, engineMatch) = element
             let url = engineMatch.destinationURL!.absoluteString

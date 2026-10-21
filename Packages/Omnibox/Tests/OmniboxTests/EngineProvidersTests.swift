@@ -42,6 +42,25 @@ struct EngineProvidersTests {
         #expect(prevented.allSatisfy { $0.inlineCompletion == nil && Relevance.history.contains($0.relevance) })
     }
 
+    @Test("B-65: with Chrome's verbatim search as its default, the best history match allowed to be default still completes inline")
+    func inlineBehindVerbatim() {
+        let verbatim = AutocompleteMatch(contents: "gi", destinationURL: URL(string: "https://www.google.com/search?q=gi"), relevance: 1_300,
+                                         kind: .searchWhatYouTyped, provider: .search, allowedToBeDefault: true)
+        let engine = [verbatim, history("https://gist.github.com/x", relevance: 1_200),
+                      history("https://github.com/", relevance: 1_150, inline: "thub.com", isDefault: true),
+                      history("https://gitlab.com/", relevance: 1_100, inline: "tlab.com", isDefault: true)]
+        let input = OmniboxInput(text: "gi")
+        let matches = EngineHistoryProvider.matches(from: engine, input: input, in: OmniboxContext())
+        #expect(matches.map(\.inlineCompletion) == [nil, "thub.com", nil])
+        let result = OmniboxResult(ranking: matches + VerbatimProvider().matches(for: input, in: OmniboxContext()), input: input)
+        #expect(result.inlineCompletion == "thub.com")
+        #expect(result.matches.first?.action.url == "https://github.com/")
+        // A history match Chrome does not allow to be default never completes.
+        let notAllowed = EngineHistoryProvider.matches(from: [verbatim, history("https://github.com/", relevance: 1_150, inline: "thub.com")],
+                                                       input: input, in: OmniboxContext())
+        #expect(notAllowed.allSatisfy { $0.inlineCompletion == nil })
+    }
+
     @Test("A page the engine sees open switches to the entry that shows it")
     func tabMatch() {
         let id = UUID(), space = UUID()
