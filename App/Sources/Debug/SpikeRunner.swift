@@ -93,6 +93,7 @@ enum SpikeRunner {
         case "live": await context.liveChecks()
         case "downloadprompt": await context.downloadPromptChecks()
         case "sidebarfixes": await context.sidebarFixesChecks()
+        case "skipped": await context.skippedStepsChecks()
         case "windows": await context.windowsChecks()
         case "incognito": await context.incognitoChecks()
         case "passwords": await context.passwordsChecks()

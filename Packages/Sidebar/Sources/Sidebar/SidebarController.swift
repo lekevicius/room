@@ -1495,6 +1495,9 @@ extension SidebarController {
     /// The context menu a right-click on `id` shows (4.4a: its keys follow the shortcut table).
     public func debugContextMenu(for id: UUID) -> NSMenu? { menu(for: id) }
 
+    /// The menu a right-click on `id` opens: the group's with a multi-selection (5.0b).
+    public func debugClickedMenu(for id: UUID) -> NSMenu? { menu(forClicked: id) }
+
     /// The cell class showing `id`'s row (a split's pane: its group row).
     public func debugRowCellKind(_ id: UUID) -> String {
         guard let node = tree.displayedNode(for: id) else { return "none" }
@@ -1519,6 +1522,8 @@ extension SidebarController {
         }
     }
     public var debugEssentialsShown: Bool { !grid.isHidden }
+    /// The Essentials grid's tiles in order, as this window draws them (5.0b).
+    public var debugEssentialIDs: [UUID] { grid.order }
 
     /// The title an entry's row draws now (4.8a: a rename in another window shows here at once).
     public func debugRowTitle(for id: UUID) -> String? {
