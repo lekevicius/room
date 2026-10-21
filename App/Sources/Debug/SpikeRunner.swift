@@ -97,6 +97,7 @@ enum SpikeRunner {
         case "motionsheet": await context.motionSheet()
         case "matrix": await context.visualMatrix()
         case "contrast": await context.contrastChecks()
+        case "branding": await context.brandingChecks()
         case "skipped": await context.skippedStepsChecks()
         case "windows": await context.windowsChecks()
         case "incognito": await context.incognitoChecks()
