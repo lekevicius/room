@@ -152,10 +152,48 @@ public enum ReaderRules {
             "DIRECTION": escape(article.textDirection),
             "SIZE": escape(textSizeNames.contains(textSize) ? textSize : "medium"),
             "APPEARANCE": escape(appearance),
-            "CONTENT": article.contentHTML,
+            "CONTENT": withoutRepeatedHeading(article.contentHTML, title: title),
         ]
         return fill(template, values)
     }
+
+    /// The article's markup without its first heading when that heading
+    /// repeats the reader page's title (B-94, decided 2026-10-18: the page's
+    /// own `<h1>` under the distiller's title showed the title twice).
+    /// Only the first `h1`–`h3` is looked at; any other markup is unchanged.
+    public static func withoutRepeatedHeading(_ html: String, title: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "<(h[1-3])\\b[^>]*>(.*?)</\\1\\s*>",
+                                                   options: [.caseInsensitive, .dotMatchesLineSeparators]),
+              let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let whole = Range(match.range, in: html), let inner = Range(match.range(at: 2), in: html),
+              headingRepeatsTitle(plainText(fromHTML: String(html[inner])), title: title) else { return html }
+        var result = html
+        result.removeSubrange(whole)
+        return result
+    }
+
+    /// Whether `heading` says what `title` says: the same words (case,
+    /// punctuation and spacing aside), or the title is the heading with the
+    /// site's name before or after a separator ("Heading — Site", "Site | Heading").
+    public static func headingRepeatsTitle(_ heading: String, title: String) -> Bool {
+        let wanted = comparable(heading)
+        guard !wanted.isEmpty else { return false }
+        if comparable(title) == wanted { return true }
+        let separators = [" — ", " – ", " - ", " | ", " · ", " • ", ": ", " :: ", " / "]
+        for separator in separators where title.contains(separator) {
+            let parts = title.components(separatedBy: separator)
+            if let first = parts.first, comparable(first) == wanted { return true }
+            if let last = parts.last, comparable(last) == wanted { return true }
+        }
+        return false
+    }
+
+    /// Lower-case letters and digits, one space between words.
+    private static func comparable(_ text: String) -> String {
+        let kept = text.lowercased().unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : " " }
+        return collapsedWhitespace(String(kept))
+    }
+
 
     /// One left-to-right pass over `template`: `{{NAME}}` becomes `values[NAME]`; unknown slots stay.
     static func fill(_ template: String, _ values: [String: String]) -> String {

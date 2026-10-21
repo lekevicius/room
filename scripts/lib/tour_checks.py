@@ -1195,6 +1195,9 @@ def _reader(c):
     c.contains("reader_row", "glyph shown=true", label="the sidebar row draws the reader glyph")
     c.contains("reader_dom", "Lighthouse Keepers", '\\"host\\":\\"127.0.0.1\\"', '\\"exit\\":true', "article1.html", '\\"asideLinks\\":0',
                '\\"scripts\\":0', label="the reader page: title, host, the original link, Exit; no sidebar links, no script")
+    dom = c.first("reader_dom") or ""
+    c.check("the article's own heading that repeats the title is hidden: the title shows once (B-94)",
+            '\\"repeatedHeadings\\":0' in dom and 'firstHeading\\":\\"The Lighthouse Keepers' not in dom, dom or "missing")
     imgs = c.first("reader_images") or ""
     c.check("both images loaded (DOM: complete, natural size)", imgs.count("[true,") == 2 and "swatch.png" in imgs and "field.png" in imgs, imgs or "missing")
     sizes = c.first("reader_sizes") or ""
