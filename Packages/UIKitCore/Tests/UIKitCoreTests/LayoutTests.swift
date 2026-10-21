@@ -113,16 +113,25 @@ struct RoomWindowControllerTests {
         #expect(controller.sidebarWidth == SidebarMetrics.maxWidth)
     }
 
-    @Test("The space title sits beside the traffic lights, centred on them")
+    /// The Room Browser design (`beea283`, 2026-10-07) gave the band beside
+    /// the traffic lights to the top bar (toggle, extensions, navigation);
+    /// the space title, shown while no address field is set, moved to the
+    /// address row under it (B-123: this test still checked the old header).
+    @Test("The space title sits in the address row under the top bar, at the rows' content inset")
     func headerPlacement() throws {
         let controller = makeController()
         defer { controller.close() }
         controller.rootView.layoutSubtreeIfNeeded()
-        let lights = try #require(controller.trafficLights.geometry.buttonsRect)
-        let title = controller.sidebarView.titleFrame
-        #expect(title.minX >= lights.maxX + SidebarMetrics.headerLeadingGap - 0.5)
-        #expect(abs(title.midY - lights.midY) <= 1)
-        #expect(title.width >= ceil(controller.sidebarView.titleField.attributedStringValue.size().width))
+        let sidebar = controller.sidebarView
+        let lights = try #require(sidebar.trafficLights.buttonsRect)
+        let bar = TopBarLayout(width: sidebar.bounds.width, trafficLights: sidebar.trafficLights)
+        let title = sidebar.titleFrame
+        #expect(title.minY >= lights.maxY)
+        #expect(title.minY >= bar.bottom)
+        #expect(abs(title.minX - (SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset)) <= 0.5)
+        let rowTop = bar.bottom + SidebarMetrics.addressRowGap
+        #expect(abs(title.midY - (rowTop + SidebarMetrics.addressFieldHeight / 2)) <= 1)
+        #expect(title.width >= ceil(sidebar.titleField.attributedStringValue.size().width))
     }
 
     @Test("Clicks in the titlebar band over the card reach the card, not the titlebar")
