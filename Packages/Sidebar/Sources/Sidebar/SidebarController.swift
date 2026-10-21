@@ -1535,6 +1535,19 @@ final class ListContainerView: NSView {
     override var mouseDownCanMoveWindow: Bool { true }
 }
 
+extension SidebarController {
+    /// Tabs for what was dropped on the card and the page did not take
+    /// (5.5b, spec §I.7): Today tabs at the top of the list, in order, the first selected.
+    public func openDropped(_ urls: [String]) {
+        var first: Entry?
+        for (offset, url) in urls.enumerated() {
+            guard let entry = try? sidebar.addEntry(.today, url: url, space: tree.spaceID, window: windowID, at: offset) else { continue }
+            if first == nil { first = entry }
+        }
+        if let first { select(first.id) }
+    }
+}
+
 #if DEBUG
 /// Hooks for the app's DEBUG snapshot runner (no UI driving in sessions).
 extension SidebarController {
@@ -1657,17 +1670,6 @@ extension SidebarController {
     /// A drag of `id` from this sidebar ending at `screenPoint` with no target (4.8a's drag out; the
     /// mouse drag itself is by hand).
     public func debugDragEnded(_ id: UUID, at screenPoint: NSPoint) { dragEnded([id], at: screenPoint, operation: []) }
-
-    /// Tabs for what was dropped on the card and the page did not take
-    /// (5.5b, spec §I.7): Today tabs at the top of the list, in order, the first selected.
-    public func openDropped(_ urls: [String]) {
-        var first: Entry?
-        for (offset, url) in urls.enumerated() {
-            guard let entry = try? sidebar.addEntry(.today, url: url, space: tree.spaceID, window: windowID, at: offset) else { continue }
-            if first == nil { first = entry }
-        }
-        if let first { select(first.id) }
-    }
 
     // MARK: Drops (5.5b's drop matrix drives Room's own drop code with pasteboards)
 
