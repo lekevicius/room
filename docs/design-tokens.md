@@ -237,6 +237,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | ⌃ + wheel | one space per notch (down = next), 200 ms cooldown; trackpad ⌃-scroll counts 30 pt as a notch | Zen `scroll-modifier-key`, cooldown 200 ms; trackpad step chosen |
 | `SpaceFormMetrics.padding` / `iconCell` / `previewHeight` | 12 / 26 / 18 pt | chosen |
 | Space form icons | 24 SF Symbols and 24 emoji, any emoji typed in its field | chosen |
+| `SpaceFormMetrics.iconPopoverWidth` | 6 cells + 5 gaps + padding + 24 (Change Icon… for entries and folders, 5.6a: the same picker) | chosen |
 | `Symbol.more` on the space title row | "…" on hover, left of the chevron | spec §B |
 
 ## Added in Phase 2.6a (palette rows on AppKit, the page's prompts)

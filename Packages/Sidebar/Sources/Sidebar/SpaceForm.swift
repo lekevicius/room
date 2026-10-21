@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Design
 import Model
 import SwiftUI
@@ -91,6 +92,98 @@ enum SpaceIconChoices {
                         "🏋️", "🐾", "🌙", "🧪", "🧭", "🍕"]
 }
 
+/// The icon picker (spec §B; 5.6a: Change Icon… for entries and folders
+/// takes it as it is): a field for any emoji, None, and the curated
+/// symbols and emoji. `icon` is an emoji or an SF Symbol name, `nil` for none.
+struct IconPickerView<Focus: Hashable>: View {
+    @Binding var icon: String?
+    var emojiFocus: FocusState<Focus?>.Binding
+    var focusValue: Focus
+    @State private var emojiField = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Icon").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                TextField("Emoji", text: $emojiField)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Icon emoji")
+                    .accessibilityIdentifier("icon-picker-emoji")
+                    .frame(width: 64)
+                    .focused(emojiFocus, equals: focusValue)
+                    .onChange(of: emojiField) {
+                        if let first = emojiField.first, first.unicodeScalars.first?.properties.isEmoji == true { icon = String(first) }
+                    }
+                Button("None") { icon = nil }.controlSize(.small).accessibilityIdentifier("icon-picker-none")
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(SpaceFormMetrics.iconCell), spacing: 4), count: 6), spacing: 4) {
+                ForEach(SpaceIconChoices.symbols, id: \.self) { name in
+                    iconButton(selected: icon == name) { Image(systemName: name) } action: { icon = name }
+                        .accessibilityLabel(name)
+                }
+                ForEach(SpaceIconChoices.emoji, id: \.self) { emoji in
+                    iconButton(selected: icon == emoji) { Text(emoji) } action: { icon = emoji }
+                }
+            }
+        }
+    }
+
+    private func iconButton(selected: Bool, @ViewBuilder label: () -> some View, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            label()
+                .frame(width: SpaceFormMetrics.iconCell, height: SpaceFormMetrics.iconCell)
+                .background(selected ? Color.accentColor.opacity(SpaceFormMetrics.selectionAlpha) : .clear, in: .rect(cornerRadius: SpaceFormMetrics.cornerRadius))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Change Icon… for an entry or a folder (5.6a): the space form's picker in a
+/// popover beside the row or tile. A choice applies at once and closes it;
+/// None goes back to the favicon (a folder's glyph).
+final class IconPopoverModel: ObservableObject {
+    @Published var icon: String?
+    init(icon: String?) { self.icon = icon }
+}
+
+struct IconPopoverView: View {
+    @ObservedObject var model: IconPopoverModel
+    @FocusState private var focus: Bool?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Change Icon").font(.headline)
+            IconPickerView(icon: $model.icon, emojiFocus: $focus, focusValue: true)
+        }
+        .padding(SpaceFormMetrics.padding)
+        .frame(width: SpaceFormMetrics.iconPopoverWidth)
+    }
+}
+
+enum IconPopover {
+    /// Shows the picker for `icon`; `onChange` gets each choice (the popover closes after it).
+    @discardableResult
+    static func show(icon: String?, relativeTo rect: NSRect, of view: NSView, onChange: @escaping (String?) -> Void) -> NSPopover {
+        let model = IconPopoverModel(icon: icon)
+        let controller = NSHostingController(rootView: IconPopoverView(model: model))
+        controller.sizingOptions = [.preferredContentSize]
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = controller
+        let observer = model.$icon.dropFirst().sink { [weak popover] value in
+            onChange(value)
+            popover?.performClose(nil)
+        }
+        objc_setAssociatedObject(popover, &observerKey, observer, .OBJC_ASSOCIATION_RETAIN)
+        popover.show(relativeTo: rect, of: view, preferredEdge: .maxX)
+        return popover
+    }
+
+    nonisolated(unsafe) private static var observerKey: UInt8 = 0
+}
+
 struct SpaceFormView: View {
     @Bindable var model: SpaceFormModel
     var onCommit: () -> Void
@@ -100,7 +193,6 @@ struct SpaceFormView: View {
     @FocusState private var focus: SpaceFormModel.Focus?
     @State private var addingProfile = false
     @State private var profileName = ""
-    @State private var emojiField = ""
 
     var body: some View {
         ScrollView {
@@ -136,39 +228,7 @@ struct SpaceFormView: View {
     // MARK: Icon
 
     private var iconSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Icon").font(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-                TextField("Emoji", text: $emojiField)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Icon emoji")
-                    .frame(width: 64)
-                    .focused($focus, equals: .icon)
-                    .onChange(of: emojiField) {
-                        if let first = emojiField.first, first.unicodeScalars.first?.properties.isEmoji == true { model.icon = String(first) }
-                    }
-                Button("None") { model.icon = nil }.controlSize(.small)
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(SpaceFormMetrics.iconCell), spacing: 4), count: 6), spacing: 4) {
-                ForEach(SpaceIconChoices.symbols, id: \.self) { name in
-                    iconButton(selected: model.icon == name) { Image(systemName: name) } action: { model.icon = name }
-                }
-                ForEach(SpaceIconChoices.emoji, id: \.self) { emoji in
-                    iconButton(selected: model.icon == emoji) { Text(emoji) } action: { model.icon = emoji }
-                }
-            }
-        }
-    }
-
-    private func iconButton(selected: Bool, @ViewBuilder label: () -> some View, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            label()
-                .frame(width: SpaceFormMetrics.iconCell, height: SpaceFormMetrics.iconCell)
-                .background(selected ? Color.accentColor.opacity(SpaceFormMetrics.selectionAlpha) : .clear, in: .rect(cornerRadius: SpaceFormMetrics.cornerRadius))
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
+        IconPickerView(icon: $model.icon, emojiFocus: $focus, focusValue: .icon)
     }
 
     // MARK: Theme

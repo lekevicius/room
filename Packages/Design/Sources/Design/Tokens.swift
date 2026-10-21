@@ -224,6 +224,8 @@ public enum SpaceFormMetrics {
     /// The theme preview with no colours (secondary at this alpha), and a one-colour gradient's fade.
     public static let emptyPreviewAlpha: CGFloat = 0.12
     public static let previewFadeAlpha: CGFloat = 0.4
+    /// Change Icon…'s popover for an entry or a folder (5.6a): the picker's six columns and its padding.
+    public static let iconPopoverWidth: CGFloat = 6 * iconCell + 5 * 4 + 2 * padding + 24
 }
 
 /// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at

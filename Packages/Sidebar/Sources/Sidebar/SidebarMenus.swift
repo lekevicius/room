@@ -193,7 +193,7 @@ extension SidebarController {
         addOpenInNewWindow(menu, entry)
         menu.addItem(.separator())
         menu.addItem(action(CommandName.rename, symbol: .rename) { [weak self] in self?.renameWithPopover(id) })
-        menu.addItem(later(CommandName.changeIcon, symbol: .changeIcon, phase: "5.6"))
+        menu.addItem(action(CommandName.changeIcon, symbol: .changeIcon) { [weak self] in self?.changeIcon(id) })
         menu.addItem(action(CommandName.copyURL, symbol: .copyURL, key: "c", modifiers: [.command, .shift], enabled: entry.currentURL != nil) {
             [weak self] in self?.copyURL(of: id, markdown: false)
         })
@@ -205,7 +205,7 @@ extension SidebarController {
         let id = folder.id
         let children = descendants(of: id)
         menu.addItem(action(CommandName.rename, symbol: .rename) { [weak self] in self?.beginRename(id) })
-        menu.addItem(later(CommandName.changeIcon, symbol: .changeIcon, phase: "5.6"))
+        menu.addItem(action(CommandName.changeIcon, symbol: .changeIcon) { [weak self] in self?.changeIcon(id) })
         let canNest = (try? FolderRules.validateNewFolder(in: id, in: sidebar.entries)) != nil
         menu.addItem(action(CommandName.newSubfolder, symbol: .newFolder, enabled: canNest) { [weak self] in self?.newFolder(parent: id) })
         menu.addItem(.separator())
@@ -252,7 +252,7 @@ extension SidebarController {
         menu.addItem(action(CommandName.duplicateTab, symbol: .duplicate, enabled: hasURL) { [weak self] in self?.duplicate(id) })
         addOpenInNewWindow(menu, entry)
         menu.addItem(action(CommandName.rename, symbol: .rename) { [weak self] in self?.beginRename(id) })
-        menu.addItem(later(CommandName.changeIcon, symbol: .changeIcon, phase: "5.6"))
+        menu.addItem(action(CommandName.changeIcon, symbol: .changeIcon) { [weak self] in self?.changeIcon(id) })
         menu.addItem(action(CommandName.copyURL, symbol: .copyURL, key: "c", modifiers: [.command, .shift], enabled: hasURL) {
             [weak self] in self?.copyURL(of: id, markdown: false)
         })
@@ -566,6 +566,15 @@ extension SidebarController {
             pageStateDidChange([id])
             toasts?.show(Toast(id: "pinned-url", symbol: .success, message: "Pinned URL updated"))
             return nil
+        }
+    }
+
+    /// Change Icon… (5.6a): the space form's picker beside the row or tile; a choice applies at once.
+    func changeIcon(_ id: UUID) {
+        guard let entry = sidebar.entry(id), let (view, rect) = anchor(for: id) else { return }
+        iconPopover = IconPopover.show(icon: entry.customIcon, relativeTo: rect, of: view) { [weak self] icon in
+            guard let self else { return }
+            try? sidebar.setCustomIcon(id, icon)
         }
     }
 

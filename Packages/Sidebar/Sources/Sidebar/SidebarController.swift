@@ -109,6 +109,8 @@ public final class SidebarController: NSObject {
     /// The folder preview waiting for its 500 ms dwell, and the one showing (spec §A.6).
     private var pendingFolderPreview: DispatchWorkItem?
     private weak var folderPreview: NSPopover?
+    /// Change Icon…'s picker while it shows (5.6a; spikes read it).
+    weak var iconPopover: NSPopover?
     #if DEBUG
     var debugDragImage: NSView?
     #endif
