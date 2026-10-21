@@ -78,8 +78,9 @@ public enum CommandName {
 extension URLFixup {
     /// What a drop from outside the window opens (spec §A.9, §I.7): every
     /// URL or file on the pasteboard, else each line of text if all are
-    /// URLs, else one search for the text.
-    public static func dropURLs(from pasteboard: NSPasteboard) -> [String] {
+    /// URLs, else one search for the text with `engine` (the profile's,
+    /// Settings ▸ Search; 5.5b: drops searched Google whatever was chosen).
+    public static func dropURLs(from pasteboard: NSPasteboard, engine: SearchEngine = .google) -> [String] {
         let allowed: Set<String> = ["http", "https", "file"]
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
             let accepted = urls.filter { allowed.contains($0.scheme?.lowercased() ?? "") }.map(\.absoluteString)
@@ -91,6 +92,32 @@ extension URLFixup {
         let lines = text.split(whereSeparator: \.isNewline).map { String($0) }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         let urls = lines.compactMap(url(from:))
         if !urls.isEmpty, urls.count == lines.count { return urls }
-        return [searchURL(for: text)]
+        return [engine.searchURL(for: text)]
+    }
+}
+
+extension URLFixup {
+    /// Image data with no URL, file or text on the pasteboard (an image
+    /// dragged out of a page, a screenshot tool's), as PNG: browsers do not
+    /// show TIFF, which is what most Mac apps put there.
+    public static func droppedImagePNG(from pasteboard: NSPasteboard) -> Data? {
+        if let png = pasteboard.data(forType: .png) { return png }
+        guard let tiff = pasteboard.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    /// Writes a dropped image into `directory` under a new name; its `file://` URL.
+    public static func writeDroppedImage(_ png: Data, into directory: URL) -> String? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        let name = "Dropped Image \(formatter.string(from: Date())) \(UUID().uuidString.prefix(4)).png"
+        let file = directory.appending(path: name)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try png.write(to: file)
+        } catch {
+            return nil
+        }
+        return file.absoluteString
     }
 }

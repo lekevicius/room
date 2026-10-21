@@ -198,6 +198,9 @@ final class EssentialsGridView: NSView {
     }
 
     /// The "12/12" badge over a full grid (`nil` hides it).
+    /// The insertion line while shown (spikes).
+    var debugInsertionLine: NSRect? { insertionLine.isHidden ? nil : insertionLine.frame }
+
     func showFullBadge(_ text: String?) {
         fullBadge.stringValue = text ?? ""
         fullBadge.isHidden = text == nil

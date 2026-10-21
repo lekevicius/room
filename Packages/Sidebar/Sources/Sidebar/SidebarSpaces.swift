@@ -330,7 +330,7 @@ extension SidebarController: SpaceIconDropEvents {
         if !ids.isEmpty {
             return ids.compactMap(sidebar.entry).contains { $0.kind != .essential && $0.spaceID != space } ? .move : []
         }
-        return URLFixup.dropURLs(from: info.draggingPasteboard).isEmpty ? [] : .copy
+        return dropURLs(from: info.draggingPasteboard, writingImages: false).isEmpty ? [] : .copy
     }
 
     /// Resting on an icon switches to the space; the drag goes on into its list.
@@ -342,7 +342,7 @@ extension SidebarController: SpaceIconDropEvents {
     func spaceIconDrop(_ info: any NSDraggingInfo, space: UUID) -> Bool {
         let ids = draggedEntryIDs(info)
         if !ids.isEmpty { return moveEntries(ids, toSpace: space) }
-        let urls = URLFixup.dropURLs(from: info.draggingPasteboard)
+        let urls = dropURLs(from: info.draggingPasteboard, writingImages: true)
         guard !urls.isEmpty else { return false }
         for (offset, url) in urls.enumerated() { _ = try? sidebar.addEntry(.today, url: url, space: space, window: windowID, at: offset) }
         if let name = sidebar.space(space)?.name {

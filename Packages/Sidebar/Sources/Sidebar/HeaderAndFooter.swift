@@ -27,6 +27,10 @@ public final class AddressFieldView: PressableView {
     private var url: String?
     /// The URL the field shows (spikes read it).
     public var displayedURL: String? { url }
+    /// The page's title: a drag of the field carries it with the URL (B-97).
+    var dragTitle: String?
+    private var pressLocation: NSPoint?
+    private var dragged = false
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -152,11 +156,39 @@ public final class AddressFieldView: PressableView {
     public override func mouseEntered(with event: NSEvent) { hovering = true }
     public override func mouseExited(with event: NSEvent) { hovering = false }
 
-    public override func mouseDown(with event: NSEvent) {}
+    public override func mouseDown(with event: NSEvent) {
+        pressLocation = event.locationInWindow
+        dragged = false
+    }
+
+    /// A press that moves drags the page's URL and title out (B-97, decided
+    /// 2026-10-18: the URL drag returns through the address field), to
+    /// another app, the sidebar or the card.
+    public override func mouseDragged(with event: NSEvent) {
+        guard !dragged, let url, let start = pressLocation,
+              hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y) >= SidebarMetrics.dragThreshold else { return }
+        dragged = true
+        beginDraggingSession(with: [draggingItem(url: url)], event: event, source: self)
+    }
 
     public override func mouseUp(with event: NSEvent) {
-        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        defer { pressLocation = nil }
+        guard !dragged, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         onActivate?()
+    }
+
+    /// The pasteboard item and the field's own image under the pointer.
+    func draggingItem(url: String) -> NSDraggingItem {
+        let item = NSDraggingItem(pasteboardWriter: URLDrag.pasteboardItem(url: url, title: dragTitle))
+        if let rep = bitmapImageRepForCachingDisplay(in: bounds) {
+            cacheDisplay(in: bounds, to: rep)
+            let image = NSImage(size: bounds.size)
+            image.addRepresentation(rep)
+            item.setDraggingFrame(bounds, contents: image)
+        } else {
+            item.setDraggingFrame(bounds, contents: nil)
+        }
+        return item
     }
 
     @objc private func copyClicked() { onCopy?() }
@@ -168,6 +200,17 @@ public final class AddressFieldView: PressableView {
     public override var isAlwaysKeyView: Bool { true }
     public override var focusRingCornerRadius: CGFloat { FocusRing.pillCornerRadius }
     public override func performPress() { onActivate?() }
+}
+
+extension AddressFieldView: NSDraggingSource {
+    public func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        [.copy, .link, .generic]
+    }
+
+    public func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        // The drag took the mouse-up; the next press resets `dragged`.
+        pressLocation = nil
+    }
 }
 
 /// The extensions in the sidebar's top bar, packed against Back (the Room
@@ -462,7 +505,7 @@ final class SidebarFooterView: NSView {
         addSubview(iconRow)
         addSubview(nameLabel)
         addSubview(plusButton)
-        registerForDraggedTypes([SidebarController.entryPasteboardType, .URL, .fileURL, .string])
+        registerForDraggedTypes([SidebarController.entryPasteboardType] + SidebarDrop.contentTypes)
     }
 
     @available(*, unavailable)
@@ -604,7 +647,7 @@ final class SidebarFooterView: NSView {
         switch phase {
         case .moved:
             if reorder?.index != index {
-                if reorder != nil { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+                if reorder != nil { Haptics.alignment() }
                 reorder = (space, index)
                 layoutReorder(moving: from, to: index, pitch: pitch)
             }
@@ -640,6 +683,13 @@ final class SidebarFooterView: NSView {
 
     /// Shows the hover label as if the pointer were on `space`'s icon (DEBUG captures).
     func debugHover(_ space: UUID?) { hoveredID = space }
+
+    /// `space`'s icon centre in window coordinates (the drop matrix).
+    func debugIconCenter(_ space: UUID) -> NSPoint? {
+        guard let index = spaces.firstIndex(where: { $0.id == space }), icons.indices.contains(index) else { return nil }
+        let frame = icons[index].frame
+        return iconRow.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil)
+    }
 
     @objc private func plusClicked() {
         guard let menu = plusMenu?() else { return }

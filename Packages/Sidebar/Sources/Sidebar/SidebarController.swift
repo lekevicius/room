@@ -2,6 +2,7 @@ import AppKit
 import Chrome
 import Design
 import Model
+import Omnibox
 import Store
 
 /// One window's sidebar for its active space: Essentials grid, the outline
@@ -59,6 +60,8 @@ public final class SidebarController: NSObject {
     public var onFooterSpaceSelected: (() -> Void)?
     /// A drag of sidebar entries began (`true`) or ended: the card shows its split drop zones meanwhile (spec §D).
     public var onEntryDrag: ((Bool) -> Void)?
+    /// The shown space's search engine (Settings ▸ Search): dropped text searches with it.
+    public var searchEngine: () -> SearchEngine = { .google }
     /// The routing sheet (spec §B, 4.2): "Space Routing Settings…" (`nil`), or
     /// "Add Route for Domain…" with a new rule prefilled for `host` targeting `space`.
     public var onRoutingSettings: ((_ newRule: (host: String, space: UUID)?) -> Void)?
@@ -111,6 +114,8 @@ public final class SidebarController: NSObject {
     private weak var folderPreview: NSPopover?
     #if DEBUG
     var debugDragImage: NSView?
+    /// What the last drag move set for the slide back (B-96; spikes read it).
+    public internal(set) var debugSlidesBack: Bool?
     #endif
 
     var sidebar: SidebarStore { store.sidebar }
@@ -600,6 +605,7 @@ public final class SidebarController: NSObject {
     private func updateAddressField() {
         let entry = selectedEntryID.flatMap(sidebar.entry)
         let url = entry?.currentURL
+        addressField.dragTitle = entry.map { EntryLabel.currentTitle($0) ?? EntryLabel.title($0) }
         addressField.setURL(url, isSecure: url?.hasPrefix("https://") == true)
     }
 
@@ -1044,6 +1050,8 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
     }
 
     func outlineEmptyAreaDoubleClicked() { host?.newTab() }
+
+    func outlineDragMoved(_ session: NSDraggingSession, to screenPoint: NSPoint) { dragMoved(session, to: screenPoint) }
 
     func outlineMenu(forRow row: Int) -> NSMenu? {
         guard let node = outline.item(atRow: row) as? OutlineNode else { return nil }
@@ -1576,6 +1584,52 @@ extension SidebarController {
     /// A drag of `id` from this sidebar ending at `screenPoint` with no target (4.8a's drag out; the
     /// mouse drag itself is by hand).
     public func debugDragEnded(_ id: UUID, at screenPoint: NSPoint) { dragEnded([id], at: screenPoint, operation: []) }
+
+    /// Tabs for what was dropped on the card and the page did not take
+    /// (5.5b, spec §I.7): Today tabs at the top of the list, in order, the first selected.
+    public func openDropped(_ urls: [String]) {
+        var first: Entry?
+        for (offset, url) in urls.enumerated() {
+            guard let entry = try? sidebar.addEntry(.today, url: url, space: tree.spaceID, window: windowID, at: offset) else { continue }
+            if first == nil { first = entry }
+        }
+        if let first { select(first.id) }
+    }
+
+    // MARK: Drops (5.5b's drop matrix drives Room's own drop code with pasteboards)
+
+    /// The outline's validateDrop and acceptDrop for a drag from outside (AppKit's NSOutlineView routing is not in it).
+    public func debugOutlineDragUpdated(_ info: any NSDraggingInfo) -> NSDragOperation { outlineDragUpdated(info) }
+    public func debugOutlinePerformDrop(_ info: any NSDraggingInfo) -> Bool { outlineAcceptDrop(info) }
+    public func debugOutlineDragExited() { outlineDragExited() }
+    /// The Essentials grid and the footer, the drop targets they are.
+    public var debugGridView: NSView { grid }
+    public var debugFooter: NSView { footer }
+    /// The insertion line (outline coordinates) while shown; the row marked as the drop target.
+    public var debugInsertionLine: NSRect? { outline.dropIndicator.isHidden ? nil : outline.dropIndicator.frame }
+    public var debugDropTargetRow: Int? {
+        var target: Int?
+        outline.enumerateAvailableRowViews { rowView, row in if (rowView as? SidebarRowView)?.isDropTarget == true { target = row } }
+        return target
+    }
+    /// The grid's insertion line while shown (grid coordinates).
+    public var debugGridInsertion: NSRect? { grid.debugInsertionLine }
+    /// The Essentials tiles' frames (grid coordinates).
+    public var debugTileFrames: [NSRect] { grid.tileFrames }
+    /// A space icon's centre in window coordinates.
+    public func debugSpaceIconCenter(_ space: UUID) -> NSPoint? { footer.debugIconCenter(space) }
+    /// The window point at `fraction` of the height of `id`'s row (nil when it is not listed).
+    public func debugRowPoint(_ id: UUID, fraction: CGFloat) -> NSPoint? {
+        guard let node = tree.displayedNode(for: id) else { return nil }
+        let row = outline.row(forItem: node)
+        guard row >= 0 else { return nil }
+        let rect = outline.rect(ofRow: row)
+        return outline.convert(NSPoint(x: rect.midX, y: rect.minY + rect.height * fraction), to: nil)
+    }
+    /// The pasteboard item a row's drag writes (B-97: what another app receives).
+    public func debugPasteboardItem(for id: UUID) -> NSPasteboardItem? { sidebar.entry(id).map(pasteboardItem(for:)) }
+    /// What the outline offers outside Room with ⌥ held or not (B-97), through its own source method.
+    public func debugOutsideMask(option: Bool) -> NSDragOperation { DragOutRule.outsideOperations(option: option) }
 
     /// Spaces whose list is built and loaded.
     public var debugPreparedSpaces: Int { panes.values.filter(\.isLoaded).count }

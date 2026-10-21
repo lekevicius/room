@@ -12,6 +12,8 @@ protocol SidebarOutlineEvents: AnyObject {
     func outlineEmptyAreaDoubleClicked()
     /// A drag left the outline (hide the insertion line).
     func outlineDragExited()
+    /// A drag of rows moved to `screenPoint` (B-96: past the drag-out distance the image stops sliding back).
+    func outlineDragMoved(_ session: NSDraggingSession, to screenPoint: NSPoint)
     /// The outline became or stopped being first responder (focus ring).
     /// `byKeyboard`: Tab or ⇧Tab brought the focus (5.3a: the ring shows on the selected row).
     func outlineFocusChanged(_ focused: Bool, byKeyboard: Bool)
@@ -53,7 +55,8 @@ final class SidebarOutlineView: NSOutlineView {
         allowsMultipleSelection = true
         draggingDestinationFeedbackStyle = .none
         setDraggingSourceOperationMask([.move, .copy], forLocal: true)
-        // Outside Room nothing (4.8a): a drop there is the drag out to a new window (spec §A.9).
+        // Outside Room nothing (4.8a): a drop there is the drag out to a new window (spec §A.9);
+        // with ⌥ held the row's URL and title (B-97, `draggingSession(_:sourceOperationMaskFor:)`).
         setDraggingSourceOperationMask([], forLocal: false)
         allowsTypeSelect = false
         focusRingType = .none
@@ -83,6 +86,20 @@ final class SidebarOutlineView: NSOutlineView {
         pill.frame.origin.x = rows.minX
         pill.frame.size.width = rows.width
         CATransaction.commit()
+    }
+
+    // MARK: Dragging source (B-96, B-97)
+
+    /// Inside Room AppKit's masks (move, ⌥ copy); outside, the URL only while ⌥ is held (`DragOutRule`).
+    override func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        guard context == .outsideApplication else { return super.draggingSession(session, sourceOperationMaskFor: context) }
+        return DragOutRule.outsideOperations(option: NSEvent.modifierFlags.contains(.option))
+    }
+
+    /// NSOutlineView keeps this to itself (its data source hears only begin and end): B-96 needs the moves.
+    override func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
+        super.draggingSession(session, movedTo: screenPoint)
+        events?.outlineDragMoved(session, to: screenPoint)
     }
 
     // Rows draw their own disclosure (folder icon, space-title chevron).

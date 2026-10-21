@@ -166,6 +166,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         LaunchMarks.mark("did finish launching")
         // The address field's full-URL tooltip appears after 600 ms (spec §C).
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
+        // Image data dropped with no file is written here and opens as a file:// tab (5.5b, spec §I.7).
+        SidebarDrop.imageDirectory = Self.stateDirectory.appending(path: "Dropped Images", directoryHint: .isDirectory)
         NSLog("Room: NSApp.delegate is %@", NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
         #if DEBUG
         // `-RoomReduceMotion YES|NO` (5.1a): the motion harness on either set of variants, whatever System Settings says.
@@ -1278,6 +1280,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         sidebar.onEntryDrag = { [weak split] active in split?.dropOverlay.isHidden = !active }
+        split.contentDrop.onOpen = { [weak sidebar] urls in sidebar?.openDropped(urls) }
+        split.contentDrop.urls = { [weak sidebar] pasteboard, write in sidebar?.dropURLs(from: pasteboard, writingImages: write) ?? [] }
+        let settings = store.settings
+        sidebar.searchEngine = { [weak settings, weak sidebar, weak store] in
+            guard let settings else { return .google }
+            let profile = sidebar.flatMap { store?.sidebar.space($0.activeSpaceID)?.profileID }
+            return SearchEngines.engine(for: profile, in: settings.settings)
+        }
         // ⇧⌘= opened the palette on an empty pane: dismissed without a page, the pane goes (spec §D).
         let previousClose = palette.onClose
         palette.onClose = { [weak sidebar] in

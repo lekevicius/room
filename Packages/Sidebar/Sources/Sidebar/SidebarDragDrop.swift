@@ -26,7 +26,7 @@ extension SidebarController {
     /// its URL for every other app.
     static let entryPasteboardType = SidebarDragTypes.entry
 
-    static let acceptedDragTypes: [NSPasteboard.PasteboardType] = [entryPasteboardType, .URL, .fileURL, .string]
+    static let acceptedDragTypes: [NSPasteboard.PasteboardType] = [entryPasteboardType] + SidebarDrop.contentTypes
 
     /// What a drag in progress is over and what it would do.
     struct DragState {
@@ -55,12 +55,8 @@ extension SidebarController {
     }
 
     func pasteboardItem(for entry: Entry) -> NSPasteboardItem {
-        let item = NSPasteboardItem()
+        let item = entry.currentURL.map { URLDrag.pasteboardItem(url: $0, title: EntryLabel.title(entry)) } ?? NSPasteboardItem()
         item.setString(entry.id.uuidString, forType: Self.entryPasteboardType)
-        if let url = entry.currentURL {
-            item.setString(url, forType: .URL)
-            item.setString(url, forType: .string)
-        }
         return item
     }
 
@@ -163,7 +159,7 @@ extension SidebarController {
     func outlineDragUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
         if drag == nil { drag = DragState() }
         let ids = draggedEntryIDs(info)
-        let external = ids.isEmpty ? SidebarDrop.urls(from: info.draggingPasteboard) : []
+        let external = ids.isEmpty ? dropURLs(from: info.draggingPasteboard, writingImages: false) : []
         guard !ids.isEmpty || !external.isEmpty else {
             hideDropFeedback()
             return []
@@ -203,7 +199,7 @@ extension SidebarController {
     func outlineAcceptDrop(_ info: any NSDraggingInfo) -> Bool {
         guard let target = drag?.target else { return false }
         let ids = draggedEntryIDs(info)
-        let external = ids.isEmpty ? SidebarDrop.urls(from: info.draggingPasteboard) : []
+        let external = ids.isEmpty ? dropURLs(from: info.draggingPasteboard, writingImages: true) : []
         hideDropFeedback()
         return performDrop(target, ids: ids, copy: isCopy(info), external: external)
     }
@@ -267,7 +263,7 @@ extension SidebarController {
         if drag == nil { drag = DragState() }
         guard let space = tree.space else { return [] }
         let ids = draggedEntryIDs(info)
-        let external = ids.isEmpty ? SidebarDrop.urls(from: info.draggingPasteboard) : []
+        let external = ids.isEmpty ? dropURLs(from: info.draggingPasteboard, writingImages: false) : []
         guard !ids.isEmpty || !external.isEmpty else { return [] }
         hideOutlineFeedback()
         let container = Container.essentials(profile: space.profileID)
@@ -301,7 +297,7 @@ extension SidebarController {
         }
         guard let drop = drag?.gridDrop else { return false }
         let ids = draggedEntryIDs(info)
-        let external = ids.isEmpty ? SidebarDrop.urls(from: info.draggingPasteboard) : []
+        let external = ids.isEmpty ? dropURLs(from: info.draggingPasteboard, writingImages: true) : []
         let target = DropRules.Target.insert(.essentials(profile: space.profileID), index: drop.index, line: .init(boundary: 0, depth: 0))
         return performDrop(target, ids: ids, copy: isCopy(info), external: external)
     }
@@ -342,7 +338,7 @@ extension SidebarController {
     private func tick(_ feedback: Feedback) {
         defer { drag?.feedback = feedback }
         guard let previous = drag?.feedback, previous != feedback else { return }
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        Haptics.alignment()
     }
 
     private func setDropTargetRow(_ row: Int?) {
@@ -447,7 +443,11 @@ extension SidebarController: NSDraggingSource {
     /// would otherwise take its URL as a file, and a drop there is the drag
     /// out to a new window (spec §A.9). Other Room windows' sidebars take it.
     public func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        context == .withinApplication ? [.move, .copy] : []
+        context == .withinApplication ? [.move, .copy] : DragOutRule.outsideOperations(option: NSEvent.modifierFlags.contains(.option))
+    }
+
+    public func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
+        dragMoved(session, to: screenPoint)
     }
 
     public func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
@@ -458,6 +458,19 @@ extension SidebarController: NSDraggingSource {
 }
 
 extension SidebarController {
+    /// What a drop from outside opens, searching with the shown space's engine (`searchEngine`).
+    public func dropURLs(from pasteboard: NSPasteboard, writingImages: Bool) -> [String] {
+        SidebarDrop.urls(from: pasteboard, writingImages: writingImages, engine: searchEngine())
+    }
+
+    /// B-96: while the pointer is past the drag-out distance a refused drop
+    /// opens a window there, so the image must not slide back to the sidebar first.
+    func dragMoved(_ session: NSDraggingSession, to screenPoint: NSPoint) {
+        guard let ids = drag?.ids, !ids.isEmpty, let frame = outline.window?.frame else { return }
+        session.animatesToStartingPositionsOnCancelOrFail = DragOutRule.slidesBack(at: screenPoint, windowFrame: frame, count: ids.count)
+        debugSlidesBack = session.animatesToStartingPositionsOnCancelOrFail
+    }
+
     /// A drag that no target took (`operation` empty), of one entry, ending
     /// beyond the drag-out distance outside the window: a new window there.
     func dragEnded(_ ids: [UUID], at screenPoint: NSPoint, operation: NSDragOperation) {
@@ -486,15 +499,59 @@ public enum DragOutRule {
         return frame
     }
 
+    /// What a sidebar entry's drag offers other apps (B-97, decided 2026-10-18:
+    /// the drag out to a new window wins): nothing, so the desktop and Finder
+    /// refuse it and the drop opens a window; with ⌥ held, its URL and title.
+    public static func outsideOperations(option: Bool) -> NSDragOperation {
+        option ? [.copy, .link, .generic] : []
+    }
+
+    /// Whether a refused drop at `point` slides the image back to the sidebar
+    /// (B-96): not when it opens a window there (one entry, past the distance).
+    public static func slidesBack(at point: NSPoint, windowFrame: NSRect, count: Int, distance: CGFloat = WindowMetrics.dragOutDistance) -> Bool {
+        !(count == 1 && opensWindow(at: point, windowFrame: windowFrame, distance: distance))
+    }
+
     /// ⌘N's and "Open in New Window"'s frame: `key` moved right and down by the cascade offset, kept on `screen`.
     public static func cascaded(from key: NSRect, screen: NSRect, offset: CGFloat = WindowMetrics.cascadeOffset) -> NSRect {
         frame(droppedAt: NSPoint(x: key.minX + offset, y: key.maxY - offset), size: key.size, screen: screen)
     }
 }
 
-/// Drops from outside the window.
-enum SidebarDrop {
-    static func urls(from pasteboard: NSPasteboard) -> [String] { URLFixup.dropURLs(from: pasteboard) }
+/// Drops from outside the window (spec §I.7).
+public enum SidebarDrop {
+    /// The content types the sidebar, its space icons and the card take from other apps.
+    public static let contentTypes: [NSPasteboard.PasteboardType] = [.URL, .fileURL, .string, .png, .tiff]
+
+    /// Where a dropped image with no file (a page's image, a screenshot's
+    /// data) is written so it opens as a `file://` tab (the app sets it
+    /// under its state directory).
+    public static var imageDirectory = FileManager.default.temporaryDirectory.appending(path: "Room Dropped Images", directoryHint: .isDirectory)
+
+    /// What the drop opens: `URLFixup.dropURLs`, else the image written as a
+    /// PNG (`writingImages` false while the drag is only over the target: a
+    /// placeholder that counts as one tab).
+    public static func urls(from pasteboard: NSPasteboard, writingImages: Bool, engine: SearchEngine = .google) -> [String] {
+        let urls = URLFixup.dropURLs(from: pasteboard, engine: engine)
+        guard urls.isEmpty, let image = URLFixup.droppedImagePNG(from: pasteboard) else { return urls }
+        guard writingImages else { return ["file:///dropped-image.png"] }
+        return URLFixup.writeDroppedImage(image, into: imageDirectory).map { [$0] } ?? []
+    }
+}
+
+/// A URL dragged to other apps (B-97: ⌥-dragged rows, the address field):
+/// the URL, its title (`public.url-name`, which Finder names a `.webloc`
+/// after) and the URL as text for editors.
+public enum URLDrag {
+    public static let titleType = NSPasteboard.PasteboardType("public.url-name")
+
+    public static func pasteboardItem(url: String, title: String?) -> NSPasteboardItem {
+        let item = NSPasteboardItem()
+        item.setString(url, forType: .URL)
+        item.setString(url, forType: .string)
+        if let title, !title.isEmpty { item.setString(title, forType: titleType) }
+        return item
+    }
 }
 
 /// The images under the pointer while dragging: the row lifted onto a pill

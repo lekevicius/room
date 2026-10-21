@@ -20,10 +20,14 @@ final class SplitView: NSView {
     private(set) var presentation: SplitPresentation?
     /// Sizes while a resizer is dragged (committed to the store on release).
     private var liveRatios: [Double]?
+    /// The divider being dragged rests on its equal point (one tick on arrival).
+    private var isSnapped = false
     private var resizers: [SplitResizerView] = []
     /// Each pane's card shadow, under the panes (B-113).
     private var shadows: [CALayer] = []
     let dropOverlay = SplitDropOverlayView()
+    /// Content from other apps dropped on the card (5.5b): the page first, Room for what it refuses.
+    let contentDrop = CardDropView()
     /// The page in element fullscreen fills the card alone (B-35).
     var fullscreenContents: (any WebContents)? { didSet { needsLayout = true } }
 
@@ -43,7 +47,9 @@ final class SplitView: NSView {
         panes = [focusedPane]
         addSubview(focusedPane)
         dropOverlay.isHidden = true
+        addSubview(contentDrop)
         addSubview(dropOverlay)
+        contentDrop.roots = { [weak self] in self?.panes ?? [] }
     }
 
     @available(*, unavailable)
@@ -98,7 +104,7 @@ final class SplitView: NSView {
         }
         panes = chosen.compactMap { $0 }
         for (pane, item) in zip(panes, wanted) {
-            if pane.superview !== self { addSubview(pane, positioned: .below, relativeTo: dropOverlay) }
+            if pane.superview !== self { addSubview(pane, positioned: .below, relativeTo: contentDrop) }
             pane.entry = item.entry
             pane.show(item.contents)
             pane.isInSplit = split != nil
@@ -153,6 +159,7 @@ final class SplitView: NSView {
             CATransaction.commit()
             for resizer in resizers { resizer.isHidden = true }
             dropOverlay.frame = bounds
+            contentDrop.frame = bounds
             return
         }
         let frames = paneFrames
@@ -172,6 +179,7 @@ final class SplitView: NSView {
         layoutShadows(isSplit ? frames : [])
         CATransaction.commit()
         dropOverlay.frame = bounds
+        contentDrop.frame = bounds
     }
 
     /// One card shadow under each pane of a split (B-113: the page card's `CardMetrics` shadow).
@@ -225,13 +233,29 @@ final class SplitView: NSView {
 
     private func resizerDragged(_ divider: SplitGeometry.Divider, to point: CGPoint) {
         guard isSplit else { return }
-        let position = divider.axis == .vertical ? point.x : point.y
-        liveRatios = SplitGeometry.ratios(dragging: divider, to: position, in: bounds, layout: layoutKind, count: panes.count, ratios: ratios)
+        let pointer = divider.axis == .vertical ? point.x : point.y
+        // The equal point is an alignment point: the divider snaps to it with a haptic tick (5.5 task 6).
+        let snap = SplitGeometry.snap(pointer, dragging: divider, in: bounds, layout: layoutKind, count: panes.count, ratios: ratios)
+        if snap.snapped, !isSnapped { Haptics.alignment() }
+        isSnapped = snap.snapped
+        liveRatios = SplitGeometry.ratios(dragging: divider, to: snap.position, in: bounds, layout: layoutKind, count: panes.count, ratios: ratios)
         needsLayout = true
         layoutSubtreeIfNeeded()
     }
 
+    #if DEBUG
+    /// Spikes (5.5b): the first divider dragged to `position` along its axis (split view coordinates); the live ratios.
+    func debugDragDivider(to position: CGFloat) -> [Double]? {
+        guard let divider = SplitGeometry.dividers(in: bounds, layout: layoutKind, count: panes.count, ratios: ratios).first else { return nil }
+        resizerDragged(divider, to: divider.axis == .vertical ? CGPoint(x: position, y: bounds.midY) : CGPoint(x: bounds.midX, y: position))
+        return liveRatios
+    }
+
+    func debugEndDividerDrag() { commitRatios() }
+    #endif
+
     private func commitRatios() {
+        isSnapped = false
         guard let presentation, let liveRatios else { return }
         onRatios?(presentation.group, liveRatios)
     }
