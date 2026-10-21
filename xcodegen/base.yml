@@ -15,7 +15,7 @@ settings:
     # Apple silicon only: the fork build is arm64.
     ARCHS: arm64
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "15"
+    CURRENT_PROJECT_VERSION: "16"
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""

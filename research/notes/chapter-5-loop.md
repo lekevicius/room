@@ -23,3 +23,7 @@ Phase 5.0's DMG: `build/sparkle-15/Room-0.1.0-15.dmg`, notarized in 72 s, staple
 ### 5.1a — accepted (2026-10-21 05:50 → 06:24, 38 min)
 
 Outcome: the motion harness, the sidebar's motion on the tokens (0 dropped frames at 60 Hz but one reduced reset frame on dev), Reduce Motion variants with a test, B-123 fixed, B-128 for the 120 Hz run. Decisions: the pill spring stays removed (the 2026-10-07 design wins over §I.1's spring); instant variants where `NSOutlineView` cannot crossfade. User's list: the 120 Hz run (one step, 5.1b completes it). DMG: build 15 built; the next after 5.1b.
+
+### 5.1b — accepted; Phase 5.1 closed pending the 120 Hz run (2026-10-21 06:26 → 07:26, 60 min)
+
+Outcome: B-111 (`ControlFeedback`), B-114 (no pill, a faster reveal), Reduce Motion tables in seven packages, the overlay motion table, two review sheets. Decisions: the trigger costs before animations (B-129) go to 5.4a with B-53; the switcher's new fade stays for the user's taste; no screen recordings (they would raise a prompt). User's list for 5.1: the 120 Hz runs, taste on the two sheets, click checks a–e. DMG: build 16 started 07:28.
