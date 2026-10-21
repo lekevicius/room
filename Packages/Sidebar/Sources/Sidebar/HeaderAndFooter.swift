@@ -83,8 +83,16 @@ public final class AddressFieldView: PressableView {
         NSSize(width: bounds.width, height: SidebarMetrics.addressFieldHeight)
     }
 
-    /// The selected page's URL (`nil`: the placeholder).
+    /// What `setURL` last applied. A tab switch sets the same URL twice (the
+    /// store's change and the selection's), and a new symbol image with its
+    /// button's relayout was ~0.3 ms of the switch (5.4a's profile, B-53).
+    private var applied: (url: String?, isSecure: Bool)?
+
+    /// The selected page's URL (`nil`: the placeholder). A repeat is free.
     func setURL(_ url: String?, isSecure: Bool) {
+        if let applied, applied.url == url, applied.isSecure == isSecure { return }
+        let previousSymbol = applied.map { Self.siteSymbol(url: $0.url, isSecure: $0.isSecure) }
+        applied = (url, isSecure)
         self.url = url
         if let url, let domain = EntryLabel.domain(url) ?? Optional(url) {
             domainField.stringValue = domain
@@ -95,12 +103,16 @@ public final class AddressFieldView: PressableView {
             domainField.textColor = .placeholderTextColor
             toolTip = nil
         }
-        let symbol: Symbol = url == nil ? .search : (isSecure ? .siteInfo : .siteInsecure)
-        siteButton.image = symbol.image(.control, accessibilityDescription: "Site Information")
+        let symbol = Self.siteSymbol(url: url, isSecure: isSecure)
+        if symbol != previousSymbol { siteButton.image = symbol.image(.control, accessibilityDescription: "Site Information") }
         siteButton.toolTip = url == nil ? nil : (isSecure ? "Site Information" : "Not Secure")
         siteButton.isEnabled = url != nil
         setAccessibilityValue(url ?? "Search or enter URL")
         updateHover()
+    }
+
+    private static func siteSymbol(url: String?, isSecure: Bool) -> Symbol {
+        url == nil ? .search : (isSecure ? .siteInfo : .siteInsecure)
     }
 
     public override func updateLayer() {
