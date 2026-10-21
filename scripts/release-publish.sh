@@ -6,13 +6,13 @@
 # Usage: scripts/release-publish.sh <release-dir> <build>
 #   <release-dir> holds every published DMG and the appcast that
 #   scripts/sparkle-package.sh wrote over all of them (build/release).
-# CLOUDFLARE_ACCOUNT_ID: the account with R2 (default Jonas@mainline.inc's).
+# CLOUDFLARE_ACCOUNT_ID: the account with R2 (default Lekevicius, the personal account).
 # ROOM_PUBLISH_DRY_RUN=1 prints the uploads instead of running them.
 set -euo pipefail
 
 DIR="$1"; BUILD="$2"
 BUCKET="${ROOM_R2_BUCKET:-room-updates}"
-export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-79c846994671f62ac0fab9c05cc73249}"
+export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-fd39de57de7236def4aed06df4ef7bac}"
 DMG=$(ls "$DIR"/Room-*-"$BUILD".dmg 2>/dev/null | head -1)
 [[ -f "$DMG" ]] || { echo "no Room-*-$BUILD.dmg in $DIR" >&2; exit 1; }
 [[ -f "$DIR/appcast.xml" ]] || { echo "no appcast.xml in $DIR" >&2; exit 1; }

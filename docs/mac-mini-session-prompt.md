@@ -55,8 +55,10 @@ build/chapter-5-prompts/common.md and adapt its machine section).
    local.env has ROOM_SPARKLE_ED_KEY (the user copies it from the laptop's
    local.env or the mini's keychain item "ed25519"; scripts/sparkle-package.sh
    otherwise reads the keychain, which prompts). Check `wrangler whoami`
-   (the user logs in if needed; the account is "Jonas@mainline.inc's
-   Account", 79c846994671f62ac0fab9c05cc73249: export CLOUDFLARE_ACCOUNT_ID).
+   (the user logs in if needed; wrangler's "personal" profile, account
+   "Lekevicius" fd39de57de7236def4aed06df4ef7bac, holds the room-updates
+   bucket: run wrangler from the repository directory or export
+   CLOUDFLARE_ACCOUNT_ID).
 6. macOS's questions for the Debug apps: run the permissions spike once on
    the Debug app over the release framework (scripts/run-spike.sh
    chromesurfaces2 -RoomSpikeOnly permissions, throwaway state) and the B-62
