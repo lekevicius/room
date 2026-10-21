@@ -59,6 +59,13 @@ struct EngineProvidersTests {
         let notAllowed = EngineHistoryProvider.matches(from: [verbatim, history("https://github.com/", relevance: 1_150, inline: "thub.com")],
                                                        input: input, in: OmniboxContext())
         #expect(notAllowed.allSatisfy { $0.inlineCompletion == nil })
+        // A match carried over from the previous keystroke completes the old text, never this one (5.5a).
+        let stale = AutocompleteMatch(contents: "127.0.0.1:8770", destinationURL: URL(string: "http://127.0.0.1:8770/"), fillIntoEdit: "127.0.0.1:8770",
+                                      inlineCompletion: ".0.0.1:8770", relevance: 1_200, kind: .historyURL, provider: .historyQuick, allowedToBeDefault: true)
+        let carried = EngineHistoryProvider.matches(from: [verbatim, stale], input: OmniboxInput(text: "日本"), in: OmniboxContext())
+        #expect(carried.allSatisfy { $0.inlineCompletion == nil })
+        let current = EngineHistoryProvider.matches(from: [verbatim, stale], input: OmniboxInput(text: "127"), in: OmniboxContext())
+        #expect(current.first?.inlineCompletion == ".0.0.1:8770")
     }
 
     @Test("A page the engine sees open switches to the entry that shows it")

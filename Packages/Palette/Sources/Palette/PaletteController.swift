@@ -215,6 +215,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// Keys the field editor has no command for: ⌘Enter, and ⇧Delete /
     /// ⌘⌥Delete on a removable history row (spec §C). `true`: handled.
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        // An input method's composition takes its keys first (Return picks a candidate, Delete edits it).
+        if hasMarkedText { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if event.keyCode == 36 || event.keyCode == 76, flags.contains(.command) {
             commit(modifier: .command)
@@ -603,7 +605,16 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     /// History's top hit completes the typed text in the field, the
     /// completion selected so the next keystroke replaces it (spec §C; 2.4b's provider).
     private func applyInlineCompletion() {
-        guard let completion = result.inlineCompletion, let field = overlay?.panel.field else { return }
+        guard let field = overlay?.panel.field else { return }
+        guard let completion = result.inlineCompletion else {
+            // A re-rank that dropped the completion takes its text out of the field too (5.5a: a carried-over
+            // completion stayed after the engine's next pass); never while an input method composes.
+            if !hasMarkedText, !showsSelection, field.stringValue != typedText, input.mode == .normal, siteSearch == nil {
+                field.stringValue = typedText
+                field.currentEditor()?.selectedRange = NSRange(location: (typedText as NSString).length, length: 0)
+            }
+            return
+        }
         let typedLength = (typedText as NSString).length
         let selection = NSRange(location: typedLength, length: (completion as NSString).length)
         // While editing, the completion goes into the field editor's text: a

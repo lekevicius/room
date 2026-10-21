@@ -59,7 +59,7 @@ public enum EngineHistoryProvider {
         // with suggestions on, Chrome's default is often its verbatim search, which hid the completion),
         // only in normal mode with inline completion allowed.
         let inlineOffset: Int? = if input.mode == .normal, !input.preventsInlineCompletion {
-            history.first { $0.element.allowedToBeDefault && !$0.element.inlineCompletion.isEmpty }?.offset
+            history.first { completes(input.text, $0.element) }?.offset
         } else { nil }
         return history.enumerated().map { rank, element in
             let (offset, engineMatch) = element
@@ -81,6 +81,14 @@ public enum EngineHistoryProvider {
             }
             return match
         }
+    }
+
+    /// Whether `match` may complete `text` inline: allowed to be default, and its completion made for this
+    /// text (Chrome carries matches over from the previous keystroke while its providers run; their
+    /// completions belong to the old text: 5.5a's IME run put "日本.0.0.1:8770" in the field).
+    static func completes(_ text: String, _ match: AutocompleteMatch) -> Bool {
+        guard match.allowedToBeDefault, !match.inlineCompletion.isEmpty else { return false }
+        return match.fillIntoEdit.isEmpty || (text + match.inlineCompletion).lowercased() == match.fillIntoEdit.lowercased()
     }
 
     /// ⌘Y with nothing typed: the engine's history pages (most recent first), in its order.
