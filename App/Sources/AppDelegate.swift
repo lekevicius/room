@@ -163,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LaunchMarks.mark("did finish launching")
         // The address field's full-URL tooltip appears after 600 ms (spec §C).
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
         NSLog("Room: NSApp.delegate is %@", NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
@@ -190,6 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #endif
         NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()
+        LaunchMarks.mark("state opened")
         if Self.quitRequested {
             NSApp.terminate(nil)
             return
@@ -215,7 +217,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Before the first window: the Dock swaps to the chosen icon as the app starts.
         applyAppIcon()
         restoreWindows()
+        LaunchMarks.mark("window restored")
+        LaunchMarks.markCommit("window's first commit")
         NSApp.activate()
+        LaunchMarks.mark("app activated")
+        #if DEBUG
+        // `-RoomLaunchPauseAfterWindow <seconds>` (5.4a): a profiler attached meanwhile sees what follows the window.
+        if let pause = UserDefaults.standard.string(forKey: "RoomLaunchPauseAfterWindow").flatMap(Double.init) {
+            Thread.sleep(forTimeInterval: pause)
+            LaunchMarks.mark("after the window's pause")
+        }
+        #endif
+        DispatchQueue.main.async { LaunchMarks.mark("main queue reached") }
         Task { await startSession() }
     }
 
@@ -225,12 +238,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func startSession() async {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
         // Before any page: a page's requests are matched by the factories its document gets at commit.
+        LaunchMarks.mark("session started")
         await startContentBlocking()
+        LaunchMarks.mark("content blocking ready")
         do {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where engineProfiles[model.id] == nil {
                 requestedEngineProfiles.insert(model.id)
+                LaunchMarks.mark("engine profile requested")
                 let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
+                LaunchMarks.mark("engine profile created")
                 if engineProfiles[model.id] == nil {
                     prepare(profile, for: model)
                     holdSelectionAfterCrash(profile)
@@ -458,7 +475,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         for session in sessions.reversed().dropLast() { session.window?.orderFront(nil) }
         if let front = sessions.first {
             showSelection(of: front)
+            LaunchMarks.mark("window: selection shown")
             windows.focus(front)
+            LaunchMarks.mark("window: focused (ordered front, key)")
         }
         NSLog("Room: %ld window(s) restored", sessions.count)
     }
@@ -473,11 +492,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @discardableResult
     private func openWindow(record: WindowState?, launch: WindowOpening = .new) -> WindowSession {
         let controller = RoomWindowController()
+        LaunchMarks.mark("window: controller made")
         let pageHost = PageHost(controller: controller)
         let session = WindowSession(id: record?.id ?? UUID(), controller: controller, pageHost: pageHost)
         if let store, let record {
             bind(session, record: record, store: store)
+            LaunchMarks.mark("window: bound to its record")
             installSidebar(session, store: store, launch: launch)
+            LaunchMarks.mark("window: sidebar and services installed")
         }
         windows.add(session)
         return session
@@ -723,6 +745,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if launch == .front, let fixture = SidebarFixtures.requested { SidebarFixtures.populate(store, fixture, window: windowID) }
         #endif
         let sidebar = SidebarController(store: store, windowID: windowID, incognito: session.isIncognito)
+        LaunchMarks.mark("window: sidebar controller made")
         let tabs = TabController(store: store)
         tabs.engine = engine
         let pageDelegate = PageUIDelegate(host: pageHost)
@@ -837,8 +860,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         downloads.pageFavicon = { [weak tabs] in tabs?.current?.favicon }
         session.downloads = downloads
         configureDownloadList(store.settings)
+        LaunchMarks.mark("window: toasts, routing, downloads")
         installLibrary(session, store: store)
         installPagePrompts(session, rootView: rootView)
+        LaunchMarks.mark("window: library and prompts")
         let palette = PaletteController(hostView: rootView, tabs: tabs, sidebar: sidebar)
         palette.contentRect = { [weak rootView, weak pageHost] in
             // In a split, over the focused pane (⇧⌘= "focuses the palette inside it", spec §D).
@@ -891,12 +916,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         session.palette = palette
         session.hiddenSidebar = HiddenSidebar(controller: controller, tabs: tabs, sidebar: sidebar, palette: palette, toasts: toasts)
+        LaunchMarks.mark("window: palette")
         installSplit(pageHost: pageHost, sidebar: sidebar, tabs: tabs, palette: palette, store: store)
         installToolbar(controller, tabs: tabs, settings: store.settings)
         // The first window starts the observation (it reaches every window); each window applies now.
         if windows.all.isEmpty { applyLookSettings() }
         applyLook(to: session)
         trackFocusedPage(session)
+        LaunchMarks.mark("window: split, toolbar, look")
         // The glass and the rows' hosting view are built before the first ⌘T.
         DispatchQueue.main.async { [weak palette] in palette?.prewarm() }
         if let window = controller.window {
@@ -912,6 +939,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         applyShortcutKeys(to: session)
         installExtensionPopups(session)
         installReader(session, settings: store.settings, folder: session.incognito?.readerFolder)
+        LaunchMarks.mark("window: shortcuts, extensions, reader")
         // Every engine profile the app has (a window opened after launch); the incognito window has its twin.
         if let incognito = session.incognito {
             tabs.setEngineProfile(incognito.twin, for: incognito.profileID)
@@ -1447,11 +1475,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if let profile = engineProfiles[model.id] { return profile }
         do {
             requestedEngineProfiles.insert(model.id)
+            LaunchMarks.mark("engine profile requested")
             let profile = try await engine.createProfile(name: TabController.engineProfileName(for: model))
+            LaunchMarks.mark("engine profile created")
             if engineProfiles[model.id] == nil {
                 prepare(profile, for: model)
+                LaunchMarks.mark("profile prepared (downloads, search, extensions)")
                 holdSelectionAfterCrash(profile)
                 deliver(profile, for: model.id)
+                LaunchMarks.mark("profile delivered (the page made, its load called)")
             }
             return engineProfiles[model.id]
         } catch {
@@ -1523,6 +1555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Final state write (the store's single-transaction write with the
     /// clean-exit mark); called once at quit, whichever path gets there first.
     func shutdown() {
+        LaunchMarks.writeIfRequested()
         guard !finalStateWritten else { return }
         finalStateWritten = true
         // The key window goes first: the next launch puts it in front and loads only its selection (spec §H).

@@ -17,6 +17,9 @@ profile). The app quits through the quit AppleEvent to its pid
 after 5 s are reported.
 
 Usage: scripts/roomcore-cold-launch.py <Room.app> <new-output-dir> [runs]
+5.4a: on a Debug app each run also writes the launch's steps
+(`launch-marks.tsv`, `-RoomLaunchMarksFile`: name and ms since the process
+started) beside its log.
 """
 import http.server
 import json
@@ -102,7 +105,8 @@ def main():
         load = os.getloadavg()[0]
         args = [str(app / 'Contents/MacOS/Room'), '-RoomStateDirectory', str(state),
                 '-RoomStartURL', url, '-ApplePersistenceIgnoreState', 'YES',
-                f'--user-data-dir={engine}', '--enable-logging', f'--log-file={state}/RoomCore.log']
+                f'--user-data-dir={engine}', '--enable-logging', f'--log-file={state}/RoomCore.log',
+                '-RoomLaunchMarksFile', str(state / 'launch-marks.tsv')]
         with (state / 'stdout.log').open('w') as log:
             started = time.time()
             proc = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT)

@@ -13,6 +13,14 @@ import EngineRoomCore
 //
 // The engine creates NSApp (Chromium needs its own NSApplication subclass),
 // so it must be constructed before anything touches NSApplication.shared.
+LaunchMarks.mark("main")
+#if DEBUG
+// `-RoomLaunchPause <seconds>` (5.4a): waits before the engine starts, so a profiler attached meanwhile sees the whole launch.
+if let pause = UserDefaults.standard.object(forKey: "RoomLaunchPause") as? String, let seconds = Double(pause) {
+    Thread.sleep(forTimeInterval: seconds)
+    LaunchMarks.mark("main after the pause")
+}
+#endif
 #if ROOM_ENGINE_ROOMCORE
 let roomCore = RoomCoreApplication()
 let engine: any EngineApplication = roomCore
@@ -55,6 +63,7 @@ do {
         features: LaunchSettings.engineFeatures(stateDirectory: AppDelegate.stateDirectory)
     )
     try engine.initialize(configuration)
+    LaunchMarks.mark("engine initialized")
 } catch {
     NSLog("Room: engine failed to initialize: \(error)")
     exit(1)

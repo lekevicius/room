@@ -277,11 +277,19 @@ extension SpikeRunner.Context {
         if let page = tabs.contents(for: id) {
             // Loading has to start before it can finish (the engine reports it a moment after `load`).
             let started = await waitUntil(10) { page.isLoading }
+            if started { LaunchMarks.mark("load start seen") }
             SpikeRunner.record("launch_to_load_start_s", started ? String(format: "%.2f", Date().timeIntervalSince(launched)) : "not seen")
             _ = await waitUntil(45) { !page.isLoading }
         }
+        LaunchMarks.mark("selected loaded")
         SpikeRunner.record("launch_to_selected_loaded_s", String(format: "%.2f", Date().timeIntervalSince(launched)))
         for line in AppDelegate.launchLog { SpikeRunner.record("launch_log", line) }
+        // 5.4a: the launch broken down, each step's start since the process started and its length.
+        var previous = 0.0
+        for mark in LaunchMarks.marks {
+            SpikeRunner.record("launch_mark", String(format: "%-44@ at %7.1f ms (+%6.1f)", mark.name as NSString, mark.seconds * 1000, (mark.seconds - previous) * 1000))
+            previous = mark.seconds
+        }
         SpikeRunner.record("selected", store.entry(id)?.currentURL ?? "nil")
         try? await Task.sleep(for: .seconds(5))
         SpikeRunner.record("loaded_pages", tabs.loadedEntryIDs.count)
