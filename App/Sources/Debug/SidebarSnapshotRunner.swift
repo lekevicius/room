@@ -31,12 +31,34 @@ enum SidebarSnapshotRunner {
         if SidebarFixtures.requested == "500" {
             report.append(await shooter.shot("500-entries", dark: false, crop: false))
             report += timings(sidebar: sidebar, store: store, space: space.id)
+            if UserDefaults.standard.bool(forKey: "RoomScrollOverlays") {
+                // 5.4a task 3: the same scroll with the sidebar hidden and revealed over the card (the
+                // overlay's glass), a row under the hover state and the status pill showing a link.
+                report += await withOverlays(controller, sidebar: sidebar, shooter: shooter)
+            }
             report += await ScrollProbe(outline: sidebar.debugOutline).measure()
         } else {
             report += await rowStates(sidebar: sidebar, tabs: tabs, store: store, space: space, shooter: shooter)
         }
         try? report.joined(separator: "\n").appending("\n")
             .write(to: directory.appending(path: "states.txt"), atomically: true, encoding: .utf8)
+    }
+
+    /// ⌘S then ⌥⌘S (the overlay pinned in), the hover state on the first visible row, the status pill.
+    private static func withOverlays(_ controller: RoomWindowController, sidebar: SidebarController, shooter: Shooter) async -> [String] {
+        controller.isSidebarOpen = false
+        try? await Task.sleep(for: .milliseconds(300))
+        controller.toggleSidebarOverlayPin(nil)
+        try? await Task.sleep(for: .milliseconds(500))
+        let outline = sidebar.debugOutline
+        let firstVisible = outline.rows(in: outline.visibleRect).location
+        let hovered = (outline.item(atRow: firstVisible + 3) as? OutlineNode)?.entryID
+        sidebar.debugHover(hovered)
+        AppDelegate.current?.statusPill?.setStatus("http://127.0.0.1:8766/a/link/under/the/pointer?with=a&long=query")
+        try? await Task.sleep(for: .milliseconds(600))
+        let shot = shooter.grab("500-entries-overlays", crop: false)
+        return ["overlays: sidebar open \(controller.isSidebarOpen), overlay shown \(controller.rootView.isOverlayShown), "
+                + "hovered row \(hovered.map { _ in "yes" } ?? "no"), status pill \(AppDelegate.current?.statusPill != nil)", shot]
     }
 
     // MARK: Row states (demo fixture)
