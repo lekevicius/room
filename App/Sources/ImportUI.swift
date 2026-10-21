@@ -381,7 +381,9 @@ final class ImportSheetModel {
         if !plan.batch.isEmpty, selectedSource != nil {
             do {
                 applied = try store.sidebar.applyImport(plan.batch)
-                store.flush()
+                // Handed to the writer now, written off the main thread (B-85: waiting for the write
+                // was ~330 of the ~600 ms the main thread stalled for 5,000 bookmarks).
+                if !store.isEphemeral { store.persistence.flush() }
                 #if DEBUG
                 debugApplySeconds = (ContinuousClock.now - applyStart) / .seconds(1)
                 #endif
