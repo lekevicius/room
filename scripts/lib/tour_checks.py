@@ -1223,7 +1223,11 @@ def _reader(c):
     c.contains("translate_context_menu_items", "Open in Reader Mode", label="the context menu's reading-mode item is Room's reader mode")
     c.contains("print_preview", "NativeWidgetMac", "child of Room's window: true", label="⌘P: Chrome's print preview over the window")
     c.contains("print_keyboard", "key_is_preview=true", label="the preview has the keyboard after ⌘P")
-    c.contains("print_to_pdf", "save panel", ".pdf", label="Return in the preview: Print to PDF asks where to save (the landing is by hand)")
+    # 5.0b: on a Mac with printers the preview's default is the system's printer and Return prints a page,
+    # so the spike presses Esc instead there (the line says so); the save panel is checked where no printer is set up.
+    t = c.first("print_to_pdf") or ""
+    c.check("Return in the preview: Print to PDF asks where to save (the landing is by hand; not pressed on a Mac with printers)",
+            ("save panel" in t and ".pdf" in t) or t.startswith("not pressed: this Mac has"), t or "missing")
     c.contains("print_closed", "closed", label="Esc closes the preview")
     c.contains("page_setup", 'item="Page Setup…"', "sheet=NSPanel", label="File ▸ Page Setup… shows the page layout sheet")
     for key in ("reader_shown", "reader2_shown", "reader_notarticle", "reader_exit", "print_preview", "print_to_pdf"):

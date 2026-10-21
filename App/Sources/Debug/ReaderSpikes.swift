@@ -334,6 +334,15 @@ extension SpikeRunner.Context {
                            + "first_responder=\(preview.firstResponder.map { "\(Swift.type(of: $0))" } ?? "none") page_keeps_keys=\(window.isKeyWindow)")
         // The keyboard path: Return in the preview presses its default button (Save, for Save as PDF):
         // Chrome then asks where to save the PDF (a save panel, out of process on macOS 26: cancelled here).
+        // 5.0b: on a Mac with printers the preview's default destination is the system's
+        // printer, and Return prints a real page (it did, three times, on the laptop):
+        // Return only where no printer is set up; Esc closes the preview otherwise.
+        guard NSPrinter.printerNames.isEmpty else {
+            SpikeRunner.record("print_to_pdf", "not pressed: this Mac has \(NSPrinter.printerNames.count) printer(s), Return would print on the default one")
+            PageDriver.key(preview, characters: "\u{1b}", keyCode: 53)
+            let gone = await waitUntil(5) { !preview.isVisible || !NSApp.windows.contains(preview) }
+            return SpikeRunner.record("print_closed", gone ? "closed by Esc" : "still open")
+        }
         let returnStart = ContinuousClock.now
         PageDriver.key(preview, characters: "\r", keyCode: 36)
         var panel: NSSavePanel?
