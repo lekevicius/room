@@ -21,8 +21,8 @@ final class HiddenSidebar {
     let navigation = NavigationButtonsView(buttonSize: SidebarMetrics.topBarButtonSize)
     private var snapToken: NSObjectProtocol?
 
-    /// The "Sidebar hidden" toast shows once ever (spec §E).
-    static let snapHintKey = "RoomSidebarSnapHintShown"
+    /// View ▸ Show Sidebar's key as the Shortcuts table has it (`applyShortcuts`), for the hint's line.
+    static var toggleKey: String? = "⌘S"
 
     init(controller: RoomWindowController, tabs: TabController, sidebar: SidebarController, palette: PaletteController, toasts: ToastCenter) {
         self.controller = controller
@@ -63,11 +63,14 @@ final class HiddenSidebar {
 
     private var isHidden: Bool { controller?.isSidebarOpen == false }
 
-    /// Dragging the splitter under 120 pt hid the sidebar: once, a toast says how to get it back.
+    /// Dragging the splitter under 120 pt hid the sidebar: once per state (its
+    /// settings remember it, 5.6b), a toast says how to get it back.
     private func sidebarSnappedClosed() {
-        guard !UserDefaults.standard.bool(forKey: Self.snapHintKey) else { return }
-        UserDefaults.standard.set(true, forKey: Self.snapHintKey)
-        toasts?.show(Toast(id: "sidebar-hidden", symbol: .toggleSidebar, message: "Sidebar hidden — press ⌘S to bring it back",
+        guard let settings = sidebar?.store.settings else { return }
+        var shows = false
+        settings.update { shows = SidebarHiddenHint.take(&$0) }
+        guard shows else { return }
+        toasts?.show(Toast(id: "sidebar-hidden", symbol: .toggleSidebar, message: SidebarHiddenHint.message(toggleKey: Self.toggleKey),
                            duration: Timing.toastWithAction))
     }
 

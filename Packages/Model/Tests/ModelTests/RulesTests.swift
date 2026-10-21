@@ -439,3 +439,23 @@ struct ArchivePolicyTests {
         #expect(ArchiveRetention.plan([fresh], now: now, rows: 30 * 86_400, navigationState: 7 * 86_400).isEmpty)
     }
 }
+
+@Suite("The sidebar-hidden hint (spec §E, 5.6b)")
+struct SidebarHiddenHintTests {
+    @Test("Shown once per state: the first snap only; a state from before 5.6b has not shown it")
+    func once() throws {
+        var settings = try JSONDecoder().decode(Settings.self, from: Data(#"{"searchSuggestions":false}"#.utf8))
+        #expect(SidebarHiddenHint.take(&settings))
+        #expect(!SidebarHiddenHint.take(&settings))
+        let stored = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(settings))
+        var again = stored
+        #expect(!SidebarHiddenHint.take(&again))
+    }
+
+    @Test("It names the key the Shortcuts table has, or the menu item when the key was removed")
+    func message() {
+        #expect(SidebarHiddenHint.message(toggleKey: "⌘S") == "Sidebar hidden — press ⌘S to bring it back")
+        #expect(SidebarHiddenHint.message(toggleKey: "⌥⌘B") == "Sidebar hidden — press ⌥⌘B to bring it back")
+        #expect(SidebarHiddenHint.message(toggleKey: nil) == "Sidebar hidden — View ▸ Show Sidebar brings it back")
+    }
+}

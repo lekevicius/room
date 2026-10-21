@@ -69,6 +69,8 @@ extension AppDelegate {
         for session in windows.all { applyShortcutKeys(to: session) }
         // The empty card names New Tab's key as it is now (5.6a).
         CardEmptyStateView.newTabKey = table.key(for: "newPage:")?.description
+        // The "Sidebar hidden" hint names Show Sidebar's key as it is now (5.6b).
+        HiddenSidebar.toggleKey = table.key(for: "hideOrShowSidebar:")?.description
     }
 
     /// One window's share of the table (4.8a: each window's key router and sidebar menus).
