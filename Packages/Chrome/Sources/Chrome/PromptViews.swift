@@ -137,7 +137,11 @@ final class PromptOverlayView: NSView, AccessibilityBackdrop {
 /// fields, buttons. Return answers the primary button, Esc the escape answer.
 final class DialogPanelView: NSView, NSTextFieldDelegate {
     let dialog: PageDialog
-    private let respond: (DialogResponse) -> Void
+    /// The answer, and whether "Prevent additional dialogs from this site" was checked (B-116).
+    private let respond: (DialogResponse, Bool) -> Void
+    /// From the page's second alert, confirm or prompt on (B-116).
+    private let offersSuppression: Bool
+    private(set) var suppressCheckbox: NSButton?
     private let glass = NSGlassEffectView()
     private let stack = NSStackView()
     private var textField: NSTextField?
@@ -145,8 +149,9 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
     /// The control that takes the keyboard when the panel shows.
     private(set) var initialResponder: NSView?
 
-    init(dialog: PageDialog, respond: @escaping (DialogResponse) -> Void) {
+    init(dialog: PageDialog, offersSuppression: Bool = false, respond: @escaping (DialogResponse, Bool) -> Void) {
         self.dialog = dialog
+        self.offersSuppression = offersSuppression && dialog.isSuppressible
         self.respond = respond
         super.init(frame: .zero)
         build()
@@ -291,6 +296,13 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
     }
 
     private func addButtons(primary: String, cancel: String?) {
+        if offersSuppression {
+            let checkbox = NSButton(checkboxWithTitle: PagePrompts.suppressionTitle, target: nil, action: nil)
+            checkbox.font = Typography.secondary
+            checkbox.setAccessibilityIdentifier("dialog-suppress")
+            stack.addArrangedSubview(checkbox)
+            suppressCheckbox = checkbox
+        }
         let row = NSStackView()
         row.orientation = .horizontal
         row.spacing = 8
@@ -316,13 +328,16 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
     @objc private func primaryClicked() {
         switch dialog {
         case .auth:
-            respond(.signIn(user: textField?.stringValue ?? "", password: passwordField?.stringValue ?? ""))
+            respond(.signIn(user: textField?.stringValue ?? "", password: passwordField?.stringValue ?? ""), false)
         default:
-            respond(PromptRules.returnResponse(for: dialog, text: textField?.stringValue))
+            respond(PromptRules.returnResponse(for: dialog, text: textField?.stringValue), suppresses)
         }
     }
 
-    @objc private func cancelClicked() { respond(PromptRules.escapeResponse(for: dialog)) }
+    @objc private func cancelClicked() { respond(PromptRules.escapeResponse(for: dialog), suppresses) }
+
+    /// The checkbox is on (it counts with either button, as Chrome's).
+    private var suppresses: Bool { suppressCheckbox?.state == .on }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
@@ -690,7 +705,9 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
             content = interstitial
             firstResponder = interstitial
         } else {
-            let panel = DialogPanelView(dialog: visible.dialog, respond: respond)
+            let panel = DialogPanelView(dialog: visible.dialog, offersSuppression: visible.offersSuppression) { [weak prompts] response, suppress in
+                prompts?.respond(response, to: id, suppressingFurther: suppress)
+            }
             content = panel
             firstResponder = panel.initialResponder ?? panel
         }

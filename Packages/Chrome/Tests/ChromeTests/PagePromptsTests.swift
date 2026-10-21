@@ -109,6 +109,48 @@ struct PageDialogTests {
         #expect(f.prompts.visibleDialog.map { if case .auth = $0.dialog { true } else { false } } == true)
     }
 
+    @Test("From the page's second alert, confirm or prompt on, the dialog offers suppression; checked, the page's dialogs are answered unseen until it loads again (B-116)")
+    func suppressionUntilReload() async throws {
+        let f = try PromptsFixture()
+        var alerts = 0
+        f.chrome.webContents(f.a, runJavaScriptAlert: "1", origin: nil) { alerts += 1 }
+        #expect(f.prompts.visibleDialog?.offersSuppression == false, "the first dialog does not offer it")
+        f.prompts.respond(.accept(text: nil))
+        f.chrome.webContents(f.a, runJavaScriptAlert: "2", origin: nil) { alerts += 1 }
+        let second = try #require(f.prompts.visibleDialog)
+        #expect(second.offersSuppression)
+        // A third waits behind the second; checking the box answers both.
+        var confirms: [Bool] = []
+        f.chrome.webContents(f.a, runJavaScriptConfirm: "3", origin: nil) { confirms.append($0) }
+        f.prompts.respond(.accept(text: nil), to: second.id, suppressingFurther: true)
+        #expect(alerts == 2 && confirms == [false])
+        #expect(f.prompts.visibleDialog == nil)
+        // Later ones never show: an alert is acknowledged, a confirm and a prompt cancelled.
+        var prompts: [String?] = []
+        f.chrome.webContents(f.a, runJavaScriptAlert: "4", origin: nil) { alerts += 1 }
+        f.chrome.webContents(f.a, runJavaScriptConfirm: "5", origin: nil) { confirms.append($0) }
+        f.chrome.webContents(f.a, runJavaScriptPrompt: "6", defaultText: "x", origin: nil) { prompts.append($0) }
+        #expect(alerts == 3 && confirms == [false, false] && prompts == [nil])
+        #expect(f.prompts.visibleDialog == nil && f.prompts.suppressedCount == 4)
+        // Another page is not affected; beforeunload is never suppressed.
+        f.prompts.setCurrentPage(f.b)
+        f.chrome.webContents(f.b, runJavaScriptAlert: "b", origin: nil) {}
+        #expect(f.prompts.visibleDialog?.offersSuppression == false)
+        f.prompts.respond(.accept(text: nil))
+        f.prompts.setCurrentPage(f.a)
+        f.chrome.webContents(f.a, runBeforeUnloadDialogForReload: true) { _ in }
+        #expect(f.prompts.visibleDialog.map { if case .beforeUnload = $0.dialog { true } else { false } } == true)
+        f.prompts.respond(.cancel)
+        // The page reloads: its dialogs show again, the count from one.
+        f.a.reload()
+        await f.settle()
+        #expect(!f.prompts.suppressedPages.contains(ObjectIdentifier(f.a)))
+        f.chrome.webContents(f.a, runJavaScriptAlert: "7", origin: nil) { alerts += 1 }
+        #expect(f.prompts.visibleDialog?.offersSuppression == false)
+        f.prompts.respond(.accept(text: nil))
+        #expect(alerts == 4)
+    }
+
     @Test("A closed page's prompts are answered once, with the safe answer")
     func closedPageAnswersOnce() async throws {
         let f = try PromptsFixture()
