@@ -44,7 +44,9 @@ extension SpikeRunner.Context {
         let gone = await waitUntil(5) { self.overlayWindow() == nil }
         SpikeRunner.record("backtotab_video", "overlay=\(entered) other_selected_before=\(before) hook=\(answer) "
             + "opener_selected=\(selected) opener_shown=\(shown) overlay_closed=\(gone)")
-        // 2. Document PiP's panel button.
+        // 2. Document PiP's panel button (from the opener shown again: the official framework has no hook above).
+        sidebar.select(openerEntry)
+        try? await Task.sleep(for: .milliseconds(500))
         await click(opener, "#doc-pip")
         guard await waitUntil(8, { !panels.items.isEmpty }), let item = panels.items.first else {
             return SpikeRunner.record("backtotab_document", "no panel")
