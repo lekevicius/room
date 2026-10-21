@@ -51,3 +51,17 @@ Outcome: the self-audit (14 → 0 on both builds), labels and roles, the keyboar
 ### 5.3b — accepted; Phase 5.3 closed (2026-10-21 10:53 → 11:53, 60 min)
 
 Outcome: sidebar text sizes, the three display options, the review sheets; two bugs found by its own read-backs fixed. Decisions: B-137 (which surfaces follow the sidebar's size) and B-138 (Increase Contrast's dark cap) are the user's taste. DMG: build 18 from 11:55.
+
+### Build 18 (2026-10-21 11:52 → 11:57)
+
+Phase 5.3's DMG, notarized in 81 s.
+
+### 5.4a — accepted with gaps (2026-10-21 11:55 → 13:19, 84 min)
+
+Outcome: B-53's fix (p95 under 16 ms in two of three runs), the launch breakdown and one fix, the overlay scroll, leaks and footprint, energy (no root), B-129/B-128 prewarms, B-85 and B-80. Gaps: B-139 and B-127 are `//room` fixes for 5.4b; B-140 (Chrome's unused startup profile, 56 % of the engine's start) and B-141 are 5.4b's candidates; ⌘S's two dropped frames remain. DMG: build 19 from 13:21.
+
+## Paused 2026-10-21 13:25 (the user had to leave)
+
+The user asked at 13:20 for the loop to wrap up within 30 minutes. Done: step 0, 5.0a, 5.0b, 5.1a, 5.1b, 5.2a, 5.2b, 5.3a, 5.3b, 5.4a; DMGs 15–19. **Resume at the rebase night** (the loop prompt's "Chromium builds: the rule": `scripts/roomcore-rebase.sh <current Stable for Mac>`, `--verify`, the official build, with no session attached; it needs the user's network request to chromiumdash for the tag), then 5.4b, 5.5a … 5.9. The session prompts' shared part is `build/chapter-5-prompts/common.md` (it now also forbids prompts, shell screen capture, Return in print previews, and requests to real sites outside live checks); the DMG chain is `build/chapter-5-prompts/dmg.sh <build>`. 5.4b's prompt should name B-56 (with 5.4a's data), the renderer count, memory pressure, B-87, B-99, B-127, B-139, B-140, B-141, and the numbers table v3.
+
+The user's list (`chapter-5-by-hand.md` "For the user"): Phase 5.0 four steps (the `app.room.desktop.dev` grant was declined, so every click check waits there), 5.1 three (the 120 Hz runs, now with switching and the overlay scroll), 5.2 five (including the macOS screen-capture dialog 5.2b raised at 08:37), 5.3 five, 5.4 one (an optional `powermetrics`). Incidents tonight: three real print jobs to the HP LaserJet (5.0b, B-126), one Google suggest request (5.0b), one Google search (5.3a), the screen-capture dialog (5.2b).
