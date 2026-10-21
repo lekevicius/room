@@ -83,3 +83,19 @@ Outcome: Archive's Never (with the migration), the right-hand sidebar removed (2
 ### 5.5a — accepted with gaps (main, 19:41 → 21:25 with the restart)
 
 Outcome: B-65, B-102, the stale-completion bug its IME run found, mouse buttons 4/5 in the whole window, the `input` spike, the keys spike with layouts and a remap; CI spec 706. Gaps (the user's list): a real IME source (B-142) and a trackpad swipe (B-143); the HistorySwiper overlay reaches Room's window, so no host-drawn arrow.
+
+### 5.6a — accepted (worktree, 21:20 → 22:00)
+
+Outcome: titles per §I.3 with the unread dot, Change Icon… for entries and folders, B-94, B-116 (with the reentrancy bug its spike found), B-117's Move to Folder, B-118, the empty card's key, the `details` spike, the review sheet; CI spec 715. Gaps: three real-pointer checks (Clear's hover, the emoji grid click, a folder dropped on a folder) on the user's list.
+
+### 5.7b — accepted; Phase 5.7 closed (worktree, 21:20 → 22:00)
+
+Outcome: the space window (B-122) from Settings and the space menu, the sidebar form deleted (41 → 0 symbols); onboarding (B-121) as a panel on a first launch and from Help, the welcome card deleted; the review sheets; CI spec 709. Deviations accepted: save on Save/Return, the swipe past the last space springs back, a theme step rather than essentials. Merged with 5.6a on `integ-56a-57b` (one code conflict: 5.6a's shared `IconPickerView` beside 5.7b's public `SpaceFormView`), CI green, then into main as `d9ab299`.
+
+### 5.5b — accepted with gaps (main, 21:33 → 22:08)
+
+Outcome: the card's drop layer (the page first, then Room), the drop matrix 27/27 on both builds, B-96 and B-97 closed, haptics only on alignment (the split snap new), the sublabel fix. Gaps: Phase 5.5's exit waits on the user's hardware (a real IME source, a Force Touch trackpad, real drags between apps; steps 1–4). Phase 5.5 not marked done for those.
+
+### Next
+
+5.6b's host side runs in a worktree on the merged branch; its engine member (B-58's toast) joins 5.4b's engine session on 156. The laptop builds 156 (official started 19:35) and is asked to watch a request directory (`/Volumes/JL4/laptop-engines/requests/`) for the engine sessions' incrementals. Build 22 (Phases 5.5 and 5.7, 5.6a) follows on the 155 engines.
