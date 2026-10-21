@@ -183,12 +183,15 @@ extension SidebarController {
 
     var outlineFocusedRow: Int? { focusRingVisible ? focusedNode.map { outline.row(forItem: $0) } : nil }
 
-    func updateFocusRing() {
+    /// `focused`: the outline's first-responder state when it is changing (while it resigns, the window
+    /// still names it first responder: 5.3a found the ring left on the row after Tab moved on).
+    func updateFocusRing(focused: Bool? = nil) {
         let focusedRow = focusedNode.map { outline.row(forItem: $0) } ?? -1
-        if focusRingVisible, focusedRow >= 0, outline.window?.firstResponder === outline {
+        let isFirstResponder = focused ?? (outline.window?.firstResponder === outline)
+        if focusRingVisible, focusedRow >= 0, isFirstResponder {
             NSAccessibility.post(element: outline, notification: .focusedUIElementChanged)
         }
-        let show = focusRingVisible && outline.window?.firstResponder === outline && outline.window?.isKeyWindow == true
+        let show = focusRingVisible && isFirstResponder && outline.window?.isKeyWindow == true
         outline.enumerateAvailableRowViews { rowView, row in
             (rowView as? SidebarRowView)?.showsFocusRing = show && row == focusedRow
         }
@@ -199,11 +202,13 @@ extension SidebarController {
         if focused, byKeyboard, !focusRingVisible {
             let node = focusedNode ?? selectedEntryID.flatMap { tree.displayedNode(for: $0) }
                 ?? (0..<outline.numberOfRows).lazy.compactMap { self.outline.item(atRow: $0) as? OutlineNode }.first { $0.entryID != nil }
-            setFocus(node, ring: true)
+            focusedNode = node
+            focusRingVisible = node != nil
+            updateFocusRing(focused: true)
             if let node { outline.scrollRowToVisible(outline.row(forItem: node)) }
             return
         }
-        updateFocusRing()
+        updateFocusRing(focused: focused)
     }
 
     private func moveFocus(by delta: Int) {

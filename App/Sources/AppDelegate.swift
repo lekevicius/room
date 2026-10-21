@@ -734,6 +734,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         controller.sidebarView.accessoryView = sidebar.extensionBar
         controller.sidebarView.onToggleSidebar = { [weak controller] in controller?.toggleSidebarVisibility(nil) }
         controller.sidebarView.bodyView = sidebar.bodyView
+        // The Tab order (5.3a, ROADMAP 5.3 task 2): sidebar → header → card (and Peek over it) → footer.
+        (controller.window as? RoomWindow)?.keyViewRegions = { [weak sidebar, weak controller, weakSession = MainActorWeak(session)] in
+            guard let sidebar, let controller else { return [] }
+            var card: [NSView] = [controller.cardView]
+            if let peek = weakSession.value?.peek?.overlay, peek.superview != nil, !peek.isHidden { card.append(peek) }
+            return [KeyViewRegion([sidebar.bodyView], excluding: [sidebar.footerView]),
+                    KeyViewRegion([controller.sidebarView, controller.rootView.toolbarView], excluding: [sidebar.bodyView]),
+                    KeyViewRegion(card),
+                    KeyViewRegion([sidebar.footerView])]
+        }
         // The window's title (Window menu, Mission Control) is not drawn: set after the switch's frame.
         sidebar.onSpaceChange = { [weak controller] space in
             DispatchQueue.main.async { controller?.spaceTitle = space.name }

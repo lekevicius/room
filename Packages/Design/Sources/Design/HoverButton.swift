@@ -60,7 +60,9 @@ open class HoverButton: NSButton {
     }
 
     /// A key view while Full Keyboard Access is on (`KeyboardAccess`), as AppKit's buttons.
-    open override var acceptsFirstResponder: Bool { isEnabled && KeyboardAccess.allControls }
+    open override var acceptsFirstResponder: Bool { isEnabled && !refusesFirstResponder && KeyboardAccess.allControls }
+    /// AppKit's button asks the system's setting itself here; Room's asks `KeyboardAccess` (5.3a: the keyboard spike).
+    open override var canBecomeKeyView: Bool { acceptsFirstResponder && window != nil && !isHiddenOrHasHiddenAncestor }
 
     /// Space presses it (NSButton); Return and Enter too.
     open override func keyDown(with event: NSEvent) {

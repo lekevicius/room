@@ -259,14 +259,26 @@ public final class DownloadsPopover: NSObject, NSPopoverDelegate {
         self.popover = popover
         // Above the footer button (in a flipped view, minY is the top edge).
         popover.show(relativeTo: rect ?? view.bounds, of: view, preferredEdge: view.isFlipped ? .minY : .maxY)
+        // Esc closes it (5.3a: opened with ⇧⌘J the popover is not key, so Esc went to the page and it stayed).
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53, event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+                  let self, self.isShown else { return event }
+            self.close()
+            return nil
+        }
         list.markSeen()
     }
+
+    private var escapeMonitor: Any?
 
     public func close() { popover?.performClose(nil) }
 
     public func popoverDidClose(_ notification: Notification) {
         list.markSeen()
         popover = nil
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
+        escapeMonitor = nil
     }
 }
 

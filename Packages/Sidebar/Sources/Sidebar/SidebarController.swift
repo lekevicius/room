@@ -21,6 +21,8 @@ public final class SidebarController: NSObject {
     public var downloadsButton: DownloadsButton { footer.downloadsButton }
     let grid = EssentialsGridView()
     let footer = SidebarFooterView()
+    /// The footer, for the window's Tab order (5.3a: its own region, after the card).
+    public var footerView: NSView { footer }
     /// The footer's media row (4.6); `setMediaRow` shows it.
     let mediaRow = MediaRowView()
     /// A click on the media row: its action and the entry it shows (the tab controller acts).
@@ -1594,6 +1596,9 @@ extension SidebarController {
     public func debugToggleSelection(_ id: UUID) { toggleSelection(id) }
 
     public func debugClearMultiSelection() { clearMultiSelection() }
+
+    /// Where the keyboard's ring is (5.3a's keyboard spike): the entry and whether the ring shows.
+    public var debugKeyboardFocus: (id: UUID?, ring: Bool) { (focusedEntryID, focusRingVisible) }
 
     /// Keyboard focus with its ring, as after ↑/↓.
     public func debugFocus(_ id: UUID?) {

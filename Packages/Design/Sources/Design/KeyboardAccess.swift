@@ -56,6 +56,7 @@ open class PressableView: NSView {
     open func performPress() {}
 
     open override var acceptsFirstResponder: Bool { isAlwaysKeyView || KeyboardAccess.allControls }
+    open override var canBecomeKeyView: Bool { acceptsFirstResponder && window != nil && !isHiddenOrHasHiddenAncestor }
 
     open override func keyDown(with event: NSEvent) {
         if KeyboardAccess.isPressKey(event) {

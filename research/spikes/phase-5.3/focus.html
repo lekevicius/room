@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Focus fixture</title>
+<script>if (location.search) document.title = "Focus " + location.search.slice(1)</script>
+<!-- 5.3a's keyboard spike (`-RoomSpike keyboard`): three focusable elements, so Tab
+     walks the page and leaves it at either end (the spike reads document.activeElement). -->
+<style>body { font: 15px -apple-system; margin: 40px } * { margin: 8px }</style>
+<h1>Focus fixture</h1>
+<input id="a" placeholder="First">
+<a id="b" href="#b">Second</a>
+<button id="c">Third</button>

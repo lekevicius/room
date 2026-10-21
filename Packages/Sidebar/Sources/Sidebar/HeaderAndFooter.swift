@@ -47,8 +47,10 @@ public final class AddressFieldView: PressableView {
         copyButton.image = Symbol.copyURL.image(.controlSmall, accessibilityDescription: "Copy URL")
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
-        copyButton.toolTip = "Copy URL (⇧⌘C)"
+        copyButton.setTip("Copy URL (⇧⌘C)")
         copyButton.isHidden = true
+        // A hover affordance: the keyboard has ⇧⌘C, and Tab never lands on a button that hides as the field loses focus.
+        copyButton.refusesFirstResponder = true
         copyButton.setAccessibilityIdentifier("copy-url")
         addSubview(siteButton)
         addSubview(domainField)
@@ -116,7 +118,7 @@ public final class AddressFieldView: PressableView {
     }
 
     private func updateHover() {
-        copyButton.isHidden = !((hovering || hasKeyboardFocus) && url != nil)
+        copyButton.isHidden = !(hovering && url != nil)
         feedback.setHovering(hovering)
         needsLayout = true
     }
@@ -147,21 +149,6 @@ public final class AddressFieldView: PressableView {
     public override var isAlwaysKeyView: Bool { true }
     public override var focusRingCornerRadius: CGFloat { FocusRing.pillCornerRadius }
     public override func performPress() { onActivate?() }
-
-    /// Copy URL shows on hover; for the keyboard and VoiceOver it shows while the field has focus.
-    public override func becomeFirstResponder() -> Bool {
-        let became = super.becomeFirstResponder()
-        if became { hasKeyboardFocus = true }
-        return became
-    }
-
-    public override func resignFirstResponder() -> Bool {
-        let resigned = super.resignFirstResponder()
-        if resigned { hasKeyboardFocus = false }
-        return resigned
-    }
-
-    private var hasKeyboardFocus = false { didSet { if hasKeyboardFocus != oldValue { updateHover() } } }
 }
 
 /// The extensions in the sidebar's top bar, packed against Back (the Room

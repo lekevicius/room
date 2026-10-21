@@ -37,4 +37,30 @@ public final class RoomWindow: NSWindow {
         // Follow the system appearance.
         appearance = nil
     }
+
+    // MARK: Tab order (5.3a)
+
+    /// The Tab order's regions (`KeyViewLoop`), from the app: sidebar, header, card, footer.
+    /// `nil` leaves AppKit's own loop.
+    public var keyViewRegions: (() -> [KeyViewRegion])?
+
+    public override func selectNextKeyView(_ sender: Any?) {
+        if !selectInLoop(forward: true, from: firstResponder) { super.selectNextKeyView(sender) }
+    }
+
+    public override func selectPreviousKeyView(_ sender: Any?) {
+        if !selectInLoop(forward: false, from: firstResponder) { super.selectPreviousKeyView(sender) }
+    }
+
+    public override func selectKeyView(following view: NSView) {
+        if !selectInLoop(forward: true, from: view) { super.selectKeyView(following: view) }
+    }
+
+    public override func selectKeyView(preceding view: NSView) {
+        if !selectInLoop(forward: false, from: view) { super.selectKeyView(preceding: view) }
+    }
+
+    /// AppKit's own selection, for `selectInLoop` (its overrides above route here).
+    func appKitSelect(following view: NSView) { super.selectKeyView(following: view) }
+    func appKitSelect(preceding view: NSView) { super.selectKeyView(preceding: view) }
 }
