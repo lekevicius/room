@@ -117,6 +117,7 @@ enum SpikeRunner {
         case "showcase": await context.showcase()
         case "a11y": await context.accessibilityAuditSpike()
         case "keyboard": await context.keyboardChecks()
+        case "openclose": await context.openCloseCycle()
         default: record("error", "unknown spike")
         }
         record("end", name)
