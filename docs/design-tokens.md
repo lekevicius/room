@@ -516,3 +516,16 @@ The icon is the user's (Icon Composer, 2026-10-08; `1c885c1` made the newer one 
 | Chrome's pages' corner logo, the larger product logos, the wordmark | `Engine/roomcore/room/branding/theme/{room,default_100_percent,default_200_percent}/product_logo_*.png`, `product_logo_name_22*.png` (16–256 px; the wordmark 97 × 22 pt) | `room/branding/tools/render_theme.swift` from the icon's glyph layer (`Assets/Image.png`), committed |
 
 A new icon: replace the `.icon` document (and its glyph layer), run `scripts/render-app-icons.sh` and `swift Engine/roomcore/room/branding/tools/render_theme.swift .`, then `scripts/roomcore-apply.sh` and the engine build.
+
+## Added in Phase 5.3a (labels, roles, keyboard)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `FocusRing.controlCornerRadius` | `ControlMetrics.cornerRadius` (6): an icon button's ring is its hover square (`HoverButton.drawFocusRingMask`), not the glyph's outline AppKit drew | 5.3a task 2; AppKit's ring colour (`keyboardFocusIndicatorColor`, the accent) |
+| `FocusRing.pillCornerRadius` | `Radius.large` (12): the address field's and an Essential tile's ring is their pill | 5.3a task 2 |
+| Sidebar rows' ring | unchanged: `SidebarMetrics.insertionLineWidth` 2 pt in the accent, drawn by the row (spec §I.13); now also when Tab brings the focus to the list (on the selected row) and gone when it leaves | 5.3a |
+| `ReadingOrder.tolerance` | 4 pt: VoiceOver's order inside the sidebar and the Tab order inside a region read top to bottom by bands of 4 pt, then leading to trailing | chosen |
+| `SidebarSplitterView.accessibilityStep` | 10 pt: VoiceOver's increment and decrement of the sidebar's width | chosen |
+| `KeyboardAccess` | Room's controls are Tab stops while Full Keyboard Access is on (`NSApp.isFullKeyboardAccessEnabled`, or `allControlsOverride` in tests and spikes); the address field always (it stands for a text field); a click never takes the keyboard (`isMouseDown`); Space, Return and Enter press | 5.3a task 2 |
+
+The Tab order (`UIKitCore/KeyViewLoop.swift`, `RoomWindow.keyViewRegions` set by the app): the sidebar's body (Essentials, the list, the Library in its place) → the header (toggle, extensions, Back, Forward, Reload, the address field, the site button; the toolbar when shown) → the card (the page, a split's panes, Peek over it) → the footer (downloads, the space icons, New) → around. A list, a text field and the page keep Tab for their own parts; a page's dialog keeps its own loop. Copy URL is not a stop (a hover affordance; ⇧⌘C).

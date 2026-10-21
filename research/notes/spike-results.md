@@ -4010,3 +4010,40 @@ Minimum over the five fixtures, primary / secondary before → after:
 The startup override: "RoomCore: branded strings: 608 of 13418 overridden in 2881 us" (3215 us on the second launch; `RoomCore.log`). The release framework (`981429c`, built before this step) still reads 48 and Chromium's icons: it changes with the planner's official incremental. `loadTimeData` was not readable from the script's world (0 on both; the visible text is the measure).
 
 **Baseline** after the engine step (`scripts/roomcore-baseline.sh build/baseline/5.2b-final`): nav assertions passed (19.6 s); three ten-page quits 0.64 / 0.47 / 0.38 s, 0 helpers left, no crash report (load 37–53).
+
+## Phase 5.3 — 5.3a: labels, roles, keyboard (2026-10-21, M1 Max laptop, 60 Hz Pro Display XDR main at 2×, RoomCore 155.0.8059.36, series 25, dev `out/dev` and the release framework rebuilt 09:39 from the official incremental (`RoomCoreCommit c5a4032`); no engine change; load 20–30 while the planner's build 17 chain signed and notarized)
+
+**Branding on the release framework** (for the planner; `ROOM_APP=… scripts/branding-check.sh build/5.3a/branding-release.txt`): visible "Chromium" on the twelve Chrome pages **0** (strings 0; the attribution kept on About), 608 of 13,418 locale strings overridden in 3.2 ms, the corner logo and both alerts helpers' icons Room's (`app.icns` byte-equal). Dev was 0 since 5.2b; the release framework 48 before the incremental.
+
+**The self-audit** (`scripts/a11y-audit.sh <out> [-RoomA11yDump YES]`, `-RoomSpike a11y`, `App/Sources/Debug/AccessibilitySpikes.swift`; the walker is `Design/AccessibilityAudit.swift`): 5.2a's matrix states set up one after another on 5.1a's fixture (16 surfaces, 40 states: the window at rest, rows in each state, header, footer, the palette's groups, Peek, split, toasts, downloads, the site panel, prompts, the Library, Settings' eight sections, the incognito window, the top bar with extensions, the space form); every visible window of Room's (not the engine's `NativeWidgetMacNSWindow`s) walked through the elements' own NSAccessibility protocol, in-process (SwiftUI's trees built by the app setting `AXEnhancedUserInterface` on itself before its first window; no AX client, no trust prompt). A finding: an interactive element (button, checkbox, radio, pop-up, menu button, field, text area, combo box, slider, link, disclosure, incrementor, colour well, row, tab group, or a custom view answering a press) with no label, title, placeholder, title element or (rows and buttons) text inside; an element with no role or `AXUnknown`, or a custom press-answering view calling itself a group, image or text; a view of Room's own class that defines `mouseDown(with:)` and that the tree shows neither itself nor inside an element with a non-generic role (views that move the window and backdrops excepted). AppKit's private elements (window buttons, scroller parts, table columns, remote views) are walked, not judged; the page's tree is the site's and is not entered.
+
+| run | findings | no label | generic role | hidden click target | interactive / elements walked |
+|---|---|---|---|---|---|
+| dev, before (`2194781`) | **14** | 4 (an extension action without a title, Settings ▸ Spaces' new-profile field, Privacy's custom rules, the space form's colour well) | 1 (the space form's theme preview) | 9 (the Essentials' tiles, the space icons, the address field, the sidebar's splitter, the palette's backdrop, Peek's dim, the split's resizer, a dialog's backdrop, the list's overflow indicator) | 867 / 4,726 |
+| dev, after (`b1f3250`) | **0** | 0 | 0 | 0 | 1,198 / 4,695 |
+| release framework, after | **0** | 0 | 0 | 0 | 1,198 / 4,695 |
+
+The audit's first form counted AppKit's private elements and SwiftUI's empty trees (71 findings, then 16 with the trees built); the before row is the final rules on the unchanged product. What the dump (`build/5.3a/a11y-dev-before.txt.tree.txt`) showed beyond the findings, fixed with them: a label set on an `NSButton` never reached its cell (the element VoiceOver reads; the Library's "Show in Finder" read "search", an icon-less extension action had no name); an outline cell view's value is not passed through (row states in the label instead); decorative images named by their symbols ("move", "go down", "add", "Clock with a counterclockwise…"); the sidebar read footer before top bar; labels with keys in them ("Back (⌘[)").
+
+**Window test** (`Packages/Palette/Tests/AccessibilityAuditTests`, window tier, `.window` + `localOnly`): the window assembled from the packages on FakeEngine (2 Essentials, a folder, pinned and Today rows, an audible page, two spaces), audited at rest, with the palette open on "Today", with a toast with Undo, with the Library: 0 findings each (4 tests in 2 suites, 4.0 s). A mutation check (the splitter's element flag removed) fails all four audits. The Tab order suite: default mode `sidebar-outline → address-field`, Full Keyboard Access the sidebar's, header's and footer's controls in order, ⇧Tab the reverse.
+
+**The key path by keyboard alone** (`scripts/keyboard-check.sh <out> [-RoomSpikeCaptureDirectory <dir>]`, `-RoomSpike keyboard`, `App/Sources/Debug/KeyboardSpikes.swift`): key events posted to Room's own window (`NSApp.sendEvent`), the focus read back (first responder, the page's `document.activeElement`); pages `research/spikes/phase-5.3/focus.html` (three focusable elements); suggestions off. Identical on dev and the release framework:
+
+| check | result |
+|---|---|
+| Tab, default mode (from the list) | sidebar-outline → address-field → page#a → page#b → page#c → sidebar-outline (the page entered at its first element and left at its last: Chromium's `TakeFocus` reaches the window's loop) |
+| ⇧Tab, default mode | page#a → address-field → sidebar-outline → page#c → page#b → page#a |
+| Tab, Full Keyboard Access (`KeyboardAccess.allControlsOverride`) | sidebar-outline → sidebar-toggle → nav-reload → address-field → site-button → page#a → #b → #c → downloads → Space → Work → footer-plus → sidebar-outline (Back and Forward disabled: no history) |
+| Return on the Work icon; Space on the first | the active space Work; back to the first |
+| Space on Back (page at `?2`) | `?1` |
+| ↓↓ ⏎ in the list, ⇥ ⇥, ⇧⇥ ⇧⇥ | the ring on the second tab, it is selected, address-field, page#a, back on sidebar-outline |
+| Space on the address field; Esc | the palette in ⌘L's mode; closed, the focus back on the field |
+| A click on the address field; Esc | the palette; closed, the focus back on the page (spec §C) |
+| ⌘T, "Focus 3", ↓, ⏎ | the row announced "Focus 3, file:…?3, Open tabs"; the palette closed, Focus 3 selected |
+| ⇧⌘K, then ⇧⌘T | Today 3 → 0, the toast "3 tabs closed" with Undo announced "3 tabs closed. Undo available."; → 3 |
+| Tab with a toast showing (Full Keyboard Access) | the toast's SwiftUI button is not a stop (B-134) |
+| Esc out of overlays | Peek (opened with Space on a pinned row) closed; the Library (⇧⌘L) closed; the downloads popover (⇧⌘J) closed (it stayed open before: not key, Esc went to the page) |
+
+Focus-ring captures for the review sheet (Room's own window, in-process): `research/screenshots/phase-5.3/phase-5.3a-focus-{back,space-icon,address-field,outline}.png`.
+
+**Reserved keys unchanged:** `scripts/grand-tour.sh --no-build --only keys light`: 19/19 on dev and 19/19 on the release framework (ABC, Colemak, Lithuanian; ⌘T and ⌘L reserved in every layout).
