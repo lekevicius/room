@@ -91,6 +91,15 @@ extension SpikeRunner.Context {
         SpikeRunner.record("loaded_pages", tabs.loadedEntryIDs.count)
         SpikeRunner.record("rss_50_loaded", ProcessMemory.snapshot().summary)
 
+        // B-152: six ⌃digit keys through NSApp.sendEvent, the first responder and key window before each and the space shown 0.9 s after.
+        for (i, digit) in [2, 3, 1, 3, 2, 1].enumerated() {
+            let responder = window.firstResponder.map { String(describing: Swift.type(of: $0)) } ?? "nil"
+            let key = NSApp.keyWindow.map { String(describing: Swift.type(of: $0)) } ?? "nil"
+            sendKey("\(digit)", keyCode: Self.digitKeyCodes[digit]!, [.control])
+            try? await Task.sleep(for: .milliseconds(900))
+            let shown = (spaces.firstIndex { $0.id == sidebar.activeSpaceID } ?? -1) + 1
+            SpikeRunner.record("probe_\(i)", "ctrl-\(digit) responder=\(responder) key=\(key) shown=\(shown)")
+        }
         guard let view = window.contentView else { return }
         let ticks = FrameTicks(view: view)
         var started: ContinuousClock.Instant?, ended: ContinuousClock.Instant?
