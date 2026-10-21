@@ -3485,3 +3485,49 @@ The redirect column is from the second session (full run `build/adblock-check-re
 - **First run found:** with the list on, `room_flag` stayed unset. uBO's helpers read `scriptletGlobals`, which uBO's injector declares and Room's did not (JavaScriptCore, the real injected script: `ReferenceError: Can't find variable: scriptletGlobals`, caught by adblock-rust's `try`). Fixed in `content_blocker.cc`: the script runs inside a function that declares it.
 - **Rest of the spike:** unchanged with the wrapper (engine, page, allowed, timing; every check as before). `ublock_scriptlet_files_in_app: 0`.
 - **Build:** `//room` incremental 48 s at 8 jobs (load 13–32), `roomcore-package.sh --app-only` 27 s.
+
+## Phase 5.0a — the dev bundle id, the live-site check, B-106 to B-109, B-100 (2026-10-21, M1 Max laptop, 64 GB, 60 Hz Pro Display XDR main, RoomCore 155.0.8059.36, series 25, `RoomCoreCommit 981429c`)
+
+Load average 20–45 throughout (the official incremental build and packaging beside some runs). Dev = `build/roomcore/…/Debug/Room.app` (component framework, spikes); release = the Debug app over the official framework (`build/roomcore-release/…/Debug/Room.app`). Both are `app.room.desktop.dev` now.
+
+### The dev bundle id
+
+- `CFBundleIdentifier`: dev Debug app, release-engine Debug app and the Debug embryo host `app.room.desktop.dev`; the Release app and the Release host `app.room.desktop` (`/usr/libexec/PlistBuddy`, after `roomcore-package.sh`, `--release`, `CONFIGURATION=Debug --release --app-only`).
+- A running Debug app with no state flags (pid 60396, `lsappinfo`: `bundleID="app.room.desktop.dev"`) opened `~/Library/Application Support/Room Dev/Room.sqlite` and `Room Dev/RoomCore/Default/History` (`lsof`); Chromium's singleton was `Room Dev/RoomCore/SingletonLock -> JL.localdomain-60396` with its socket in `$TMPDIR/app.room.desktop.dev.vYKydi/` (the base bundle id keys the directory); the real root `Room/RoomCore` had no `SingletonLock`; the defaults domain `app.room.desktop.dev` was empty. Quit by pid (`room_quit`), clean.
+- Beside a Release Room: not run. The user's Room was not running, and a Release app on a throwaway state is not possible (the Release build has no `-RoomEngineDirectory`, so it would open the real engine root). The handoff is Chromium's `ProcessSingleton` on the engine root (`SingletonLock`/`SingletonSocket` in the user data directory), so a Debug app on `Room Dev/RoomCore` or `<state>/engine` cannot reach the Release app's; the keychain: ad-hoc Debug builds run with `--use-mock-keychain` (`main.swift`, `room_application.mm` `IsTeamSigned`), so no "Room Safe Storage" item is shared.
+
+### The live-site check (`scripts/live-check.sh`, `-RoomSpike live`)
+
+Per site two passes, each in a fresh tab: `off` (the site panel's switch off) then `on` (the defaults: bundled EasyList, EasyPrivacy, EasyList Cookie List; cookie banners Reject). "lists hid" = elements the bundled lists' `##` hiding rules (generic and the site's, 28,907 selectors, prefiltered by the page's ids and classes) match, and of those hidden.
+
+| site | pass | blocked dev / release | lists hid (dev) | lists hid (release) | consent | autoconsent | player |
+|---|---|---|---|---|---|---|---|
+| delfi.lt | off | 0 / 0 | 0/0 | 0/0 | `#CybotCookiebotDialog` visible | none | — |
+| delfi.lt | on | 15 / 15 | 0/0 | 0/0 | none visible | none | — |
+| 15min.lt | off | 0 / 0 | 0/117 | 0/117 | `#CybotCookiebotDialog` visible | none | — |
+| 15min.lt | on | 47 / 44 | 116/116 | 116/116 | none visible | none | — |
+| dailymail.com | off | 0 / 0 | 1/20 | 1/23 | none | none | — |
+| dailymail.com | on | 13 / 13 | 23/23 | 23/23 | none | none | — |
+| youtube.com/watch | off | 0 / 0 | 4/5 | 4/5 | `tp-yt-paper-dialog#dialog` visible | none | `#movie_player`, `video` |
+| youtube.com/watch | on | 4 / 4 | 5/5 | 5/5 | none visible | `youtube-desktop: opted-out` | `#movie_player`, `video` |
+
+`live-check: 0 failure(s)` on both builds (dev 2026-10-21T01:21Z, release 01:33Z). Findings: EasyList has no delfi.lt hiding rules and its generic ones match none of delfi's elements, so delfi's checks are its blocked requests and the banner; the Cookiebot banners on delfi and 15min go through the EasyList Cookie List's hiding, not autoconsent (no `didHandleCookieBanner`); YouTube's consent dialog is answered by autoconsent. The page with blocking off held 50,212 (delfi) and 53,348 (15min) elements against 2,664 and 6,051 with it on. dailymail.co.uk redirects to dailymail.com from Lithuania (the per-site switch keys on the site loaded, so the file names the .com). First attempts: a reload of delfi in the same tab left it with no live document (`executeJavaScript` "the page has no live document" 4 times); the probe over all 28,907 selectors on a 50k-element page did not answer (`error`): a fresh tab per pass and the id/class prefilter fixed both.
+
+### B-106 (`-RoomSpike downloadprompt`)
+
+The setting set through the store as Settings' switch writes it; the step's URL `http://127.0.0.1:8766/download?name=asked.bin&size=200000` typed as a new tab, then a link click: dev `panel=true sheet=true proposed=asked.bin` and `proposed=clicked.bin`, both cancelled, nothing listed, no file; release the same. Not reproduced. The by-hand state `/tmp/room-4/hand`: `RoomCore.log` has one `asks the host (asked.bin)` (02:03:32) and the saved settings `askWhereToSave: false`. Each download now logs `Room: download <id> (<name>): asking where to save | to <path>`.
+
+### B-107 (`-RoomSpike media -RoomSpikeOnly backtotab`)
+
+- Dev: `backtotab_video: overlay=true other_selected_before=true hook=1 opener_selected=true opener_shown=true overlay_closed=true` (the overlay's back-to-tab path, `ExitPictureInPictureViaWindowUi(kCloseWindowAndFocusOpener)`, through the dev framework's `pip-back-to-tab`); `backtotab_document: button=Back to Tab other_selected_before=true opener_selected=true opener_shown=true panel_closed=true opener_alive=alive`.
+- Release: `hook=-98` (no spike hooks in the official framework; the overlay button's click is a click check), the document panel's button as on dev.
+- The fixture link of step 53: `curl http://127.0.0.1:8776/phase-3.7/pip.html` 200 once `test-servers.sh` serves :8776.
+
+### B-108 and B-109 (`-RoomSpike sidebarfixes`)
+
+Dev and release the same: `b108_resize: width 300 → 420: before pill x=8 w=284 row x=8 w=284; after pill x=8 w=404 row x=8 w=404 follows=true` (the width set as the edge's drag sets it, six steps); `b109_close: hovered before=two after=three close_button=true` (the outline's pointer held still over "two", "two" closed). Without the fixes the two unit tests fail (`HoverAndPillTests`, checked by removing them).
+
+### Engine step (B-107) and B-100
+
+- Baseline on the dev host after the step: nav assertions passed (21.3 s), three ten-page quits 0.343 / 0.738 / 0.424 s, 0 helpers left, no crash reports (load 29–39).
+- `grand-tour.sh --no-build --only palettemeasure,import light`: dev 65 / 65 (0.9 min), release 65 / 65; `history_search` found all four fixture rows by title search (`Swift.org=https://swift.org/ visits=1`), so the new `via=row` fallback was not needed in these runs (the full tour, 5.9, is where it was).
