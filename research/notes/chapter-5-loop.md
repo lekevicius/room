@@ -35,3 +35,7 @@ Phase 5.1's DMG, notarized in 63 s. The user's newest DMG.
 ### 5.2a — accepted (2026-10-21 07:29 → 08:10, 41 min)
 
 Outcome: the design audit (0 undeclared literals), the icon-weights and typography tables, hairlines at 1 px, the matrix with 14 contact sheets, B-110, B-112, B-113, B-115, B-125; B-89 was already done. Decision: task 9 and B-125 moved into 5.2a so 5.2b carries the engine step without the metric work. User's list: taste on the sheets, two click checks. DMG: build 16 (Phase 5.2's after 5.2b).
+
+### 5.2b — accepted; Phase 5.2 closed (2026-10-21 08:12 → 09:30, 81 min)
+
+Outcome: the inactive tint fixed, grey traffic lights, B-23, B-37, the secondary-text contrast rule, the branding engine step (B-103; 48 → 0 visible "Chromium" on dev), review sheets; no new icon placeholder (the user's Room.icon ships since build 13). Incident: a display capture from the shell raised macOS's screen-capture dialog twice; left for the user. Decision: every later prompt forbids shell screen capture (`screencapture`, CGDisplay/SCStream helpers); captures stay in-process of the session's own window. Rows B-130 to B-133. DMG: build 17 with the official incremental from 09:32.
