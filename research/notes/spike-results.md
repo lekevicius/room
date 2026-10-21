@@ -4344,3 +4344,91 @@ No window: the last window closed, 0 Room windows after 2 s, the app still runni
 | `scripts/design-audit.sh` | 0 undeclared |
 | Unit tests | Sidebar 49, Model 113, Integration 34, UIKitCore 62 |
 | CI spec locally | BUILD and TEST SUCCEEDED, 709 tests, 0 failed, 2 min 44 s |
+
+## Phase 5.4 — 5.4b: the engine side, the numbers table v3 (2026-10-22, Mac mini M4, 24 GB, the Screen Sharing virtual display 1920 × 1080 at 60 Hz, RoomCore 156.0.8078.48, series 25)
+
+**Conditions.** The Debug app over the release framework (`build/roomcore-release`), light, window key and visible, test servers local, no other Room, no Chromium build on this Mac (the laptop builds; load1 2.0–4.4 throughout). Two release frameworks: **156 `30a60f7`** (the planner's official build of the rebase, before 5.4b's engine step) and **156 `f05f3d6`** (5.4b's `54b-1`, built on the laptop: B-139, B-127, B-56's check, B-87, B-140, B-58). The dev engine (`out/dev` on 156, spike hooks) had not landed when this was written (`156/READY`: `building`), so the dev-only parts (the baseline, the renderer census, `leaks` with stacks on dev) wait for it. 120 Hz is the user's (no 120 Hz panel here).
+
+### The numbers table v3 (every row of `chapter-3-review.md`'s table)
+
+| Measure | Chapter 3: release on 155 (3.9-2, Mac mini) or the 3.9-2 tour | **v3: release on 156, 60 Hz, Mac mini** | 120 Hz | Bound, owner |
+|---|---|---|---|---|
+| Memory, baseline (summed RSS) | 559 MB | 791 MB, 4 renderers (`memory`, `30a60f7`) | the user's | none set; recorded |
+| 10 loaded pages | 4,801 MB, 19 renderers (tabsmeasure); 4,097 MB (10 hidden) | **4,661 MB, 16 renderers** (`30a60f7`); 5,126 / 5,127 MB, 18 (`f05f3d6`, two runs); 10 hidden: 4,905 MB, 20 renderers | — | the renderer count: B-56 (below) |
+| 30 hidden pages | 11,880 MB (component, 3.3b); 11,720 MB (tour) | **9,443 MB, 41 renderers** (30/30 loaded in 13 s) | — | recorded |
+| 50 loaded over 5 spaces | 10,317 MB (component); 9,723 MB (tour) | **4,959–4,992 MB, 52 renderers** (three runs) | — | recorded |
+| Tab switch: click → committed, median / p95 | 12.88 / 20.87 ms | **15.40 / 18.08** (`30a60f7`); 15.81 / 18.44 and 15.15 / 18.50 ms (`f05f3d6`) | the user's (Phase 5.1 step 1) | 16 ms p95: 13–16 % over, under a quarter: **a row (B-53)**; the laptop's 14.2–16.4 on the same framework kind (5.4a): the machine's display path, as 5.4a profiled |
+| Relaunch: load start; selected loaded | 0.56 s; 1.33 s | 0.70 s; **0.77 s** (`30a60f7`, news.ycombinator.com selected); 1.27 / 1.02 s (`f05f3d6`; the selection is the switch run's last page, a different site each run) | — | recorded |
+| State open on the 50k state | 11.9–12.1 ms (3.9-1) | not rerun (no schema change since v6 that touches it); the 50-entry state 5.2 ms | — | — |
+| Palette at 50k rows: first key median; later keys p95 | 21.75; 9.79 ms (tour) | **22.05; 12.59 ms** (`palettemeasure`, suggestions off) | the user's (B-20) | later keys under 16 ms: passed |
+| Palette open: our code; to next frame | 2.23; 3.74 ms (tour) | **3.29; 6.41 ms** median (n = 40) | — | recorded |
+| Space switch, ⌃digit → first frame, median / p95 | 14.90 / 20.49 ms (tour) | **not measured: 59 of 60 ⌃digit switches missed** (n = 1: 16.3–28.4 ms) in five runs, dev on 155 too: a host regression since 2026-10-07 (B-152) | the user's (B-21) | B-152 first |
+| Split created → laid out; → next frame | 4.76; 11.45 ms (tour) | **17.80; 28.76 ms** median (n = 6, both pages loaded before) | — | recorded |
+| Find, keystroke → match | 19 / 31 ms median, p95 426 ms | **11.40 ms** median, p95 413 ms (Chromium's delay for 1–3 characters) | — | recorded |
+| DevTools ⌥⌘I → front-end loaded | 331 / 334 ms | **330 ms** median (n = 4) | — | recorded |
+| Peek decision → overlay frame; → first paint | 22.4; 110 ms | **28.7; 105.8 ms** median (n = 5) | — | recorded |
+| Quit with ten pages | 0.24–0.30 s | **0.26 / 0.35 / 0.53 s** (three runs, 0 helpers left, 0 crash reports) | — | recorded |
+| Cold launch by a link: event → requested | 287 ms | **293 ms** | — | recorded |
+| Running link (open / AppleScript / NSWorkspace), event → requested | 24.4 / 17.9 / 18.6 ms | **26.7 / 28.4 / 24.9 ms** | — | recorded |
+| Script round trip (isolated world) | 0.15 ms | **0.12 ms** median, p95 0.48 (n = 100) | — | recorded |
+| Kill test, 100 kills | 0 / 0 | **0 failures** (commit median 12.4 ms, p95 16.7) | — | passed |
+| Engine requests (net-log) | 0 / 0 | **0** (the tour's `netlog` step: none from the engine, Room's own 0) | — | passed |
+| Suggestions on, requests for three queries | 34 / 34 | **not measured**: the tour's shared state has suggestions off (5.5a's spikes store the setting; `suggeston` and `netlog`'s default check read it): B-153 | — | B-153 |
+| Bundle | Room.app 386 MB release, DMG 178 MiB | **Room.app 425 MB** (the Release app over `f05f3d6`, `du`; the framework 378 MB); no DMG built | — | recorded |
+
+Open rows after v3: B-53 (switching p95, a quarter), B-152 (the space switch unmeasurable), B-153 (the suggestions row), B-56 (renderers); every other row has its 156 number. The 120 Hz column is the user's Phase 5.1 step 1 (extended by 5.4a).
+
+### The tour's timing steps (`grand-tour.sh --no-build --only memory,open10,cdp,devtools,quittiming,killtest,spaces,palette,suggeston,palettemeasure,tabsmeasure,chrome26b,layoutmodes,app28b,netlog light`, `build/grand-tour/20261022-001001-roomcore`, `30a60f7`)
+
+**251 passed, 9 failed**, 13.4 min. The nine: `spaces` 59 missed switches (B-152); `suggeston` ×2 and `netlog`'s default check (suggestions off in the shared state, B-153); `tabsmeasure` p95 18.08 ms (B-53); `chrome26a`'s new B-58 check (the copy toasts were off in `30a60f7`: passed on `f05f3d6`, below); `chrome26b` ×3 (`didChangeStatusText` not among the recorded members, the downloads badge 1 of 2, the status pill's dodge `frame=nil`): not touched by 5.4b, not chased (one `--only` rerun is the next step). On `f05f3d6`: `chrome26a` **26 / 26**, `tabsmeasure` ×2 (the table), `tabs` (below), `spaces,settings2` ×2 (`settings2` 25 / 26: the spaces' order check reads the `spaces` step's six spaces; `clear_hour` passed both times, B-99 below).
+
+### B-58: Chrome's toasts bridged (`f05f3d6`, `8aa2151`)
+
+`chrome26a` on the release framework: Chrome's Copy Link Address (`IDC_CONTENT_CONTEXT_COPYLINKLOCATION`, tag 50104) copies the link and the engine log has `RoomCore: Chrome's toast LinkCopied to the active page's host`; the host shows **"Copied Link"** (`context_menu_engine_command: offered=true pasteboard=http://127.0.0.1:8766/dialogs.html toast=Copied Link`); 26 / 26. The first two runs showed `toast=none`: EngineRoomCore compiles against the dev framework's headers (still 155, without the member), so the Swift method was not ObjC-visible; `@objc(webContents:didRequestToast:)` fixed it (`8aa2151`). No crash, no Views toast.
+
+### B-87: Chrome's startup signal (`f05f3d6`)
+
+156 marks its startup complete by itself: `Chrome's startup complete 3,392 / 3,957 ms after didFinishLaunching` in two runs, "complete by itself 5 s after the first visible page loaded" (156's `StartupObserver` on the first visible tab's load and the first-idle reference; on 155 the 3-minute failsafe). In one run of four (the `tabs` step) it was not complete 5 s after the first visible load and Room marked it (6,430 ms). Best-effort work now starts seconds after launch, not 3 minutes.
+
+### B-140: the startup profile (`f05f3d6`)
+
+The first profile the host makes becomes Local State's `profile.last_used` (`RoomCore: the next launch starts in profile Room Profile <id>`); at the relaunch Chrome starts in it and `Default` is not loaded (its files untouched at the relaunch). **No time saved:** Chromium's start to `applicationDidFinishLaunching` 290.5 ms before (one run) against 286.6 / 330.7 ms after; the startup profile's cost (the first profile's prefs and Skia's font list) moves to Room's profile, whose later creation was already short (11.3 → 9.6–9.8 ms). The managed-device check (`base::IsDeviceRegisteredWithManagement` runs `/usr/bin/profiles` once per process) has **no documented switch**; the only lever is a policy-provider override that turns enterprise policy off: not done (B-140 stays, its next step stated).
+
+### B-141: the relaunch's selection after the blocker (`42c2815`)
+
+Relaunch marks: before, `profile delivered (the page made, its load called)` 670.9 ms and `content blocking ready` 694.8 ms (the page made 24 ms before the blocker's first apply); after, delivered 663.0 / 706.9 ms, the blocker ready before it in the same turn (`content blocking ready` +0.1 ms after, from the launch's own wait). The relaunch to the selected page is unchanged in its parts (the wait overlaps the profile's creation).
+
+### B-56: closed and discarded pages' renderers
+
+| run (release) | renderers before → 10 s after | what the check saw |
+|---|---|---|
+| `tabs` step, four discards (`30a60f7`, before) | 11 → 12 | — |
+| `tabs` step, four discards (`f05f3d6`, ×2) | 11 → 12, 11 → 12 | each old WebContents destroyed ("hosting 1 views"); **all four old renderers alive at 3 s and at 10 s** (`ps` on the logged pids); the 2 s check logged nothing: each process still had an active view (`GetActiveViewCount() > 0`), so `FastShutdownIfPossible` was not reached |
+| `discardpolicy` (three idle discards, `f05f3d6`) | 10 → 10 (4 s and 10 s) | as above |
+| `openclose` (50 Today tabs opened and closed, `f05f3d6`) | 12 renderers left with no page loaded (1,464 MB) | as above |
+
+Chrome's own `AttemptFastKillForDiscard` asks `FastShutdownIfPossible(1)` and is refused for the same reason (a second widget in the process). The second half of the bounded attempt (`e96c4ba`, request `54b-2`) names the widgets' owners (the tab-strip pages whose main frame is in the process, discarded or live) and ends the process only when nothing but discarded pages' never-rendered replacements hold it; its result is under "54b-2" below or the next session's.
+
+### Memory pressure, re-measured (release, the host's policy; the official framework has no spike hooks)
+
+`discardspaces`: critical pressure across two spaces discards least recently seen first, one a second: `a1@19ms, b1@1042ms, b2@2042ms, a2@3042ms`; the selected page and the audible one kept. `discardpolicy`: idle discards `plain2, plain1, plain3`; blockers form (`formInteractions, userEdits`), tone (`audible`), PiP, capture held; renderers 10 → 10 (B-56).
+
+### B-139 and leaks (`f05f3d6`)
+
+`scripts/leaks-check.sh … openclose` on the release framework: with `MallocStackLogging` **0 leaks** (5.4a: dev with stacks, 46 + 1 + 1 `room::PendingHostWindow` roots); without it 558 leaks / 13,568 B (5.4a release: 559 / 13,296 B: the stackless count is the same noise both times). Footprint 73.2 → 84.2 MB over 50 opens and closes (5.4a: 75.1 → 86.2). The stacks run on dev waits for the 156 dev engine.
+
+### B-99: Clear Browsing Data's cookie
+
+Not reproduced: `clear_hour` passed in both `settings2` runs on `f05f3d6` (`cookie=""`, 8 ms) and in every run since 4.9. Hypothesis for the one failure (the 4.9 full tour's shared state): CookieMonster keeps an overwritten cookie's creation date, and "Last hour" deletes by creation date, so a `room_profile=work` cookie first set more than an hour earlier in the same profile directory survives a fresh set. Next: log the cookie's creation time in the check (an engine member or a DevTools `Storage.getCookies` read) if it recurs.
+
+### B-127
+
+`OsIntegrationManager::ScopedSuppressForTesting` held for the process (`f05f3d6`); the fault was never reproduced standalone (5.4a), and no `ExcUserFault_Room*` report appeared in this session's runs.
+
+### 54b-2 and the dev engine
+
+Not built in this session: the laptop picked up `54b-1` at 00:11 (68 min after the request; no `WATCHING` until then), staged its release framework at 00:20 and was still building 156's first `out/dev` at 00:52 (no `DONE` 40 min after pick-up); `54b-2` (`e96c4ba`, release, B-56's second half) waits behind it. So B-56's holders, the renderer census (`-RoomSpike switch`'s `renderer_census`), the dev baseline (`roomcore-baseline.sh`), `leaks` with stacks on dev and "0 applied / 25 already" for `f05f3d6` are the next session's.
+
+### Unit tier and checks
+
+`swift test` with the window tier: Engine 80, Tabs 89 (+1: the toast reaches the window's page delegate), Design 21, all passing; `swift build -c release` in Engine, Tabs and Design, and the Release app (`ROOM_PACKAGE_STAGED=1 scripts/roomcore-package.sh --release --app-only`): built. The CI spec locally (`xcodegen --spec xcodegen/ci.yml`, the `Room` scheme's `build test` with `CI=1`, `build/ci-local/5.4b.log`): **TEST SUCCEEDED, 730 tests**, the normal project regenerated after.

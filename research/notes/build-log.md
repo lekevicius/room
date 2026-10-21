@@ -764,3 +764,37 @@ The `//room` change (commits `c5a4032`, no patch: "patches: 0 applied, 25 alread
 | `roomcore-baseline.sh` | 90 | passed |
 
 The official incremental (out/release) is the planner's, for the DMG. For it: no exported symbol changed (`room_core.exports` untouched; the new code is C++ in namespace `room`), so B-77's export order is unaffected; resource changes rebuild grit's theme packs and the locale-independent `chrome_*_percent.pak` repack besides the `//room` objects and the ThinLTO link; `roomcore-apply.sh` must run first on the machine (it installs the theme directories; `install_theme.sh` needs Xcode's actool).
+
+## 2026-10-21 — Rebase 155.0.8059.36 → 156.0.8078.48 (the planner's rebase on the laptop; recorded by 5.4b on the Mac mini)
+
+**What it touched** (`/Volumes/JL4/laptop-engines/REBASE`, `0fcbf0e`, `7bbca0a`, `1088c94`, `8b56048`, `30a60f7`):
+
+| Part | Cost on 156 | Commit |
+|---|---|---|
+| The series (25 patches) | 9 exact, 15 refreshed for offsets (+53 / −52 lines in 16 patch files), **one conflicting hunk**: 0026's hook placed after 156's new Glic subresource proxy in `ChromeContentBrowserClient::WillCreateURLLoaderFactory` (signature unchanged) | `0fcbf0e` |
+| `room_browser_window_stubs.cc` | regenerated (`tools/gen_browser_window_stubs.py --write`): 156's new `BrowserWindow::GetPinnedToolbarActions` stubbed (returns nullptr), +6 lines | `7bbca0a` |
+| `room_location_bar.cc` (3.5) | 12 lines: 156 removed `BrowserWindowFeatures::location_bar_model` (upstream `db047ab9388e9`): `LocationBarModel::From` | `1088c94` |
+| `room_permissions.mm` (3.4a) | +4: 156's `RequestType::kAmbientLogin` (FedCM ambient sign-in) → `RoomPermissionKindIdentityProvider` (the switch is exhaustive under `-Wswitch`) | `8b56048` |
+| `room_autocomplete.mm` (3.5) | 60 lines: `AutocompleteProvider::Type` and `omnibox::AutocompleteMatchType` became enum classes | `30a60f7` |
+| `room_history.mm` (3.5) | 8 lines: `history::QueryOptions::hostname_suffix` replaces `host_only` | `30a60f7` |
+| `room_extension_popups.mm` (3.6b; Chapter 4's `performCommand`, 4.5) | 4 lines: `ExtensionKeybindingRegistry::CommandExecuted` takes the accelerator (an empty one for a host-run command) | `30a60f7` |
+
+**Chapter 4's twelve named members** (`removeDownload`, `importPasswords`, `deleteProfile`, `contentSettings`, `clearBrowsingData`, the extension site access, `commands`/`performCommand`, the media controls, `savePage`, `sendDevToolsCommand`, `move(toHostWindow:)`, `offTheRecord`/`closeOffTheRecord`, `setAllowedInIncognito`): **one changed** (`performCommand`, 4 lines); the eleven others compiled unchanged on 156. Outside them the rebase cost 84 changed lines in five `//room` files, all API renames Chrome's own callers took in the same upstream commits; no `//room` behaviour changed.
+
+**Times** (the laptop, M1 Max): sync 102 s, runhooks 26 s, apply 28 s ("0 applied, 25 already" after the push); the official `out/release` build of `30a60f7` staged and copied 22:46 (`156/READY`); `out/dev` still building at 00:10 (`156/READY` says `building`).
+
+**The verify on the Mac mini (5.4b):** the dev engine's baseline (`scripts/roomcore-baseline.sh` needs the spike hooks) was **not run**: 156's first `out/dev` was still building on the laptop at 00:52. The release framework on 156 (`30a60f7`, then 5.4b's `f05f3d6`) carried the tour's timing steps and the engine step's checks ("Phase 5.4 — 5.4b" in `spike-results.md`).
+
+## 2026-10-22 — Phase 5.4b: the engine step through the laptop (requests `54b-1`, `54b-2`)
+
+Two `//room` commits in `54b-1` (`git push origin main` at 23:03, `requests/54b-1.req`: `commit=f05f3d6…`, `targets=dev,release`, `check=apply`): `e0ad4ee` (B-139, B-127, B-56's check, B-87, B-140, the census action: `room_browser_window.mm`, `room_application.mm` +75, `room_application_internal.h`, `room_browser.mm` +56, `room_extensions.mm` +9, `room_web_contents.mm` +79, `core/BUILD.gn` + `//chrome/browser/web_applications`) and `f05f3d6` (B-58: `RoomToastController` in `room_browser_window.mm`, `RoomBrowserWindowClient::OnToastRequested`, `-webContents:didRequestToast:` in `RoomWebContents.h`, `browser/BUILD.gn` + `//chrome/browser/ui/toasts{,/api:toasts}`, `room_network_policy.cc` the copy toasts on again). No patch; no exported class (`room_core.exports` unchanged); the series untouched.
+
+| Step | Time | Notes |
+|---|---|---|
+| request → the laptop's `WATCHING` | 68 min (23:03 → 00:11) | no `WATCHING` within the 20 minutes the session waited; the session went on with host work and measurements |
+| `54b-1` release (out/release, official incremental) | picked 00:11, staged and copied **00:20** (~9 min) | compiled first time; `RoomCoreCommit f05f3d6` |
+| `54b-1` dev (out/dev) | not done at 00:52 | 156's first `out/dev` (the planner's `156/READY` said `building` since 22:46): a full component build, not an incremental |
+| packaging here | `--release --app-only` 14–33 s (app), the Release app 74 s | `ROOM_PACKAGE_STAGED=1` |
+| `54b-2` (`e96c4ba`, B-56's second half, release) | requested 00:34, not picked by 00:52 | queued behind `54b-1`'s dev |
+
+"0 applied / 25 already" on the laptop for `f05f3d6`: asked (`check=apply`), not reported (no `DONE` file yet). Next: when `builds/54b-1/DONE` and `builds/54b-2/DONE` exist, install `54b-1/roomcore/RoomCore.framework` into `build/roomcore` and `54b-2/roomcore-release/RoomCore.framework` into `build/roomcore-release` (`rm -rf` the old, `cp -Rc`), rebuild both apps with `ROOM_PACKAGE_STAGED=1`, run `roomcore-baseline.sh`, the switch spike's census on dev, `leaks-check.sh … openclose` on dev with stacks, and the `tabs` step for B-56's holders.
