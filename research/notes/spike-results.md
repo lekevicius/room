@@ -4047,3 +4047,42 @@ The audit's first form counted AppKit's private elements and SwiftUI's empty tre
 Focus-ring captures for the review sheet (Room's own window, in-process): `research/screenshots/phase-5.3/phase-5.3a-focus-{back,space-icon,address-field,outline}.png`.
 
 **Reserved keys unchanged:** `scripts/grand-tour.sh --no-build --only keys light`: 19/19 on dev and 19/19 on the release framework (ABC, Colemak, Lithuanian; ⌘T and ⌘L reserved in every layout).
+
+## Phase 5.3 — 5.3b: scaling, contrast, transparency (2026-10-21, M1 Max laptop, 60 Hz Pro Display XDR main at 2×, RoomCore 155.0.8059.36, series 25, dev `out/dev` and the release framework (`RoomCoreCommit c5a4032`); no engine change; load 18–26 from other apps throughout)
+
+**The matrix's 5.3b columns** (`scripts/visual-matrix.sh <out> <suffix> -RoomMatrixColumns modes|sizes -RoomMatrixPhase 5.3 -RoomSpikeOnly rows,header,palette,toasts`, `App/Sources/Debug/DisplayModeSpikes.swift`): the window 1200 × 728 pt at 2×, the sidebar 300 pt, 5.1a's fixture on :8766, suggestions off, an active window. `modes`: normal, Increase Contrast, Reduce Transparency, Differentiate Without Colour × light/dark (8 columns; `DisplayOptions.source = .fixed(…)` in-process, never System Settings), a fourth rows state at rest with the changed dots (row and tile) and a muted tab: 14 rows, 112 captures, 90 s on dev. `sizes`: small, medium, large × light/dark (6 columns, the setting written as the picker would, each state set up again after the size so the palette measures its panel at it): 13 rows, 78 captures, 108 s on dev. Sheets in `research/screenshots/phase-5.3/phase-5.3-{rows,header,palette,toasts}-{modes,sizes}.png` (20 MB); the release framework's run in `build/5.3b/matrix-release/` (not committed): the same 8 sheets.
+
+**The three sizes without clipping** (the `sizes` run's `clip_` lines: every visible `NSTextField` of the sidebar's outline and the palette's panel read back, a label clipped when its text cell is taller than its frame or its frame leaves its row; a tool, not a test):
+
+| | rows (3 states × 6 columns) | palette (5 states × 6 columns) | row heights read back |
+|---|---|---|---|
+| dev, first run (`f0eecd9`'s spike on `afd6ec3`'s parent) | 0 of 18 checks clipped | **24 of 30 checks clipped** (every state with rows, small and large: 8 of 10 labels, text 14 pt tall in a 13 pt frame at small, 19 in 18 at large; medium 0) | 31 / 36 / 41 |
+| dev, after (`afd6ec3`: the palette's label height from a label's cell, `TextScale.lineHeight`) | 0 of 18 | 0 of 30 (worst margin 0.0) | 31 / 36 / 41 |
+| release framework, after | 0 of 18 | 0 of 30 | 31 / 36 / 41 |
+
+The cause: the palette measured its labels once with `NSLayoutManager.defaultLineHeight`, a point under the label cell's height at 11 and 15 pt (medium's 13 pt happened to match). The unit test of the token maths (`TextScaleTests`) uses the same measure now.
+
+**The 500-entry scroll** (`scripts/sidebar-snapshots.sh 500 <dir> [app]`, `ROOM_TOUR_ARGS="-RoomSidebarTextSize large"` for large; 508 rows, the display link at 60 Hz; medium beside it under the same load). Large rows are 41 pt (16 pt titles), medium 36 pt:
+
+| run | full reload median / p95 | select median | late frames, 6 runs × 240 | scroll step p95 (native 1500 / 4000 / 9000 pt/s) | steps over 8.33 ms (native, proxy120; per speed) |
+|---|---|---|---|---|---|
+| dev, medium | 73.0 / 81.0 ms | 6.66 ms | 0 | 7.60 / 8.05 / 8.32 ms | 4,1 / 6,5 / 11,9 |
+| dev, large | 65.8 / 71.1 ms | 6.81 ms | **1** (proxy120 9000 pt/s: one 33.3 ms interval) | 8.10 / 7.77 / 7.89 ms | 10,11 / 3,2 / 7,6 |
+| release framework, medium | 73.2 / 80.3 ms | 6.98 ms | 0 | 7.74 / 8.43 / 8.46 ms | 4,3 / 14,6 / 18,8 |
+| release framework, large | 64.2 / 68.7 ms | 6.65 ms | 0 | 8.15 / 7.51 / 8.12 ms | 10,7 / 1,2 / 8,7 |
+
+At large fewer rows fit the window, so the full reload is 10 % cheaper; the scroll step's median and p95 are within the run-to-run spread of medium (the machine's load 19–26 during all four). One late frame in 1,440 on dev at large, none on the release framework. Recorded, not chased (B-16's 120 Hz run is the user's).
+
+**The 5.3a audit and keyboard spikes at large** (`-RoomSidebarTextSize large`, row heights change the tree): `scripts/a11y-audit.sh`: **0 findings** over the 16 surfaces (40 states), 1,200 interactive of 4,716 elements walked (5.3a: 1,198 of 4,695; the new Sidebar text picker's segments), on dev and on the release framework. `scripts/keyboard-check.sh`: every line as 5.3a's on both builds (the Tab order in both modes, ↓↓⏎ and Tab to the page and back, the address field, the palette by keys, Clear's toast announced and undone, Esc out of Peek, the Library and the downloads popover; the toast's Undo still not a stop, B-134).
+
+**Increase Contrast's secondary text** (`scripts/theme-contrast.sh <out> -RoomIncreaseContrast YES`, 5.2b's 800 samples; primary is AppKit's label colour, which the in-process flag does not change):
+
+| `Palette.sidebarSecondaryHighContrastAlpha` | worst secondary, light (opacity 1.0) | worst secondary, dark (opacity 1.0) | untinted light / dark | under 4.5:1 |
+|---|---|---|---|---|
+| normal tokens (5.2b's 64 % / 82 %, its table above) | 5.16 | 4.51 | not recorded | 0 |
+| first choice 80 % / 92 % | 8.09 | 5.20 (dark untinted 8.28, above the primary's 7.33) | 11.0 / 8.3 | 0 |
+| **kept 80 % / 85 %** (`2bd76d0`) | **8.09** | **4.69** (the primary's 4.67) | 11.0 / 7.3 | 0 |
+
+In dark at the highest tint opacity the tint, not the text's alpha, limits contrast: even the primary label reaches 4.67. 7:1 is not reachable there without a fainter tint under Increase Contrast (the user's call with B-131).
+
+**A bug the modes sheet found:** an unloaded row's title was `labelColor.withAlphaComponent(0.7)`, fixed to the appearance of the row's last configure: after a light/dark switch with no reload, unloaded titles drew black at 70 % on the dark sidebar (read in a probe: the field's colour resolved white 0.70, the layer still showing the light drawing) and white on the light one. Now `Palette.sidebarUnloadedLabel`, resolved when drawn; `DisplayOptionsTests` "An unloaded title's colour follows the appearance it is drawn in". The 5.2 matrix's rows sheet (light then dark, one setup per state) does not show it; the probe's order (Reduce Transparency's reload in light, then dark with no reload) did, in both runs with that order (and the reverse: white titles in light after a dark column).
