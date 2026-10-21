@@ -59,12 +59,12 @@ content::WebContents* RoomLocationBar::GetWebContents() {
 }
 
 LocationBarModel* RoomLocationBar::GetLocationBarModel() {
-  // The Browser's own model (BrowserWindowFeatures, over
-  // BrowserLocationBarModelDelegate): the active page's URL and its
-  // chrome_security_state level, the same source the host's site button
-  // reads through RoomWebContents.securityLevel.
-  LocationBarModel* model =
-      browser_->GetFeatures().location_bar_model();
+  // The Browser's own model (owned by BrowserWindowFeatures over
+  // BrowserLocationBarModelDelegate, reached through the window's user data
+  // since 156): the active page's URL and its chrome_security_state level,
+  // the same source the host's site button reads through
+  // RoomWebContents.securityLevel.
+  LocationBarModel* model = LocationBarModel::From(browser_.get());
   if (!logged_model_request_ && model) {
     logged_model_request_ = true;
     LOG(INFO) << "RoomLocationBar: GetLocationBarModel asked; security level "
