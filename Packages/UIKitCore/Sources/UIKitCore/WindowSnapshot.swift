@@ -26,6 +26,25 @@ public enum WindowSnapshot {
         return createImage(.null, includingWindow, UInt32(window.windowNumber), options)?.takeRetainedValue()
     }
 
+    /// A window of this process by its window-server number (5.2b: a menu's window while it
+    /// tracks, which is not an `NSWindow` the app can name).
+    public static func capture(windowNumber: Int) -> CGImage? {
+        guard let createImage, windowNumber > 0 else { return nil }
+        let includingWindow: UInt32 = 1 << 3          // kCGWindowListOptionIncludingWindow
+        let options: UInt32 = (1 << 0) | (1 << 3)     // BoundsIgnoreFraming | BestResolution
+        return createImage(.null, includingWindow, UInt32(windowNumber), options)?.takeRetainedValue()
+    }
+
+    /// The window numbers of this process's on-screen windows at `layer` (101: menus), front to back.
+    public static func ownWindowNumbers(layer: Int) -> [Int] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        let pid = Int(getpid())
+        return list.compactMap { info in
+            guard (info[kCGWindowOwnerPID as String] as? Int) == pid, (info[kCGWindowLayer as String] as? Int) == layer else { return nil }
+            return info[kCGWindowNumber as String] as? Int
+        }
+    }
+
     private typealias CreateImageFromArray = @convention(c) (CGRect, CFArray, UInt32) -> Unmanaged<CGImage>?
 
     private static let createImageFromArray: CreateImageFromArray? = {

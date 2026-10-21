@@ -76,7 +76,7 @@ final class SplitGroupCellView: NSTableCellView {
             icon.isUnloaded = !segment.page.isLoaded
             icon.showsChangedDot = segment.isChanged
             titles[index].stringValue = EntryLabel.title(segment.entry)
-            titles[index].textColor = segment.page.isLoaded ? .labelColor : .secondaryLabelColor
+            titles[index].textColor = segment.page.isLoaded ? .labelColor : Palette.sidebarSecondaryLabel
         }
         for index in count..<icons.count {
             icons[index].isHidden = true

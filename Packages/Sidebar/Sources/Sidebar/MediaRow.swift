@@ -60,7 +60,7 @@ final class MediaRowView: NSView {
             label.cell?.truncatesLastVisibleLine = true
         }
         titleLabel.textColor = .labelColor
-        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.textColor = Palette.sidebarSecondaryLabel
         for (button, symbol, label, action) in [
             (playButton, Symbol.pause, "Pause", #selector(playPauseClicked)),
             (nextButton, Symbol.nextTrack, "Next Track", #selector(nextClicked)),
@@ -69,7 +69,7 @@ final class MediaRowView: NSView {
             button.image = symbol.image(.media, accessibilityDescription: label)
             button.isBordered = false
             button.imagePosition = .imageOnly
-            button.contentTintColor = .secondaryLabelColor
+            button.contentTintColor = Palette.sidebarSecondaryLabel
             button.toolTip = label
             button.target = self
             button.action = action

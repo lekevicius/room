@@ -416,7 +416,7 @@ final class SidebarFooterView: NSView {
         iconRow.addSubview(indicator)
         iconRow.setAccessibilityIdentifier("space-icons")
         nameLabel.font = Typography.secondary
-        nameLabel.textColor = .secondaryLabelColor
+        nameLabel.textColor = Palette.sidebarSecondaryLabel
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.alphaValue = 0
         addSubview(downloadsButton)

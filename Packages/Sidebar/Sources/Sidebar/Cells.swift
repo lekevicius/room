@@ -41,7 +41,7 @@ private func makeIconButton(_ symbol: Symbol, style: IconStyle, label: String) -
     button.isBordered = false
     button.bezelStyle = .accessoryBarAction
     button.imagePosition = .imageOnly
-    button.contentTintColor = .secondaryLabelColor
+    button.contentTintColor = Palette.sidebarSecondaryLabel
     button.setAccessibilityLabel(label)
     button.toolTip = label
     return button
@@ -83,7 +83,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     let favicon = FaviconView()
     private let folderIcon = NSImageView()
     let titleField = makeLabel(font: Typography.sidebarRow, color: .labelColor)
-    private let sublabel = makeLabel(font: Typography.secondary, color: .secondaryLabelColor)
+    private let sublabel = makeLabel(font: Typography.secondary, color: Palette.sidebarSecondaryLabel)
     private let resetButton = makeIconButton(.resetPinned, style: .rowAction, label: "Back to pinned URL")
     private let closeButton: NSButton = {
         let button = HoverButton()
@@ -119,7 +119,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         titleField.lineBreakMode = .byClipping
         titleField.cell?.truncatesLastVisibleLine = false
         folderIcon.imageScaling = .scaleNone
-        folderIcon.contentTintColor = .secondaryLabelColor
+        folderIcon.contentTintColor = Palette.sidebarSecondaryLabel
         sublabel.isHidden = true
         resetButton.isHidden = true
         closeButton.isHidden = true
@@ -136,7 +136,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         captureIndicator.contentTintColor = .systemRed
         captureIndicator.setAccessibilityIdentifier("row-capture")
         readerIndicator.isHidden = true
-        readerIndicator.contentTintColor = .secondaryLabelColor
+        readerIndicator.contentTintColor = Palette.sidebarSecondaryLabel
         readerIndicator.image = Symbol.readerMode.image(.rowAction, accessibilityDescription: "Reader mode")
         readerIndicator.toolTip = "Reader mode (⌥⇧⌘R or Esc to exit)"
         readerIndicator.setAccessibilityIdentifier("row-reader")
@@ -445,7 +445,7 @@ final class AudioIndicatorView: NSImageView {
 final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     static let identifier = NSUserInterfaceItemIdentifier("space-title")
 
-    private let iconField = makeLabel(font: Typography.spaceTitle, color: .secondaryLabelColor)
+    private let iconField = makeLabel(font: Typography.spaceTitle, color: Palette.sidebarSecondaryLabel)
     private let iconImage = NSImageView()
     private let nameField = makeLabel(font: Typography.spaceTitle, color: .labelColor)
     let chevron = makeIconButton(.disclosure, style: .rowChevron, label: "Collapse Pinned")
@@ -470,7 +470,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
         moreButton.action = #selector(more)
         moreButton.setAccessibilityIdentifier("space-more")
         nameField.delegate = self
-        iconImage.contentTintColor = .secondaryLabelColor
+        iconImage.contentTintColor = Palette.sidebarSecondaryLabel
         addSubview(iconField)
         addSubview(iconImage)
         addSubview(nameField)
@@ -514,7 +514,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
         isNote = true
         spaceName = text
         nameField.stringValue = text
-        nameField.textColor = .secondaryLabelColor
+        nameField.textColor = Palette.sidebarSecondaryLabel
         iconField.stringValue = ""
         iconImage.image = nil
         setAccessibilityLabel(text)
@@ -620,7 +620,7 @@ final class SeparatorCellView: NSTableCellView {
         identifier = Self.identifier
         clearButton.isBordered = false
         clearButton.font = Typography.secondary
-        clearButton.contentTintColor = .secondaryLabelColor
+        clearButton.contentTintColor = Palette.sidebarSecondaryLabel
         clearButton.setAccessibilityIdentifier("clear-today")
         clearButton.toolTip = "Clear Today Tabs (⇧⌘K)"
         addSubview(line)
@@ -653,13 +653,13 @@ final class NewTabCellView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("new-tab")
 
     private let icon = NSImageView()
-    private let label = makeLabel(font: Typography.sidebarRow, color: .secondaryLabelColor)
+    private let label = makeLabel(font: Typography.sidebarRow, color: Palette.sidebarSecondaryLabel)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
         icon.image = Symbol.newTab.image(.rowGlyph)
-        icon.contentTintColor = .secondaryLabelColor
+        icon.contentTintColor = Palette.sidebarSecondaryLabel
         label.stringValue = "New Tab"
         setAccessibilityLabel("New Tab")
         addSubview(icon)

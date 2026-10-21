@@ -256,7 +256,7 @@ final class EssentialsDropSlotView: NSView {
         border.lineDashPattern = [4, 3]
         layer?.addSublayer(border)
         label.font = Typography.secondary
-        label.textColor = .secondaryLabelColor
+        label.textColor = Palette.sidebarSecondaryLabel
         label.alignment = .center
         label.lineBreakMode = .byTruncatingTail
         addSubview(label)
@@ -322,7 +322,7 @@ final class EssentialTileView: NSView {
         resetButton.toolTip = "Back to pinned URL"
         resetButton.isHidden = true
         audio.isHidden = true
-        audio.contentTintColor = .secondaryLabelColor
+        audio.contentTintColor = Palette.sidebarSecondaryLabel
         dot.wantsLayer = true
         dot.isHidden = true
         addSubview(favicon)

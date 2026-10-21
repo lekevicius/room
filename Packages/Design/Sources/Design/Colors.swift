@@ -16,6 +16,17 @@ public enum Palette {
     public static var addressFieldHover: NSColor { named("AddressFieldHover") }
     /// Space tint when a space has no theme colors.
     public static var spaceTintDefault: NSColor { named("SpaceTintDefault") }
+    /// Secondary text over the sidebar's tinted material (sublabels, the folder glyph, the unloaded
+    /// split titles, the footer's space name): the label colour at `sidebarSecondaryAlpha` (5.2b's
+    /// contrast rule: AppKit's secondary label, black 50% / white 55%, measured 3.8:1 light and 4.1:1
+    /// dark over the untinted material and 2.95:1 under a dark tint; this holds 4.5:1 over every theme
+    /// sample at the highest tint opacity, `docs/design-tokens.md` "Theme contrast").
+    public static let sidebarSecondaryLabel = NSColor(name: "RoomSidebarSecondaryLabel") { appearance in
+        appearance.isDark ? NSColor(white: 1, alpha: sidebarSecondaryAlpha.dark) : NSColor(white: 0, alpha: sidebarSecondaryAlpha.light)
+    }
+    /// The alphas of `sidebarSecondaryLabel` (the primary label is AppKit's, 85%): the dark tint
+    /// lightens the material more than the light tint darkens it, so dark needs more.
+    public static let sidebarSecondaryAlpha: (light: CGFloat, dark: CGFloat) = (0.64, 0.82)
 
     /// Accent marks: the changed-entry dot (spec §I.8), the drag insertion line (§A.9).
     public static var accent: NSColor { .controlAccentColor }

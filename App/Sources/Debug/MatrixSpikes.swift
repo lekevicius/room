@@ -20,7 +20,9 @@ import UIKitCore
 /// - `-RoomMatrixSuffix <s>`: appended to each sheet's name (`-before` for the before run).
 /// - `-RoomSpikeOnly rows,header,…`: the surfaces to shoot (default all): rows, header, footer,
 ///   palette, peek, split, toasts, downloads, sitepanel, prompts, library, settings, incognito,
-///   extensions (the header with two extensions, one in the overflow menu); `hairlines` (only when
+///   extensions (the header with two extensions, one in the overflow menu); 5.2b's themes (the sidebar
+///   under each algorithm), menus (B-37's key glyphs, from the menus' own windows) and spaceform (B-23);
+///   `hairlines` (only when
 ///   named) reads the device pixels across each hairline instead.
 /// `scripts/visual-matrix.sh` runs it on a throwaway state with search suggestions off.
 extension SpikeRunner.Context {
@@ -92,6 +94,9 @@ extension SpikeRunner.Context {
             ("settings", "Settings (each section)", settingsNotes, settingsStates()),
             ("incognito", "Incognito window", incognitoNotes, incognitoStates()),
             ("extensions", "Top bar with extensions (B-89, B-125)", extensionNotes, await extensionStates()),
+            ("themes", "Space themes (each algorithm; 5.2b)", themeNotes, themeStates()),
+            ("menus", "Menus' key glyphs (B-37; 5.2b)", menuNotes, menuStates()),
+            ("spaceform", "The space form's theme (B-23; 5.2b)", spaceFormNotes, spaceFormStates()),
         ]
         // The name without its dash (an argument value starting with "-" would read as a flag).
         let suffix = (UserDefaults.standard.string(forKey: "RoomMatrixSuffix") ?? "").isEmpty ? "" : "-" + UserDefaults.standard.string(forKey: "RoomMatrixSuffix")!
@@ -122,7 +127,7 @@ extension SpikeRunner.Context {
 
     /// Whether the matrix's current column is the active one (windows of their own read it).
     private static var matrixActiveValue = true
-    private var matrixActive: Bool {
+    var matrixActive: Bool {
         get { Self.matrixActiveValue }
         set { Self.matrixActiveValue = newValue }
     }
@@ -161,7 +166,7 @@ extension SpikeRunner.Context {
     }
 
     /// The sidebar's column in window coordinates, from `top` points under the window's top to `bottom` above its bottom.
-    private func sidebarRect(top: CGFloat = 0, height: CGFloat? = nil, fromBottom: Bool = false) -> CGRect {
+    func sidebarRect(top: CGFloat = 0, height: CGFloat? = nil, fromBottom: Bool = false) -> CGRect {
         let view = controller.sidebarView
         let frame = view.convert(view.bounds, to: nil)
         let windowHeight = window.contentView?.bounds.height ?? frame.height
