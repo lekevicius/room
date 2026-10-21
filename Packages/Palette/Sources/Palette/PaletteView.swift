@@ -73,6 +73,8 @@ final class PalettePanelView: NSView {
         content.addSubview(rows)
         content.wantsLayer = true
         content.layer?.masksToBounds = true
+        // Reduce Transparency (5.3b): an opaque fill under the field and the rows.
+        SolidBackingView.install(in: content, cornerRadius: Radius.large)
         glass.contentView = content
         addSubview(glass)
         setAccessibilityElement(true)

@@ -24,7 +24,6 @@ public final class FaviconView: NSView {
         dot.actions = CALayer.noImplicitActions
         spinner.actions = CALayer.noImplicitActions
         dot.isHidden = true
-        dot.cornerRadius = SidebarMetrics.changedDotSize / 2
         spinner.fillColor = nil
         spinner.lineWidth = 2
         spinner.lineCap = .round
@@ -42,8 +41,13 @@ public final class FaviconView: NSView {
 
     public override func layout() {
         super.layout()
-        let size = SidebarMetrics.changedDotSize
-        dot.frame = CGRect(x: bounds.maxX - size + 2, y: bounds.maxY - size + 2, width: size, height: size)
+        // Differentiate Without Colour (5.3b): larger, with a ring (`ChangedMark`); the dot's centre stays put.
+        let style = ChangedMark.style()
+        let size = style.size, centre = CGPoint(x: bounds.maxX - SidebarMetrics.changedDotSize / 2 + 2,
+                                                y: bounds.maxY - SidebarMetrics.changedDotSize / 2 + 2)
+        dot.frame = CGRect(x: centre.x - size / 2, y: centre.y - size / 2, width: size, height: size)
+        dot.cornerRadius = size / 2
+        dot.borderWidth = style.outline
         spinner.frame = bounds
         spinner.path = CGPath(ellipseIn: bounds.insetBy(dx: 1, dy: 1), transform: nil)
     }
@@ -56,6 +60,7 @@ public final class FaviconView: NSView {
     public override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             dot.backgroundColor = Palette.accent.cgColor
+            dot.borderColor = Palette.changedMarkOutline.cgColor
             spinner.strokeColor = NSColor.secondaryLabelColor.cgColor
         }
         guard !isLoading else { return }

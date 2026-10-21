@@ -190,11 +190,12 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         }
         if !isRenaming { titleField.stringValue = EntryLabel.title(entry) }
         titleField.textColor = (isFolder || model.page.isLoaded) ? .labelColor
-            : NSColor.labelColor.withAlphaComponent(SidebarMetrics.unloadedTitleAlpha)
+            : Palette.sidebarUnloadedLabel
         let audible = model.page.isAudible || model.page.isMuted
         audioButton.isHidden = !audible
         if audible {
-            let symbol: Symbol = model.page.isMuted ? .muted : .audible
+            // Differentiate Without Colour (5.3b): the glyph inside a circle (`AudioGlyph`).
+            let symbol = AudioGlyph.symbol(muted: model.page.isMuted)
             let label = model.page.isMuted ? "Unmute Tab" : "Mute Tab"
             audioButton.image = symbol.image(.rowButton, accessibilityDescription: label)
             audioButton.toolTip = label

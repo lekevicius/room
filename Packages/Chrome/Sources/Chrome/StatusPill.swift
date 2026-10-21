@@ -233,7 +233,7 @@ public final class StatusPill {
     }
 }
 
-final class StatusPillView: NSView {
+final class StatusPillView: NSView, DisplayOptionsObserving {
     let label = NSTextField(labelWithString: "")
     private let background = NSVisualEffectView()
 
@@ -244,7 +244,9 @@ final class StatusPillView: NSView {
         background.wantsLayer = true
         background.layer?.cornerRadius = Radius.small
         background.layer?.cornerCurve = .continuous
-                background.layer?.borderColor = NSColor.separatorColor.cgColor
+        applyBorder()
+        // Reduce Transparency (5.3b): an opaque fill in place of the tooltip material.
+        SolidBackingView.install(in: background, cornerRadius: Radius.small)
         addSubview(background)
         label.font = Typography.secondary
         label.textColor = .secondaryLabelColor
@@ -259,6 +261,18 @@ final class StatusPillView: NSView {
 
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// The border's hairline (`Palette.hairline`: Increase Contrast's under that option, 5.3b).
+    private func applyBorder() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { background.layer?.borderColor = Palette.hairline.cgColor }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyBorder()
+    }
+
+    func displayOptionsDidChange() { applyBorder() }
 
     override func layout() {
         background.layer?.borderWidth = Hairline.width(in: self)

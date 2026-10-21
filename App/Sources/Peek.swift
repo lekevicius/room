@@ -260,7 +260,7 @@ final class PeekHeaderView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.separatorColor.setFill()
+        Palette.hairline.setFill()
         let line = Hairline.width(in: self)
         NSRect(x: 0, y: bounds.height - line, width: bounds.width, height: line).fill()
     }

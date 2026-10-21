@@ -4,8 +4,27 @@ import AppKit
 public enum Palette {
     /// Card fill before the page reports its root background color.
     public static var cardBackground: NSColor { named("CardBackground") }
-    /// Hairline around the card (6–8% label color).
-    public static var cardBorder: NSColor { named("CardBorder") }
+    /// Hairline around the card (6–8% label color); Increase Contrast: `hairlineHighContrast` (5.3b).
+    public static var cardBorder: NSColor {
+        DisplayOptions.current.increaseContrast ? hairlineHighContrast : named("CardBorder")
+    }
+    /// The chrome's other hairlines (`HairlineView`, split panes' segment lines, the status pill's
+    /// border, the DevTools and Peek header lines): AppKit's separator, or `hairlineHighContrast`
+    /// under Increase Contrast (5.3b). Resolved when drawn, so a live toggle reaches it.
+    public static let hairline = NSColor(name: "RoomHairline") { appearance in
+        DisplayOptions.current.increaseContrast ? highContrastHairline(dark: appearance.isDark) : .separatorColor
+    }
+    /// Increase Contrast's hairline (5.3b): the label colour at `hairlineHighContrastAlpha`.
+    public static let hairlineHighContrast = NSColor(name: "RoomHairlineHighContrast") { appearance in
+        highContrastHairline(dark: appearance.isDark)
+    }
+    /// The alphas of `hairlineHighContrast` (chosen: the separator's 10% and the card's 7–8% read as
+    /// borders at 45% light / 50% dark, as AppKit's own controls gain borders under Increase Contrast).
+    nonisolated public static let hairlineHighContrastAlpha: (light: CGFloat, dark: CGFloat) = (0.45, 0.5)
+
+    private nonisolated static func highContrastHairline(dark: Bool) -> NSColor {
+        dark ? NSColor(white: 1, alpha: hairlineHighContrastAlpha.dark) : NSColor(white: 0, alpha: hairlineHighContrastAlpha.light)
+    }
     /// Shadow color behind the card; opacity comes from `CardMetrics`.
     public static var cardShadow: NSColor { named("CardShadow") }
     /// Selected sidebar row pill (Chapter 2).
@@ -21,12 +40,37 @@ public enum Palette {
     /// contrast rule: AppKit's secondary label, black 50% / white 55%, measured 3.8:1 light and 4.1:1
     /// dark over the untinted material and 2.95:1 under a dark tint; this holds 4.5:1 over every theme
     /// sample at the highest tint opacity, `docs/design-tokens.md` "Theme contrast").
+    /// Under Increase Contrast it takes `sidebarSecondaryHighContrastAlpha` (5.3b).
     public static let sidebarSecondaryLabel = NSColor(name: "RoomSidebarSecondaryLabel") { appearance in
-        appearance.isDark ? NSColor(white: 1, alpha: sidebarSecondaryAlpha.dark) : NSColor(white: 0, alpha: sidebarSecondaryAlpha.light)
+        let alpha = sidebarSecondaryAlpha(for: DisplayOptions.current)
+        return appearance.isDark ? NSColor(white: 1, alpha: alpha.dark) : NSColor(white: 0, alpha: alpha.light)
     }
     /// The alphas of `sidebarSecondaryLabel` (the primary label is AppKit's, 85%): the dark tint
     /// lightens the material more than the light tint darkens it, so dark needs more.
-    public static let sidebarSecondaryAlpha: (light: CGFloat, dark: CGFloat) = (0.64, 0.82)
+    nonisolated public static let sidebarSecondaryAlpha: (light: CGFloat, dark: CGFloat) = (0.64, 0.82)
+    /// Increase Contrast's secondary text (5.3b): 7:1 (WCAG AAA) over the 5.2b samples' worst
+    /// backgrounds, still below the primary label so the two read apart.
+    nonisolated public static let sidebarSecondaryHighContrastAlpha: (light: CGFloat, dark: CGFloat) = (0.80, 0.92)
+
+    /// The secondary text's alphas under `options`.
+    public nonisolated static func sidebarSecondaryAlpha(for options: DisplayOptions) -> (light: CGFloat, dark: CGFloat) {
+        options.increaseContrast ? sidebarSecondaryHighContrastAlpha : sidebarSecondaryAlpha
+    }
+
+    /// An unloaded row's title (spec §A.1): the label colour at `SidebarMetrics.unloadedTitleAlpha`, resolved
+    /// when drawn (5.3b: `labelColor.withAlphaComponent` was fixed to the appearance of the row's last
+    /// configure, so after a light/dark switch unloaded titles kept the other appearance's colour, read
+    /// back as dark text on the dark sidebar); under Increase Contrast the secondary text's alphas.
+    public static let sidebarUnloadedLabel = NSColor(name: "RoomSidebarUnloadedLabel") { appearance in
+        let options = DisplayOptions.current
+        let alpha = options.increaseContrast ? sidebarSecondaryHighContrastAlpha : (light: unloadedTitleAlpha, dark: unloadedTitleAlpha)
+        return appearance.isDark ? NSColor(white: 1, alpha: alpha.dark) : NSColor(white: 0, alpha: alpha.light)
+    }
+    nonisolated static let unloadedTitleAlpha: CGFloat = 0.7
+
+    /// Differentiate Without Colour (5.3b): the ring around the changed dot, so the dot's shape
+    /// reads against a favicon of any colour (`ChangedMark`).
+    public static var changedMarkOutline: NSColor { .windowBackgroundColor }
 
     /// Accent marks: the changed-entry dot (spec §I.8), the drag insertion line (§A.9).
     public static var accent: NSColor { .controlAccentColor }

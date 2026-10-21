@@ -160,6 +160,7 @@ public final class SidebarController: NSObject {
         token = store.sidebar.observe { [weak self] change in self?.apply(change) }
         // Settings ▸ Appearance ▸ Sidebar text and the system's display options (5.3b): rows re-measured and redrawn.
         NotificationCenter.default.addObserver(self, selector: #selector(lookDidChange), name: TextScale.didChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(lookDidChange), name: DisplayOptions.didChange, object: nil)
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.isCommandHeld = event.modifierFlags.contains(.command)
             return event

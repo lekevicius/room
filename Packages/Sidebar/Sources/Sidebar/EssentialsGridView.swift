@@ -357,7 +357,7 @@ final class EssentialTileView: PressableView {
         favicon.isLoading = page.isLoading
         let audible = page.isAudible || page.isMuted
         audio.isHidden = !audible
-        audio.image = (page.isMuted ? Symbol.muted : Symbol.audible).image(.tileBadge)
+        audio.image = AudioGlyph.symbol(muted: page.isMuted).image(.tileBadge)
         toolTip = EntryLabel.title(entry)
         setAccessibilityLabel(EntryLabel.title(entry))
         setAccessibilityValue(EntryAccessibility.value(kind: .essential, page: page, isSelected: isSelected, isChanged: isChanged))
@@ -400,7 +400,11 @@ final class EssentialTileView: PressableView {
         multiSelectionLayer.backgroundColor = Palette.sidebarMultiSelection.cgColor
         multiSelectionLayer.isHidden = !isMultiSelected
         dot.layer?.backgroundColor = Palette.accent.cgColor
-        dot.layer?.cornerRadius = SidebarMetrics.changedDotSize / 2
+        // Differentiate Without Colour (5.3b): the ring around the dot (`ChangedMark`).
+        let mark = ChangedMark.style()
+        dot.layer?.cornerRadius = mark.size / 2
+        dot.layer?.borderWidth = mark.outline
+        dot.layer?.borderColor = Palette.changedMarkOutline.cgColor
     }
 
     override func layout() {
@@ -409,9 +413,11 @@ final class EssentialTileView: PressableView {
         let icon = NSRect(x: ((bounds.width - size) / 2).rounded(), y: ((bounds.height - size) / 2).rounded(), width: size, height: size)
         favicon.frame = icon
         resetButton.frame = icon.insetBy(dx: -Spacing.xs, dy: -Spacing.xs)
-        let dotSize = SidebarMetrics.changedDotSize
+        let dotSize = SidebarMetrics.changedDotSize, mark = ChangedMark.style().size
         let inset = SidebarMetrics.tileBadgeInset, badge = SidebarMetrics.tileBadgeSize
-        dot.frame = NSRect(x: bounds.maxX - dotSize - inset, y: bounds.maxY - dotSize - inset, width: dotSize, height: dotSize)
+        // The mark's centre is the plain dot's, whatever its size (Differentiate Without Colour, 5.3b).
+        dot.frame = NSRect(x: bounds.maxX - dotSize / 2 - inset - mark / 2, y: bounds.maxY - dotSize / 2 - inset - mark / 2,
+                           width: mark, height: mark)
         audio.frame = NSRect(x: bounds.maxX - badge - inset, y: inset, width: badge, height: badge)
         multiSelectionLayer.frame = bounds
     }

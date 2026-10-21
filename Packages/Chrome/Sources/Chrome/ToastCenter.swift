@@ -206,8 +206,23 @@ struct ToastView: View {
         }
         .padding(.horizontal, Spacing.m)
         .padding(.vertical, Spacing.s)
-        .glassEffect(.regular, in: Capsule())
+        .modifier(ToastBackground(solid: Materials.usesSolidFill()))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("toast")
+    }
+}
+
+/// The toast's capsule: glass, or under Reduce Transparency (5.3b) `Materials.solidFill` with a hairline.
+private struct ToastBackground: ViewModifier {
+    let solid: Bool
+
+    func body(content: Content) -> some View {
+        if solid {
+            content
+                .background(Color(nsColor: Materials.solidFill), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(nsColor: Palette.hairline), lineWidth: 1))
+        } else {
+            content.glassEffect(.regular, in: Capsule())
+        }
     }
 }

@@ -81,6 +81,9 @@ public enum Symbol: CaseIterable, Sendable {
     // Media (§F, §I.5)
     case audible
     case muted
+    /// Differentiate Without Colour (5.3b): the audible and muted glyphs inside a circle (`AudioGlyph`).
+    case audibleShape
+    case mutedShape
     case play
     case pause
     case nextTrack
@@ -193,6 +196,8 @@ public enum Symbol: CaseIterable, Sendable {
         case .peekSplit: "rectangle.righthalf.inset.filled"
         case .audible: "speaker.wave.2.fill"
         case .muted: "speaker.slash.fill"
+        case .audibleShape: "speaker.wave.2.circle.fill"
+        case .mutedShape: "speaker.slash.circle.fill"
         case .play: "play.fill"
         case .pause: "pause.fill"
         case .nextTrack: "forward.fill"

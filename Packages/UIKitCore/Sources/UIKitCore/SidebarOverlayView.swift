@@ -18,6 +18,8 @@ public final class SidebarOverlayView: NSView {
         // The rows must read over any page: the glass is tinted toward the window's background.
         backing.wantsLayer = true
         container.addSubview(backing)
+        // Reduce Transparency (5.3b): an opaque fill under the wash.
+        SolidBackingView.install(in: container, cornerRadius: RevealMetrics.overlayCornerRadius)
         glass.contentView = container
         glass.frame = bounds
         glass.autoresizingMask = [.width, .height]

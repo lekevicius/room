@@ -11,6 +11,10 @@ public final class WindowMaterialView: NSVisualEffectView {
         material = Materials.window
         blendingMode = Materials.windowBlending
         state = .followsWindowActiveState
+        // Reduce Transparency (5.3b): a solid window behind the sidebar and the card, the tint over it.
+        let solid = SolidBackingView(cornerRadius: 0)
+        solid.frame = bounds
+        addSubview(solid)
         tintView.frame = bounds
         tintView.autoresizingMask = [.width, .height]
         addSubview(tintView)

@@ -41,9 +41,13 @@ public enum TextScale {
         (base * factor(size)).rounded()
     }
 
-    /// One line of `font` as a label lays it out (the rows' text frames).
+    /// One line of `font` as a label lays it out: its cell's height, what the rows size their text
+    /// frames to (5.3b: the layout manager's default line height was a point short at 9.5 and 15 pt,
+    /// and the palette's labels clipped their text by a point at the small and large sizes).
     public static func lineHeight(_ font: NSFont) -> CGFloat {
-        ceil(NSLayoutManager().defaultLineHeight(for: font))
+        let probe = NSTextField(labelWithString: "Ag")
+        probe.font = font
+        return ceil(probe.cell?.cellSize.height ?? NSLayoutManager().defaultLineHeight(for: font))
     }
 }
 

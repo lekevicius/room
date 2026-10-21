@@ -137,11 +137,11 @@ public enum SidebarMetrics {
     /// Text field width in sidebar popovers (Edit Pinned URL…, Rename) (chosen).
     public static let popoverFieldWidth: CGFloat = 280
     /// Changed-entry badge (spec §I.8).
-    public static let changedDotSize: CGFloat = 6
+    nonisolated public static let changedDotSize: CGFloat = 6
     /// Favicon of an unloaded entry (spec §A.1).
     public static let unloadedIconAlpha: CGFloat = 0.5
     /// The title of an unloaded entry (the design: 70% of the label colour).
-    public static let unloadedTitleAlpha: CGFloat = 0.7
+    public static let unloadedTitleAlpha: CGFloat = Palette.unloadedTitleAlpha
     /// The Today separator row ("Clear") (chosen).
     public static var separatorRowHeight: CGFloat { TextScale.length(24) }
     /// Space title row above the pinned list (chosen; same pitch as entries).
@@ -400,6 +400,42 @@ public enum Materials {
     public static let tintOpacityRange: ClosedRange<CGFloat> = 0.10...0.25
     /// Default tint opacity (top of the gradient; the bottom fades to the lower bound).
     public static let tintOpacity: CGFloat = 0.18
+
+    /// Reduce Transparency (5.3b): the opaque fill in place of the window's material and the
+    /// overlays' glass (AppKit's window background, what the system draws for materials then).
+    public static var solidFill: NSColor { .windowBackgroundColor }
+
+    /// Whether the window's material and the overlays' glass are replaced by `solidFill`.
+    public nonisolated static func usesSolidFill(_ options: DisplayOptions = .current) -> Bool { options.reduceTransparency }
+}
+
+/// The changed-entry dot (spec §I.8) under Differentiate Without Colour (5.3b): larger, with a
+/// ring in `Palette.changedMarkOutline` around it, so its shape reads on a favicon of any colour
+/// (an accent dot on a favicon of the accent's hue is otherwise told apart by colour alone).
+public enum ChangedMark {
+    public struct Style: Equatable, Sendable {
+        /// The dot's diameter, ring included.
+        public let size: CGFloat
+        /// The ring's width (0: no ring).
+        public let outline: CGFloat
+    }
+
+    public nonisolated static func style(_ options: DisplayOptions = .current) -> Style {
+        options.differentiateWithoutColor ? Style(size: 9, outline: 1.5) : Style(size: SidebarMetrics.changedDotSize, outline: 0)
+    }
+}
+
+/// The audible and muted glyphs (spec §I.5) under Differentiate Without Colour (5.3b): inside a
+/// filled circle, a shape of their own beside the title and on an Essentials tile's corner.
+public enum AudioGlyph {
+    public nonisolated static func symbol(muted: Bool, _ options: DisplayOptions = .current) -> Symbol {
+        switch (muted, options.differentiateWithoutColor) {
+        case (false, false): .audible
+        case (true, false): .muted
+        case (false, true): .audibleShape
+        case (true, true): .mutedShape
+        }
+    }
 }
 
 /// Animation timing. Durations in seconds.

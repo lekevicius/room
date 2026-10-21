@@ -258,7 +258,7 @@ final class SplitView: NSView {
 
 /// One pane: the page's container, its fill following the page's root
 /// background, and (in a split) the header that shows on hover at its top.
-final class SplitPaneView: NSView {
+final class SplitPaneView: NSView, DisplayOptionsObserving {
     let container = PageContainerView()
     let header = PaneHeaderView()
     /// The pane's entry in a split (`nil` for the single page).
@@ -326,6 +326,9 @@ final class SplitPaneView: NSView {
         header.set(host: url?.host() ?? url?.absoluteString ?? "New Tab")
         header.appearance = NSAppearance.reading(on: background)
     }
+
+    /// Increase Contrast (5.3b): the pane card's border is `Palette.cardBorder`'s high-contrast hairline.
+    func displayOptionsDidChange() { applyCardStyle() }
 
     private func applyCardStyle() {
         guard let layer else { return }
@@ -432,6 +435,10 @@ final class PaneHeaderView: NSVisualEffectView {
         material = .headerView
         blendingMode = .withinWindow
         state = .active
+        // Reduce Transparency (5.3b): an opaque fill in place of the header material.
+        let solid = SolidBackingView(cornerRadius: 0)
+        solid.frame = bounds
+        addSubview(solid)
         setAccessibilityIdentifier("pane-header")
         domain.font = Typography.secondary
         domain.textColor = .secondaryLabelColor

@@ -213,6 +213,8 @@ final class TabSwitcherPanel: NSView {
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             stack.widthAnchor.constraint(equalToConstant: TabSwitcherMetrics.width),
         ])
+        // Reduce Transparency (5.3b): an opaque fill under the list.
+        SolidBackingView.install(in: content, cornerRadius: Radius.large)
         glass.contentView = content
         glass.translatesAutoresizingMaskIntoConstraints = false
         addSubview(glass)

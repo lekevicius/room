@@ -188,6 +188,8 @@ final class FindBarView: NSView, NSTextFieldDelegate {
     override init(frame: NSRect) {
         super.init(frame: frame)
         glass.cornerRadius = Radius.large
+        // Reduce Transparency (5.3b): an opaque fill under the bar's controls.
+        SolidBackingView.install(in: content, cornerRadius: Radius.large)
         glass.contentView = content
         addSubview(glass)
         let icon = NSImageView(image: Symbol.search.image(.controlSmall) ?? NSImage())

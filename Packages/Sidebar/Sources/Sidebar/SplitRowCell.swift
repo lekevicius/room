@@ -150,7 +150,7 @@ final class SplitGroupCellView: NSTableCellView {
     override func updateLayer() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             focusTint.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(SplitMetrics.focusedSegmentAlpha).cgColor
-            for line in dividers { line.backgroundColor = NSColor.separatorColor.cgColor }
+            for line in dividers { line.backgroundColor = Palette.hairline.cgColor }
         }
     }
 }

@@ -171,6 +171,8 @@ final class DialogPanelView: NSView, NSTextFieldDelegate {
                                         bottom: PromptMetrics.dialogPadding, right: PromptMetrics.dialogPadding)
         stack.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(stack)
+        // Reduce Transparency (5.3b): an opaque fill under the dialog's text and buttons.
+        SolidBackingView.install(in: container, cornerRadius: Radius.large)
         glass.contentView = container
         NSLayoutConstraint.activate([
             glass.leadingAnchor.constraint(equalTo: leadingAnchor), glass.trailingAnchor.constraint(equalTo: trailingAnchor),

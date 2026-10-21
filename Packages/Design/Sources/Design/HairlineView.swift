@@ -5,8 +5,8 @@ import AppKit
 /// again when the window's scale changes (`onScaleChange`). Replaces
 /// `NSBox`'s separator, which drew 2 px on a Retina display.
 public final class HairlineView: NSView {
-    /// The line's colour (the system separator by default).
-    public var color: NSColor = .separatorColor {
+    /// The line's colour (`Palette.hairline` by default: the system separator, or Increase Contrast's, 5.3b).
+    public var color: NSColor = Palette.hairline {
         didSet { needsDisplay = true }
     }
 

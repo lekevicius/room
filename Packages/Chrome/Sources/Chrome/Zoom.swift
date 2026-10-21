@@ -130,6 +130,8 @@ final class ZoomIndicatorView: NSView {
         content.orientation = .horizontal
         content.spacing = Spacing.xs
         content.edgeInsets = NSEdgeInsets(top: 0, left: Spacing.s, bottom: 0, right: Spacing.s)
+        // Reduce Transparency (5.3b): an opaque fill under the controls.
+        SolidBackingView.install(in: content, cornerRadius: ZoomMetrics.height / 2)
         glass.contentView = content
         addSubview(glass)
         label.font = Typography.zoomValue

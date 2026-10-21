@@ -297,7 +297,7 @@ final class DevToolsDividerView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.separatorColor.setFill()
+        Palette.hairline.setFill()
         NSRect(x: 0, y: (bounds.height / 2).rounded(.down), width: bounds.width, height: Hairline.width(in: self)).fill()
     }
 

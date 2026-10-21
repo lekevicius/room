@@ -171,6 +171,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if UserDefaults.standard.object(forKey: "RoomReduceMotion") != nil {
             Motion.preferences = .fixed(reduceMotion: UserDefaults.standard.bool(forKey: "RoomReduceMotion"))
         }
+        // `-RoomIncreaseContrast`, `-RoomReduceTransparency`, `-RoomDifferentiateWithoutColor YES|NO` (5.3b): the
+        // display options' tokens whatever System Settings says (any one of them fixes all three).
+        let displayFlags = ["RoomIncreaseContrast", "RoomReduceTransparency", "RoomDifferentiateWithoutColor"]
+        if displayFlags.contains(where: { UserDefaults.standard.object(forKey: $0) != nil }) {
+            let defaults = UserDefaults.standard
+            DisplayOptions.source = .fixed(DisplayOptions(increaseContrast: defaults.bool(forKey: "RoomIncreaseContrast"),
+                                                          reduceTransparency: defaults.bool(forKey: "RoomReduceTransparency"),
+                                                          differentiateWithoutColor: defaults.bool(forKey: "RoomDifferentiateWithoutColor")))
+        }
+        #endif
+        // System Settings ▸ Accessibility ▸ Display (5.3b): the tokens follow its switches, live.
+        if DisplayOptions.source == .system { DisplayOptions.followSystem() }
+        #if DEBUG
         // The accessibility spikes (5.3a) read SwiftUI's trees, which SwiftUI builds only for a client that
         // asked before the hosting views were made: ask on the app's own behalf, before the first window.
         if ["a11y", "keyboard"].contains(SpikeRunner.requested) { AccessibilityAudit.requestTree() }
