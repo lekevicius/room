@@ -7,6 +7,8 @@ protocol EntryRowActions: AnyObject {
     func resetButtonClicked(_ entry: UUID)
     func closeButtonClicked(_ entry: UUID)
     func audioButtonClicked(_ entry: UUID)
+    /// VoiceOver's press on the row (5.3a): what a click does (select; a folder opens or closes).
+    func rowPressed(_ entry: UUID)
     /// Enter (`label`, empty = clear the label) or Esc (`nil`).
     func renameEnded(_ entry: UUID, label: String?, committed: Bool)
 }
@@ -140,6 +142,11 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         readerIndicator.image = Symbol.readerMode.image(.rowAction, accessibilityDescription: "Reader mode")
         readerIndicator.toolTip = "Reader mode (⌥⇧⌘R or Esc to exit)"
         readerIndicator.setAccessibilityIdentifier("row-reader")
+        // The row's value says what these show (`EntryAccessibility`); the title's text stays for an inline rename.
+        folderIcon.hideFromAccessibility()
+        favicon.hideFromAccessibility()
+        captureIndicator.hideFromAccessibility()
+        readerIndicator.hideFromAccessibility()
         for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator, readerIndicator] as [NSView] {
             addSubview(view)
         }
@@ -203,7 +210,14 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             captureIndicator.setAccessibilityLabel(label)
         }
         readerIndicator.isHidden = !model.page.isReader
-        setAccessibilityLabel(EntryLabel.title(entry))
+        // The title, then the kind and states (`EntryAccessibility`): in the label, because the outline's cell
+        // element passes a cell view's label through but not its value (5.3a, read back from the tree).
+        setAccessibilityLabel(EntryLabel.title(entry) + ", " + EntryAccessibility.value(kind: entry.kind, isCollapsed: entry.isCollapsed,
+                                                                                        page: model.page, isSelected: model.isSelected,
+                                                                                        isChanged: model.isChanged))
+        setAccessibilityCustomActions(EntryAccessibility.actionNames(kind: entry.kind, page: model.page, isChanged: model.isChanged).map { name in
+            NSAccessibilityCustomAction(name: name) { [weak self] in self?.performAction(named: name) ?? false }
+        })
         updateHoverState()
         needsLayout = true
     }
@@ -329,6 +343,24 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     var debugCloseButtonShown: Bool { !closeButton.isHidden }
 
     @objc private func closeClicked() { model.map { actions?.closeButtonClicked($0.entry.id) } }
+
+    /// A VoiceOver action (`EntryAccessibility.actionNames`): the hover button's click.
+    private func performAction(named name: String) -> Bool {
+        guard let id = model?.entry.id else { return false }
+        switch name {
+        case "Close Tab": actions?.closeButtonClicked(id)
+        case "Back to Pinned URL": actions?.resetButtonClicked(id)
+        case "Mute Tab", "Unmute Tab": actions?.audioButtonClicked(id)
+        default: return false
+        }
+        return true
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let id = model?.entry.id else { return false }
+        actions?.rowPressed(id)
+        return true
+    }
     @objc private func audioClicked() { model.map { actions?.audioButtonClicked($0.entry.id) } }
 
     // MARK: Rename (spec §I.9)
@@ -391,6 +423,9 @@ final class AudioIndicatorView: NSImageView {
         super.init(frame: frame)
         imageScaling = .scaleNone
         contentTintColor = .labelColor
+        // The view is the element, a button (5.3a): an image view's cell would read as an image.
+        cell?.setAccessibilityElement(false)
+        setAccessibilityElement(true)
         setAccessibilityRole(.button)
         wantsLayer = true
         layer?.cornerRadius = SidebarMetrics.rowButtonCornerRadius
@@ -471,6 +506,9 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
         moreButton.setAccessibilityIdentifier("space-more")
         nameField.delegate = self
         iconImage.contentTintColor = Palette.sidebarSecondaryLabel
+        // The row's label is the space's name: its icon and the name's text say it again.
+        iconImage.hideFromAccessibility()
+        iconField.hideFromAccessibility()
         addSubview(iconField)
         addSubview(iconImage)
         addSubview(nameField)
@@ -662,6 +700,8 @@ final class NewTabCellView: NSTableCellView {
         icon.contentTintColor = Palette.sidebarSecondaryLabel
         label.stringValue = "New Tab"
         setAccessibilityLabel("New Tab")
+        icon.hideFromAccessibility()
+        label.hideFromAccessibility()
         addSubview(icon)
         addSubview(label)
     }

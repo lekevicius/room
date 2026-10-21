@@ -18,7 +18,27 @@ final class SidebarSplitterView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("sidebar-splitter")
+        // VoiceOver's splitter (5.3a): the width as its value, increment and decrement by 10 pt.
+        setAccessibilityElement(true)
         setAccessibilityRole(.splitter)
+        setAccessibilityLabel("Sidebar width")
+    }
+
+    /// The width a VoiceOver step moves (chosen).
+    static let accessibilityStep: CGFloat = 10
+
+    override func accessibilityValue() -> Any? { "\(Int(currentWidth.rounded())) points" }
+
+    override func accessibilityPerformIncrement() -> Bool {
+        onDrag?(currentWidth + Self.accessibilityStep)
+        onEnd?()
+        return true
+    }
+
+    override func accessibilityPerformDecrement() -> Bool {
+        onDrag?(max(SidebarMetrics.minWidth, currentWidth - Self.accessibilityStep))
+        onEnd?()
+        return true
     }
 
     @available(*, unavailable)

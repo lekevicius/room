@@ -1,5 +1,6 @@
 import AppKit
 import Design
+import Omnibox
 import Sidebar
 
 /// One row as drawn.
@@ -24,6 +25,8 @@ struct PaletteRow: Identifiable, Equatable {
     var startsGroup: Bool
     /// A history row: an × removes it (spec §C).
     var isDeletable = false
+    /// The row's group as VoiceOver names it (5.3a: "Open Tabs", "History"…).
+    var groupName: String?
 }
 
 /// The result list: one reusable AppKit row view per slot (PLAN §4: palette
@@ -184,6 +187,8 @@ final class PaletteRowView: NSView {
         delete.action = #selector(deleteClicked)
         delete.alphaValue = 0
         for view in [favicon, symbol, label, chip, hint, delete] { addSubview(view) }
+        // The row's label and value say what these show (5.3a); the × stays a button.
+        for view in [favicon, symbol, label, chipLabel, hint] as [NSView] { view.hideFromAccessibility() }
         // One area that follows the visible rect: re-adding areas on every layout showed in the profile (2.6a).
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
                                        owner: self))
@@ -241,6 +246,8 @@ final class PaletteRowView: NSView {
         delete.isHidden = !row.isDeletable
         updateDeleteVisibility()
         setAccessibilityLabel(row.detail.map { "\(row.title), \($0)" } ?? row.title)
+        // The group, the other space and what Return does (5.3a), after the name.
+        setAccessibilityValue([row.groupName, row.spaceName.map { "in \($0)" }, row.hint].compactMap { $0 }.joined(separator: ", "))
         needsLayout = true
     }
 
@@ -381,4 +388,18 @@ private final class PaletteDeleteButton: NSButton {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+}
+
+extension MatchGroup {
+    /// The group's name for VoiceOver (5.3a); the palette draws groups as gaps, not headings.
+    var accessibilityName: String {
+        switch self {
+        case .topHit: "Top hit"
+        case .openTabs: "Open tabs"
+        case .pinned: "Pinned"
+        case .history: "History"
+        case .search: "Search"
+        case .commands: "Commands"
+        }
+    }
 }

@@ -191,6 +191,7 @@ struct ContentBlockingSettingsView: View {
             TextEditor(text: Binding(get: { rulesDraft ?? value.customRules }, set: { rulesDraft = $0 }))
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 90)
+                .accessibilityLabel("Custom rules")
                 .accessibilityIdentifier("blocking-custom-rules")
             HStack {
                 Text("One rule per line in filter-list syntax, e.g. ||ads.example.com^ or example.com##.banner.")

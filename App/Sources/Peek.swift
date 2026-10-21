@@ -133,6 +133,8 @@ final class PeekPresenter: PeekDisplay {
             }
         }
         overlay.header.set(host: url?.host() ?? url?.absoluteString ?? "", title: title)
+        // VoiceOver: "Peek: <title>" (5.3a).
+        overlay.setAccessibilityLabel("Peek: " + (title.flatMap { $0.isEmpty ? nil : $0 } ?? url?.host() ?? "page"))
         // As the page card: the fill (and the header on it) follows the page's root background.
         overlay.card.backgroundColor = background ?? Palette.cardBackground
         // Its text and buttons read on that fill, whatever the window's appearance.
@@ -151,6 +153,11 @@ final class PeekOverlayView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("peek")
+        // One group over the page (5.3a): its header's buttons and the peeked page inside; Esc closes it.
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Peek")
+        setAccessibilityHelp("Esc closes it")
         wantsLayer = true
         dim.onClick = { [weak self] in self?.onDimClick?() }
         card.cornerRadius = PeekMetrics.cornerRadius
@@ -189,7 +196,7 @@ final class PeekOverlayView: NSView {
 }
 
 /// Black at `PeekMetrics.dimAlpha` over the content area, in the card's corner; a click closes Peek.
-final class PeekDimView: NSView {
+final class PeekDimView: NSView, AccessibilityBackdrop {
     var onClick: (() -> Void)?
 
     override init(frame: NSRect) {
@@ -227,6 +234,7 @@ final class PeekHeaderView: NSView {
         domain.textColor = .secondaryLabelColor
         domain.lineBreakMode = .byTruncatingMiddle
         domain.setAccessibilityIdentifier("peek-domain")
+        domain.hideFromAccessibility()
         expand.target = self
         expand.action = #selector(expandClicked)
         expand.setAccessibilityIdentifier("peek-open-as-tab")
@@ -277,7 +285,7 @@ final class PeekHeaderView: NSView {
         let button = HoverButton()
         button.image = symbol.image(.control, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
-        button.toolTip = tip
+        button.setTip(tip)
         return button
     }
 }

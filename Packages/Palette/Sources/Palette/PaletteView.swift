@@ -4,7 +4,7 @@ import Design
 /// Fills the window's content view above the card and the sidebar while
 /// the palette is open: a click anywhere outside the panel dismisses it
 /// (and is not passed on), the panel itself is the glass field and list.
-final class PaletteOverlayView: NSView {
+final class PaletteOverlayView: NSView, AccessibilityBackdrop {
     let panel = PalettePanelView()
     var onClickOutside: (() -> Void)?
 
@@ -199,6 +199,8 @@ final class PaletteField: NSTextField {
         // AutoFill window on every open (2.4b profile).
         contentType = .URL
         setAccessibilityIdentifier("palette-field")
+        // The cell is the element VoiceOver reads (a label on the field alone never reached it).
+        cell?.setAccessibilityLabel("Search or enter URL")
     }
 
     @available(*, unavailable)

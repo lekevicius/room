@@ -74,6 +74,7 @@ struct SpacesSettingsView: View {
             }
             HStack {
                 TextField("New profile", text: $newProfileName, prompt: Text("Name"))
+                    .accessibilityLabel("New profile name")
                     .onSubmit(addProfile)
                 Button("New Profile") { addProfile() }
                     .disabled(newProfileName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -118,6 +119,7 @@ private struct ProfileRow: View {
         } label: {
             TextField("Name", text: $name)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Profile name")
                 .onSubmit(commit)
                 .onAppear { name = profile.name }
                 .onChange(of: profile.name) { _, new in name = new }

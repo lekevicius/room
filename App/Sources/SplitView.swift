@@ -295,6 +295,15 @@ final class SplitPaneView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    // VoiceOver (5.3a): in a split, each pane is a group named by its page; the focused one says so.
+    override func isAccessibilityElement() -> Bool { isInSplit }
+    override func accessibilityRole() -> NSAccessibility.Role? { isInSplit ? .group : super.accessibilityRole() }
+    override func accessibilityLabel() -> String? {
+        guard isInSplit else { return nil }
+        return "Split pane: " + (contents?.title.flatMap { $0.isEmpty ? nil : $0 } ?? contents?.url?.host() ?? "New Tab")
+    }
+    override func accessibilityValue() -> Any? { isInSplit && isFocused ? "focused" : nil }
+
     func show(_ contents: (any WebContents)?) {
         let changed = contents !== self.contents || container.pageView == nil
         self.contents = contents
@@ -462,7 +471,7 @@ final class PaneHeaderView: NSVisualEffectView {
         let button = HoverButton()
         button.image = symbol.image(.paneControl, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
-        button.toolTip = tip
+        button.setTip(tip)
         return button
     }
 }
@@ -499,7 +508,25 @@ final class PaneGripView: NSImageView {
 
 /// The 7 pt hit area on a line between panes: drag to resize, double-click for equal sizes.
 final class SplitResizerView: NSView {
-    var divider: SplitGeometry.Divider?
+    var divider: SplitGeometry.Divider? {
+        didSet { setAccessibilityOrientation(divider?.axis == .horizontal ? .horizontal : .vertical) }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        // VoiceOver's splitter between two panes (5.3a); a drag or a double-click resizes (equal sizes: ⌥⌘G's layout menu).
+        setAccessibilityElement(true)
+        setAccessibilityRole(.splitter)
+        setAccessibilityLabel("Split divider")
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func accessibilityPerformPress() -> Bool {
+        onReset?()
+        return true
+    }
     /// The pointer in the split view's coordinates.
     var onDrag: ((SplitGeometry.Divider, CGPoint) -> Void)?
     var onEnd: (() -> Void)?

@@ -31,6 +31,18 @@ public enum ControlMetrics {
     public static let cornerRadius: CGFloat = Radius.small
 }
 
+/// The keyboard focus ring (5.3a): AppKit draws it in the system's focus
+/// colour (`NSColor.keyboardFocusIndicatorColor`, the accent) around a mask
+/// shaped like the control's own fill, so the ring follows the tokens'
+/// corners: a button's hover square, the address field's pill, a tile.
+/// Sidebar rows draw their own ring (`SidebarMetrics.insertionLineWidth`, spec §I.13).
+public enum FocusRing {
+    /// An icon button's ring: its hover square's corner.
+    public static let controlCornerRadius: CGFloat = ControlMetrics.cornerRadius
+    /// The address field's and an Essential tile's ring: the pill's corner.
+    public static let pillCornerRadius: CGFloat = Radius.large
+}
+
 /// Hairlines (5.2a): one device pixel at the display's scale, never a point
 /// (a 1 pt line is two pixels on a Retina display).
 public enum Hairline {

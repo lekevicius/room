@@ -181,15 +181,30 @@ extension SidebarController {
         updateFocusRing()
     }
 
+    var outlineFocusedRow: Int? { focusRingVisible ? focusedNode.map { outline.row(forItem: $0) } : nil }
+
     func updateFocusRing() {
         let focusedRow = focusedNode.map { outline.row(forItem: $0) } ?? -1
+        if focusRingVisible, focusedRow >= 0, outline.window?.firstResponder === outline {
+            NSAccessibility.post(element: outline, notification: .focusedUIElementChanged)
+        }
         let show = focusRingVisible && outline.window?.firstResponder === outline && outline.window?.isKeyWindow == true
         outline.enumerateAvailableRowViews { rowView, row in
             (rowView as? SidebarRowView)?.showsFocusRing = show && row == focusedRow
         }
     }
 
-    func outlineFocusChanged(_ focused: Bool) { updateFocusRing() }
+    func outlineFocusChanged(_ focused: Bool, byKeyboard: Bool) {
+        // Tabbed into (5.3a): the ring shows where the keyboard is, on the selected row (or the first).
+        if focused, byKeyboard, !focusRingVisible {
+            let node = focusedNode ?? selectedEntryID.flatMap { tree.displayedNode(for: $0) }
+                ?? (0..<outline.numberOfRows).lazy.compactMap { self.outline.item(atRow: $0) as? OutlineNode }.first { $0.entryID != nil }
+            setFocus(node, ring: true)
+            if let node { outline.scrollRowToVisible(outline.row(forItem: node)) }
+            return
+        }
+        updateFocusRing()
+    }
 
     private func moveFocus(by delta: Int) {
         let rows = outline.numberOfRows
@@ -403,6 +418,7 @@ final class OverflowIndicatorView: NSView {
         line.actions = CALayer.noImplicitActions
         layer?.addSublayer(line)
         isHidden = true
+        setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("Scroll to Selected Tab")
         setAccessibilityIdentifier(edge == .top ? "overflow-top" : "overflow-bottom")

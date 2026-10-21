@@ -18,6 +18,11 @@ public final class LibraryView: NSView {
         searchField.font = Typography.row
         searchField.focusRingType = .none
         searchField.setAccessibilityIdentifier("library-search")
+        searchField.cell?.setAccessibilityLabel("Search the Library")
+        // One group in the sidebar's place (5.3a); Esc returns to the spaces.
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Library")
         addSubview(searchField)
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("library"))
         tableView.addTableColumn(column)
@@ -77,6 +82,8 @@ final class LibraryHeaderCell: NSTableCellView {
         button.font = Typography.secondary
         button.contentTintColor = .secondaryLabelColor
         for view in [chevron, title, count, button] { addSubview(view) }
+        // The row is "Archive, 3 items, collapsed" (5.3a); the chevron's image named itself "go down".
+        for view in [chevron, title, count] as [NSView] { view.hideFromAccessibility() }
     }
 
     @available(*, unavailable)
@@ -97,7 +104,8 @@ final class LibraryHeaderCell: NSTableCellView {
         } else {
             button.isHidden = true
         }
-        setAccessibilityLabel("\(text), \(value)")
+        // All in the label: a table's cell element passes a cell view's label through, not its value (5.3a).
+        setAccessibilityLabel("\(text), \(value == 1 ? "1 item" : "\(value) items"), \(collapsed ? "collapsed" : "expanded")")
         needsLayout = true
     }
 
@@ -124,6 +132,7 @@ final class LibraryLabelCell: NSTableCellView {
         label.font = Typography.secondary
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
+        label.hideFromAccessibility()
         addSubview(label)
     }
 
@@ -132,6 +141,7 @@ final class LibraryLabelCell: NSTableCellView {
 
     func configure(_ text: String) {
         label.stringValue = text
+        setAccessibilityLabel(text)
         needsLayout = true
     }
 
@@ -182,6 +192,8 @@ final class LibraryItemCell: NSTableCellView {
         chip.stringValue = label ?? ""
         chip.isHidden = label == nil
         chip.setAccessibilityLabel(label)
+        // The row's label says the title and the chip; the icon and the texts repeat it (5.3a).
+        for view in [icon, title, chip] as [NSView] { view.hideFromAccessibility() }
         for button in buttons { button.removeFromSuperview() }
         buttons = specs.map { symbol, help, action in
             let button = LibraryButton()
@@ -189,12 +201,14 @@ final class LibraryItemCell: NSTableCellView {
             button.isBordered = false
             button.contentTintColor = .secondaryLabelColor
             button.toolTip = help
-            button.setAccessibilityLabel(help)
+            // The cell is the element (the image's own name, "search", was read: 5.3a).
+            button.cell?.setAccessibilityLabel(help)
             button.handler = action
             addSubview(button)
             return button
         }
-        setAccessibilityLabel(label.map { "\(text), \($0)" } ?? text)
+        setAccessibilityLabel(([text, label, detail.isEmpty ? nil : detail] as [String?]).compactMap { $0 }.joined(separator: ", "))
+        subtitle.hideFromAccessibility()
         needsLayout = true
     }
 

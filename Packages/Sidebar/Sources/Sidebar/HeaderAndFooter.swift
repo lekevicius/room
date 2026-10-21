@@ -7,7 +7,7 @@ import Model
 /// the selected page's domain only, Copy URL on hover and the site button
 /// at the trailing end; the full URL is the tooltip. A click edits the
 /// address (⌘L docked, Phase 2.4).
-public final class AddressFieldView: NSView {
+public final class AddressFieldView: PressableView {
     var onActivate: (() -> Void)?
     var onCopy: (() -> Void)?
     /// The site button: the site panel (2.6b).
@@ -32,7 +32,9 @@ public final class AddressFieldView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         setAccessibilityIdentifier("address-field")
-        setAccessibilityRole(.button)
+        // VoiceOver: "Address, <url>, button"; the domain's text is the value, said once (5.3a).
+        setAccessibilityLabel("Address")
+        setAccessibilityHelp("Edit the address or search (⌘L)")
         siteButton.contentTintColor = .labelColor
         siteButton.target = self
         siteButton.action = #selector(siteClicked)
@@ -41,6 +43,7 @@ public final class AddressFieldView: NSView {
         // A domain that does not fit keeps both ends: "devel…apple.com" (2.2a review).
         domainField.lineBreakMode = .byTruncatingMiddle
         domainField.cell?.truncatesLastVisibleLine = true
+        domainField.hideFromAccessibility()
         copyButton.image = Symbol.copyURL.image(.controlSmall, accessibilityDescription: "Copy URL")
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
@@ -87,7 +90,7 @@ public final class AddressFieldView: NSView {
         siteButton.image = symbol.image(.control, accessibilityDescription: "Site Information")
         siteButton.toolTip = url == nil ? nil : (isSecure ? "Site Information" : "Not Secure")
         siteButton.isEnabled = url != nil
-        setAccessibilityLabel(url ?? "Search or enter URL")
+        setAccessibilityValue(url ?? "Search or enter URL")
         updateHover()
     }
 
@@ -113,7 +116,7 @@ public final class AddressFieldView: NSView {
     }
 
     private func updateHover() {
-        copyButton.isHidden = !(hovering && url != nil)
+        copyButton.isHidden = !((hovering || hasKeyboardFocus) && url != nil)
         feedback.setHovering(hovering)
         needsLayout = true
     }
@@ -137,6 +140,28 @@ public final class AddressFieldView: NSView {
 
     @objc private func copyClicked() { onCopy?() }
     @objc private func siteClicked() { onSiteButton?() }
+
+    // MARK: Keyboard and VoiceOver (5.3a)
+
+    /// It stands for the address text field: Tab reaches it in either keyboard mode.
+    public override var isAlwaysKeyView: Bool { true }
+    public override var focusRingCornerRadius: CGFloat { FocusRing.pillCornerRadius }
+    public override func performPress() { onActivate?() }
+
+    /// Copy URL shows on hover; for the keyboard and VoiceOver it shows while the field has focus.
+    public override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { hasKeyboardFocus = true }
+        return became
+    }
+
+    public override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { hasKeyboardFocus = false }
+        return resigned
+    }
+
+    private var hasKeyboardFocus = false { didSet { if hasKeyboardFocus != oldValue { updateHover() } } }
 }
 
 /// The extensions in the sidebar's top bar, packed against Back (the Room
@@ -336,7 +361,9 @@ final class ExtensionActionButton: HoverButton {
         image = model.icon ?? Symbol.extensions.image(.controlSmall, accessibilityDescription: model.name)
         image?.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
         toolTip = model.title
-        setAccessibilityLabel(model.title)
+        // An action without a title is named by its extension (5.3a: the 3.6 fixture's had none); the badge is its value.
+        setAccessibilityLabel(model.title.isEmpty ? model.name : model.title)
+        setAccessibilityValue(model.badgeText.isEmpty ? nil : model.badgeText)
         setAccessibilityIdentifier("extension-action-\(model.id)")
         alphaValue = model.isEnabled ? 1 : 0.4
         needsDisplay = true
@@ -415,6 +442,12 @@ final class SidebarFooterView: NSView {
         indicator.isHidden = true
         iconRow.addSubview(indicator)
         iconRow.setAccessibilityIdentifier("space-icons")
+        // The icons as one group (5.3a); the hovered name beside them repeats an icon's label.
+        iconRow.setAccessibilityElement(true)
+        iconRow.setAccessibilityRole(.group)
+        iconRow.setAccessibilityLabel("Spaces")
+        nameLabel.hideFromAccessibility()
+        plusButton.setAccessibilityHelp("A new tab, folder or space")
         nameLabel.font = Typography.secondary
         nameLabel.textColor = Palette.sidebarSecondaryLabel
         nameLabel.lineBreakMode = .byTruncatingTail
@@ -663,7 +696,7 @@ final class SidebarFooterView: NSView {
 
 
 /// A space's icon in the footer: its emoji, its SF Symbol, or a dot.
-final class SpaceIconView: NSView {
+final class SpaceIconView: PressableView {
     private let label = NSTextField(labelWithString: "")
     private let imageView = NSImageView()
     private(set) var space: Space
@@ -687,6 +720,9 @@ final class SpaceIconView: NSView {
         wantsLayer = true
         label.alignment = .center
         imageView.imageScaling = .scaleProportionallyDown
+        // The icon's label is the space's name (5.3a); the glyph says nothing more.
+        label.hideFromAccessibility()
+        imageView.hideFromAccessibility()
         addSubview(label)
         addSubview(imageView)
         update(space)
@@ -702,8 +738,8 @@ final class SpaceIconView: NSView {
     func update(_ space: Space) {
         self.space = space
         toolTip = space.name
-        setAccessibilityRole(.button)
         setAccessibilityLabel(space.name)
+        setAccessibilityHelp("Switch to this space")
         switch SpaceIcon(space.icon) {
         case .emoji(let emoji):
             label.stringValue = emoji
@@ -726,6 +762,7 @@ final class SpaceIconView: NSView {
 
     func setActive(_ active: Bool, animated: Bool) {
         isActive = active
+        setAccessibilityValue(active ? "current space" : nil)
         guard let layer else { return }
         let scale = active ? SpaceIconMetrics.activeScale : 1
         let transform = CATransform3DMakeScale(scale, scale, 1)
@@ -825,6 +862,13 @@ final class SpaceIconView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
+
+    override func performPress() { onClick?() }
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard let menu = onMenu?() else { return false }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.height), in: self)
+        return true
+    }
 }
 
 /// A space's icon value (spec §B: emoji or SF Symbol).

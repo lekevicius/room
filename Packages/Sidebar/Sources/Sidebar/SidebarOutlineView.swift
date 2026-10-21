@@ -13,7 +13,10 @@ protocol SidebarOutlineEvents: AnyObject {
     /// A drag left the outline (hide the insertion line).
     func outlineDragExited()
     /// The outline became or stopped being first responder (focus ring).
-    func outlineFocusChanged(_ focused: Bool)
+    /// `byKeyboard`: Tab or ⇧Tab brought the focus (5.3a: the ring shows on the selected row).
+    func outlineFocusChanged(_ focused: Bool, byKeyboard: Bool)
+    /// The row the keyboard focus ring is on (VoiceOver follows it, 5.3a).
+    var outlineFocusedRow: Int? { get }
 }
 
 /// The sidebar tree: a view-based outline with no AppKit selection drawing
@@ -56,6 +59,7 @@ final class SidebarOutlineView: NSOutlineView {
         focusRingType = .none
         floatsGroupRows = false
         setAccessibilityIdentifier("sidebar-outline")
+        setAccessibilityLabel("Tabs")
         addSubview(pill, positioned: .below, relativeTo: nil)
         addSubview(dropIndicator)
     }
@@ -115,13 +119,13 @@ final class SidebarOutlineView: NSOutlineView {
 
     override func becomeFirstResponder() -> Bool {
         let became = super.becomeFirstResponder()
-        if became { events?.outlineFocusChanged(true) }
+        if became { events?.outlineFocusChanged(true, byKeyboard: window.map { $0.keyViewSelectionDirection != .directSelection } ?? false) }
         return became
     }
 
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
-        if resigned { events?.outlineFocusChanged(false) }
+        if resigned { events?.outlineFocusChanged(false, byKeyboard: false) }
         return resigned
     }
 
@@ -136,7 +140,21 @@ final class SidebarOutlineView: NSOutlineView {
         }
     }
 
-    @objc private func keyStateChanged() { events?.outlineFocusChanged(window?.firstResponder === self) }
+    /// The keyboard's row is Room's focus ring, not AppKit's selection (that mirrors the multi-selection):
+    /// VoiceOver reads the focused row's cell.
+    nonisolated override var accessibilityFocusedUIElement: Any? {
+        // AppKit asks on the main thread (accessibility requests are served there).
+        nonisolated(unsafe) var cell: NSView?
+        MainActor.assumeIsolated { cell = focusedRowCell }
+        return cell ?? super.accessibilityFocusedUIElement
+    }
+
+    private var focusedRowCell: NSView? {
+        guard window?.firstResponder === self, let row = events?.outlineFocusedRow, row >= 0, row < numberOfRows else { return nil }
+        return view(atColumn: 0, row: row, makeIfNecessary: false)
+    }
+
+    @objc private func keyStateChanged() { events?.outlineFocusChanged(window?.firstResponder === self, byKeyboard: false) }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
         super.draggingExited(sender)

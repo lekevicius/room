@@ -142,6 +142,7 @@ struct SpaceFormView: View {
                 Spacer()
                 TextField("Emoji", text: $emojiField)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Icon emoji")
                     .frame(width: 64)
                     .focused($focus, equals: .icon)
                     .onChange(of: emojiField) {
@@ -180,6 +181,7 @@ struct SpaceFormView: View {
                     ColorPicker("", selection: Binding(get: { model.wells[index] }, set: { model.wells[index] = $0 }),
                                 supportsOpacity: false)
                         .labelsHidden()
+                        .accessibilityLabel("Colour \(index + 1)")
                         .contextMenu { Button("Remove Colour") { model.wells.remove(at: index) } }
                 }
                 if model.wells.count < ThemePalette.maxColors {
@@ -193,6 +195,7 @@ struct SpaceFormView: View {
                     Button { model.wells.removeLast() } label: { Image(systemName: "minus").frame(width: 20, height: 20) }
                         .buttonStyle(.plain)
                         .help("Remove the last colour")
+                        .accessibilityLabel("Remove the last colour")
                 }
             }
             .focused($focus, equals: .theme)
@@ -214,6 +217,9 @@ struct SpaceFormView: View {
                       : AnyShapeStyle(LinearGradient(colors: model.paletteColors.count == 1 ? [model.paletteColors[0], model.paletteColors[0].opacity(SpaceFormMetrics.previewFadeAlpha)]
                                                      : model.paletteColors, startPoint: .leading, endPoint: .trailing)))
                 .frame(height: SpaceFormMetrics.previewHeight)
+                // An image to VoiceOver (5.3a: a shape alone had no role).
+                .accessibilityElement()
+                .accessibilityAddTraits(.isImage)
                 .accessibilityLabel("Theme preview")
         }
     }

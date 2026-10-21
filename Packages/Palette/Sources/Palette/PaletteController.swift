@@ -637,13 +637,19 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         default: nil
         }
         return PaletteRow(id: match.id, icon: icon, title: match.title, detail: match.detail, hint: hint, spaceName: match.spaceName,
-                          startsGroup: startsGroup, isDeletable: match.isDeletable)
+                          startsGroup: startsGroup, isDeletable: match.isDeletable, groupName: match.group.accessibilityName)
     }
 
     private func highlight(_ index: Int?) {
         guard let index, result.matches.indices.contains(index) else { return }
+        let moved = highlightedIndex != index
         highlightedIndex = index
         overlay?.panel.rows.highlighted = index
+        // The keyboard stays in the field: VoiceOver hears the row ↑, ↓ or ⇥ moved to (5.3a).
+        if moved, let field = overlay?.panel.field {
+            let match = result.matches[index]
+            Announcement.post([match.title, match.detail, match.group.accessibilityName].compactMap { $0 }.joined(separator: ", "), from: field)
+        }
     }
 
     /// The user's edit of the field (`NSTextFieldDelegate`); also the entry

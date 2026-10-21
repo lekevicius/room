@@ -92,6 +92,10 @@ final class EssentialsGridView: NSView {
         fullBadge.layer?.cornerRadius = SidebarMetrics.fullBadgeHeight / 2
         fullBadge.isHidden = true
         fullBadge.setAccessibilityIdentifier("essentials-full")
+        // VoiceOver reads the tiles as one group (5.3a).
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Essentials")
         dropSlot.isHidden = true
         addSubview(dropSlot)
         addSubview(insertionLine)
@@ -286,7 +290,7 @@ final class EssentialsDropSlotView: NSView {
 /// 2026-10-07; spec §I.2 had the icon's dominant colour at 15%), the pill
 /// fill when selected and half of it on hover, dimmed while unloaded, the
 /// changed dot at the tile's corner and the reset icon on hover (§I.8).
-final class EssentialTileView: NSView {
+final class EssentialTileView: PressableView {
     let entryID: UUID
     weak var events: EssentialTileEvents?
     private let favicon = FaviconView()
@@ -311,7 +315,6 @@ final class EssentialTileView: NSView {
         // Resized with the tile without Core Animation's implicit 0.25 s animation (5.1a).
         multiSelectionLayer.actions = CALayer.noImplicitActions
         layer?.addSublayer(multiSelectionLayer)
-        setAccessibilityRole(.button)
         setAccessibilityIdentifier("essential")
         resetButton.image = Symbol.resetPinned.image(.tileReset, accessibilityDescription: "Back to pinned URL")
         resetButton.isBordered = false
@@ -325,6 +328,8 @@ final class EssentialTileView: NSView {
         audio.contentTintColor = Palette.sidebarSecondaryLabel
         dot.wantsLayer = true
         dot.isHidden = true
+        favicon.hideFromAccessibility()
+        audio.hideFromAccessibility()
         addSubview(favicon)
         addSubview(resetButton)
         addSubview(audio)
@@ -355,6 +360,12 @@ final class EssentialTileView: NSView {
         audio.image = (page.isMuted ? Symbol.muted : Symbol.audible).image(.tileBadge)
         toolTip = EntryLabel.title(entry)
         setAccessibilityLabel(EntryLabel.title(entry))
+        setAccessibilityValue(EntryAccessibility.value(kind: .essential, page: page, isSelected: isSelected, isChanged: isChanged))
+        setAccessibilityCustomActions(isChanged ? [NSAccessibilityCustomAction(name: "Back to Pinned URL") { [weak self] in
+            guard let self else { return false }
+            self.events?.tileResetClicked(self.entryID)
+            return true
+        }] : [])
         update()
     }
 
@@ -443,6 +454,12 @@ final class EssentialTileView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { events?.tileMenu(entryID) }
+
+    // MARK: Keyboard and VoiceOver (5.3a)
+
+    override var focusRingCornerRadius: CGFloat { FocusRing.pillCornerRadius }
+
+    override func performPress() { events?.tileClicked(entryID, gesture: .primary) }
 
     @objc private func resetClicked() { events?.tileResetClicked(entryID) }
 }

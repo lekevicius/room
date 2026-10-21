@@ -26,6 +26,59 @@ open class HoverButton: NSButton {
 
     open override var mouseDownCanMoveWindow: Bool { false }
 
+    // MARK: VoiceOver and keyboard (5.3a)
+
+    // The button's cell is the element VoiceOver reads, and it takes its name from the image's
+    // description: a label or help set on the button alone never reached it (5.3a: an extension's
+    // action without a described icon had no name).
+    open override func setAccessibilityLabel(_ accessibilityLabel: String?) {
+        super.setAccessibilityLabel(accessibilityLabel)
+        cell?.setAccessibilityLabel(accessibilityLabel)
+    }
+
+    open override func setAccessibilityHelp(_ accessibilityHelp: String?) {
+        super.setAccessibilityHelp(accessibilityHelp)
+        cell?.setAccessibilityHelp(accessibilityHelp)
+    }
+
+    open override func setAccessibilityValue(_ accessibilityValue: Any?) {
+        super.setAccessibilityValue(accessibilityValue)
+        cell?.setAccessibilityValue(accessibilityValue)
+    }
+
+    /// The tooltip "Name (key)": VoiceOver says the name, with the key as its help ("Open as Tab (⌘O)"
+    /// was read whole as the name).
+    public func setTip(_ tip: String) {
+        toolTip = tip
+        if let open = tip.range(of: " ("), tip.hasSuffix(")") {
+            setAccessibilityLabel(String(tip[..<open.lowerBound]))
+            setAccessibilityHelp(String(tip[open.upperBound...].dropLast()))
+        } else {
+            setAccessibilityLabel(tip)
+            setAccessibilityHelp(nil)
+        }
+    }
+
+    /// A key view while Full Keyboard Access is on (`KeyboardAccess`), as AppKit's buttons.
+    open override var acceptsFirstResponder: Bool { isEnabled && KeyboardAccess.allControls }
+
+    /// Space presses it (NSButton); Return and Enter too.
+    open override func keyDown(with event: NSEvent) {
+        if KeyboardAccess.isPressKey(event), event.keyCode != 49 {
+            performClick(nil)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    /// The ring follows the hover square (`FocusRing.controlCornerRadius`), not the glyph.
+    open override var focusRingMaskBounds: NSRect { bounds }
+
+    open override func drawFocusRingMask() {
+        let radius = layer?.cornerRadius ?? FocusRing.controlCornerRadius
+        NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
+    }
+
     open override var isEnabled: Bool {
         didSet { feedback.isEnabled = isEnabled }
     }

@@ -9,9 +9,9 @@ public final class NavigationButtonsView: NSView {
     /// Reload, or Stop while the page loads.
     public var onReload: (() -> Void)?
 
-    private let back = NavigationButtonsView.button(.back, "Back (⌘[)")
-    private let forward = NavigationButtonsView.button(.forward, "Forward (⌘])")
-    private let reload = NavigationButtonsView.button(.reload, "Reload (⌘R)")
+    private let back = NavigationButtonsView.button(.back, "Back", key: "⌘[")
+    private let forward = NavigationButtonsView.button(.forward, "Forward", key: "⌘]")
+    private let reload = NavigationButtonsView.button(.reload, "Reload", key: "⌘R")
     private let size: CGFloat
 
     public init(buttonSize: CGFloat) {
@@ -45,6 +45,8 @@ public final class NavigationButtonsView: NSView {
         let symbol: Symbol = isLoading ? .stop : .reload
         reload.image = symbol.image(.control, accessibilityDescription: isLoading ? "Stop" : "Reload")
         reload.toolTip = isLoading ? "Stop (⌘.)" : "Reload (⌘R)"
+        reload.setAccessibilityLabel(isLoading ? "Stop" : "Reload")
+        reload.setAccessibilityHelp(isLoading ? "⌘." : "⌘R")
     }
 
     public override func layout() {
@@ -60,11 +62,14 @@ public final class NavigationButtonsView: NSView {
     @objc private func forwardClicked() { onForward?() }
     @objc private func reloadClicked() { onReload?() }
 
-    private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
+    /// VoiceOver says the name; the key is the help (5.3a: "Back (⌘[)" was the label).
+    private static func button(_ symbol: Symbol, _ name: String, key: String) -> NSButton {
         let button = HoverButton()
         button.contentTintColor = .labelColor
-        button.image = symbol.image(.control, accessibilityDescription: tip)
-        button.toolTip = tip
+        button.image = symbol.image(.control, accessibilityDescription: name)
+        button.toolTip = "\(name) (\(key))"
+        button.setAccessibilityLabel(name)
+        button.setAccessibilityHelp(key)
         return button
     }
 }

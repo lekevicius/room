@@ -81,7 +81,7 @@ enum PromptText {
 
 /// Dims the page and holds a dialog panel (JavaScript dialogs,
 /// `beforeunload`, HTTP auth): tab-modal, clicks on the dim go nowhere.
-final class PromptOverlayView: NSView {
+final class PromptOverlayView: NSView, AccessibilityBackdrop {
     let content: NSView
 
     init(content: NSView, dims: Bool) {

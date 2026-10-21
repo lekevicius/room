@@ -82,6 +82,8 @@ public final class ToastCenter: ToastPresenting {
         case .appear, .replace(_, false):
             generation += 1
             let content = queue.current.map { ToastContent($0, generation: generation) }
+            // VoiceOver says it as it appears (5.3a); the action is named so it can be found.
+            if let toast = queue.current { Announcement.post(toast.action.map { "\(toast.message). \($0.title) available." } ?? toast.message, from: hostView) }
             withAnimation(model.inVariant == .full ? Motion.toast.swiftUI : .easeInOut(duration: Motion.fast)) {
                 model.content = content
             }

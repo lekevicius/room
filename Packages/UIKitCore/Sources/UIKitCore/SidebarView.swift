@@ -112,7 +112,19 @@ public final class SidebarView: NSView {
         toggleButton.target = self
         toggleButton.action = #selector(toggleClicked)
         toggleButton.setAccessibilityIdentifier("sidebar-toggle")
+        toggleButton.setAccessibilityLabel("Toggle Sidebar")
+        toggleButton.setAccessibilityHelp("⌘S")
         contentView.addSubview(toggleButton)
+        // One group for VoiceOver (5.3a), read top to bottom (`accessibilityChildren`).
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Sidebar")
+    }
+
+    /// The top bar, the address row, the list, the footer: in screen order
+    /// (the subviews add the body, with its footer, before the top bar).
+    public override func accessibilityChildren() -> [Any]? {
+        super.accessibilityChildren().map(ReadingOrder.sorted)
     }
 
     @available(*, unavailable)

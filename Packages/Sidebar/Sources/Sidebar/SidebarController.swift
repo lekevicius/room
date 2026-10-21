@@ -1049,6 +1049,16 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
 
     func closeButtonClicked(_ entry: UUID) { close(entry) }
 
+    func rowPressed(_ id: UUID) {
+        guard let entry = sidebar.entry(id) else { return }
+        if entry.kind == .folder {
+            try? sidebar.setFolderCollapsed(id, !entry.isCollapsed)
+        } else {
+            clearMultiSelection()
+            select(id)
+        }
+    }
+
     func audioButtonClicked(_ entry: UUID) {
         host?.setMuted(!pageState(entry).isMuted, entry: entry)
         pageStateDidChange([entry])

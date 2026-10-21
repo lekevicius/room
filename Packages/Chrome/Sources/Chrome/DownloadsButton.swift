@@ -4,7 +4,7 @@ import Design
 /// The footer's downloads button (spec §F): a down-arrow; while something
 /// downloads, a progress ring around it (spinning when a size is unknown);
 /// on completion it bounces and shows a count badge until the popover opens.
-public final class DownloadsButton: NSView {
+public final class DownloadsButton: PressableView {
     public var onClick: (() -> Void)?
     /// Right-click: the button's menu (Open Library, Show Downloads Folder).
     public var menuProvider: (() -> NSMenu?)?
@@ -50,7 +50,9 @@ public final class DownloadsButton: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("Downloads")
+        setAccessibilityHelp("⇧⌘J")
         setAccessibilityIdentifier("downloads")
+        icon.hideFromAccessibility()
     }
 
     @available(*, unavailable)
@@ -220,10 +222,8 @@ public final class DownloadsButton: NSView {
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
-    public override func accessibilityPerformPress() -> Bool {
-        onClick?()
-        return true
-    }
+    /// Space, Return and VoiceOver's press open the popover, as a click (5.3a).
+    public override func performPress() { onClick?() }
 }
 
 /// The downloads popover (spec §F): an `NSPopover` on the footer button
