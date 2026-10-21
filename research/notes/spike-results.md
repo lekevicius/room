@@ -4086,3 +4086,130 @@ At large fewer rows fit the window, so the full reload is 10 % cheaper; the scro
 In dark at the highest tint opacity the tint, not the text's alpha, limits contrast: even the primary label reaches 4.67. 7:1 is not reachable there without a fainter tint under Increase Contrast (the user's call with B-131).
 
 **A bug the modes sheet found:** an unloaded row's title was `labelColor.withAlphaComponent(0.7)`, fixed to the appearance of the row's last configure: after a light/dark switch with no reload, unloaded titles drew black at 70 % on the dark sidebar (read in a probe: the field's colour resolved white 0.70, the layer still showing the light drawing) and white on the light one. Now `Palette.sidebarUnloadedLabel`, resolved when drawn; `DisplayOptionsTests` "An unloaded title's colour follows the appearance it is drawn in". The 5.2 matrix's rows sheet (light then dark, one setup per state) does not show it; the probe's order (Reduce Transparency's reload in light, then dark with no reload) did, in both runs with that order (and the reverse: white titles in light after a dark column).
+
+## Phase 5.4 — 5.4a: the host side (2026-10-21, M1 Max laptop, 64 GB, 60 Hz Pro Display XDR main at 2×, RoomCore 155.0.8059.36, series 25, the release framework `RoomCoreCommit c5a4032` (the official build of 09:33) and dev `out/dev`; no engine change)
+
+**Conditions.** Numbers on the release framework (the Debug app over `build/roomcore-release`), window key and visible on the 60 Hz main display; dev for profiling where said. The machine ran other apps throughout (the planner's notarization at the start, the Claude app, WindowServer, OrbStack): the 1-minute load average is given with every run (7–31 over the session). `sample` is our own Debug process at 1 ms (it slows the sampled process about 2×: profiles give proportions, never times). The user's Room was not running; every run on a throwaway state.
+
+### Task 1, B-53: switching (`scripts/tabs-measure.sh`, 50 entries / the ten typical sites loaded, 100 switches; release framework)
+
+| run | load1 | `select` call median / p95 (ms) | **click → committed (turn) median / p95** | page visible median / p95 | page's first frame median / p95 | 10 loaded (summed RSS) |
+|---|---|---|---|---|---|---|
+| before 1 | 26.9 | 5.56 / 8.50 | 11.66 / **17.58** | 4.68 / 12.36 | 11.27 / 19.47 | 4,987 MB, 16 renderers |
+| before 2 | 30.9 | 5.27 / 8.40 | 11.14 / **16.88** | 4.70 / 12.08 | 10.52 / 18.24 | 5,038 MB, 17 |
+| before 3 | 23.8 | 4.57 / 7.20 | 10.16 / **15.98** | 3.56 / 6.70 | 9.67 / 17.16 | 4,793 MB, 16 |
+| after 1 | 19.3 | 4.49 / 6.83 | 9.80 / **14.16** | 4.17 / 10.98 | 9.48 / 15.91 | 4,305 MB, 16 |
+| after 2 | 20.4 | 4.96 / 7.52 | 10.07 / **15.18** | 4.46 / 12.60 | 9.75 / 24.30 | 5,127 MB, 17 |
+| after 3 | 20.3 | 3.98 / 7.02 | 9.81 / **16.35** | 3.39 / 9.53 | 9.04 / 18.32 | 4,965 MB, 16 |
+| 2026-10-06 laptop (same framework then, load 81–101) | | 3.96–4.20 / 6.00–6.78 | 9.29–9.59 / 11.44–12.41 | | | 3,503–3,630 MB |
+| Mac mini 3.9-2 (release on 155) | | 5.19 / 8.28 | 12.88 / 20.87 | | | 4,801 MB |
+
+Before: p95 15.98–17.58 ms (0–10 % over the 16 ms bound: under a quarter, a row); after: 14.16–16.35 ms, median 9.80–10.07 (before 10.16–11.66). The after runs had a lower load (19–23 against 24–31), so part of the change is the machine; by the profile the fix itself is ~0.3 ms of a switch.
+
+**Profile** (`sample` over the 100 switches, release framework, `build/5.4a/profile-release-1`; counts are samples of 1 ms of the slowed process): the `select` call 339 (per switch ≈ 3.4): the card's page-view swap 187 (`removeFromSuperview` of the old page 130, of which Chromium's synchronous mach message tearing down its compositor 68; `addSubview` of the new 57, of which `-[NSWindow isZoomed]` called by Chromium's `WasShown` 22; the pane's layout 26), the store's `markActive` 68 and the selection's change 35, of which **the address field set twice per switch with a new symbol image each time: 60**; the display cycle 311 (AppKit's layout 64, the layer tree 58, the drag-margin regions after the view swap 41, layer display 94: Room's own `layout()`/`draw` inside it 35); Chromium's tasks 327. No single Room cause beyond the address field; Room code inside the display cycle is ~10 %. **Fix** (`a8ac417`): `AddressFieldView.setURL` returns at once for the URL it shows and makes the site symbol only when it changes. **Next** (recorded, not done): cache `isZoomed` in `RoomWindow` keyed by frame, screen and size limits (22 of 339; correctness risk with constraint-derived minimum sizes); the compositor teardown and the display cycle are Chromium's and AppKit's. The 120 Hz numbers are the user's (Phase 5.1 step 1, extended).
+
+### Task 2, launch broken down (`LaunchMarks`, DEBUG; release framework)
+
+**Relaunch** (the relaunch spike on a copy of `tabs-after-3`'s state, the selected page reddit.com; three runs, load 26–29; `build/5.4a/relaunch-marks-{1,2,3}`), each step's length in ms (median of three, range):
+
+| step | ms | whose |
+|---|---|---|
+| process start → `main` (dyld: the 367 MB framework, Swift) | 79.7 (75.8–83.1) | the bundle |
+| `engine.initialize` | 15.4 (14.0–15.8) | engine |
+| Chromium's start to `applicationDidFinishLaunching` | 347.7 (331.9–361.7) | engine (profile below) |
+| the state's open (`quick_check`) | 15.8 (15.7–17.0) | Room |
+| the window built: controller 31.5–34.6, record 4.7–5.4, `SidebarController` 17.8–19.0, toasts/routing/downloads 4.4–4.7, Library and prompts 7.1–7.6, palette 2.6–2.7, split/toolbar/look/shortcuts/extensions/reader 4.9–5.2, the selection shown 7.9–8.1 | 85 (85–87) | Room (AppKit views) |
+| `makeKeyAndOrderFront` (the window's first layout) | 95.6 (93.9–97.3) | Room's views in AppKit (half of it the visible rows' cells: ~20 % their reset buttons, ~13 % stored favicons decoded) |
+| to the first task on the main queue | 110.0 (108.0–111.1) | mostly the window's first display cycle (AppKit drawing Room's views), then Chromium's queued tasks (`-RoomLaunchPauseAfterWindow`'s profile, `build/5.4a/profile-gap-1`) |
+| engine profile requested → created | 16.8 (16.0–17.1) | engine |
+| the page made, its load called | 28.7 (28.1–28.8) | engine (`createWebContents`, `RoomBrowser`) |
+| content blocking ready (in parallel) | 18.2 (17.2–19.7) | Room (cached lists) |
+| the selected page's load (network) | 584.0 (566.9–584.8) | the site |
+| **launch → selected loaded** | **1.40 s (1.37–1.42)** | (tabs-measure's relaunch: 1.28–1.89 s) |
+
+The engine's start, profiled with `-RoomLaunchPause` (`sample` attached during a pause before the engine starts; `build/5.4a/profile-launch-3`, symbolized with the release dSYMs): of ContentMain before the message loop, **Chrome's own startup profile `Default`** (`GetStartupProfile` → `ProfileManager::CreateProfileHelper`; Room never uses it: its pages live in `Room Profile <id>`) 37 %, of which Skia's font manager enumerating the font families for `PrefsTabHelper::RegisterProfilePrefs` half; **the policy loader's managed-device check** (`base::IsManagedDevice` runs `profiles` and reads its output, `PolicyLoaderMac::Load`) 19 %. Both are the engine's: 5.4b leads (B-140).
+
+**Cold launch** (`scripts/roomcore-cold-launch.py` with the Debug app over the release framework: a fresh state and engine directory per run, `-RoomStartURL` a page on 127.0.0.1; four runs, the first discarded as the build's first launch; load 18.6–21.4): launch → the page loaded **0.908 / 0.921 / 0.937 s** before, **0.904 / 0.909 / 0.913 s** after. Marks (run 3 before): `main` 48, engine 58, `didFinishLaunching` 319, state 345 (a new database, 25 ms), window built 439, focused 504, main queue 572, content blocking ready 644 (the three lists built, not cached: 76–80 ms), page loaded ~908. **Fix** (`612a63b`): the session's content blocking (its lists read and built off the main thread) and the engine profiles' creation now run side by side; pages the session opens (the start URL, links, spikes) wait for both (cold median 0.921 → 0.909 s; a relaunch's selection already took that path). The Release app's 0.457 s (Mac mini, 3.9-2) is not comparable: no Debug app, no `-RoomStartURL` new tab.
+
+### Task 3: the 500-entry scroll with overlays (`ROOM_TOUR_ARGS="-RoomScrollOverlays YES" scripts/sidebar-snapshots.sh 500`)
+
+The sidebar hidden (⌘S) and pinned in over the card (⌥⌘S), the hover state on a visible row, the status pill showing a link (`research/screenshots/phase-5.4/phase-5.4a-500-overlays-release.png`):
+
+| run (4 s each, 60 Hz) | overlays, release (load 24) | plain, release (load 21) | overlays, dev (load 21) |
+|---|---|---|---|
+| late frames (> 1.5 × 16.67 ms), all six runs | **0 of 1,440** | 0 of 1,440 | 1 of 1,439 (one 37.5 ms interval, proxy120 9000 pt/s) |
+| step p95 native 1500 / 4000 / 9000 pt/s (ms) | 7.98 / 8.35 / 7.57 | 9.09 / 8.14 / 8.19 | 8.98 / 8.28 / 7.41 |
+| step p95 proxy120 1500 / 4000 / 9000 (ms) | 10.15 / 8.14 / 8.03 | 9.45 / 8.35 / 9.18 | 10.53 / 8.39 / 7.83 |
+| steps over 8.33 ms (of 241), native / proxy120 | 7, 13, 9 / 35, 10, 9 | 29, 6, 11 / 20, 14, 18 | 14, 10, 7 / 27, 13, 1 late |
+
+B-16's outcome applied: no frame drops at 60 Hz with the overlay's glass, a hovered row and the pill, so no overdraw or `prepareContent` change; the 120 Hz scroll and fling stay the user's (Phase 5.1 step 1).
+
+### Task 4: leaks and the host's footprint (`scripts/leaks-check.sh`, `-RoomSpike openclose`)
+
+`leaks`, `footprint` and `vmmap --summary` on the section's own process (no dialog raised). Leak stacks from a dev run with `MallocStackLogging=1`; footprints from release runs without it (its records are counted in the footprint: "Performance Tool Data" 244 MB after the motion section on dev).
+
+| section | process footprint (release, no MSL) | leaks (release) | leaks with stacks (dev, MSL) |
+|---|---|---|---|
+| launch (the first page, `openclose`'s first line) | 75.1 MB | — | — |
+| 1 / 10 / 25 / 50 Today tabs opened from :8766, loaded, closed | 82.4 / 82.8 / 84.4 / 85.8 MB; 5 s later 86.2 MB (peak 92.3) | 559 leaks, 13,296 B | 464 leaks, 27,936 B: **46 + 1 + 1 roots `room::PendingHostWindow` (32 B each, one per `RoomBrowser` made: `CreateRoomBrowserWindow` takes the pending window and never deletes it)**; 3 Apple's (`LinkServices`' `NSXPCConnection` cycle, AppIntents) |
+| the motion harness (both groups: sidebar, palette, Peek, ⌃Tab, toasts, downloads, split, the reveal) | 88.3 MB (peak 96.3) | 713 leaks, 20,192 B | 417 leaks: 1 `PendingHostWindow`, 3 `LinkServices` |
+
+No leak root in the Swift host's code; the one Room leak is `//room`'s (B-139, an engine change: 5.4b). After the 50 closes **12 renderers were still running with no page loaded** (1,468 MB on release, 2,563 MB on dev): a closed tab's renderer lingers like a discarded one's (B-56). Each open after a close also made a new `RoomBrowser` (46 for 50 opens).
+
+### Task 5: energy (`scripts/energy-check.sh`, `-RoomSpike energy`, release framework)
+
+**Method** (no privileges; `powermetrics` needs root): the 50-entry fixture's ten typical sites loaded, the first selected and visible (window key, visible on the XDR), 10 s to settle, then **600 s idle**; then `discardBackgroundPages()` (nine), 10 s, **600 s idle**. At each phase's ends every process of the app (the host and its helpers, by the bundle's path) is read with `proc_pid_rusage(RUSAGE_INFO_V6)`; the phase is the difference, summed by process kind: CPU time (user + system), `ri_energy_nj` (the kernel's energy estimate), interrupt wakeups (`ri_pkg_idle_wkups` reads 0 on this Mac). Processes that started or exited inside a phase are listed, their share missing. The wrapper activated the app only until the pages had loaded. Load 11.3 at the loaded phase, 9.9 at the discarded one, 7.6 at the end.
+
+| process kind | loaded idle: CPU (% of a core) | energy (mean mW) | interrupt wakeups/s | discarded idle: CPU | energy | wakeups/s |
+|---|---|---|---|---|---|---|
+| host (the browser process) | 6.09 s (1.01 %) | 2.97 J (4.9 mW) | 2.5 | 0.67 s (0.11 %) | 0.30 J (0.5 mW) | 1.9 |
+| renderers (13 at both ends; 3 in the second phase) | 14.77 s (2.46 %) | 3.88 J (6.4 mW) | 8.4 | 0.04 s (0.01 %) | 0.00 J | 0.6 |
+| network service | 10.07 s (1.68 %) | 4.95 J (8.2 mW) | 0.7 | 0.57 s (0.09 %) | 0.08 J (0.1 mW) | 0.8 |
+| GPU process | 0.20 s (0.03 %) | 0.04 J (0.1 mW) | 1.8 | 0.10 s (0.02 %) | 0.01 J | 0.9 |
+| audio, storage, video capture, others | 0.06 s | 0.00 J | 0.9 | 0.06 s | 0.00 J | 0.9 |
+| **all** | **31.20 s (5.19 % of a core)** | **11.86 J (19.7 mW)** | | **1.45 s (0.24 %)** | **0.41 J (0.7 mW)** | |
+
+In the loaded phase one renderer started and three exited (the sites' own frames); in the discarded phase **nine renderers exited inside the phase**, i.e. later than 10 s after the discards (12 renderers 10 s after `discardBackgroundPages()`, 3 at the end): B-56's "within 10 s" is not met on the release framework either (5.4b). The sites are real (the switching measurement's ten): their timers and the network service's polling are most of the loaded phase; the host's own idle cost is 1 % of a core loaded and 0.1 % with the pages discarded. A `powermetrics` run is the user's optional line (Phase 5.4 step 1).
+
+### B-129 and B-128: the triggers (`scripts/motion-check.sh`, sync ms = the trigger's own main-thread time; release framework unless said)
+
+| trigger | before (load 22.8–25.6) | after release (load 9.5) | after dev (load 8.6) | cause (profile, `build/5.4a/profile-overlays-1`, `-sidebar-1`) | done |
+|---|---|---|---|---|---|
+| the window's first palette open | sync 17.04, 2 dropped (5.1b: 15.8–34.6, 2–4) | **8.29, 1 dropped** (runs 3–4: 9.24 / 9.85, 1–2) | 9.73, 2 | the first text editing in the window (57 of the 60 samples in `open` were the field's first responder): the field editor, the caret indicator's first use (`dlopen` of AppKit's glow effect), the text input system's first activation (Writing Tools' and the cursor UI's controllers) | prewarm makes all three (`33dd90e`); the frame it still drops is the glass's first display |
+| a later palette open | 8.26, 0 | 4.30, 0 | 2.83, 0 | — | — |
+| the first ⌃Tab show | sync 29.60, 2 dropped | **11.12, 1** (runs 1–4: 14.1–16.8, 0–2) | **7.99, 0** | the list's first constraint solve (`fittingSize` → `updateConstraintsForSubtree` 33 of 50) and its glass built | the list built and laid out hidden after the window's first frame (`33dd90e`) |
+| a later ⌃Tab show | 9.82, 0 | 5.88, 0 | 3.71, 0 | rows rebuilt with constraints | — |
+| Peek's open | 20.39, 0 | 18.84, 2 | 23.94, 2 | the engine: page creation 8, first load 4, the page becoming first responder 9 of 23; the host's own 2 | the engine's (recorded) |
+| ⌘S hide | 25.78, 3 | 22.75, 2 | 20.85, 2 | `placeSidebar` re-parenting the sidebar into the hidden overlay (`addSubview` → `_setWindow` over the sidebar's tree, 14 of 34) and the window's relayout | not in one bounded step: keep the sidebar in one container in both states so ⌘S changes frames, not the tree (B-129) |
+| ⌘S dock | 18.35, 2 | 15.57, 2 | 16.82, 2 | the same, back | as above |
+| a Today tab inserted above the selection (B-128) | 6.99, 0 | 5.04, 0 | 8.32, 0 | the store's commit, the outline's update, the Essentials' tiles reconfigured (a symbol image made per tile) | under a 120 Hz frame on release; the 120 Hz run decides |
+| a space switch (B-128) | 8.45 / 6.17, 0 / 1 | 6.99 / 7.68, 0 | 7.68 / 7.17, 0 | the page swap (deactivate + activate: 12 of 24, the engine's), the tiles 7 | as above |
+| a reset (B-128) | 6.94, 0 (engine load 5.53) | 5.84, 0 (engine load 4.69) | 9.49, 0 (6.50) | the engine's synchronous `load` | the engine's |
+
+### B-85: a large import (`scripts/import-large.sh`: 5,000 bookmarks in 200 folders, 50,000 history URLs; release framework, load 7–9)
+
+| | sidebar write (main thread) | main thread's longest stall during the import | import total |
+|---|---|---|---|
+| before (two runs) | 974 / 976 ms | 1,042 / 1,047 ms | 3,249 / 3,325 ms |
+| after (three runs) | **41 / 34 / 33 ms** | **105 / 112 / 126 ms** | 2,057 / 2,082 / 2,194 ms |
+
+The store's own part is 13–20 ms (a harness on the Store package alone, no UI: `applyImport` of the same batch); `ImportSheetModel.performImport` then called `RoomStore.flush()`, which **waits** for the writer (~330 ms in the harness, ~940 ms in the app). **Fix** (`56821b9`): the state is handed to the writer and written off the main thread, as every other change; the database holds 5,200 of 5,200 entries after (`database:` line). The remaining stall (105–126 ms, the bound 100) is the history batches' main-thread part and the sidebar's reload (96 ms on dev); within a quarter but for one run: a row (B-85).
+
+### B-80's rest: the Archive in every write (a harness on the Store package: N archived Today tabs, the last 350 with an 8 KB navigation state as the retention leaves them; one Today tab's title changed 40 times)
+
+| archived rows | `currentState()` on the main thread, median | the write (diff + transaction + JSON snapshot, the writer's queue), median / p95 before | after |
+|---|---|---|---|
+| 0 | 0.001 ms | 0.63 / 0.97 ms | 0.67 / 1.09 ms |
+| 1,500 (30 days of ~50 a day) | 0.069 ms | **8.21 / 8.86 ms** | **1.22 / 1.65 ms** |
+| 5,000 | 0.197 ms | 25.76 / 26.51 ms | 2.93 / 3.40 ms |
+| 18,000 (the kill test's) | 0.741 ms | 98.97 / 103.14 ms | 9.88 / 11.44 ms |
+
+A profile of the writer showed 85 % in `StateSnapshot.encoded()` sorting the Archive by UUID string (a string made per comparison) and then dropping it from the snapshot. **Fix** (`817641f`): the Archive and the navigation states leave the state before the sort. The main thread's share (`currentState()`, the Archive's values copied) is 0.07 ms at 1,500 rows. The retention itself was done in 4.1b; B-80 closes.
+
+### B-127: the simulated `EXC_GUARD`
+
+Both reports (`ExcUserFault_Room-2026-10-21-045904.ips`, dev, the tour's `routing` step; `-053427.ips`, the Debug app over the release framework, 5.0b's skipped steps): `EXC_GUARD`, `GUARD_TYPE_USER`, namespace 18 (`LIBSYSTEM`), code 5, "Application Triggered Fault", `is_simulated: 1`. **Not a file-descriptor or Mach-port guard**: it is the report libsystem files for an `os_log_fault` (`os_fault_with_payload` from `_os_log_fault_impl`); the faulting thread (a `ThreadPoolForegroundWorker`, not the main thread whose `RoomCoreWebContents.load` B-127 quoted) is IconServices' `-[ISMutableIcns addCGImage:scale:error:]` logging a fault while AppKit's `-[NSWorkspace setIcon:forFile:options:]` converts an image, called from Chrome's `shortcuts::SetIconForFile` for **`~/Applications/Chromium Apps.localized`**: Chrome's web-app OS integration (`apps_folder_support.mm`, `GetChromeAppsFolder()` → `UpdateAppShortcutsSubdirLocalizedName` → `SetWorkspaceIconOnWorkerThread`, once per process when something asks for the apps folder). The process goes on. Ours in that the engine runs it: a Debug app on a throwaway state writes into the user's real `~/Applications` (the folder's `.localized` and `Icon` dated 05:34). Not reproduced by `scripts/routing-check.sh` on a fresh state (12:56, no report) nor by `grand-tour.sh --only routing light` (13:14, 25/25, no report): it needs whatever in the tour's shared state asks for the apps folder (an extension's or web app's OS-integration path that `AppShortcutManager::SuppressShortcutsForTesting` does not cover). The tour now lists new simulated-fault reports per step (`faults.tsv`, `531c2e3`). The fix is an engine change for 5.4b (B-127): keep Chrome's web-app OS integration off in `//room` (`OsIntegrationManager::ScopedSuppressForTesting` held for the browser's life, as `AppShortcutManager` already is).
+
+### Unit tier and checks
+
+`CI=1 swift test`: Model 111, Sidebar 48, Tabs 87, Palette 25 + 4 (the window tier, without `CI`), all passed. `grand-tour.sh --no-build --only routing light`: 25/25 on dev (test servers stopped for it and restarted).
