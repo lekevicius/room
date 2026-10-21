@@ -49,6 +49,20 @@ extension SpikeRunner.Context {
             SpikeRunner.record("peek_shown", "\(peek.isShown)")
             if let shown = tabs.shownPeek { await waitLoaded(shown, timeout: 10) }
             await run("peek_close") { tabs.closeShownPeek() }
+            // Peek's open cost in parts: the engine's page creation alone and with its first load.
+            var create: [Double] = [], createLoad: [Double] = []
+            for index in 0..<5 {
+                var start = CACurrentMediaTime()
+                guard let made = try? self.session.profile.createWebContents(WebContentsConfiguration(initiallyHidden: true, hostWindow: window)) else { break }
+                create.append((CACurrentMediaTime() - start) * 1000)
+                start = CACurrentMediaTime()
+                made.load(URL(string: "\(base)?peek-part-\(index)")!, transition: .link, fromAddressBar: false)
+                createLoad.append((CACurrentMediaTime() - start) * 1000)
+                try? await Task.sleep(for: .milliseconds(300))
+                made.close()
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            SpikeRunner.record("peek_open_parts", "engine createWebContents \(SpikeRunner.stats(create)); its first load call \(SpikeRunner.stats(createLoad))")
         }
 
         // The ⌃Tab switcher (its fade; 5.1b).
@@ -114,16 +128,29 @@ extension SpikeRunner.Context {
         await run("reveal_in") { controller.reveal.togglePin() }
         SpikeRunner.record("reveal_traffic_lights", "shown=\(controller.reveal.isShown) buttons visible=\(window.standardWindowButton(.closeButton)?.isHidden == false)")
         await run("reveal_out") { controller.reveal.togglePin() }
-        // The dwell end to end: a pointer resting in the band to the overlay in place.
+        // The dwell and the slide end to end: frames from the pointer's arrival in the band ...
         post(.mouseMoved, at: CGPoint(x: 600, y: 300))
         try? await Task.sleep(for: .milliseconds(300))
-        let start = ContinuousClock.now
         await run("reveal_dwell_slide", minimum: Timing.revealDwell + Motion.revealIn) { post(.mouseMoved, at: CGPoint(x: 1, y: 300)) }
-        _ = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
-        SpikeRunner.record("reveal_band_to_in_place", String(format: "%.0f ms (dwell %d ms + slide %d ms; before B-114 150 + 250)", ms(since: start),
-                                                                Int(Timing.revealDwell * 1000), Int(Motion.revealIn * 1000)))
         post(.mouseMoved, at: CGPoint(x: 700, y: 400))
         _ = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }
+        // ... and the time to the overlay shown and in place (B-114: was 150 ms + 250 ms).
+        var toShown: [Double] = [], toInPlace: [Double] = []
+        for _ in 0..<5 {
+            post(.mouseMoved, at: CGPoint(x: 600, y: 300))
+            try? await Task.sleep(for: .milliseconds(300))
+            let start = ContinuousClock.now
+            post(.mouseMoved, at: CGPoint(x: 1, y: 300))
+            _ = await waitUntil(2) { controller.reveal.isShown }
+            toShown.append(ms(since: start))
+            _ = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
+            toInPlace.append(ms(since: start))
+            post(.mouseMoved, at: CGPoint(x: 700, y: 400))
+            _ = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }
+        }
+        SpikeRunner.record("reveal_band_to_shown", SpikeRunner.stats(toShown) + " (dwell \(Int(Timing.revealDwell * 1000)) ms)")
+        SpikeRunner.record("reveal_band_to_in_place", SpikeRunner.stats(toInPlace)
+            + " (dwell \(Int(Timing.revealDwell * 1000)) ms + slide \(Int(Motion.revealIn * 1000)) ms; before B-114 150 + 250)")
         await run("sidebar_dock") { controller.isSidebarOpen = true }
         try? await Task.sleep(for: .milliseconds(300))
         return rows
