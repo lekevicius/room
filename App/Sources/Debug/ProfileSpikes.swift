@@ -87,19 +87,19 @@ extension SpikeRunner.Context {
         SpikeRunner.record("renamed", "refusal=\(refusal ?? "none") empty refused=\(empty ?? "no") name=\(store.profiles.first { $0.id == work.id }?.name ?? "?") "
             + "space profile kept=\(store.space(office.id)?.profileID == work.id)")
         SpikeRunner.record("directories_set", profileDirectories().map { $0.replacingOccurrences(of: work.id.uuidString, with: "<work id>") }.joined(separator: ", "))
-        // Settings ▸ Spaces, then a space's Routing… (a new rule for it when it has none).
+        // Settings ▸ Spaces, then a space's Edit… (5.7b: the space window, its routes in it).
         app.showSettings(section: .spaces)
         await settleProfiles(600)
         await captureProfiles(app, .spaces, "spaces")
-        services.routingRules(office.id)
+        services.editSpace(office.id)
         await settleProfiles(800)
         let settingsWindow = app.debugSettingsWindow?.window
-        if let sheet = app.routingSheet, let editor = app.routingModel {
-            SpikeRunner.record("space_routing", "shown=\(sheet.isVisible) on settings=\(settingsWindow?.attachedSheet === sheet) editing=\(editor.editing == .new) "
-                + "target=\(store.space(editor.target ?? UUID())?.name ?? "none")")
-            app.closeRoutingRules()
+        if let spaceWindow = app.spaceWindow {
+            SpikeRunner.record("space_routing", "space window shown=\(spaceWindow.window?.isVisible ?? false) "
+                + "space=\(store.space(spaceWindow.model.spaceID ?? UUID())?.name ?? "none") title=\(spaceWindow.window?.title ?? "")")
+            spaceWindow.cancel()
         } else {
-            SpikeRunner.record("space_routing", "shown=false")
+            SpikeRunner.record("space_routing", "space window shown=false")
         }
         settingsWindow?.orderOut(nil)
         // Office stays shown: Chromium's last used profile is Work's at the quit.

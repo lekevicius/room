@@ -6,35 +6,35 @@ import SwiftUI
 
 /// The space creation and edit form (spec §B): name ("Space Name"), icon
 /// (emoji or SF Symbol), up to three colour wells with the five algorithms,
-/// and the profile. A SwiftUI leaf in an `NSHostingView` that takes the
-/// list's place in the sidebar (it slides in like a space). Enter creates
-/// or saves, Esc cancels.
+/// and the profile. A SwiftUI leaf in the space window (5.7b, B-122: a
+/// window of its own, opened from Settings ▸ Spaces and the space's menu;
+/// no editor inside the sidebar). Enter creates or saves, Esc cancels.
 @Observable
-final class SpaceFormModel {
-    enum Mode: Equatable {
+public final class SpaceFormModel {
+    public enum Mode: Equatable {
         case create
         case edit(UUID)
     }
 
-    typealias Focus = SpaceFormFocus
+    public typealias Focus = SpaceFormFocus
 
-    let mode: Mode
-    var name: String
+    public let mode: Mode
+    public var name: String
     /// Emoji or SF Symbol name; `nil` = the default dot.
-    var icon: String?
+    public var icon: String?
     /// Up to three wells; the first is the base colour.
-    var wells: [Color]
-    var algorithm: ThemeAlgorithm
-    var opacity: Double
-    var profileID: UUID
-    var profiles: [Model.Profile]
+    public var wells: [Color]
+    public var algorithm: ThemeAlgorithm
+    public var opacity: Double
+    public var profileID: UUID
+    public var profiles: [Model.Profile]
     /// A profile the form will create on commit ("New Profile…").
-    var newProfileName: String?
-    var initialFocus: Focus
+    public var newProfileName: String?
+    public var initialFocus: Focus
     /// The name used when the field is left empty.
-    let placeholderName: String
+    public let placeholderName: String
 
-    init(mode: Mode, space: Space?, profiles: [Model.Profile], defaultProfile: UUID, placeholderName: String, focus: Focus = .name) {
+    public init(mode: Mode, space: Space?, profiles: [Model.Profile], defaultProfile: UUID, placeholderName: String, focus: Focus = .name) {
         self.mode = mode
         name = space?.name ?? ""
         icon = space?.icon
@@ -47,38 +47,45 @@ final class SpaceFormModel {
         initialFocus = focus
     }
 
-    var title: String { mode == .create ? "New Space" : "Edit Space" }
-    var commitTitle: String { mode == .create ? "Create" : "Save" }
+    /// The space this form edits (`nil` while it creates one).
+    public var spaceID: UUID? {
+        if case .edit(let id) = mode { return id }
+        return nil
+    }
+
+    public var title: String { mode == .create ? "New Space" : "Edit Space" }
+    public var commitTitle: String { mode == .create ? "Create" : "Save" }
 
     /// The wells as `#RRGGBB`.
-    var themeColors: [String] { wells.compactMap(Self.hex(of:)) }
+    public var themeColors: [String] { wells.compactMap(Self.hex(of:)) }
 
     /// What the window tint will show: the wells extended by the algorithm.
     var paletteColors: [Color] { ThemePalette.colors(themeColors, algorithm: algorithm).compactMap(Self.color(hex:)) }
 
     /// The colour a new well starts with: the algorithm's next hue from the base, or a calm blue.
-    func addWell() {
+    public func addWell() {
         guard wells.count < ThemePalette.maxColors else { return }
         let derived = ThemePalette.colors(themeColors, algorithm: algorithm == .floating ? .triadic : algorithm)
         let next = derived.indices.contains(wells.count) ? derived[wells.count] : Palette.themeWellDefaultHex
         wells.append(Self.color(hex: next) ?? .blue)
     }
 
-    static func color(hex: String) -> Color? {
+    public static func color(hex: String) -> Color? {
         guard let hsl = HSLColor(hex: hex) else { return nil }
         let (red, green, blue) = hsl.rgb
         return Color(.sRGB, red: red, green: green, blue: blue)
     }
 
-    static func hex(of color: Color) -> String? {
+    public static func hex(of color: Color) -> String? {
         guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return nil }
         return HSLColor(red: Double(rgb.redComponent), green: Double(rgb.greenComponent), blue: Double(rgb.blueComponent)).hex
     }
 }
 
-/// Which part of the space form has the focus when it opens (Change Icon…, Edit Theme…).
+/// Which part of the space form has the focus when it opens (Change Icon…, Edit Theme…,
+/// Space Routing Settings…: the routes, which the window scrolls to).
 public enum SpaceFormFocus: Hashable, Sendable {
-    case name, icon, theme
+    case name, icon, theme, routes
 }
 
 /// Curated choices for the icon picker (chosen; any emoji can be typed).
@@ -184,8 +191,11 @@ enum IconPopover {
     nonisolated(unsafe) private static var observerKey: UInt8 = 0
 }
 
-struct SpaceFormView: View {
+/// The form's body in the space window: the sections scroll, Cancel and
+/// Create/Save stay at the bottom; `routes` (the window's) goes under the profile.
+public struct SpaceFormView: View {
     @Bindable var model: SpaceFormModel
+    var routes: AnyView?
     var onCommit: () -> Void
     var onCancel: () -> Void
     /// The wells or algorithm changed (the window previews the tint).
@@ -194,32 +204,54 @@ struct SpaceFormView: View {
     @State private var addingProfile = false
     @State private var profileName = ""
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(model.title).font(.headline)
-                TextField("Space Name", text: $model.name)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focus, equals: .name)
-                    .onSubmit(onCommit)
-                    .accessibilityIdentifier("space-form-name")
-                iconSection
-                themeSection
-                profileSection
-                HStack {
-                    Button("Cancel", action: onCancel).keyboardShortcut(.cancelAction)
-                    Spacer()
-                    Button(model.commitTitle, action: onCommit)
-                        .keyboardShortcut(.defaultAction)
-                        .accessibilityIdentifier("space-form-commit")
+    public init(model: SpaceFormModel, routes: AnyView? = nil, onCommit: @escaping () -> Void, onCancel: @escaping () -> Void,
+                onThemeChange: @escaping () -> Void) {
+        self.model = model
+        self.routes = routes
+        self.onCommit = onCommit
+        self.onCancel = onCancel
+        self.onThemeChange = onThemeChange
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Name").font(.subheadline).foregroundStyle(.secondary)
+                        TextField("Space Name", text: $model.name, prompt: Text(model.placeholderName))
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focus, equals: .name)
+                            .onSubmit(onCommit)
+                            .accessibilityIdentifier("space-form-name")
+                        iconSection
+                        themeSection
+                        profileSection
+                        if let routes {
+                            routes.id(SpaceFormFocus.routes)
+                        }
+                    }
+                    .padding(.horizontal, SpaceFormMetrics.padding)
+                    .padding(.vertical, SpaceFormMetrics.padding)
+                }
+                .onAppear {
+                    focus = model.initialFocus == .routes ? nil : model.initialFocus
+                    if model.initialFocus == .routes || model.initialFocus == .theme {
+                        DispatchQueue.main.async { proxy.scrollTo(model.initialFocus == .routes ? SpaceFormFocus.routes : SpaceFormFocus.theme, anchor: .top) }
+                    }
                 }
             }
-            .padding(.horizontal, SpaceFormMetrics.padding)
-            .padding(.vertical, SpaceFormMetrics.padding)
+            Divider()
+            HStack {
+                Button("Cancel", action: onCancel).keyboardShortcut(.cancelAction)
+                Spacer()
+                Button(model.commitTitle, action: onCommit)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("space-form-commit")
+            }
+            .padding(SpaceFormMetrics.padding)
         }
-        .scrollIndicators(.never)
         .onExitCommand(perform: onCancel)
-        .onAppear { focus = model.initialFocus }
         .onChange(of: model.themeColors) { onThemeChange() }
         .onChange(of: model.algorithm) { onThemeChange() }
         .onChange(of: model.opacity) { onThemeChange() }
@@ -238,11 +270,13 @@ struct SpaceFormView: View {
             Text("Colour").font(.subheadline).foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 ForEach(model.wells.indices, id: \.self) { index in
-                    ColorPicker("", selection: Binding(get: { model.wells[index] }, set: { model.wells[index] = $0 }),
+                    // Guarded: a well removed (−, Remove Colour, a reset) can be read once more by the old binding.
+                    ColorPicker("", selection: Binding(get: { model.wells.indices.contains(index) ? model.wells[index] : .clear },
+                                                       set: { if model.wells.indices.contains(index) { model.wells[index] = $0 } }),
                                 supportsOpacity: false)
                         .labelsHidden()
                         .accessibilityLabel("Colour \(index + 1)")
-                        .contextMenu { Button("Remove Colour") { model.wells.remove(at: index) } }
+                        .contextMenu { Button("Remove Colour") { if model.wells.indices.contains(index) { model.wells.remove(at: index) } } }
                 }
                 if model.wells.count < ThemePalette.maxColors {
                     Button { model.addWell() } label: {
@@ -282,6 +316,7 @@ struct SpaceFormView: View {
                 .accessibilityAddTraits(.isImage)
                 .accessibilityLabel("Theme preview")
         }
+        .id(SpaceFormFocus.theme)
     }
 
     // MARK: Profile
@@ -348,9 +383,4 @@ public struct TintOpacityControl: View {
     }
 }
 
-/// Space form geometry (chosen; `docs/design-tokens.md`).
 
-/// The form's hosting view: a list in the sidebar's list container.
-final class SpaceFormHostingView: NSHostingView<SpaceFormView> {
-    override var mouseDownCanMoveWindow: Bool { false }
-}

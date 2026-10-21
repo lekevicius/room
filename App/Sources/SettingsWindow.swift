@@ -147,7 +147,6 @@ struct SettingsServices {
     let defaultBrowser: DefaultBrowser
     /// No Sentry project in this build: the switch is kept, nothing can be sent.
     let crashReportsUnavailable: Bool
-    let showWelcomeCard: () -> Void
     let checkForUpdates: () -> Void
     let canCheckForUpdates: () -> Bool
     /// Chrome extensions per profile (3.6a); `nil` on an engine without them (no engine, the fakes).
@@ -244,14 +243,6 @@ private struct SettingsSectionView: View {
             } label: {
                 Text("Import from another browser")
                 Text("Bookmarks, history, Arc's sidebar, passwords from an exported CSV and extensions from the Chrome Web Store.")
-            }
-        }
-        Section {
-            LabeledContent {
-                Button("Show Welcome Card") { services.showWelcomeCard() }
-            } label: {
-                Text("Welcome card")
-                Text("The first-run card in the sidebar: search engine, default browser, import, crash reports and updates.")
             }
         }
     }

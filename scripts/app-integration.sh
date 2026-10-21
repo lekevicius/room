@@ -10,7 +10,7 @@
 #
 # `--session 2.8b` runs `appintegration2` (AppIntegration2Spikes.swift)
 # instead: Room is launched by a link (the cold-launch ingestion), the
-# first-run card shows (-RoomFirstRun), research/spikes/phase-2.8/server.py
+# onboarding shows (-RoomFirstRun; 5.7b, the first-run card before), research/spikes/phase-2.8/server.py
 # serves the dev update feed and a stand-in crash endpoint on :8771 and logs
 # every request, and `open_url: <name> <method> <url>` requests are answered
 # by handing Room the link with `open -a`, AppleScript's `open location`, or

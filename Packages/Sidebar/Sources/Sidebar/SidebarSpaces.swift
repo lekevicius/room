@@ -26,8 +26,8 @@ extension Space {
     }
 }
 
-/// Spaces in the sidebar (spec §B): the space menu, the creation and edit
-/// form, Delete Space with Undo (B-15), Set Profile with the one-time
+/// Spaces in the sidebar (spec §B): the space menu, the space window's
+/// model and commit (the window is the app's, 5.7b), Delete Space with Undo (B-15), Set Profile with the one-time
 /// warning, unloading, and drops on the footer's space icons.
 extension SidebarController {
     // MARK: Space menu
@@ -38,6 +38,10 @@ extension SidebarController {
         guard let space = sidebar.space(id) else { return nil }
         let menu = NSMenu()
         menu.autoenablesItems = false
+        menu.addItem(action(SpaceCommandName.spaceSettings, symbol: .editTheme, enabled: onShowSpaceWindow != nil) { [weak self] in
+            self?.editSpace(id)
+        })
+        menu.addItem(.separator())
         menu.addItem(action(SpaceCommandName.changeName, symbol: .rename) { [weak self] in self?.renameSpace(id) })
         menu.addItem(action(SpaceCommandName.changeIcon, symbol: .changeIcon) { [weak self] in self?.editSpace(id, focus: .icon) })
         menu.addItem(action(SpaceCommandName.editTheme, symbol: .editTheme) { [weak self] in self?.editSpace(id, focus: .theme) })
@@ -63,8 +67,8 @@ extension SidebarController {
             guard let self else { return }
             unloadSpaces(sidebar.spaces.map(\.id).filter { $0 != id })
         })
-        menu.addItem(action(SpaceCommandName.routingSettings, symbol: .routing, enabled: onRoutingSettings != nil) { [weak self] in
-            self?.onRoutingSettings?(nil)
+        menu.addItem(action(SpaceCommandName.routingSettings, symbol: .routing, enabled: onShowSpaceWindow != nil) { [weak self] in
+            self?.editSpace(id, focus: .routes)
         })
         menu.addItem(.separator())
         menu.addItem(action(CommandName.newSpace, symbol: .newSpace) { [weak self] in self?.newSpace() })
@@ -96,76 +100,58 @@ extension SidebarController {
         outline.window?.makeFirstResponder(outline)
     }
 
-    // MARK: Form (spec §B)
+    // MARK: The space window (spec §B; 5.7b, B-122: a window of its own, no editor in the sidebar)
 
-    /// "+" ▸ New Space, the palette's New Space, a swipe past the last space.
-    public func newSpace() { newSpace(revealed: nil) }
+    /// "+" ▸ New Space, the palette's New Space, a swipe past the last space: the space window, creating.
+    public func newSpace() { onShowSpaceWindow?(nil, .name) }
 
-    /// `revealed`: the form a swipe already brought on screen.
-    func newSpace(revealed: SpaceFormHostingView?) {
-        presentSpaceForm(SpaceFormModel(mode: .create, space: nil, profiles: sidebar.profiles,
-                                        defaultProfile: tree.space?.profileID ?? sidebar.profiles.first?.id ?? UUID(),
-                                        placeholderName: SpaceRules.defaultName(existing: sidebar.spaces.map(\.name))),
-                         alreadyShown: revealed)
+    /// Space Settings…, Change Icon…, Edit Theme…, Space Routing Settings…: the space window on `id`, focused on that part.
+    public func editSpace(_ id: UUID, focus: SpaceFormFocus = .name) { onShowSpaceWindow?(id, focus) }
+
+    /// The form's model for the space window: a new space (`id == nil`) or `id`'s values.
+    public func spaceFormModel(for id: UUID?, focus: SpaceFormFocus = .name) -> SpaceFormModel? {
+        guard let id else {
+            return SpaceFormModel(mode: .create, space: nil, profiles: sidebar.profiles,
+                                  defaultProfile: tree.space?.profileID ?? sidebar.profiles.first?.id ?? UUID(),
+                                  placeholderName: SpaceRules.defaultName(existing: sidebar.spaces.map(\.name)), focus: focus)
+        }
+        guard let space = sidebar.space(id) else { return nil }
+        return SpaceFormModel(mode: .edit(id), space: space, profiles: sidebar.profiles, defaultProfile: space.profileID,
+                              placeholderName: space.name, focus: focus)
     }
 
-    /// Change Icon…, Edit Theme…: the form on `id`, focused on that part.
-    public func editSpace(_ id: UUID, focus: SpaceFormFocus = .name) {
-        guard let space = sidebar.space(id) else { return }
-        if id != tree.spaceID { showSpace(id, animated: false) }
-        presentSpaceForm(SpaceFormModel(mode: .edit(id), space: space, profiles: sidebar.profiles, defaultProfile: space.profileID,
-                                        placeholderName: space.name, focus: focus))
-    }
-
-    /// The form takes the list's place: it slides in from the right (or is
-    /// already on screen, revealed by a swipe past the last space).
-    func presentSpaceForm(_ model: SpaceFormModel, alreadyShown view: SpaceFormHostingView? = nil) {
-        if let current = spaceForm, current.view !== view { dismissSpaceForm(animated: false) }
-        let hosting = view ?? makeSpaceFormView()
-        hosting.rootView = SpaceFormView(model: model, onCommit: { [weak self] in self?.commitSpaceForm() },
-                                         onCancel: { [weak self] in self?.dismissSpaceForm(animated: true) },
-                                         onThemeChange: { [weak self] in self?.previewTheme() })
-        spaceForm = SpaceFormState(view: hosting, model: model, returnSpace: tree.spaceID)
-        setHovered(nil)
-        if view == nil { bodyView.show(hosting, direction: .forward, animated: true) }
-        hosting.window?.makeFirstResponder(hosting)
-    }
-
-    /// A form view in the list container (hidden until shown).
-    func makeSpaceFormView() -> SpaceFormHostingView {
-        let model = SpaceFormModel(mode: .create, space: nil, profiles: sidebar.profiles, defaultProfile: tree.space?.profileID ?? UUID(),
-                                   placeholderName: "Space")
-        let view = SpaceFormHostingView(rootView: SpaceFormView(model: model, onCommit: {}, onCancel: {}, onThemeChange: {}))
-        view.setAccessibilityIdentifier("space-form")
-        bodyView.addList(view)
-        return view
-    }
-
-    /// The window shows the form's colours while they are edited.
-    private func previewTheme() {
-        guard let model = spaceForm?.model else { return }
+    /// The window shows the form's colours while they are edited (the space window's live preview).
+    public func previewTheme(_ model: SpaceFormModel) {
+        themePreviewActive = true
         let colors = ThemePalette.colors(model.themeColors, algorithm: model.algorithm)
         onTintChange?(colors.isEmpty ? nil : SpaceTheme(colors: colors, opacity: model.opacity), false)
     }
 
-    /// Enter: creates the space (and its new profile) and shows it, or saves the edit.
-    func commitSpaceForm() {
-        guard let form = spaceForm else { return }
-        let model = form.model
-        let name = model.name.trimmingCharacters(in: .whitespaces).isEmpty ? model.placeholderName
-            : model.name.trimmingCharacters(in: .whitespaces)
+    /// The preview ends (the window closed, saved or cancelled): the shown space's own tint again.
+    public func endThemePreview(animated: Bool) {
+        guard themePreviewActive else { return }
+        themePreviewActive = false
+        if let space = tree.space { onTintChange?(space.theme, animated) }
+    }
+
+    /// Create or Save: creates the space (and its new profile) and shows it, or saves the edit.
+    /// Returns the space, `nil` when nothing was written.
+    @discardableResult
+    public func commitSpaceForm(_ model: SpaceFormModel) -> UUID? {
+        let trimmed = model.name.trimmingCharacters(in: .whitespaces)
+        let name = trimmed.isEmpty ? model.placeholderName : trimmed
         var profileID = model.profileID
         if let newProfile = model.newProfileName { profileID = sidebar.createProfile(name: newProfile).id }
         switch model.mode {
         case .create:
             guard let space = try? sidebar.createSpace(name: name, profile: profileID, icon: model.icon, themeColors: model.themeColors,
-                                                       themeAlgorithm: model.algorithm, themeOpacity: model.opacity),
-                  let target = preparedPane(space.id) else { return }
-            closeSpaceForm()
-            bodyView.show(target.scrollView, direction: .forward, animated: false)
-            switchPane(to: target, space: space, direction: .forward, animated: true, slides: false)
+                                                       themeAlgorithm: model.algorithm, themeOpacity: model.opacity) else { return nil }
+            themePreviewActive = false
+            showSpace(space.id)
             onSpaceCreated?(space)
+            return space.id
         case .edit(let id):
+            guard sidebar.space(id) != nil else { return nil }
             try? sidebar.updateSpace(id) {
                 $0.name = name
                 $0.icon = model.icon
@@ -174,34 +160,10 @@ extension SidebarController {
                 $0.themeOpacity = model.opacity
             }
             if profileID != sidebar.space(id)?.profileID { setProfile(of: id, to: profileID) }
-            dismissSpaceForm(animated: true)
+            endThemePreview(animated: true)
+            return id
         }
     }
-
-    /// Esc: back to the list the form replaced; the tint goes back too.
-    func dismissSpaceForm(animated: Bool) {
-        guard let form = spaceForm else { return }
-        let back = preparedPane(form.returnSpace) ?? pane
-        bodyView.show(back.scrollView, direction: .backward, animated: animated) { [weak self] in
-            guard let self, spaceForm?.view !== form.view else { return }
-            bodyView.removeList(form.view)
-        }
-        spaceForm = nil
-        if let space = tree.space { onTintChange?(space.theme, animated) }
-        outline.window?.makeFirstResponder(outline)
-    }
-
-    /// The form leaves without a slide (a created space takes its place).
-    private func closeSpaceForm() {
-        guard let form = spaceForm else { return }
-        spaceForm = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.medium + 0.05) { [weak self] in
-            guard let self, spaceForm?.view !== form.view else { return }
-            bodyView.removeList(form.view)
-        }
-    }
-
-    public var isSpaceFormOpen: Bool { spaceForm != nil }
 
     // MARK: Delete (spec §B, B-15)
 
@@ -352,15 +314,10 @@ extension SidebarController: SpaceIconDropEvents {
     }
 }
 
-/// The form on screen and the space it came from.
-struct SpaceFormState {
-    let view: SpaceFormHostingView
-    let model: SpaceFormModel
-    let returnSpace: UUID
-}
-
 /// Space command names (spec §B menu; the palette uses the same words).
 public enum SpaceCommandName {
+    /// The space window (5.7b, B-122).
+    public static let spaceSettings = "Space Settings…"
     public static let changeName = "Change Name…"
     public static let changeIcon = "Change Icon…"
     public static let editTheme = "Edit Theme…"

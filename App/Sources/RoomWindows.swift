@@ -40,7 +40,6 @@ final class WindowSession {
     var extensionKeys: ExtensionKeyRouter?
     var pictureInPicture: PictureInPicturePanels?
     var reader: ReaderController?
-    var firstRunCard: FirstRunCardView?
     var fullscreen: PageFullscreen?
     /// The window's press and key monitor (Peek's gesture window, the idle clock).
     var inputMonitor: Any?

@@ -51,9 +51,12 @@ public final class SidebarController: NSObject {
     /// Confirmation dialogs (Delete Space, the cross-profile warning) answer
     /// through this instead of a modal alert when set (tests).
     public var confirmations: ((_ message: String) -> Bool)?
-    /// The space form while it is on screen (`SidebarSpaces`).
-    var spaceForm: SpaceFormState?
-    /// A space was created from the form (a toast tells about it while the sidebar is hidden, spec §E).
+    /// The space window (5.7b, B-122): a new space (`nil`) or the space's settings, focused on a part.
+    /// Without a handler New Space and the space's settings items do nothing (the menu greys them).
+    public var onShowSpaceWindow: ((_ space: UUID?, _ focus: SpaceFormFocus) -> Void)?
+    /// The space window previews a theme in this window's tint (`SidebarSpaces.previewTheme`).
+    var themePreviewActive = false
+    /// A space was created from the space window (a toast tells about it while the sidebar is hidden, spec §E).
     public var onSpaceCreated: ((Space) -> Void)?
     /// A space's icon in the footer was clicked (the Library gives way to the spaces first, 4.1a).
     public var onFooterSpaceSelected: (() -> Void)?
@@ -454,7 +457,7 @@ public final class SidebarController: NSObject {
         }
         if update.spaceChanged, let space = tree.space {
             onSpaceChange?(space)
-            if spaceForm == nil { onTintChange?(space.theme, true) }
+            if !themePreviewActive { onTintChange?(space.theme, true) }
         }
         updateAddressField()
         retainMultiSelection()
@@ -1125,6 +1128,8 @@ public final class SidebarBodyView: NSView {
     private(set) var footer: SidebarFooterView?
     /// Clips the lists while they slide.
     let listContainer = ListContainerView()
+    /// The views in the list container (the spaces' lists; 5.7b: no form among them).
+    public var debugListViews: [NSView] { listContainer.subviews }
     /// The list on screen (a space's scroll view, or the new-space form).
     private(set) weak var activeList: NSView?
     private let overflowTop = OverflowIndicatorView(edge: .top)
@@ -1145,18 +1150,6 @@ public final class SidebarBodyView: NSView {
     /// The next layout moves the list with the grid's reflow when the grid's height changed
     /// (`SidebarMotion.essentialsReflow`; compositor-only, from its old place).
     var reflowsListAnimated = false
-    /// A card above the footer at the rows' width (2.8b: the first-run card); the list ends above it.
-    /// It moves with the sidebar into the hidden sidebar's overlay.
-    public var accessoryView: NSView? {
-        didSet {
-            guard accessoryView !== oldValue else { return }
-            oldValue?.removeFromSuperview()
-            if let accessoryView { addSubview(accessoryView) }
-            needsLayout = true
-        }
-    }
-    /// The accessory's height at a width (its content wraps).
-    public var accessoryHeight: ((CGFloat) -> CGFloat)?
     /// The media row (4.6) directly above the footer, in the spaces view and
     /// the Library alike; hidden while nothing plays elsewhere.
     var mediaRowView: NSView? {
@@ -1167,8 +1160,7 @@ public final class SidebarBodyView: NSView {
             needsLayout = true
         }
     }
-    /// A view in place of the spaces view (the essentials, the lists, the
-    /// accessory) between the header and the footer, which stay: the Library
+    /// A view in place of the spaces view (the essentials and the lists) between the header and the footer, which stay: the Library
     /// (⇧⌘L, 4.1a). `nil` shows the spaces again.
     public var replacementView: NSView? {
         didSet {
@@ -1177,7 +1169,6 @@ public final class SidebarBodyView: NSView {
             let replaced = replacementView != nil
             grid?.isHidden = replaced
             listContainer.isHidden = replaced
-            accessoryView?.isHidden = replaced
             if let replacementView {
                 addSubview(replacementView)
                 setOverflow(above: false, below: false)
@@ -1468,12 +1459,7 @@ public final class SidebarBodyView: NSView {
             replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bodyBottom))
             return
         }
-        var listBottom = bodyBottom
-        if let accessoryView, !accessoryView.isHidden {
-            let height = ceil(accessoryHeight?(width) ?? accessoryView.fittingSize.height)
-            accessoryView.frame = NSRect(x: inset, y: listBottom - FirstRunMetrics.gapAboveFooter - height, width: width, height: height)
-            listBottom = accessoryView.frame.minY - FirstRunMetrics.gapAboveList
-        }
+        let listBottom = bodyBottom
         let listFrom = listContainer.layer?.position
         let wasShown = listContainer.frame.height > 0
         listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
@@ -1599,6 +1585,9 @@ extension SidebarController {
     /// The context menu a right-click on `id` shows (4.4a: its keys follow the shortcut table).
     public func debugContextMenu(for id: UUID) -> NSMenu? { menu(for: id) }
 
+    /// The space's menu (title row, "…", footer icon) as a right-click opens it.
+    public func debugSpaceMenu(_ id: UUID) -> NSMenu? { spaceMenu(id) }
+
     /// The menu a right-click on `id` opens: the group's with a multi-selection (5.0b).
     public func debugClickedMenu(for id: UUID) -> NSMenu? { menu(forClicked: id) }
 
@@ -1657,13 +1646,6 @@ extension SidebarController {
 
     /// The footer's name label as if the pointer were on `space`'s icon.
     public func debugHoverSpaceIcon(_ space: UUID?) { footer.debugHover(space) }
-
-    /// The space form on screen, as Edit Theme… or New Space shows it.
-    public func debugShowSpaceForm(edit space: UUID?) {
-        if let space { editSpace(space, focus: .theme) } else { newSpace() }
-    }
-
-    public func debugDismissSpaceForm() { dismissSpaceForm(animated: false) }
 
     public var debugOutline: NSOutlineView { outline }
 

@@ -114,6 +114,7 @@ enum SpikeRunner {
         case "importlarge": await context.importLargeChecks()
         case "settings": await context.settingsChecks()
         case "profiles": await context.profilesChecks()
+        case "spacewindow": await context.spaceWindowChecks()
         case "showcase": await context.showcase()
         case "a11y": await context.accessibilityAuditSpike()
         case "keyboard": await context.keyboardChecks()

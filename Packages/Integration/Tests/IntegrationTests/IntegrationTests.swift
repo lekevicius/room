@@ -39,42 +39,79 @@ struct URLInboxTests {
     }
 }
 
-@Suite("First run (ROADMAP 2.8 task 4)")
-struct FirstRunTests {
+@Suite("Onboarding (5.7b, B-121)")
+struct OnboardingTests {
     final class Box {
         var settings = Settings()
-        lazy var firstRun = FirstRun(read: { self.settings }, write: { body in body(&self.settings) })
+        var writes = 0
+        lazy var onboarding = Onboarding(read: { self.settings }, write: { body in self.writes += 1; body(&self.settings) })
     }
 
-    @Test("A new profile shows the card with both opt-ins off; Done records it once")
-    func showsOnce() {
+    @Test("It shows on a first launch only: a new state, never one that finished or skipped it (or the card before it)")
+    func showsAtLaunch() {
+        var settings = Settings()
+        #expect(Onboarding.showsAtLaunch(settings))
+        settings.firstRunDone = true
+        #expect(!Onboarding.showsAtLaunch(settings))
+    }
+
+    @Test("Skip at any step writes that it is done and nothing else: the opt-ins stay off, the engine and appearance as they were",
+          arguments: Onboarding.Step.allCases)
+    func skipWritesOnlyDone(at step: Onboarding.Step) {
         let box = Box()
-        #expect(box.firstRun.isShowing)
-        #expect(!box.firstRun.crashReports && !box.firstRun.automaticUpdateChecks)
-        box.firstRun.finish()
-        #expect(!box.firstRun.isShowing && box.settings.firstRunDone)
-        // Declining is the default: finishing without a choice leaves both off.
+        for _ in 0..<step.rawValue { box.onboarding.next() }
+        #expect(box.onboarding.step == step && box.writes == 0)
+        let before = box.settings
+        box.onboarding.skip()
+        #expect(box.onboarding.ending == .skipped(at: step))
+        #expect(box.settings.firstRunDone && box.writes == 1)
+        var expected = before
+        expected.firstRunDone = true
+        #expect(box.settings == expected)
+        #expect(!box.settings.crashReports && !box.settings.automaticUpdateChecks)
+        #expect(!Onboarding.showsAtLaunch(box.settings))
+        // Ended: nothing moves it on.
+        box.onboarding.next()
+        #expect(box.onboarding.ending == .skipped(at: step) && box.writes == 1)
+    }
+
+    @Test("Continue without a choice skips a step; past the last it is finished and done")
+    func continueToTheEnd() {
+        let box = Box()
+        #expect(box.onboarding.isFirst)
+        for expected in Onboarding.Step.allCases.dropFirst() {
+            box.onboarding.next()
+            #expect(box.onboarding.step == expected && box.onboarding.ending == nil)
+        }
+        #expect(box.onboarding.isLast && !box.settings.firstRunDone)
+        box.onboarding.next()
+        #expect(box.onboarding.ending == .finished && box.settings.firstRunDone)
         #expect(!box.settings.crashReports && !box.settings.automaticUpdateChecks)
     }
 
-    @Test("Choices are written as they are made, to the fields the palette and the services read")
+    @Test("Choices are written as they are made: closing halfway keeps them, and the next launch shows it again")
     func choices() {
         let box = Box()
-        box.firstRun.searchEngine = "duckduckgo"
-        box.firstRun.crashReports = true
-        box.firstRun.automaticUpdateChecks = true
+        box.onboarding.searchEngine = "duckduckgo"
+        box.onboarding.crashReports = true
+        box.onboarding.automaticUpdateChecks = true
+        box.onboarding.appearance = .dark
         #expect(box.settings.searchEngine == "duckduckgo" && box.settings.crashReports && box.settings.automaticUpdateChecks)
-        // Not finished: the card is still there next launch, with the choices kept.
-        #expect(box.firstRun.isShowing)
+        #expect(box.settings.appearance == .dark)
+        #expect(Onboarding.showsAtLaunch(box.settings))
     }
 
-    @Test("Settings brings the card back with the current choices")
-    func showAgain() {
+    @Test("From the Help menu it starts at the welcome with the current choices, and leaves done alone until it ends")
+    func restart() {
         let box = Box()
-        box.firstRun.crashReports = true
-        box.firstRun.finish()
-        box.firstRun.showAgain()
-        #expect(box.firstRun.isShowing && box.firstRun.crashReports)
+        box.onboarding.crashReports = true
+        box.onboarding.next()
+        box.onboarding.skip()
+        box.onboarding.restart()
+        #expect(box.onboarding.step == .welcome && box.onboarding.ending == nil)
+        #expect(box.settings.firstRunDone && box.onboarding.crashReports)
+        box.onboarding.back()
+        #expect(box.onboarding.step == .welcome)
     }
 }
 

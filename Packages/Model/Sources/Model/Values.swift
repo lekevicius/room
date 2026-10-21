@@ -449,8 +449,8 @@ public struct Settings: Hashable, Sendable, Codable {
     public var peekOffSiteLinks: Bool = true
     /// Appearance ▸ Appearance: follow the system, or always light or dark (Settings v0).
     public var appearance: AppearanceSetting = .system
-    /// The first-run card in the sidebar (search engine, default browser,
-    /// the two opt-ins) was finished; Settings ▸ General shows it again (ROADMAP 2.8 task 4).
+    /// Onboarding (5.7b, B-121; Chapter 2's first-run card before it) was finished or skipped:
+    /// it no longer shows at launch; Help ▸ Welcome to Room… shows it again.
     public var firstRunDone: Bool = false
     /// Crash reports to Sentry: off unless the user turns it on (first run or
     /// Settings ▸ Privacy); while off the SDK is never started (ROADMAP 2.8 task 5).

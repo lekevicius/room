@@ -233,7 +233,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Hover name | `Typography.secondary`, secondary label colour, right of the icon row, fades over `Motion.fast` | spec §B |
 | `SpaceIconMetrics.reorderThreshold` | 5 pt of travel turns a press on an icon into a reorder drag, haptic `.alignment` per slot | Zen (>5 px) |
 | Drop on a space icon | `Palette.sidebarMultiSelection` circle behind the icon; resting `DropRules.holdDelay` (0.5 s) switches to the space | spec §B / ROADMAP 2.5 task 5 (500 ms) |
-| Swipe | 25% of the list width or a fling (progress + 0.5 × velocity in widths/s) switches; before the first space a rubber band bounded at 0.15 widths; past the last the new-space form; axis locks horizontal when the first movement is 1.5× more horizontal | spec §B, Zen (`threshold 0.25`, `velocity 0.5`); band limit and lock ratio chosen |
+| Swipe | 25% of the list width or a fling (progress + 0.5 × velocity in widths/s) switches; before the first space a rubber band bounded at 0.15 widths; past the last the new-space form (5.7b: a rubber band too, and a release past the threshold opens the space window for a new space); axis locks horizontal when the first movement is 1.5× more horizontal | spec §B, Zen (`threshold 0.25`, `velocity 0.5`); band limit and lock ratio chosen |
 | ⌃ + wheel | one space per notch (down = next), 200 ms cooldown; trackpad ⌃-scroll counts 30 pt as a notch | Zen `scroll-modifier-key`, cooldown 200 ms; trackpad step chosen |
 | `SpaceFormMetrics.padding` / `iconCell` / `previewHeight` | 12 / 26 / 18 pt | chosen |
 | Space form icons | 24 SF Symbols and 24 emoji, any emoji typed in its field | chosen |
@@ -321,9 +321,9 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 
 | Token | Value | Provenance |
 |---|---|---|
-| First-run card (`FirstRunCardView`) | in the sidebar above the footer (`SidebarBodyView.accessoryView`), the rows' width (6 pt inset each side); fill `Palette.sidebarSelection`, corner `FirstRunMetrics.cornerRadius` = `Radius.medium` (10, the selection pill's), continuous; shadow `Palette.cardShadow` at 0.08, radius 3, 1 pt down | `macos-ui-stack.md` §7.4 ("an in-sidebar card, never a modal"); look chosen: one of the sidebar's own surfaces |
-| `FirstRunMetrics.padding` / `rowSpacing` | 12 / 8 pt | chosen (the overlays' 12 pt) |
-| `FirstRunMetrics.gapAboveFooter` / `gapAboveList` | 4 / 8 pt; the list ends above the card | chosen |
+| ~~First-run card (`FirstRunCardView`)~~ (removed in 5.7b: onboarding's window, below) | in the sidebar above the footer (`SidebarBodyView.accessoryView`), the rows' width (6 pt inset each side); fill `Palette.sidebarSelection`, corner `FirstRunMetrics.cornerRadius` = `Radius.medium` (10, the selection pill's), continuous; shadow `Palette.cardShadow` at 0.08, radius 3, 1 pt down | `macos-ui-stack.md` §7.4 ("an in-sidebar card, never a modal"); look chosen: one of the sidebar's own surfaces |
+| ~~`FirstRunMetrics.padding` / `rowSpacing`~~ | ~~12 / 8 pt~~ (removed in 5.7b) | chosen (the overlays' 12 pt) |
+| ~~`FirstRunMetrics.gapAboveFooter` / `gapAboveList`~~ | ~~4 / 8 pt~~ (removed in 5.7b with `SidebarBodyView.accessoryView`) | chosen |
 | Card content | SwiftUI leaf, `.controlSize(.small)`: title `.headline`, caption `.caption` secondary; Search with (menu picker), Make Room Your Default Browser (or a check and "Room is your default browser"), two checkboxes with a one-line note, Done trailing (no default-button key: Return belongs to the fields) | chosen |
 | Card dismissal | fades out over `Motion.fast` (0.12 s), then the list takes the space | chosen |
 | Settings ▸ Privacy | symbol `hand.raised`; "Send crash reports", "Check for updates automatically", Check Now beside the version | chosen (system settings conventions) |
@@ -565,3 +565,13 @@ What the in-process options do not reach: AppKit's own colours (`labelColor`, `s
 | `SitePermissionsMetrics` | 640 × 420 pt, the types column 200 pt (Safari's Websites layout) | B-120; chosen |
 | `ShortcutsSettingsMetrics.margin` | 20 pt around the table, 12 pt between the lines; a bordered full-width table; no ◆ (a reserved action's tooltip) | B-120 |
 | Archive tabs after | 12 h, 24 h, 7 d, 30 d, — , Never (the default) | B-120 |
+
+## Added in Phase 5.7b (the space window, onboarding)
+
+| Token | Value | Provenance |
+|---|---|---|
+| `SpaceWindowMetrics.width` / `height` / `minHeight` | 420 / 640 / 360 pt, fitted inside the display's visible frame less `screenMargin` (`Spacing.s`, 8) and centred over the browser window; resizable, the sections scroll, Cancel and Save/Create stay at the bottom | B-122; chosen |
+| The space window's form | `SpaceFormView` (the sidebar's form moved into the window): Name, Icon, Colour (wells, algorithm, `TintOpacityControl`, the preview), Profile, then Routes (this space's rules: a checkbox each, ⊖, a match popup and pattern field with Add, "All Rules…" for the routing sheet); `SpaceFormMetrics` unchanged | B-122 |
+| `OnboardingMetrics.width` / `height` | 560 × 440 pt, a panel (`NSPanel`, key, never main) centred over the browser window; its import step orders it out while the import sheet (580 × 760, larger than the panel) shows on the browser window, and back after | B-121; chosen |
+| `OnboardingMetrics.padding` / `symbolSize` / `dotSize` / `swatchSize` | 24 / 40 / 6 / 28 pt; the step's SF Symbol in the accent colour, title `.title` bold, the line `.body` secondary centred; step dots primary (current) or secondary at 0.35; Skip Setup leading, Back and Continue / Done (Return) trailing | chosen |
+| `OnboardingMetrics.themeSwatches` | none, `#1E88E5`, `#3E9B5B`, `#E53935`, `#8E24AA`, `#FB8C00`, `#546E7A` (the space's algorithm extends the base colour); the chosen one ringed in primary at `swatchRingWidth` 2 pt; the none swatch secondary at `emptySwatchAlpha` 0.15; inactive dots at `inactiveDotAlpha` 0.35 | chosen |

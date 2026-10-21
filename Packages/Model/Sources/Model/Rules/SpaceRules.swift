@@ -101,7 +101,7 @@ public enum SwipeRules {
         case stay
         /// To the space `offset` steps away (+1 = the next, to the right).
         case switchTo(offset: Int)
-        /// Past the last space: the new-space form.
+        /// Past the last space: the space window for a new space.
         case newSpace
     }
 
@@ -118,14 +118,17 @@ public enum SwipeRules {
     }
 
     /// The displayed offset (sidebar widths) for a finger offset `progress`:
-    /// one-to-one towards a neighbour, damped past the first space (rubber
-    /// band, approaching `rubberBandLimit`); past the last space it follows
-    /// the fingers, the form sliding in.
+    /// one-to-one towards a neighbour, damped past either end (rubber band,
+    /// approaching `rubberBandLimit`; past the last space the release opens
+    /// the space window for a new space, 5.7b: no form slides in).
     public static func displayedProgress(_ progress: Double, index: Int, count: Int) -> Double {
         let clamped = min(max(progress, -1), 1)
-        guard clamped < 0, index == 0 else { return clamped }
+        let pastFirst = clamped < 0 && index == 0
+        let pastLast = clamped > 0 && index >= count - 1
+        guard pastFirst || pastLast else { return clamped }
         // An end: x → limit × (1 − 1 / (1 + x / limit)), smooth and bounded.
-        let stretch = -clamped
-        return -rubberBandLimit * (1 - 1 / (1 + stretch / rubberBandLimit))
+        let stretch = abs(clamped)
+        let damped = rubberBandLimit * (1 - 1 / (1 + stretch / rubberBandLimit))
+        return clamped < 0 ? -damped : damped
     }
 }
