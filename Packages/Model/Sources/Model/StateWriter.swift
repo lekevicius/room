@@ -183,11 +183,13 @@ public struct StateSnapshot: Codable, Sendable, Equatable {
         // snapshot: it is rewritten after every commit, and the states made a
         // 500-entry snapshot 5.66 MB (B-73). A recovery from the snapshot
         // starts with an empty Archive and no back/forward lists; the database
-        // backups (`RoomBackups`, 4.1b) keep both.
-        var state = state.canonical()
+        // backups (`RoomBackups`, 4.1b) keep both. Both go before the sort:
+        // sorting the Archive only to drop it was most of every write
+        // (5.4a, B-80: 7.6 of 8.2 ms with 1,500 rows, 98 of 99 ms with 18,000).
+        var state = state
         state.archive = []
         for index in state.entries.indices { state.entries[index].navigationState = nil }
-        return try encoder.encode(StateSnapshot(generation: generation, state: state))
+        return try encoder.encode(StateSnapshot(generation: generation, state: state.canonical()))
     }
 
     public static func read(from url: URL) throws -> StateSnapshot {
