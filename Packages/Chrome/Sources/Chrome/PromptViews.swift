@@ -784,15 +784,22 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         popover.delegate = self
         shownPasswordOffer = (id, popover)
         show(popover, in: host)
-        popover.contentViewController?.view.window?.makeFirstResponder(popover.contentViewController?.view)
+        // The keyboard in the popover: Return saves, Esc answers Not Now (the page has it back when it closes).
+        if let content = popover.contentViewController?.view, let popoverWindow = content.window {
+            popoverWindow.makeKey()
+            popoverWindow.makeFirstResponder(content)
+        }
     }
 
     private func show(_ popover: NSPopover, in host: NSView) {
         if let anchor = permissionAnchor(), anchor.view.window != nil {
             popover.show(relativeTo: anchor.rect, of: anchor.view, preferredEdge: .maxY)
         } else {
-            // No header (hidden sidebar): the card's top-left corner.
-            let corner = NSRect(x: 12, y: host.isFlipped ? 0 : host.bounds.height - 1, width: 24, height: 1)
+            // No header (hidden sidebar): the card's top-left corner. The rect spans the content's
+            // width, so the popover (centred on it) stays inside the card instead of hanging past
+            // the window's left edge (5.8a's capture).
+            let width = max(24, popover.contentViewController?.view.fittingSize.width ?? 24)
+            let corner = NSRect(x: 12, y: host.isFlipped ? 0 : host.bounds.height - 1, width: min(width, max(24, host.bounds.width - 24)), height: 1)
             popover.show(relativeTo: corner, of: host, preferredEdge: host.isFlipped ? .maxY : .minY)
         }
     }
