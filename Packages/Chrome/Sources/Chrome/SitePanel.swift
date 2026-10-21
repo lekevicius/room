@@ -320,7 +320,7 @@ public final class SitePanel: NSObject, NSPopoverDelegate {
         close()
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = !Motion.reduceMotion
+        popover.animates = ChromeMotion.popover.animates
         let controller = NSHostingController(rootView: SitePanelView(model: model))
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller

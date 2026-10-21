@@ -149,7 +149,7 @@ final class PalettePanelView: NSView {
         fade.fromValue = 0
         fade.toValue = 1
         var animations: [CAAnimation] = [fade]
-        if !Motion.reduceMotion {
+        if PaletteMotion.open.variant == .full {
             // The view's layer scales about its origin; the translation keeps the scale centred.
             let scale = PaletteMetrics.openScale
             let size = bounds.size

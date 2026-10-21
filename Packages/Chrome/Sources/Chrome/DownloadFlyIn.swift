@@ -26,7 +26,7 @@ public enum DownloadFlyIn {
     /// `end` (both in `view`'s coordinates); `completion` when it lands. No
     /// flight under Reduce Motion.
     public static func run(image: NSImage, from start: NSPoint, to end: NSPoint, in view: NSView, completion: @escaping () -> Void) {
-        guard !Motion.reduceMotion else { return completion() }
+        guard ChromeMotion.downloadFlyIn.animates else { return completion() }
         let overlay = FlightView(frame: view.bounds)
         view.addSubview(overlay, positioned: .above, relativeTo: nil)
         guard let layer = overlay.layer else {

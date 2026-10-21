@@ -33,10 +33,13 @@ public final class DownloadsButton: NSView {
             shape.lineWidth = DownloadsMetrics.ringWidth
             shape.lineCap = .round
             shape.isHidden = true
+            // Only explicit animations (5.1b: the motion harness found the implicit 0.25 s ones).
+            shape.actions = CALayer.noImplicitActions.merging(["strokeEnd": NSNull()]) { $1 }
             layer?.addSublayer(shape)
         }
         ring.strokeEnd = 0
         badgeBackground.isHidden = true
+        badgeBackground.actions = CALayer.noImplicitActions
         layer?.addSublayer(badgeBackground)
         badge.font = .systemFont(ofSize: 9, weight: .semibold)
         badge.textColor = .white
@@ -81,32 +84,29 @@ public final class DownloadsButton: NSView {
     /// The spring bounce on completion (spec §F: 0.5 s); a fade under Reduce Motion.
     public func bounce() {
         guard let layer else { return }
-        if Motion.reduceMotion {
+        switch ChromeMotion.downloadBounce.variant {
+        case .full:
+            // About the centre whatever the layer's anchor (AppKit's is the origin), as the press.
+            let spring = Motion.toast.animation(keyPath: "transform")
+            spring.fromValue = NSValue(caTransform3D: ControlFeedback.centredScale(DownloadsMetrics.bounceScale, in: layer))
+            spring.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+            spring.initialVelocity = 8
+            layer.add(spring, forKey: "bounce")
+        case .crossfade:
             let fade = CABasicAnimation(keyPath: "opacity")
-            fade.fromValue = 0.4
+            fade.fromValue = DownloadsMetrics.bounceReducedAlpha
             fade.toValue = 1
             fade.duration = Motion.medium
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
             layer.add(fade, forKey: "bounce")
-            return
+        case .instant:
+            break
         }
-        centreAnchor()
-        let spring = Motion.toast.animation(keyPath: "transform.scale")
-        spring.fromValue = DownloadsMetrics.bounceScale
-        spring.toValue = 1
-        spring.initialVelocity = 8
-        layer.add(spring, forKey: "bounce")
     }
 
     /// The point downloads fly to, in `view`'s coordinates.
     public func target(in view: NSView) -> NSPoint {
         convert(NSPoint(x: bounds.midX, y: bounds.midY), to: view)
-    }
-
-    private func centreAnchor() {
-        guard let layer, layer.anchorPoint != CGPoint(x: 0.5, y: 0.5) else { return }
-        let frame = layer.frame
-        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        layer.frame = frame
     }
 
     private func updateRing(animated: Bool) {
@@ -124,7 +124,7 @@ public final class DownloadsButton: NSView {
         CATransaction.setDisableActions(!animated)
         if progress < 0 {
             ring.strokeEnd = 0.25
-            if ring.animation(forKey: "spin") == nil {
+            if ring.animation(forKey: "spin") == nil, ChromeMotion.downloadSpinner.animates {
                 let spin = CABasicAnimation(keyPath: "transform.rotation.z")
                 spin.fromValue = 0
                 spin.toValue = -2 * Double.pi
@@ -134,7 +134,16 @@ public final class DownloadsButton: NSView {
             }
         } else {
             ring.removeAnimation(forKey: "spin")
+            let from = ring.presentation()?.strokeEnd ?? ring.strokeEnd
             ring.strokeEnd = max(0.02, progress)
+            if animated, ChromeMotion.downloadProgress.animates {
+                let grow = CABasicAnimation(keyPath: "strokeEnd")
+                grow.fromValue = from
+                grow.toValue = ring.strokeEnd
+                grow.duration = Motion.medium
+                grow.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                ring.add(grow, forKey: "progress")
+            }
         }
         CATransaction.commit()
         setAccessibilityValue(progress < 0 ? "Downloading" : "\(Int(progress * 100))%")
@@ -170,19 +179,6 @@ public final class DownloadsButton: NSView {
 
     // MARK: Mouse
 
-    public override func mouseDown(with event: NSEvent) {
-        pressed = true
-        feedback.setPressed(true)
-    }
-
-    public override func mouseDragged(with event: NSEvent) {
-        feedback.setPressed(pressed && bounds.contains(convert(event.locationInWindow, from: nil)))
-    }
-
-    public override func mouseUp(with event: NSEvent) {
-        feedback.setPressed(false)
-        defer { pressed = false }
-        guard pressed, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
     public override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
@@ -203,6 +199,19 @@ public final class DownloadsButton: NSView {
         feedback.appearanceChanged()
     }
 
+    public override func mouseDown(with event: NSEvent) {
+        pressed = true
+        feedback.setPressed(true)
+    }
+
+    public override func mouseDragged(with event: NSEvent) {
+        feedback.setPressed(pressed && bounds.contains(convert(event.locationInWindow, from: nil)))
+    }
+
+    public override func mouseUp(with event: NSEvent) {
+        feedback.setPressed(false)
+        defer { pressed = false }
+        guard pressed, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         onClick?()
     }
 
@@ -244,7 +253,7 @@ public final class DownloadsPopover: NSObject, NSPopoverDelegate {
         guard view.window != nil else { return }
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = !Motion.reduceMotion
+        popover.animates = ChromeMotion.popover.animates
         popover.contentViewController = DownloadsViewController(list: list)
         popover.delegate = self
         self.popover = popover
@@ -268,6 +277,8 @@ public enum DownloadsMetrics {
     public static let ringInset: CGFloat = 4
     public static let badgeHeight: CGFloat = 13
     public static let bounceScale: CGFloat = 1.3
+    /// Reduce Motion: the bounce is a fade from this alpha (`Motion.medium`).
+    public static let bounceReducedAlpha: CGFloat = 0.4
     /// The popover's list (chosen) and the rows' icon.
     public static let popoverWidth: CGFloat = 320
     public static let rowIconSize: CGFloat = 32

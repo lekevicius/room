@@ -54,7 +54,7 @@ final class PeekPresenter: PeekDisplay {
             CATransaction.setCompletionBlock { [weak self] in self?.onPresented?() }
         } else if previous != nil {
             onFocus?(nil, nil)
-            if animated, !Motion.reduceMotion {
+            if animated, CardMotion.peekClose.animates {
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = Motion.fast
                     overlay.animator().alphaValue = 0
@@ -97,9 +97,11 @@ final class PeekPresenter: PeekDisplay {
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 0
         fade.toValue = 1
-        fade.duration = Motion.reduceMotion ? Motion.medium : Motion.fast
+        let variant = CardMotion.peekOpen.variant
+        guard variant != .instant else { return }
+        fade.duration = variant == .full ? Motion.fast : Motion.medium
         overlay.dim.layer?.add(fade, forKey: "peek-open")
-        if Motion.reduceMotion {
+        if variant == .crossfade {
             layer.add(fade, forKey: "peek-open")
             return
         }

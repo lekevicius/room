@@ -75,17 +75,19 @@ public final class ToastCenter: ToastPresenting {
     }
 
     private func apply(_ event: ToastQueue.Event) {
-        let reduceMotion = Motion.reduceMotion
+        // The transitions read these (Motion.preferences, not SwiftUI's own environment value).
+        model.inVariant = ChromeMotion.toastIn.variant
+        model.outVariant = ChromeMotion.toastOut.variant
         switch event {
         case .appear, .replace(_, false):
             generation += 1
             let content = queue.current.map { ToastContent($0, generation: generation) }
-            withAnimation(reduceMotion ? .easeInOut(duration: Motion.fast) : Motion.toast.swiftUI) {
+            withAnimation(model.inVariant == .full ? Motion.toast.swiftUI : .easeInOut(duration: Motion.fast)) {
                 model.content = content
             }
         case .replace(_, true):
             model.content = queue.current.map { ToastContent($0, generation: generation) }
-            if !reduceMotion { model.pops += 1 }
+            if ChromeMotion.toastPop.animates { model.pops += 1 }
         case .dismiss:
             withAnimation(.easeOut(duration: Motion.toastOut)) { model.content = nil }
         }
@@ -117,6 +119,9 @@ final class ToastModel {
     var content: ToastContent?
     var alignment: ToastCenter.Anchor.Alignment = .center
     var pops = 0
+    /// The in and out transitions' variants (`ChromeMotion`), set before each change.
+    var inVariant = MotionVariant.full
+    var outVariant = MotionVariant.full
     /// The toast's frame in the hosting view (for hit testing).
     var toastFrame: CGRect = .zero
     @ObservationIgnored var onHover: ((Bool) -> Void)?
@@ -140,7 +145,15 @@ final class ToastHostingView: NSHostingView<ToastOverlay> {
 
 struct ToastOverlay: View {
     let model: ToastModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Spec §F: springs in rising and growing, leaves fading and shrinking; Reduce Motion fades both ways.
+    private var transition: AnyTransition {
+        let insertion: AnyTransition = model.inVariant == .full
+            ? .scale(scale: Motion.toastInScale).combined(with: .opacity).combined(with: .offset(y: Motion.toastInOffset))
+            : .opacity
+        let removal: AnyTransition = model.outVariant == .full ? .scale(scale: Motion.toastOutScale).combined(with: .opacity) : .opacity
+        return .asymmetric(insertion: insertion, removal: removal)
+    }
 
     var body: some View {
         VStack {
@@ -152,14 +165,11 @@ struct ToastOverlay: View {
                     .keyframeAnimator(initialValue: 1.0, trigger: model.pops) { view, scale in
                         view.scaleEffect(scale)
                     } keyframes: { _ in
-                        SpringKeyframe(1.06, duration: 0.12)
-                        SpringKeyframe(1.0, duration: 0.25)
+                        SpringKeyframe(Motion.toastPopScale, duration: Motion.toastPopUp)
+                        SpringKeyframe(1.0, duration: Motion.toastPopDown)
                     }
                     .id(content.id)
-                    .transition(reduceMotion
-                        ? .opacity
-                        : .asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .offset(y: 12)),
-                                      removal: .scale(scale: 0.95).combined(with: .opacity)))
+                    .transition(transition)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: model.alignment == .center ? .bottom : .bottomLeading)

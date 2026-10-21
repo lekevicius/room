@@ -698,7 +698,7 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         host.addSubview(overlay)
         shownDialog = (id, overlay)
         overlay.layoutSubtreeIfNeeded()
-        if !Motion.reduceMotion, overlay.window != nil {
+        if ChromeMotion.promptFade.animates, overlay.window != nil {
             overlay.alphaValue = 0
             NSAnimationContext.runAnimationGroup { $0.duration = Motion.fast; overlay.animator().alphaValue = 1 }
         }
@@ -722,6 +722,7 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         }
         let popover = NSPopover()
         popover.behavior = .transient
+        popover.animates = ChromeMotion.popover.animates
         popover.contentViewController = controller
         popover.delegate = self
         shownPermission = (id, popover)

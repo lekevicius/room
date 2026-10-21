@@ -283,7 +283,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         self.overlay = nil
         defer { onClose?() }
         let window = overlay.window
-        if Motion.reduceMotion || window == nil {
+        if PaletteMotion.close.variant == .instant || window == nil {
             hideIfClosed(overlay)
         } else {
             NSAnimationContext.runAnimationGroup { context in

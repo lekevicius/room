@@ -171,6 +171,7 @@ final class SplitView: NSView {
         let count = SplitGeometry.dividers(in: bounds, layout: layoutKind, count: panes.count, ratios: ratios).count
         while lines.count < count {
             let line = CALayer()
+            line.actions = CALayer.noImplicitActions
             layer?.addSublayer(line)
             lines.append(line)
             let resizer = SplitResizerView()
@@ -257,6 +258,7 @@ final class SplitPaneView: NSView {
         header.isHidden = true
         addSubview(header)
         highlight.isHidden = true
+        highlight.actions = CALayer.noImplicitActions
         highlight.borderWidth = 2
         layer?.addSublayer(highlight)
     }
@@ -342,7 +344,7 @@ final class SplitPaneView: NSView {
         guard header.isHidden == shown else { return }
         header.isHidden = false
         let fade = { (alpha: CGFloat) in
-            if animated, !Motion.reduceMotion {
+            if animated, CardMotion.paneHeader.animates {
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = Motion.fast
                     self.header.animator().alphaValue = alpha
@@ -495,6 +497,8 @@ final class SplitDropOverlayView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         preview.isHidden = true
+        // Only its frame moves (`CardMotion.dropPreview`), in the drag's own transaction.
+        preview.actions = ["hidden": NSNull(), "backgroundColor": NSNull(), "borderColor": NSNull(), "opacity": NSNull()]
         preview.borderWidth = 2
         preview.cornerRadius = Radius.medium
         preview.cornerCurve = .continuous
@@ -531,6 +535,8 @@ final class SplitDropOverlayView: NSView {
         }
         CATransaction.begin()
         CATransaction.setAnimationDuration(Motion.fast)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
+        CATransaction.setDisableActions(!CardMotion.dropPreview.animates)
         effectiveAppearance.performAsCurrentDrawingAppearance {
             preview.borderColor = NSColor.controlAccentColor.cgColor
             preview.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(SplitMetrics.dropPreviewAlpha).cgColor

@@ -46,6 +46,8 @@ public final class TabSwitcher {
     private weak var tabs: TabController?
     private var state: TabSwitcherState?
     private var panel: TabSwitcherPanel?
+    /// The list, kept between shows (building its glass cost ~20 ms per show, 5.1b's harness).
+    private var builtPanel: TabSwitcherPanel?
     private var monitor: Any?
     private var pendingShow: DispatchWorkItem?
 
@@ -123,7 +125,7 @@ public final class TabSwitcher {
         pendingShow?.cancel()
         pendingShow = nil
         state = nil
-        panel?.removeFromSuperview()
+        panel?.isHidden = true
         panel = nil
     }
 
@@ -137,8 +139,12 @@ public final class TabSwitcher {
 
     private func showPanel() {
         guard state != nil, panel == nil, let hostView else { return }
-        let panel = TabSwitcherPanel()
-        hostView.addSubview(panel, positioned: .above, relativeTo: nil)
+        let panel = builtPanel ?? TabSwitcherPanel()
+        builtPanel = panel
+        if panel.superview !== hostView || hostView.subviews.last !== panel {
+            hostView.addSubview(panel, positioned: .above, relativeTo: nil)
+        }
+        panel.isHidden = false
         self.panel = panel
         update()
     }
@@ -148,6 +154,15 @@ public final class TabSwitcher {
         let rows = state.items.compactMap { id -> TabSwitcherPanel.Row? in
             guard let entry = sidebar.store.sidebar.entry(id) else { return nil }
             let page = tabs.pageState(for: id)
+        // Explicit: a view added in this transaction has no presentation for `animator()` to start from.
+        if TabsMotion.switcherAppear.variant != .instant, let layer = panel.layer {
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            fade.duration = Motion.fast
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(fade, forKey: "appear")
+        }
             return TabSwitcherPanel.Row(title: EntryLabel.title(entry), domain: EntryLabel.domain(entry.currentURL) ?? "",
                                         favicon: page.favicon, isLoaded: page.isLoaded)
         }
@@ -181,6 +196,7 @@ final class TabSwitcherPanel: NSView {
         stack.spacing = 0
         stack.edgeInsets = NSEdgeInsets(top: TabSwitcherMetrics.padding, left: TabSwitcherMetrics.padding,
                                         bottom: TabSwitcherMetrics.padding, right: TabSwitcherMetrics.padding)
+        wantsLayer = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
