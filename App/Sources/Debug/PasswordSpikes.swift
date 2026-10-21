@@ -368,6 +368,9 @@ extension SpikeRunner.Context {
     }
 
     private func signIn(_ page: any WebContents, _ user: String, _ password: String) async {
+        // Other processes on the machine may take the focus between steps (5.8e: a grand tour
+        // beside this run): Room active again before typing, so the page has the keyboard.
+        if !NSApp.isActive || !window.isKeyWindow { await activate() }
         await fill(page, "#username", user)
         await fill(page, "#password", password)
         await click(page, "#submit")
@@ -456,6 +459,7 @@ extension SpikeRunner.Context {
                 await self.signIn(page, user, "secret-\(user)")
             }
             await waitLoaded(page)
+            SpikeRunner.record("\(step)_secure_page", "title=\(page.title ?? "nil")")
             guard let bubble else { continue }
             guard bubble === hostOfferWindow else {
                 SpikeRunner.record("\(step)_secure_answer", "chrome's bubble, not answered (surface=chrome)")
@@ -479,6 +483,7 @@ extension SpikeRunner.Context {
             let onLoad = await values(page, ["username", "password"])
             SpikeRunner.record("fill_\(name)_on_load", "username=\(onLoad["username"] ?? "nil") password_length=\(onLoad["password"]?.count ?? -1)")
             let field = await fieldScreenRect(page, "#username")
+            if !NSApp.isActive || !window.isKeyWindow { await activate() }  // as in signIn
             let before = chromeWindowIDs
             let start = ContinuousClock.now
             await click(page, "#username")
