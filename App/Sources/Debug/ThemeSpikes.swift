@@ -218,6 +218,12 @@ extension SpikeRunner.Context {
         await activate()
         try? await Task.sleep(for: .milliseconds(800))
         if only.contains("inactive") { return await inactiveChecks() }
+        // `-RoomContrastInactive YES`: the same table for an inactive window (its content at
+        // `SidebarMetrics.inactiveContentAlpha`, the tint fainter): a record, the rule is the active window's.
+        if UserDefaults.standard.bool(forKey: "RoomContrastInactive") {
+            controller.activityOverride = false
+            SpikeRunner.record("contrast_activity", "inactive")
+        }
 
         // The fixture behind the window: borderless, the same frame, ordered just below it.
         let fixture = NSWindow(contentRect: window.frame, styleMask: .borderless, backing: .buffered, defer: false)
