@@ -202,11 +202,37 @@ struct MenuTableTests {
         for item in bare.items { item.target = target }
         #expect(!bare.performKeyEquivalent(with: event))
     }
+
+    @Test("B-152: ⌃digit selects its space, never the Focus Pane item drawn as ⌃⇧digit")
+    func controlDigitSelectsSpace() throws {
+        let menu = MainMenuBuilder.make(MainMenuTable.menus(), appTarget: nil)
+        _ = NSApplication.shared
+        let target = KeyTarget()
+        func walk(_ menu: NSMenu) {
+            for item in menu.items {
+                item.target = target
+                if let submenu = item.submenu { walk(submenu) }
+            }
+        }
+        walk(menu)
+        // ⌃2 and ⌃⇧2 on the US layout (key code 19): ⌃⇧2 types "@".
+        for (characters, flags, expected) in [("2", NSEvent.ModifierFlags.control, "space 2"), ("@", [.control, .shift], "pane 2")] {
+            target.received = []
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0,
+                                                      context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                                                      isARepeat: false, keyCode: 19))
+            #expect(menu.performKeyEquivalent(with: event))
+            #expect(target.received == [expected], "\(characters)")
+        }
+    }
 }
 
 /// Records the tags of the items it receives (B-37's key match).
 @MainActor
 final class KeyTarget: NSObject {
     var tags: [Int] = []
+    var received: [String] = []
     @objc func selectAdjacentTab(_ sender: NSMenuItem) { tags.append(sender.tag) }
+    @objc func selectSpaceByNumber(_ sender: NSMenuItem) { received.append("space \(sender.tag)") }
+    @objc func focusSplitPane(_ sender: NSMenuItem) { received.append("pane \(sender.tag)") }
 }

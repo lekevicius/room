@@ -4362,7 +4362,7 @@ No window: the last window closed, 0 Room windows after 2 s, the app still runni
 | State open on the 50k state | 11.9–12.1 ms (3.9-1) | not rerun (no schema change since v6 that touches it); the 50-entry state 5.2 ms | — | — |
 | Palette at 50k rows: first key median; later keys p95 | 21.75; 9.79 ms (tour) | **22.05; 12.59 ms** (`palettemeasure`, suggestions off) | the user's (B-20) | later keys under 16 ms: passed |
 | Palette open: our code; to next frame | 2.23; 3.74 ms (tour) | **3.29; 6.41 ms** median (n = 40) | — | recorded |
-| Space switch, ⌃digit → first frame, median / p95 | 14.90 / 20.49 ms (tour) | **not measured: 59 of 60 ⌃digit switches missed** (n = 1: 16.3–28.4 ms) in five runs, dev on 155 too: a host regression since 2026-10-07 (B-152) | the user's (B-21) | B-152 first |
+| Space switch, ⌃digit → first frame, median / p95 | 14.90 / 20.49 ms (tour) | **18.00 / 32.14 ms** (n = 60, 0 missed; B-152 fixed 2026-10-22, the release framework on 156; dev on 155 17.80 / 31.25); before the fix 59 of 60 missed in five runs | the user's (B-21) | recorded (B-21's 120 Hz run is the user's) |
 | Split created → laid out; → next frame | 4.76; 11.45 ms (tour) | **17.80; 28.76 ms** median (n = 6, both pages loaded before) | — | recorded |
 | Find, keystroke → match | 19 / 31 ms median, p95 426 ms | **11.40 ms** median, p95 413 ms (Chromium's delay for 1–3 characters) | — | recorded |
 | DevTools ⌥⌘I → front-end loaded | 331 / 334 ms | **330 ms** median (n = 4) | — | recorded |
@@ -4376,7 +4376,22 @@ No window: the last window closed, 0 Room windows after 2 s, the app still runni
 | Suggestions on, requests for three queries | 34 / 34 | **not measured**: the tour's shared state has suggestions off (5.5a's spikes store the setting; `suggeston` and `netlog`'s default check read it): B-153 | — | B-153 |
 | Bundle | Room.app 386 MB release, DMG 178 MiB | **Room.app 425 MB** (the Release app over `f05f3d6`, `du`; the framework 378 MB); no DMG built | — | recorded |
 
-Open rows after v3: B-53 (switching p95, a quarter), B-152 (the space switch unmeasurable), B-153 (the suggestions row), B-56 (renderers); every other row has its 156 number. The 120 Hz column is the user's Phase 5.1 step 1 (extended by 5.4a).
+Open rows after v3: B-53 (switching p95, a quarter), ~~B-152 (the space switch unmeasurable)~~ (fixed 2026-10-22, below), B-153 (the suggestions row), B-56 (renderers); every other row has its 156 number. The 120 Hz column is the user's Phase 5.1 step 1 (extended by 5.4a).
+
+#### B-152, ⌃digit space switches (2026-10-22, Mac mini, worktree `fix-b152`)
+
+`scripts/run-spike.sh spaces -RoomSidebarFixture spaces500` on a fresh state and engine directory under the worktree's `build/b152-runs/`, the 1920 × 1080 virtual display at 60 Hz. The cause: since B-37 (`03fc57c`, 2026-10-21) the Tab menu's Focus Pane 1–4 items are drawn as ⌃⇧1–⌃⇧4 with key "1"–"4" and a Shift mask, and AppKit matches such an item to ⌃1–⌃4 without Shift; the Tab menu comes before Spaces, and outside a split the item is disabled, so the key did nothing. ⌃5 has no Focus Pane item: the spike's one switch per run was its first move to space 5, after which every target was another space. The unit tier reproduces it without a window (`MenuTableTests` "B-152": ⌃2 through the bar reached `focusSplitPane:` tag 2 before the fix).
+
+| | before (dev, 155; the probe from the second run, the rest from the first) | after, dev (155) | after, release framework (156) |
+|---|---|---|---|
+| key probe: ⌃2, ⌃3, ⌃1, ⌃3, ⌃2, ⌃1 by `NSApp.sendEvent`, first responder `AddressFieldView`, space shown 0.9 s later | 1, 1, 1, 1, 1, 1 | 2, 3, 1, 3, 2, 1 | 2, 3, 1, 3, 2, 1 |
+| switches missed of 60 | 59 | **0** | **0** |
+| ⌃digit → switch begins, median / p95 | 6.09 ms (n = 1) | 4.99 / 6.61 ms | 5.04 / 6.75 ms |
+| switch's main-thread code, median / p95 | 3.47 ms (n = 1) | 8.82 / 11.41 ms | 6.73 / 8.50 ms |
+| ⌃digit → first slide frame, median / p95 | 30.50 ms (n = 1) | 17.80 / 31.25 ms | 18.00 / 32.14 ms |
+| lists loaded during the switches | 0 | 0 | 0 |
+| loadavg at start (1 min) | 14.1 | 4.2 | 10.9 |
+
 
 ### The tour's timing steps (`grand-tour.sh --no-build --only memory,open10,cdp,devtools,quittiming,killtest,spaces,palette,suggeston,palettemeasure,tabsmeasure,chrome26b,layoutmodes,app28b,netlog light`, `build/grand-tour/20261022-001001-roomcore`, `30a60f7`)
 

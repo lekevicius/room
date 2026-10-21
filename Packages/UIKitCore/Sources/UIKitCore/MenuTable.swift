@@ -362,10 +362,32 @@ public enum MenuKey {
     public static let matchingAliasSuffix = "#shifted"
 
     /// The US layout's shifted characters for the digits and punctuation the table uses.
-    public static let shiftedUS: [String: String] = [
+    nonisolated public static let shiftedUS: [String: String] = [
         "1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
         "-": "_", "=": "+", "[": "{", "]": "}", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "`": "~", "\\": "|",
     ]
+}
+
+/// A menu whose items drawn as ⇧ and a base key (B-37) never match a key
+/// press: AppKit matches such an item against the key without Shift too
+/// (⌃2 chose Focus Pane 2, drawn ⌃⇧2, ahead of the Spaces menu's ⌃2, and
+/// did nothing outside a split, B-152); its hidden alias matches the
+/// shifted key. While AppKit searches the menu, every drawn item whose
+/// modifiers without Shift are the event's has no key equivalent.
+nonisolated public final class KeyMatchingMenu: NSMenu {
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let drawn = items.filter { item in
+            let mask = item.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control])
+            return !item.isHidden && mask.contains(.shift) && MenuKey.shiftedUS[item.keyEquivalent] != nil
+                && mask.subtracting(.shift) == modifiers
+        }
+        guard !drawn.isEmpty else { return super.performKeyEquivalent(with: event) }
+        let keys = drawn.map(\.keyEquivalent)
+        for item in drawn { item.keyEquivalent = "" }
+        defer { for (item, key) in zip(drawn, keys) { item.keyEquivalent = key } }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 /// Builds the `NSMenu` bar from `MainMenuTable` (ROADMAP 2.8 task 1).
@@ -375,7 +397,7 @@ public enum MainMenuBuilder {
     public static func make(_ menus: [MenuSpec], appTarget: AnyObject?) -> NSMenu {
         let bar = NSMenu(title: "Main Menu")
         for spec in menus {
-            let menu = NSMenu(title: spec.title)
+            let menu = KeyMatchingMenu(title: spec.title)
             add(spec.nodes, to: menu, appTarget: appTarget)
             let item = NSMenuItem(title: spec.title, action: nil, keyEquivalent: "")
             item.submenu = menu
@@ -390,7 +412,7 @@ public enum MainMenuBuilder {
             case .separator:
                 menu.addItem(.separator())
             case .submenu(let title, let children):
-                let submenu = NSMenu(title: title)
+                let submenu = KeyMatchingMenu(title: title)
                 add(children, to: submenu, appTarget: appTarget)
                 let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 item.submenu = submenu
