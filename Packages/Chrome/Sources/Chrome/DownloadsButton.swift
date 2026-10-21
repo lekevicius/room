@@ -21,10 +21,10 @@ public final class DownloadsButton: NSView {
     public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = Radius.small
+        layer?.cornerRadius = ControlMetrics.cornerRadius
         layer?.cornerCurve = .continuous
         _ = feedback
-        icon.image = Symbol.downloads.image(pointSize: 14, accessibilityDescription: "Downloads")
+        icon.image = Symbol.downloads.image(.control, accessibilityDescription: "Downloads")
         icon.contentTintColor = .secondaryLabelColor
         icon.imageScaling = .scaleNone
         addSubview(icon)
@@ -41,7 +41,7 @@ public final class DownloadsButton: NSView {
         badgeBackground.isHidden = true
         badgeBackground.actions = CALayer.noImplicitActions
         layer?.addSublayer(badgeBackground)
-        badge.font = .systemFont(ofSize: 9, weight: .semibold)
+        badge.font = Typography.badge
         badge.textColor = .white
         badge.alignment = .center
         badge.isHidden = true
@@ -115,7 +115,7 @@ public final class DownloadsButton: NSView {
         ring.isHidden = !active
         // The arrow shrinks into the ring while downloading.
         icon.image = (active ? Symbol.downloadInProgress : Symbol.downloads)
-            .image(pointSize: active ? 11 : 14, accessibilityDescription: "Downloads")
+            .image(active ? .downloadProgress : .control, accessibilityDescription: "Downloads")
         guard let progress else {
             ring.removeAnimation(forKey: "spin")
             return
@@ -273,8 +273,8 @@ public final class DownloadsPopover: NSObject, NSPopoverDelegate {
 /// Ring, badge and bounce sizes (chosen).
 public enum DownloadsMetrics {
     public static let ringWidth: CGFloat = 2
-    /// Inside the 28 pt footer button.
-    public static let ringInset: CGFloat = 4
+    /// Inside the footer button (`ControlMetrics.size`): the ring stays 20 pt across (B-110; 4 in the 28 pt button before).
+    public static let ringInset: CGFloat = 6
     public static let badgeHeight: CGFloat = 13
     public static let bounceScale: CGFloat = 1.3
     /// Reduce Motion: the bounce is a fade from this alpha (`Motion.medium`).

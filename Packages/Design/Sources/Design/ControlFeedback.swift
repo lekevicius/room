@@ -28,7 +28,9 @@ public enum ControlMotion: String, CaseIterable, Sendable {
 /// the press; the feedback draws them on the view's own layer.
 /// - Hover: `.fill` fades the layer's background to `hoverFill` (the rows'
 ///   hover, `Palette.sidebarHover`) from `restFill`; `.brighten` fades the
-///   view's alpha from `restingAlpha` to 1 (the footer's space icons).
+///   view's alpha from `restingAlpha` to 1; `.fillAndBrighten` does both (the
+///   footer's space icons since B-110: the other buttons' fill on an inactive
+///   space's dimmed icon).
 /// - Press: the view's layer scales to `Motion.pressScale` about its centre
 ///   and springs back on release, as Arc's buttons; under Reduce Motion it
 ///   dims to `Motion.pressReducedAlpha` and back instead. The scale is an
@@ -38,6 +40,10 @@ public final class ControlFeedback {
     public enum Hover: Equatable, Sendable {
         case fill
         case brighten
+        case fillAndBrighten
+
+        var fills: Bool { self != .brighten }
+        var brightens: Bool { self != .fill }
     }
 
     public let hover: Hover
@@ -82,7 +88,7 @@ public final class ControlFeedback {
     /// The control was pressed (mouse down, or an `NSButton`'s highlight) or released.
     public func setPressed(_ pressed: Bool, animated: Bool = true) {
         guard pressed != isPressed, isEnabled || !pressed else { return }
-        if pressed, hover == .fill { alphaBeforePress = view?.alphaValue }
+        if pressed, !hover.brightens { alphaBeforePress = view?.alphaValue }
         isPressed = pressed
         apply(animated: animated)
         guard let layer = view?.layer else { return }
@@ -114,8 +120,7 @@ public final class ControlFeedback {
     private func apply(animated: Bool) {
         guard let view, let layer = view.layer else { return }
         let animate = animated && view.window != nil
-        switch hover {
-        case .fill:
+        if hover.fills {
             var color: CGColor?
             view.effectiveAppearance.performAsCurrentDrawingAppearance {
                 color = showsHover ? hoverFill().cgColor : restFill()?.cgColor
@@ -135,18 +140,14 @@ public final class ControlFeedback {
             } else {
                 layer.removeAnimation(forKey: Self.fillKey)
             }
-        case .brighten:
-            fadeAlpha(animated: animate)
         }
+        if hover.brightens { fadeAlpha(animated: animate) }
     }
 
     /// The alpha the view shows now: brightened while hovered, dimmed while
     /// pressed under Reduce Motion.
     private var targetAlpha: CGFloat {
-        var alpha: CGFloat = switch hover {
-        case .brighten: showsHover ? 1 : restingAlpha
-        case .fill: alphaBeforePress ?? view?.alphaValue ?? 1
-        }
+        var alpha: CGFloat = hover.brightens ? (showsHover ? 1 : restingAlpha) : (alphaBeforePress ?? view?.alphaValue ?? 1)
         if isPressed, ControlMotion.press.variant != .full { alpha *= Motion.pressReducedAlpha }
         return alpha
     }

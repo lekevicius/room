@@ -16,7 +16,7 @@ open class HoverButton: NSButton {
         title = ""
         contentTintColor = .secondaryLabelColor
         wantsLayer = true
-        layer?.cornerRadius = Radius.small
+        layer?.cornerRadius = ControlMetrics.cornerRadius
         layer?.cornerCurve = .continuous
         _ = feedback
     }

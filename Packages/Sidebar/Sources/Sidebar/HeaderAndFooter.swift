@@ -41,7 +41,7 @@ public final class AddressFieldView: NSView {
         // A domain that does not fit keeps both ends: "devel…apple.com" (2.2a review).
         domainField.lineBreakMode = .byTruncatingMiddle
         domainField.cell?.truncatesLastVisibleLine = true
-        copyButton.image = Symbol.copyURL.image(pointSize: 12, accessibilityDescription: "Copy URL")
+        copyButton.image = Symbol.copyURL.image(.controlSmall, accessibilityDescription: "Copy URL")
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
         copyButton.toolTip = "Copy URL (⇧⌘C)"
@@ -84,7 +84,7 @@ public final class AddressFieldView: NSView {
             toolTip = nil
         }
         let symbol: Symbol = url == nil ? .search : (isSecure ? .siteInfo : .siteInsecure)
-        siteButton.image = symbol.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Site Information")
+        siteButton.image = symbol.image(.control, accessibilityDescription: "Site Information")
         siteButton.toolTip = url == nil ? nil : (isSecure ? "Site Information" : "Not Secure")
         siteButton.isEnabled = url != nil
         setAccessibilityLabel(url ?? "Search or enter URL")
@@ -159,7 +159,7 @@ public final class ExtensionBarView: NSView {
     public override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("extension-bar")
-        overflowButton.image = Symbol.more.image(pointSize: SidebarMetrics.topBarSymbolSize, accessibilityDescription: "Extensions")
+        overflowButton.image = Symbol.more.image(.control, accessibilityDescription: "Extensions")
         overflowButton.contentTintColor = .labelColor
         overflowButton.target = self
         overflowButton.action = #selector(overflowClicked)
@@ -287,7 +287,7 @@ public final class ExtensionBarView: NSView {
         }
         item.attributedTitle = title
         item.toolTip = action.title
-        if let icon = (action.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: action.name))?.copy() as? NSImage {
+        if let icon = (action.icon ?? Symbol.extensions.image(.controlSmall, accessibilityDescription: action.name))?.copy() as? NSImage {
             icon.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
             item.image = icon
         }
@@ -331,7 +331,7 @@ final class ExtensionActionButton: HoverButton {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private func update() {
-        image = model.icon ?? Symbol.extensions.image(pointSize: 12, accessibilityDescription: model.name)
+        image = model.icon ?? Symbol.extensions.image(.controlSmall, accessibilityDescription: model.name)
         image?.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
         toolTip = model.title
         setAccessibilityLabel(model.title)
@@ -343,7 +343,7 @@ final class ExtensionActionButton: HoverButton {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard !model.badgeText.isEmpty else { return }
-        let font = NSFont.systemFont(ofSize: 8, weight: .semibold)
+        let font = Typography.badgeSmall
         let text = NSAttributedString(string: model.badgeText, attributes: [
             .font: font, .foregroundColor: model.badgeTextColor ?? NSColor.white,
         ])
@@ -404,7 +404,7 @@ final class SidebarFooterView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        plusButton.image = Symbol.newTab.image(pointSize: 14, accessibilityDescription: "New")
+        plusButton.image = Symbol.newTab.image(.control, accessibilityDescription: "New")
         plusButton.target = self
         plusButton.action = #selector(plusClicked)
         plusButton.setAccessibilityIdentifier("footer-plus")
@@ -473,7 +473,7 @@ final class SidebarFooterView: NSView {
 
     private func applyActive(animated: Bool) {
         guard let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index) else { return }
-        let target = icons[index].frame.insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
+        let target = indicatorFrame(icons[index].frame)
         let duration = animated && SidebarMotion.spaceIndicator.animates ? Motion.medium : 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
@@ -518,8 +518,10 @@ final class SidebarFooterView: NSView {
 
     override func layout() {
         super.layout()
+        // B-110: the top bar's metric. The buttons are `ControlMetrics` squares at the rows' inset,
+        // as Back, Forward and Reload end at it; each space icon is a square of the same size.
         let side = SidebarMetrics.footerButtonSize
-        let inset = SidebarMetrics.rowHorizontalInset + Spacing.xs
+        let inset = SidebarMetrics.rowHorizontalInset
         let y = ((bounds.height - side) / 2).rounded()
         downloadsButton.frame = NSRect(x: inset, y: y, width: side, height: side)
         plusButton.frame = NSRect(x: bounds.width - inset - side, y: y, width: side, height: side)
@@ -527,20 +529,28 @@ final class SidebarFooterView: NSView {
         let available = max(0, plusButton.frame.minX - downloadsButton.frame.maxX - 2 * Spacing.xs)
         let count = CGFloat(icons.count)
         let pitch = count > 0 ? min(SpaceIconMetrics.pitch, available / count) : 0
-        let size = min(SpaceIconMetrics.size, pitch)
         let rowWidth = pitch * count
         iconRow.frame = NSRect(x: ((bounds.width - rowWidth) / 2).rounded(), y: 0, width: rowWidth, height: bounds.height)
+        let box = min(side, pitch)
         for (index, icon) in icons.enumerated() {
-            icon.frame = NSRect(x: CGFloat(index) * pitch + (pitch - size) / 2, y: ((bounds.height - size) / 2).rounded(), width: size, height: size)
+            icon.frame = NSRect(x: CGFloat(index) * pitch + (pitch - box) / 2, y: ((bounds.height - box) / 2).rounded(), width: box, height: box)
         }
-        indicator.layer?.cornerRadius = (size + 2 * SpaceIconMetrics.indicatorPadding) / 2
+        let glyph = min(SpaceIconMetrics.size, box)
+        indicator.layer?.cornerRadius = (glyph + 2 * SpaceIconMetrics.indicatorPadding) / 2
         if let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index), indicator.layer?.animationKeys()?.isEmpty != false {
-            indicator.frame = icons[index].frame.insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
+            indicator.frame = indicatorFrame(icons[index].frame)
         }
         let labelSize = nameLabel.cell?.cellSize ?? NSSize(width: 0, height: 14)
         let labelX = iconRow.frame.maxX + Spacing.xs
         nameLabel.frame = NSRect(x: labelX, y: ((bounds.height - ceil(labelSize.height)) / 2).rounded(),
                                  width: max(0, min(ceil(labelSize.width), bounds.width - inset - labelX)), height: ceil(labelSize.height))
+    }
+
+    /// The active icon's highlight: a circle `indicatorPadding` around its glyph box, centred in its square.
+    private func indicatorFrame(_ icon: NSRect) -> NSRect {
+        let glyph = min(SpaceIconMetrics.size, icon.width)
+        return NSRect(x: icon.midX - glyph / 2, y: icon.midY - glyph / 2, width: glyph, height: glyph)
+            .insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
     }
 
     // MARK: Reordering (spec §B: drag an icon more than a few points, Zen)
@@ -649,22 +659,6 @@ final class SidebarFooterView: NSView {
     }
 }
 
-/// Footer space icons (spec §B; chosen sizes, `docs/design-tokens.md`).
-enum SpaceIconMetrics {
-    /// An icon's box; the dot of a space without an icon is smaller.
-    static let size: CGFloat = 20
-    /// Icon spacing along the row.
-    static let pitch: CGFloat = 26
-    static let dotSize: CGFloat = 6
-    /// The active icon's scale (spec §B).
-    static let activeScale: CGFloat = 1.15
-    /// The highlight behind the active icon extends this far around it.
-    static let indicatorPadding: CGFloat = 2
-    /// An inactive icon's opacity.
-    static let inactiveAlpha: CGFloat = 0.55
-    /// Pointer travel that turns a press on an icon into a reorder drag (Zen: 5 px).
-    static let reorderThreshold: CGFloat = 5
-}
 
 /// A space's icon in the footer: its emoji, its SF Symbol, or a dot.
 final class SpaceIconView: NSView {
@@ -680,8 +674,9 @@ final class SpaceIconView: NSView {
     var onDrag: ((NSEvent, DragPhase) -> Void)?
     private var pressLocation: NSPoint?
     private var dragging = false
-    /// Hover brightens an inactive icon, a press shrinks it (B-111), as the header's buttons.
-    private lazy var feedback = ControlFeedback(view: self, hover: .brighten)
+    /// Hover fills its square as the other buttons' (B-110) and brightens an inactive icon;
+    /// a press shrinks it (B-111), as the header's buttons.
+    private lazy var feedback = ControlFeedback(view: self, hover: .fillAndBrighten)
     var isDropTarget = false { didSet { if isDropTarget != oldValue { needsDisplay = true; updateLayer() } } }
 
     init(space: Space) {
@@ -714,12 +709,12 @@ final class SpaceIconView: NSView {
             imageView.isHidden = true
         case .symbol(let name):
             imageView.image = NSImage(systemSymbolName: name, accessibilityDescription: space.name)?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
+                .withSymbolConfiguration(IconStyle.spaceIcon.configuration)
             imageView.contentTintColor = .labelColor
             label.isHidden = true
             imageView.isHidden = false
         case .none:
-            imageView.image = Symbol.space.image(pointSize: SpaceIconMetrics.dotSize)
+            imageView.image = Symbol.space.image(.spaceDot)
             imageView.contentTintColor = .labelColor
             label.isHidden = true
             imageView.isHidden = false
@@ -752,16 +747,25 @@ final class SpaceIconView: NSView {
     }
 
     override func updateLayer() {
-        layer?.cornerRadius = bounds.height / 2
-        layer?.backgroundColor = isDropTarget ? Palette.sidebarMultiSelection.cgColor : NSColor.clear.cgColor
+        layer?.cornerRadius = ControlMetrics.cornerRadius
+        layer?.cornerCurve = .continuous
+        feedback.restFill = { [weak self] in self?.isDropTarget == true ? Palette.sidebarMultiSelection : nil }
+        feedback.appearanceChanged()
+    }
+
+    /// The emoji or symbol's box, centred in the icon's square (B-110: the square is the hit area and the hover fill).
+    private var glyphRect: NSRect {
+        let side = min(SpaceIconMetrics.size, bounds.width, bounds.height)
+        return NSRect(x: ((bounds.width - side) / 2).rounded(), y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
     }
 
     override func layout() {
         super.layout()
-        label.font = .systemFont(ofSize: max(9, bounds.height * 0.62))
-        let height = ceil(label.cell?.cellSize.height ?? bounds.height)
-        label.frame = NSRect(x: -2, y: ((bounds.height - height) / 2).rounded(), width: bounds.width + 4, height: height)
-        imageView.frame = bounds
+        let glyph = glyphRect
+        label.font = .systemFont(ofSize: max(9, glyph.height * 0.62))
+        let height = ceil(label.cell?.cellSize.height ?? glyph.height)
+        label.frame = NSRect(x: glyph.minX - 2, y: ((bounds.height - height) / 2).rounded(), width: glyph.width + 4, height: height)
+        imageView.frame = glyph
         if isActive { setActive(true, animated: false) }
     }
 

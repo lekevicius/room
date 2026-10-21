@@ -14,10 +14,18 @@ struct TopBarLayoutTests {
         #expect(bar.buttonSize == 32)
         #expect(bar.toggle == CGRect(x: 92, y: 8, width: 32, height: 32))
         #expect(bar.navigation == CGRect(x: 200, y: 8, width: 96, height: 32))
-        // The extensions fill the gap, 4 pt from the toggle and from Back: two buttons fit.
+        // The extensions fill the gap, 4 pt from the toggle and packed against Back (B-125): two buttons fit.
         #expect(bar.accessory.minX == 128)
-        #expect(bar.accessory.maxX == 196)
+        #expect(bar.accessory.maxX == 200)
         #expect(bar.bottom == 40)
+    }
+
+    @Test("B-125: at the default width, macOS 27's traffic lights (ending at x 79) leave room for two pinned extensions")
+    func twoExtensionsAtTheDefaultWidth() {
+        let macOS27 = TrafficLightGeometry(buttonsRect: CGRect(x: 19, y: 17, width: 60, height: 14))
+        let bar = TopBarLayout(width: SidebarMetrics.defaultWidth, trafficLights: macOS27)
+        #expect(bar.buttonSize == ControlMetrics.size)
+        #expect(Int(bar.accessory.width / bar.buttonSize) == 2)
     }
 
     @Test("A narrow sidebar shrinks the buttons, then drops the toggle; the extensions get nothing")
