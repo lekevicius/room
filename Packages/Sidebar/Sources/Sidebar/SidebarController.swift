@@ -1762,6 +1762,7 @@ extension SidebarController {
     /// Change Icon…'s picker for `id`, as the menu item opens it; the choice as a click in it makes.
     public func debugChangeIcon(_ id: UUID) { changeIcon(id) }
     public var debugIconPopoverWindow: NSWindow? { iconPopover?.contentViewController?.view.window }
+    public var debugIconPopoverView: NSView? { iconPopover?.contentViewController?.view }
 
     /// Whether the row (or tile) of `id` shows the unread dot and its custom icon.
     public func debugRowBadges(_ id: UUID) -> String {

@@ -180,8 +180,11 @@ public final class PagePrompts {
         if dialog.isSuppressible {
             if suppressedPages.contains(pageID) {
                 // Silenced until the page loads again: Chrome's answer to a suppressed dialog (OK for an alert, Cancel otherwise).
+                // On the next turn, as a user's answer comes: the engine's dialog manager is still inside the
+                // call that asked (an answer from within it left the page's later dialogs unshown, 5.6a's spike).
                 suppressedCount += 1
-                answer(PromptRules.escapeResponse(for: dialog))
+                let response = PromptRules.escapeResponse(for: dialog)
+                DispatchQueue.main.async { answer(response) }
                 return id
             }
             let count = (dialogCounts[pageID] ?? 0) + 1

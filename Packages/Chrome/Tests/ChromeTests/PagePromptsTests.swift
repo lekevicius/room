@@ -32,6 +32,12 @@ final class PromptsFixture {
     }
 }
 
+/// Lets work queued on the main queue run.
+@MainActor
+func waitForMainQueue() async {
+    await withCheckedContinuation { continuation in DispatchQueue.main.async { continuation.resume() } }
+}
+
 @MainActor
 @Suite("The page's dialogs (ROADMAP 2.6 task 2, FakeEngine)")
 struct PageDialogTests {
@@ -130,6 +136,8 @@ struct PageDialogTests {
         f.chrome.webContents(f.a, runJavaScriptAlert: "4", origin: nil) { alerts += 1 }
         f.chrome.webContents(f.a, runJavaScriptConfirm: "5", origin: nil) { confirms.append($0) }
         f.chrome.webContents(f.a, runJavaScriptPrompt: "6", defaultText: "x", origin: nil) { prompts.append($0) }
+        #expect(alerts == 2, "answered on the next turn, not inside the engine's call")
+        await waitForMainQueue()
         #expect(alerts == 3 && confirms == [false, false] && prompts == [nil])
         #expect(f.prompts.visibleDialog == nil && f.prompts.suppressedCount == 4)
         // Another page is not affected; beforeunload is never suppressed.

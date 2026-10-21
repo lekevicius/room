@@ -119,6 +119,7 @@ enum SpikeRunner {
         case "keyboard": await context.keyboardChecks()
         case "openclose": await context.openCloseCycle()
         case "energy": await context.energyChecks()
+        case "details": await context.detailsChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)
