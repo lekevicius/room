@@ -483,7 +483,8 @@ def _spaces(c):
 @step_check("spacecaptures")
 def _spacecaptures(c):
     caps = c.values.get("capture", [])
-    c.check("seven captures (footer, themed light/dark, Reading, form edit/new, mid-slide)", len(caps) == 7, f"{len(caps)}")
+    # 5.7b moved the space form out of the sidebar into the space window (B-122): the spike's two form captures went with it.
+    c.check("five captures (footer, themed light/dark, Reading, mid-slide)", len(caps) == 5, f"{len(caps)}")
     shot = [l for l in c.out if l.startswith("captured ")]
     c.check("every capture written", len(shot) == len(caps), f"{len(shot)}/{len(caps)}")
 
