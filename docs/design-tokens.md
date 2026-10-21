@@ -46,12 +46,12 @@ section; **chosen** = our call, no reference measurement.
 | `SidebarMetrics.headerHeight` | 48 | the Room Browser design: the top bar; the address row starts at its bottom |
 | `SidebarMetrics.headerLeadingGap` | 12 | measured (see `Spacing.m`); the optional toolbar |
 | `SidebarMetrics.topBarLeadingGap` | 15 | the Room Browser design: the toggle at x 92 after lights ending at 77 |
-| `SidebarMetrics.topBarButtonSize` / `topBarButtonMinSize` / `topBarGroupGap` / `topBarSymbolSize` | 32 / 24 / 4 / 13 | the Room Browser design (min chosen) |
+| `SidebarMetrics.topBarButtonSize` / `topBarButtonMinSize` / `topBarGroupGap` / ~~`topBarSymbolSize`~~ | 32 / 24 / 4 / ~~13~~ | the Room Browser design (min chosen); since 5.2a `ControlMetrics` (B-110), the glyph `IconStyle.control`, the gap only after the toggle (B-125) |
 | `SidebarMetrics.addressFieldHeight` / `addressFieldPadding` / `addressRowGap` | 36 / 10 / 8 | the Room Browser design |
 | `SidebarMetrics.rowHorizontalInset` / `pillVerticalInset` / `faviconTitleGap` / `pillCornerRadius` / `titleFadeWidth` | 8 / 0 / 10 / 12 / 12 | the Room Browser design |
-| `SidebarMetrics.pillShadowOpacity` / `pillShadowRadius` / `pillShadowOffset` | 0.15 / 1 / (0, −0.5) | the Room Browser design (`0 0.5 2` at 15%), light only |
+| `SidebarMetrics.pillShadowOpacity` / `pillShadowRadius` / `pillShadowOffset` | ~~0.15 / 1 / (0, −0.5)~~ 0.12 (dark 0.30) / 2 / (0, −1) | the Room Browser design (`0 0.5 2` at 15%), light only; B-112 (5.2a): `0 1 4` at 12%, dark too |
 | `SidebarMetrics.essentialTileHeight` / `essentialIconSize` / `essentialHoverAlpha` | 40 / 16 / 0.5 | the Room Browser design |
-| `SidebarMetrics.closeButtonSize` / `audioIndicatorWidth` / `rowButtonCornerRadius` / `rowButtonSymbolSize` | 24 / 24 / 4 / 10 | the Room Browser design |
+| `SidebarMetrics.closeButtonSize` / `audioIndicatorWidth` / `rowButtonCornerRadius` / ~~`rowButtonSymbolSize`~~ | 24 / 24 / 4 / ~~10~~ | the Room Browser design; the glyph `IconStyle.rowButton` since 5.2a |
 | `SidebarMetrics.edgeInset` | 16 | chosen (the top bar falls back to `rowHorizontalInset`, 8) |
 | `SidebarMetrics.inactiveSaturation` / `inactiveContentAlpha` | 0.8 / 0.6 | spec §I.12 (desaturate 20%) |
 
@@ -137,7 +137,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `SidebarMetrics.essentialTileMinWidth` / `essentialMaxColumns` / `essentialsGap` | 48 / 6 / 8 | chosen: tiles stretch to fill the row (4 per row at the default width) |
 | `SidebarMetrics.addressFieldHeight` | 28 | chosen |
 | `SidebarMetrics.footerHeight` | 40 | spec §F |
-| `SidebarMetrics.audioIndicatorWidth`, `tileBadgeSize`/`Inset`, `footerButtonSize`, `chevronSize`, `popoverFieldWidth` | 22, 11/3, 28, 20, 280 | chosen |
+| `SidebarMetrics.audioIndicatorWidth`, `tileBadgeSize`/`Inset`, `footerButtonSize`, `chevronSize`, `popoverFieldWidth` | 22, 11/3, ~~28~~ 32 (`ControlMetrics.size`, B-110), 20, 280 | chosen |
 | `Palette.accent` | `controlAccentColor` | changed dot, insertion line (spec §I.8, §A.9) |
 | `Palette.letterTileColors` / `letterTileColor(for:)` | 10 system colours, FNV-1a of the domain | spec §I.2 (stable across launches) |
 | `Motion.toastOut` | 0.2 s | spec §F |
@@ -224,7 +224,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Tint gradient (`SpaceTintView`) | diagonal, top leading → bottom trailing, always 3 stops: one colour fades from its alpha to `tintOpacityRange.lowerBound`; two put their 50% blend in the middle; three as given | chosen; 3 stops so themes with different colour counts interpolate |
 | Tint alpha | `ThemePalette.tintAlpha`: `themeOpacity` (0–1, default 0.5) mapped linearly into `Materials.tintOpacityRange` (0.10–0.25; 0.5 → 0.175) | chosen, within the Phase 1.6 range |
 | Dark theme colours | lightness capped at 0.45 (`ThemePalette.darkMaxLightness`), hue and saturation kept | chosen: pastel themes washed out the dark material |
-| `SpaceIconMetrics.size` / `pitch` / `dotSize` | 20 / 26 / 6 pt; icons shrink to fit between the footer buttons | chosen; Zen shrinks its strip on overflow |
+| `SpaceIconMetrics.size` / `pitch` / `dotSize` | 20 / ~~26~~ 32 (B-110: each icon a `ControlMetrics` square, its glyph 20) / 6 pt; icons shrink to fit between the footer buttons; in Design since 5.2a | chosen; Zen shrinks its strip on overflow |
 | `SpaceIconMetrics.activeScale` | 1.15, animated over `Motion.medium` | spec §B |
 | Active highlight | `Palette.sidebarHover` capsule 2 pt around the active icon (`indicatorPadding`), sliding over `Motion.medium` ease-out | spec §B "the active indicator slides"; colour chosen |
 | `SpaceIconMetrics.inactiveAlpha` | 0.55 | chosen |
@@ -298,7 +298,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 |---|---|---|
 | `SplitRules.maxPanes` | 4 panes; a fifth is refused with the toast "Can't add more panes to the split view" | spec §D (Arc, Zen `MAX_TABS`) |
 | Layouts | `hbox` side by side, `vbox` stacked, `grid` two columns over two rows (three panes: the third spans the bottom row; two panes: a row); ratios per pane (`hbox`/`vbox`) or two column + two row fractions (grid); a new layout starts equal | spec §D; grid shape chosen (Zen "3–4 = paired columns") |
-| `SplitMetrics.dividerWidth` / `resizerHitWidth` | 1 pt line between panes (separator colour), 7 pt hit area centred on it; double-click equalises | spec §D |
+| `SplitMetrics.dividerWidth` / `resizerHitWidth` | ~~1 pt line between panes (separator colour), 7 pt hit area centred on it~~ since B-113 (5.2a) no line: `paneGap` 8 between pane cards, the hit area the gap + 1 pt each side (10); `dividerWidth` stays the sidebar group row's segment line; double-click equalises | spec §D |
 | `SplitMetrics.minimumPaneFraction` / `minimumPaneLength` | a pane never gets under 7% of the split along the dragged axis, nor under 120 pt while the split has room (never more than an equal share) | Zen `min-resize-width` 7 percent; 120 pt chosen (as `DevToolsMetrics.minPaneHeight`) |
 | `SplitMetrics.paneHeaderHeight` / `paneHeaderRevealBand` / `paneHeaderButtonSize`, `Timing.paneHeaderHideDelay` | 24 pt header over the pane's top (domain, grip, layout menu, ×) while the pointer is within 36 pt of the top; buttons 20 pt; hides 0.3 s after the pointer leaves; `.headerView` material, the appearance that reads on the page's fill | spec §D (24 px strip); band, buttons, delay chosen |
 | `SplitMetrics.dropEdgeBand` / `dropPreviewFraction` / `dropPreviewAlpha` | an entry dragged into the card: within 40 pt of a pane's edge it splits to that side (the nearest edge in a corner), elsewhere it replaces the pane; the preview covers the half the new pane gets, accent at 18% with a 2 pt accent border, 10 pt corners | spec §D (40 px band); preview chosen |
@@ -428,4 +428,64 @@ Measured by `-RoomSpike motion -RoomSpikeOnly overlays` (`scripts/motion-check.s
 | `ChromeMotion`, `PaletteMotion`, `TabsMotion`, `CardMotion`, `WindowMotion` | each package's animations and their Reduce Motion variants (the pattern of `SidebarMotion`): toasts in and out fade, the pop, the fly-in, the ring and the popovers' animation end at once, the bounce fades; the palette's open loses its scale, its close stays a fade (was instant); Peek opens and closes by fades; the pane header stays a fade, the drop preview jumps; the split's layout never animates; the reveal fades; the traffic lights, the tint and the inactive fade stay fades | spec §I.1 |
 | Traffic lights with the hidden sidebar | hidden with it; fade in over `Motion.revealIn` ease-in as the overlay slides in under them, out over `revealOut` with it, over `Motion.fast` on ⌘S; never moved; over the card with the sidebar on the right | B-114 (amends spec §E) |
 
+## Added in Phase 5.2a (the visual audit: the matrix, token drift, hairlines, icon weights, B-110, B-112, B-113, B-115, B-125)
+
+The matrix (`-RoomSpike matrix`, `scripts/visual-matrix.sh`) shoots every surface light/dark × active/inactive into `research/screenshots/phase-5.2/` (one sheet per surface, the tokens printed on it). `scripts/design-audit.sh` lists literal type and symbol sizes, colours and radii outside Design: 52 before this session, 0 undeclared after (one declared, below); it runs in the CI workflow with `--strict`.
+
+| Token | Value | Provenance |
+|---|---|---|
+| `ControlMetrics.size` / `minSize` / `groupGap` / `cornerRadius` | 32 / 24 / 4 / 6 (`Radius.small`) | B-110: one metric for the top bar's and the footer's buttons (the Room Browser design's top bar); `topBarButtonSize`, `footerButtonSize` and `SpaceIconMetrics.pitch` read it |
+| Footer layout | downloads and New Tab 32 pt squares `rowHorizontalInset` (8) from the edges (were 28 at 12), their glyphs `IconStyle.control` 13 (were 14); the ring 20 pt across (`DownloadsMetrics.ringInset` 6, was 4 in 28) | B-110 |
+| Space icons | a 32 pt square each (the hit area and the hover fill), the glyph 20 pt in it; hover: the buttons' fill and the brightening (`ControlFeedback.Hover.fillAndBrighten`); the active circle stays around the glyph | B-110 |
+| Top bar extensions | the strip runs from `topBarGroupGap` after the toggle to Back (no gap before Back): 66 pt at the default 300 pt sidebar with macOS 27's traffic lights (they end at x 79, not the design's 77), two pinned buttons; was 62 and one | B-125 (decided: two fit at the default width, as `SidebarMetrics.defaultWidth`'s note says) |
+| Overflow button | "…" (`Symbol.more`) since `beea283` (2026-10-07); an icon-less action keeps the puzzle piece (`IconStyle.controlSmall`) | B-89 (already in place; shown in `phase-5.2-extensions.png`) |
+| `SidebarMetrics.pillShadowOpacity` / `pillShadowOpacityDark` / `pillShadowRadius` / `pillShadowOffset` | 0.12 / 0.30 / 2 / (0, −1): `0 1 4`; the selected Essentials tile shares the opacity and offset | B-112 (Arc's and Dia's lift; was light only, `0 0.5 2` at 15%) |
+| `IconStyle.folder`, `SidebarMetrics.folderGlyphSize` | 15 pt regular in a 20 × 18 box centred on the favicon's centre (was 13 pt in the 16 pt favicon box) | B-115 (Finder's and Notes' sidebar folder) |
+| `SplitMetrics.paneGap` / `resizerHitWidth` | 8 (`CardMetrics.inset`) / 10: each pane a card (`CardMetrics` corner, hairline border, shadow), the page card draws nothing behind a split (`CardView.isSplitHost`) | B-113 |
+| `Hairline.width(scale:)`, `HairlineView` | 1 / backing scale: one device pixel; the card's border (`CardMetrics.borderWidth` × it), split panes' borders, the Today separator, the palette's and the toolbar's separators, Peek's header line, the DevTools divider, the status pill's border, the split row's segment lines | 5.2a task 3; pixel reads in `spike-results.md` "Phase 5.2" (the Today separator was 2 px, an `NSBox`) |
+| `Palette.dragImageFillDark` / `themeWellDefaultHex` | white 0.2 / `#5B8DEF` | were literals (2.2b, 2.5) |
+| `SpaceFormMetrics` (moved to Design) | padding 12, icon cell 26, preview 18, `selectionAlpha` 0.25, `cornerRadius` 6, `emptyPreviewAlpha` 0.12, `previewFadeAlpha` 0.4 | were literals (2.5) |
+
+### Icon weights (`IconStyle`, every symbol the chrome draws)
+
+| Role | Size / weight | Used by |
+|---|---|---|
+| `menu` | 13 regular | menu items, Library list icons, the PiP panel's Back to Tab |
+| `control` | 13 regular | the top bar (toggle, Back, Forward, Reload, overflow), the site button, the footer's downloads and New Tab (B-110), Peek's header |
+| `controlSmall` | 12 regular | Copy URL, the zoom buttons, the find bar's search glyph, an extension action without an icon |
+| `paneControl` | 11 regular | a split pane's header and grip |
+| `findButton` | 11 semibold | find previous, next, done |
+| `disclosure` | 11 semibold | the Library's section chevrons |
+| `rowButton` | 10 medium | a row's ×, audio |
+| `rowAction` | 11 medium | a row's reset, the space title's "…", the reader and capture indicators |
+| `rowChevron` | 9 medium | the space title's and a folder's collapse chevron |
+| `rowGlyph` | 12 regular | the New Tab row's "+" |
+| `folder` | 15 regular | a folder row (B-115), its drag image |
+| `spaceTitle` / `spaceIcon` / `spaceDot` | 12 semibold / 12 medium / 6 regular | a space's symbol beside its title, in the footer; the dot of a space without one |
+| `tileReset` / `tileBadge` | 13 medium / 8 semibold | an Essentials tile's reset glyph and audio badge |
+| `media` | 11 regular | the media row |
+| `downloadProgress` | 11 regular | the arrow inside the downloads ring |
+| `paletteField` / `paletteRow` / `paletteDelete` | 15 regular / 13 regular / 10 semibold | the palette |
+| `interstitial` | 44 regular (`PromptMetrics.interstitialIconSize`) | the certificate interstitial, the crashed and unresponsive page |
+
+### Typography against the HIG (macOS scale: Large Title 26, Title 1 22, Title 2 17, Title 3 15, Headline 13 bold, Body 13, Callout 12, Subheadline 11, Footnote 10, Caption 10)
+
+| Token | Value | HIG |
+|---|---|---|
+| `Typography.row` | 13 regular | Body |
+| `Typography.secondary` | 11 regular | Subheadline |
+| `Typography.spaceTitle`, `headline` (new) | 13 semibold | Headline (bold in the HIG; semibold is the measured Dia title, kept) |
+| `Typography.sidebarRow` | 14 regular | none: the Room Browser design (between Body and Title 3), kept |
+| `Typography.paletteField` | 18 regular | none: chosen (Title 2 is 17), kept |
+| `Typography.interstitialTitle` (new) | 24 semibold | none: Large Title is 26 regular; was a literal |
+| `Typography.interstitialText` (new) | 14 regular | none: the sidebar rows' size; was a literal |
+| `Typography.toast` (new) | 12 semibold | Callout's size |
+| `Typography.code` / `counter` / `zoomValue` (new) | 11 monospaced / 11 monospaced digits / 13 medium monospaced digits | Subheadline's and Body's sizes |
+| `Typography.badgeLarge` / `badge` / `badgeSmall` (new) | 10 / 9 / 8 semibold | below the scale (badges); were literals |
+
+### Deliberate literals (`// design-audit:` on the line)
+
+| Where | Literal | Why |
+|---|---|---|
+| `Packages/Engine/Sources/FakeEngine/FakePageView.swift` | monospaced 13 | FakeEngine's stand-in page for tests and the engine-free app, not the chrome |
 

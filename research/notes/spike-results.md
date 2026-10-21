@@ -3901,3 +3901,22 @@ Two more dev runs after the fixes (`motion-after-dev-2.txt`, `motion-after-dev-r
 | reveal_dwell_slide | 15 | 0 | 16.7 | 0.10 | 0 | none |
 | sidebar_dock | 5 | 2 | 45.2 | 19.21 | 0 | none |
 
+
+## Phase 5.2 — visual audit (5.2a: the matrix, token drift, hairlines, B-110, B-112, B-113, B-115, B-125; 2026-10-21, M1 Max laptop, 60 Hz Pro Display XDR main at 2×, RoomCore 155.0.8059.36, series 25, no engine change)
+
+**The matrix** (`scripts/visual-matrix.sh <out> [suffix]`, `-RoomSpike matrix`, `App/Sources/Debug/MatrixSpikes.swift`): a throwaway state and engine directory, search suggestions off, the window 1200 × 728 pt content at 2×, the sidebar at the default 300 pt, 5.1a's fixture on :8766 (two themed spaces, five Essentials, a folder, pinned and Today rows). 14 surfaces × light/dark × active/inactive (the window's `activityOverride`; Settings is inactive while the browser window is key; the traffic lights follow the real key state, so they stay coloured in the "inactive" column): rows (3 states), header (3), footer (4), palette (5: empty, "today", "127.0.0.1", ">", ⌘L), Peek (1), split (2), toasts (2), downloads popover (2), site panel (1), prompts (3: a confirm sheet, the permission popover, the certificate interstitial), Library (1), Settings (8 sections), the incognito window (1), the top bar with two unpacked extensions (2). One run: 142 s wall on dev, 143 s on the release framework; 37 rows, 148 captures, 14 sheets, 21 MB under `research/screenshots/phase-5.2/` (`phase-5.2-<surface>.png`), plus the before sheets of the five surfaces the session changed (`-before`, 7.7 MB). The release-framework run's sheets are in `build/5.2a/matrix-release/` (not committed): the same 14 sheets, 148 captures. Pages render white in dark (the fixtures have no dark style).
+
+**Token drift** (`scripts/design-audit.sh`; literal type and symbol sizes, colours and radii in `Packages/*/Sources` outside Design and `App/Sources` outside `Debug`; spacing and frame sizes are not counted): before **52** (size 45, colour 5, radius 2; 18 files), after **0 undeclared**, 1 declared (`FakePageView`'s monospaced 13, FakeEngine's stand-in page). Two new size changes ride on it as the B-110 metric (the footer's downloads and "+" glyphs 14 → 13, `IconStyle.control`); every other literal moved to a token at its own value.
+
+**Hairlines** (`-RoomSpikeOnly hairlines`: luma 0–255 across each line from a 2× capture of the window, light, ±8 px; a tool, not an assertion):
+
+| Line | Before (dev) | After (dev and release, identical) |
+|---|---|---|
+| The card's trailing border | `255 … 255 237 203 206 …` (page, **1 px** border 237, then the shadow over the material) | the same, 1 px |
+| The card's bottom border | 1 px (237) | 1 px |
+| The Today separator (an `NSBox` separator) | `214 214 193 194 214` **2 px** | `214 214 194 214` **1 px** (`HairlineView`) |
+| Between split panes | a **2 px** line (`230 230`) between two white pages | no line (B-113): each card's 1 px border (237), a 16 px gap with the shadow over the material, the next card's 1 px border |
+
+1×: no 1× display is attached (the built-in panel and the XDR are both 2×) and AppKit has no per-window backing scale override; the rule (`Hairline.width(scale:)` = 1 / scale: 1 px at 1×, 2× and 3×) is a Design unit test.
+
+**B-125**: the top bar's extension strip at the default 300 pt width was 62 pt wide (the toggle at x 94: macOS 27's traffic lights end at 79, the design's at 77), so the second of two pinned actions went to the overflow menu (`matrix_extensions_two: bar={{130, 10}, {62, 32}} pinned=2 shown=0 overflow_button=true` — neither shows, the overflow takes both). Packed against Back: 66 pt, `shown=2 overflow_button=false`. Tour `--only extensions,layoutmodes light`: **69/69** on dev (1.9 min) and **69/69** on the release framework (1.6 min); `header_initial: buttons=["fixture", "second"] shown=["fixture", "second"] bar_width=66 overflow=0 overflow_button=false`. layoutmodes (the split's resizer, now over the gap): split create → laid out 7.63 ms median, resizer drag no frame over 1.5 × median, double-click equalises.
