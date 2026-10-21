@@ -15,10 +15,15 @@ public final class DownloadsButton: NSView {
     private let badge = NSTextField(labelWithString: "")
     private let badgeBackground = CALayer()
     private var pressed = false
+    /// Hover fill and press (B-111), as the header's buttons.
+    public private(set) lazy var feedback = ControlFeedback(view: self)
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+        layer?.cornerRadius = Radius.small
+        layer?.cornerCurve = .continuous
+        _ = feedback
         icon.image = Symbol.downloads.image(pointSize: 14, accessibilityDescription: "Downloads")
         icon.contentTintColor = .secondaryLabelColor
         icon.imageScaling = .scaleNone
@@ -167,13 +172,37 @@ public final class DownloadsButton: NSView {
 
     public override func mouseDown(with event: NSEvent) {
         pressed = true
-        alphaValue = 0.6
+        feedback.setPressed(true)
+    }
+
+    public override func mouseDragged(with event: NSEvent) {
+        feedback.setPressed(pressed && bounds.contains(convert(event.locationInWindow, from: nil)))
     }
 
     public override func mouseUp(with event: NSEvent) {
-        alphaValue = 1
+        feedback.setPressed(false)
         defer { pressed = false }
         guard pressed, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+    public override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    public override func mouseEntered(with event: NSEvent) { feedback.setHovering(true) }
+    public override func mouseExited(with event: NSEvent) { feedback.setHovering(false) }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        feedback.reset()
+    }
+
+    public override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        feedback.appearanceChanged()
+    }
+
         onClick?()
     }
 

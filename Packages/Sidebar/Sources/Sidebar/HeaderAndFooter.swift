@@ -17,6 +17,13 @@ public final class AddressFieldView: NSView {
     private let domainField = NSTextField(labelWithString: "")
     private let copyButton = HoverButton()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
+    /// Its fill deepens under the pointer (B-111): `Palette.sidebarHover` → `Palette.addressFieldHover`.
+    private lazy var feedback: ControlFeedback = {
+        let feedback = ControlFeedback(view: self)
+        feedback.restFill = { Palette.sidebarHover }
+        feedback.hoverFill = { Palette.addressFieldHover }
+        return feedback
+    }()
     private var url: String?
     /// The URL the field shows (spikes read it).
     public var displayedURL: String? { url }
@@ -87,7 +94,7 @@ public final class AddressFieldView: NSView {
     public override func updateLayer() {
         layer?.cornerRadius = SidebarMetrics.pillCornerRadius
         layer?.cornerCurve = .continuous
-        layer?.backgroundColor = Palette.sidebarHover.cgColor
+        feedback.appearanceChanged()
     }
 
     public override func layout() {
@@ -107,6 +114,7 @@ public final class AddressFieldView: NSView {
 
     private func updateHover() {
         copyButton.isHidden = !(hovering && url != nil)
+        feedback.setHovering(hovering)
         needsLayout = true
     }
 
@@ -370,7 +378,7 @@ protocol SpaceIconDropEvents: AnyObject {
 /// space's name beside the row while the pointer is on it) and the "+" menu.
 final class SidebarFooterView: NSView {
     let downloadsButton = DownloadsButton()
-    let plusButton = NSButton()
+    let plusButton = HoverButton()
     private let iconRow = FlippedRow()
     private let indicator = NSView()
     private let nameLabel = NSTextField(labelWithString: "")
@@ -397,9 +405,6 @@ final class SidebarFooterView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         plusButton.image = Symbol.newTab.image(pointSize: 14, accessibilityDescription: "New")
-        plusButton.isBordered = false
-        plusButton.imagePosition = .imageOnly
-        plusButton.contentTintColor = .secondaryLabelColor
         plusButton.target = self
         plusButton.action = #selector(plusClicked)
         plusButton.setAccessibilityIdentifier("footer-plus")
@@ -675,6 +680,8 @@ final class SpaceIconView: NSView {
     var onDrag: ((NSEvent, DragPhase) -> Void)?
     private var pressLocation: NSPoint?
     private var dragging = false
+    /// Hover brightens an inactive icon, a press shrinks it (B-111), as the header's buttons.
+    private lazy var feedback = ControlFeedback(view: self, hover: .brighten)
     var isDropTarget = false { didSet { if isDropTarget != oldValue { needsDisplay = true; updateLayer() } } }
 
     init(space: Space) {
@@ -741,7 +748,7 @@ final class SpaceIconView: NSView {
         CATransaction.setDisableActions(true)
         layer.sublayerTransform = centred
         CATransaction.commit()
-        alphaValue = active ? 1 : SpaceIconMetrics.inactiveAlpha
+        feedback.restingAlpha = active ? 1 : SpaceIconMetrics.inactiveAlpha
     }
 
     override func updateLayer() {
@@ -765,22 +772,38 @@ final class SpaceIconView: NSView {
                                        owner: self, userInfo: nil))
     }
 
-    override func mouseEntered(with event: NSEvent) { onHover?(true) }
-    override func mouseExited(with event: NSEvent) { onHover?(false) }
+    override func mouseEntered(with event: NSEvent) {
+        feedback.setHovering(true)
+        onHover?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        feedback.setHovering(false)
+        onHover?(false)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        feedback.reset()
+    }
+
     override func mouseDown(with event: NSEvent) {
         pressLocation = event.locationInWindow
         dragging = false
+        feedback.setPressed(true)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard let start = pressLocation else { return }
         if !dragging, hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y) > SpaceIconMetrics.reorderThreshold {
             dragging = true
+            feedback.setPressed(false)
         }
         if dragging { onDrag?(event, .moved) }
     }
 
     override func mouseUp(with event: NSEvent) {
+        feedback.setPressed(false)
         defer { pressLocation = nil; dragging = false }
         if dragging {
             onDrag?(event, .ended)

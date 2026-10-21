@@ -341,6 +341,29 @@ public enum Motion {
     /// and the `-RoomReduceMotion` launch flag (DEBUG) inject their own (5.1a).
     @MainActor public static var preferences: MotionPreferences = .system
 
+    // MARK: Hover and press (B-111, 5.1b)
+
+    /// An icon button pressed: it shrinks to this scale about its centre (chosen, as Arc's press).
+    public static let pressScale: CGFloat = 0.9
+    /// The press-in: quick, so a click shows it (chosen; ease-out).
+    public static let pressIn: TimeInterval = 0.08
+    /// The release: a spring back to full size with a little bounce (chosen).
+    public static let pressRelease = Spring(duration: 0.3, bounce: 0.35)
+    /// Reduce Motion: no scale; the pressed button dims to this alpha and back, over `fast` (chosen).
+    public static let pressReducedAlpha: CGFloat = 0.6
+
+    // MARK: Toasts (spec §F, 5.1b)
+
+    /// A toast that enters rises from this far below its place and grows from `toastInScale` (chosen, 2.2a).
+    public static let toastInOffset: CGFloat = 12
+    public static let toastInScale: CGFloat = 0.9
+    /// … and leaves shrinking to this scale with its fade (`toastOut`; chosen, 2.2a).
+    public static let toastOutScale: CGFloat = 0.95
+    /// The same id again (spec §F "replaces with a pop"): up to this scale over `toastPopUp`, back over `toastPopDown` (springs; chosen, 2.2a).
+    public static let toastPopScale: CGFloat = 1.06
+    public static let toastPopUp: TimeInterval = 0.12
+    public static let toastPopDown: TimeInterval = 0.25
+
     /// Whether to replace movement with crossfades (spec §I.1).
     @MainActor public static var reduceMotion: Bool { preferences.reduceMotion() }
 }

@@ -271,9 +271,7 @@ final class PeekHeaderView: NSView {
     @objc private func closeClicked() { onClose?() }
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
-        let button = NSButton()
-        button.isBordered = false
-        button.imagePosition = .imageOnly
+        let button = HoverButton()
         button.image = symbol.image(pointSize: 13, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
         button.toolTip = tip

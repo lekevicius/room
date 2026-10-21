@@ -412,9 +412,7 @@ final class PaneHeaderView: NSVisualEffectView {
     @objc private func layoutClicked() { onLayout?(layoutButton) }
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
-        let button = NSButton()
-        button.isBordered = false
-        button.imagePosition = .imageOnly
+        let button = HoverButton()
         button.image = symbol.image(pointSize: 11, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
         button.toolTip = tip

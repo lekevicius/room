@@ -176,9 +176,9 @@ public final class FindController {
 final class FindBarView: NSView, NSTextFieldDelegate {
     let field = NSTextField()
     let countLabel = NSTextField(labelWithString: "")
-    let previous = NSButton()
-    let next = NSButton()
-    private let closeButton = NSButton()
+    let previous = HoverButton()
+    let next = HoverButton()
+    private let closeButton = HoverButton()
     private let glass = NSGlassEffectView()
     private let content = NSView()
     var onTextChange: ((String) -> Void)?
@@ -213,9 +213,6 @@ final class FindBarView: NSView, NSTextFieldDelegate {
                                                 (next, Symbol.findNext, "Next (⌘G)", #selector(nextClicked)),
                                                 (closeButton, Symbol.closeTab, "Done (Esc)", #selector(closeClicked))] {
             button.image = symbol.image(pointSize: 11, weight: .semibold, accessibilityDescription: label)
-            button.isBordered = false
-            button.imagePosition = .imageOnly
-            button.contentTintColor = .secondaryLabelColor
             button.toolTip = label
             button.target = self
             button.action = action

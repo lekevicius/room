@@ -40,9 +40,9 @@ final class MediaRowView: NSView {
     private let imageView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
-    let playButton = NSButton()
-    let nextButton = NSButton()
-    let closeButton = NSButton()
+    let playButton = HoverButton()
+    let nextButton = HoverButton()
+    let closeButton = HoverButton()
     private(set) var content: MediaRowContent?
     var onAction: ((MediaRowAction) -> Void)?
 

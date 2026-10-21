@@ -12,6 +12,8 @@ public enum Palette {
     public static var sidebarSelection: NSColor { named("SidebarSelection") }
     /// Hovered sidebar row background (spec §I.4: 6% foreground).
     public static var sidebarHover: NSColor { named("SidebarHover") }
+    /// The address field under the pointer: its resting fill (`sidebarHover`) deepened to 10% (B-111, 5.1b; chosen).
+    public static var addressFieldHover: NSColor { named("AddressFieldHover") }
     /// Space tint when a space has no theme colors.
     public static var spaceTintDefault: NSColor { named("SpaceTintDefault") }
 
@@ -52,7 +54,7 @@ public enum Palette {
     /// Every catalog color, for tests.
     public static let allNames = [
         "CardBackground", "CardBorder", "CardShadow", "SidebarSelection",
-        "SidebarHover", "SpaceTintDefault",
+        "SidebarHover", "SpaceTintDefault", "AddressFieldHover",
     ]
 
     static func named(_ name: String) -> NSColor {
