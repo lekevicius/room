@@ -2,6 +2,10 @@
 import AppKit
 import Design
 import Engine
+#if ROOM_ENGINE_ROOMCORE
+import EngineRoomCore
+import RoomCore
+#endif
 import Model
 import Sidebar
 import Store
@@ -186,6 +190,12 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .seconds(10))
         SpikeRunner.record("loaded_pages", tabs.loadedEntryIDs.count)
         SpikeRunner.record("rss_10_loaded", ProcessMemory.snapshot().summary)
+        #if ROOM_ENGINE_ROOMCORE
+        // 5.4b: what each renderer is for (the engine log's "RoomCore census:" lines; dev framework only).
+        if let browser = tabs.engineProfiles.values.compactMap({ ($0 as? RoomCoreProfile)?.spikeBrowsers.first }).first {
+            SpikeRunner.record("renderer_census", SpikeRunner.spikeHook(browser, "roomSpikeAction:", "renderer-census" as NSString)?.intValue ?? -98)
+        }
+        #endif
         for entry in sites {
             if let page = tabs.contents(for: entry.id) { _ = await js(page, Self.visibilityProbe) }
         }

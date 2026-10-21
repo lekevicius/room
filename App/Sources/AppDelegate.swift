@@ -50,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The engine profile of each model profile (one per app, delivered to every window's tab controller).
     private(set) var engineProfiles: [UUID: any Engine.Profile] = [:]
     private var requestedEngineProfiles: Set<UUID> = []
+    /// The session's content blocking start (`contentBlockingStart()`); pages wait for it (B-141).
+    private var contentBlockingTask: Task<Void, Never>?
     /// Every engine profile's downloads delegate (one list for every window's footer button, 4.8a).
     let downloadList = DownloadList()
     /// Chrome extensions per profile: Settings ▸ Extensions, consent, updates (3.6a); nil without an engine.
@@ -250,7 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         LaunchMarks.mark("session started")
         // The blocker reads its lists off the main thread while the engine makes the profiles on it: side by
         // side, not one after the other (5.4a: the profile's ~25 ms now hides in a first launch's ~77 ms list build).
-        let blocking = Task { await startContentBlocking() }
+        let blocking = contentBlockingStart()
         do {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where engineProfiles[model.id] == nil {
@@ -261,7 +263,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 if engineProfiles[model.id] == nil {
                     prepare(profile, for: model)
                     holdSelectionAfterCrash(profile)
-                    deliver(profile, for: model.id)
+                    // B-141: the selection's first load after the blocker's first apply.
+                    await blocking.value
+                    if engineProfiles[model.id] == nil { deliver(profile, for: model.id) }
                 }
             }
             // Before any page the session opens (the start URL, links, spikes): a page's requests are
@@ -374,6 +378,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     /// Room's built-in blocker follows Settings ▸ Privacy from here on (B-30).
+    /// The session's content blocking, started once (by the launch or by the first engine profile asked for).
+    private func contentBlockingStart() -> Task<Void, Never> {
+        if let contentBlockingTask { return contentBlockingTask }
+        let task = Task { await startContentBlocking() }
+        contentBlockingTask = task
+        return task
+    }
+
     private func startContentBlocking() async {
         guard contentBlocking == nil, let blocker = engine.contentBlocking, let settings = store?.settings else { return }
         let engine = engine
@@ -1489,8 +1501,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 prepare(profile, for: model)
                 LaunchMarks.mark("profile prepared (downloads, search, extensions)")
                 holdSelectionAfterCrash(profile)
-                deliver(profile, for: model.id)
-                LaunchMarks.mark("profile delivered (the page made, its load called)")
+                // B-141: a relaunch's selection is made here (the tab controller asks first); its load
+                // waits for the blocker's first apply, as every page the session opens does.
+                await contentBlockingStart().value
+                if engineProfiles[model.id] == nil {
+                    deliver(profile, for: model.id)
+                    LaunchMarks.mark("profile delivered (the page made, its load called)")
+                }
             }
             return engineProfiles[model.id]
         } catch {
