@@ -119,6 +119,7 @@ enum SpikeRunner {
         case "keyboard": await context.keyboardChecks()
         case "openclose": await context.openCloseCycle()
         case "energy": await context.energyChecks()
+        case "input": await context.inputChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)
@@ -639,7 +640,15 @@ enum SpikeRunner {
                     return item
                 })
             }
-            for layoutID in ["com.apple.keylayout.ABC", "com.apple.keylayout.Colemak", "com.apple.keylayout.Lithuanian", "com.apple.keylayout.LithuanianColemak"] {
+            // 5.5a: with an enabled Japanese or Chinese input method selected for the run (restored after);
+            // without one, the non-Latin layouts below still check the reserved set's US-key matching.
+            let ime = InputSources.selectEnabledIME()
+            SpikeRunner.record("keys_ime_source", ime.map { "\($0.selected) selected (was \(InputSources.id($0.previous)))" }
+                ?? "none enabled (enabled: \(InputSources.currentInputID); enabling one is a System Settings change)")
+            defer { if let ime { TISSelectInputSource(ime.previous) } }
+            try? await Task.sleep(for: .milliseconds(300))
+            for layoutID in ["com.apple.keylayout.ABC", "com.apple.keylayout.Colemak", "com.apple.keylayout.Lithuanian", "com.apple.keylayout.LithuanianColemak",
+                             "com.apple.keylayout.Russian", "com.apple.keylayout.Greek"] {
                 guard let layout = KeyLayout(id: layoutID) else {
                     SpikeRunner.record("layout_\(layoutID)", "not installed")
                     continue
@@ -650,16 +659,19 @@ enum SpikeRunner {
                 _ = await js(page, "const t = document.getElementById('t'); t.value = 'select me and copy'; t.focus(); t.select(); 0")
                 focusPage(page)
                 var results: [String] = []
+                // A non-Latin layout types no Latin letter: its ⌘ shortcuts are on the US keys (shortcuts.md).
+                let us = KeyLayout(id: "com.apple.keylayout.US")
+                func code(_ letter: String) -> UInt16? { layout.keyCode(for: letter) ?? us?.keyCode(for: letter) }
                 let consumedBefore = session.consumedKeyCount
                 // Reserved: ⌘T (New Page), ⌘L (Open Location). Key codes are where the layout puts the letter.
                 let newTabsBefore = session.newTabRequests
                 let reservedBefore = session.keyLog.filter { $0.hasPrefix("reserved") }.count
-                if let code = layout.keyCode(for: "t") { send(layout, code, [.command]) }
+                if let code = code("t") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(400))
                 let newPage = session.newTabRequests > newTabsBefore
                 focusPage(page)
                 let focusBefore = session.addressFocusRequest
-                if let code = layout.keyCode(for: "l") { send(layout, code, [.command]) }
+                if let code = code("l") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let focusedAddress = session.addressFocusRequest > focusBefore
                 let reservedCalls = session.keyLog.filter { $0.hasPrefix("reserved") }.count - reservedBefore
@@ -667,22 +679,22 @@ enum SpikeRunner {
                 _ = await js(page, "document.getElementById('t').focus(); document.getElementById('t').select(); 0")
                 // Editing: ⌘C, ⌘V, ⌘Z reach the page and fall through to the menu.
                 pasteboard.clearContents()
-                if let code = layout.keyCode(for: "c") { send(layout, code, [.command]) }
+                if let code = code("c") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let copied = pasteboard.string(forType: .string)
                 pasteboard.clearContents()
                 pasteboard.setString(" PASTED", forType: .string)
                 _ = await js(page, "const t = document.getElementById('t'); t.selectionStart = t.selectionEnd = t.value.length; 0")
-                if let code = layout.keyCode(for: "v") { send(layout, code, [.command]) }
+                if let code = code("v") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let afterPaste = await js(page, "document.getElementById('t').value")
-                if let code = layout.keyCode(for: "z") { send(layout, code, [.command]) }
+                if let code = code("z") { send(layout, code, [.command]) }
                 try? await Task.sleep(for: .milliseconds(300))
                 let afterUndo = await js(page, "document.getElementById('t').value")
                 // A plain letter (not reserved) types into the field.
                 _ = await js(page, "const t = document.getElementById('t'); t.focus(); t.selectionStart = t.selectionEnd = t.value.length; 0")
                 var typed = "nil"
-                if let code = layout.keyCode(for: "o") {
+                if let code = code("o") {
                     send(layout, code, [])
                     try? await Task.sleep(for: .milliseconds(300))
                     typed = await js(page, "document.getElementById('t').value")
@@ -701,6 +713,28 @@ enum SpikeRunner {
                 let digits = [18, 19, 20, 21, 23, 22, 26, 28, 25].map { layout.characters(UInt16($0), command: true) }.joined(separator: " ")
                 results.append("⌘+number row chars: \(digits)")
                 SpikeRunner.record("keys_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))", results.joined(separator: "; "))
+            }
+            // 5.5a: a reserved action remapped (New Tab to ⌥⌘T, Settings ▸ Shortcuts' override) on a Latin and a non-Latin layout.
+            if let settings = AppDelegate.current?.store?.settings {
+                settings.update { $0.shortcutOverrides["newPage:"] = "⌥⌘T" }
+                try? await Task.sleep(for: .milliseconds(400))
+                for layoutID in ["com.apple.keylayout.ABC", "com.apple.keylayout.Russian"] {
+                    guard let layout = KeyLayout(id: layoutID) else { continue }
+                    focusPage(page)
+                    let seenBefore = Int(await js(page, "JSON.parse(document.documentElement.dataset.keys || '[]').length")) ?? 0
+                    let before = session.newTabRequests
+                    send(layout, 17, [.command, .option])
+                    try? await Task.sleep(for: .milliseconds(400))
+                    let remapped = session.newTabRequests - before
+                    focusPage(page)
+                    send(layout, 17, [.command])
+                    try? await Task.sleep(for: .milliseconds(400))
+                    let oldKey = session.newTabRequests - before - remapped
+                    let seen = await js(page, "JSON.stringify(JSON.parse(document.documentElement.dataset.keys || '[]').slice(\(seenBefore)))")
+                    SpikeRunner.record("keys_remap_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))",
+                                       "⌥⌘T newPage=\(remapped) ⌘T newPage=\(oldKey) page saw \(seen) (expected 1, 0, ⌘T only)")
+                }
+                settings.update { $0.shortcutOverrides["newPage:"] = nil }
             }
             SpikeRunner.record("delegate_key_log", session.keyLog.suffix(12).joined(separator: " | "))
         }

@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>IME</title>
+<style>body{font:15px -apple-system;margin:24px} textarea{width:420px;height:80px} #wide{width:300%;height:40px;background:#eee}</style>
+<h1>Input spike (5.5a)</h1>
+<p>Composition and key events are logged as JSON in <code>data-events</code> on the root element (isolated-world scripts read the DOM).</p>
+<textarea id="t"></textarea>
+<p><a id="next" href="?next">Next page</a></p>
+<script>
+const events = [];
+const log = e => {
+  events.push(e.type + (e.data !== undefined && e.data !== null ? ':' + e.data : '') + (e.key ? ':' + e.key : '') + (e.button !== undefined && e.type.startsWith('mouse') ? ':b' + e.button : ''));
+  document.documentElement.dataset.events = JSON.stringify(events);
+};
+for (const type of ['compositionstart', 'compositionupdate', 'compositionend', 'keydown']) addEventListener(type, log, true);
+for (const type of ['mousedown', 'mouseup', 'auxclick']) addEventListener(type, log, true);
+</script>
