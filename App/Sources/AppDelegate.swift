@@ -1025,8 +1025,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// applied now and again whenever either changes.
     private func applyLookSettings() {
         guard let settings = store?.settings else { return }
-        let (appearance, side, toolbar) = withObservationTracking {
-            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar)
+        let (appearance, side, toolbar, _) = withObservationTracking {
+            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar, settings.settings.monoTrafficLights)
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.applyLookSettings() }
         }
@@ -1086,6 +1086,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         session.controller.rootView.sidebarEdge = side == .right ? .right : .left
         // Settings ▸ General ▸ Show the toolbar (4.4a) as View ▸ Show Toolbar.
         if session.controller.showsToolbar != toolbar { session.controller.showsToolbar = toolbar }
+        // Settings ▸ Appearance ▸ Grey window buttons (5.2b, spec §I.12).
+        session.controller.monoTrafficLights = settings.monoTrafficLights
     }
 
     /// ⌘S, View ▸ Hide Sidebar / Show Sidebar (spec §E).

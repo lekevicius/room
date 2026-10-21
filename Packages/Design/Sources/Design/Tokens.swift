@@ -309,6 +309,13 @@ public enum WindowMetrics {
     public static let incognitoLabelGap: CGFloat = 4
 }
 
+/// The window's buttons (traffic lights): AppKit places and draws them; Room never moves them.
+public enum TrafficLightMetrics {
+    /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12, mono traffic lights): the
+    /// buttons' saturation (a `CIColorControls` filter; 0 is grey, the inactive window's look).
+    public static let monochromeSaturation: CGFloat = 0
+}
+
 public enum CardMetrics {
     /// Gap between the card and the window edge on the top, trailing and bottom sides.
     /// Dia's window measured 6; the Room Browser design (2026-10-07) is 8.

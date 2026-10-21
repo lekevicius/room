@@ -41,6 +41,17 @@ public final class WindowMaterialView: NSVisualEffectView {
     }
 
     public override var mouseDownCanMoveWindow: Bool { false }
+
+    #if DEBUG
+    /// The gradient's three stops as the layer holds them (5.2b's inactive check).
+    public var debugTintStops: [String] {
+        (tintView.gradientLayer.colors as? [CGColor] ?? []).compactMap { color in
+            NSColor(cgColor: color)?.usingColorSpace(.sRGB).map {
+                String(format: "%.2f/%.2f/%.2f a%.3f", $0.redComponent, $0.greenComponent, $0.blueComponent, $0.alphaComponent)
+            }
+        }
+    }
+    #endif
 }
 
 /// A space's tint: its theme colours (1–3, `ThemePalette` in Model) for
@@ -65,7 +76,10 @@ public struct SpaceTint: Equatable, Sendable {
 final class SpaceTintView: NSView {
     private(set) var tint: SpaceTint?
     var isWindowActive = true {
-        didSet { if isWindowActive != oldValue { needsDisplay = true } }
+        // Straight to the layer, faded with the sidebar's content (`Motion.standard`): a
+        // `needsDisplay` alone never reached `updateLayer` here (5.2b: the inactive window kept its
+        // active tint, read back from the layer).
+        didSet { if isWindowActive != oldValue { setTint(tint, animated: true, duration: Motion.standard) } }
     }
     /// Inactive windows keep a fainter tint, matching the desaturated sidebar.
     static let inactiveFactor: CGFloat = 0.6
@@ -102,7 +116,7 @@ final class SpaceTintView: NSView {
         CATransaction.commit()
     }
 
-    func setTint(_ newTint: SpaceTint?, animated: Bool) {
+    func setTint(_ newTint: SpaceTint?, animated: Bool, duration: TimeInterval = Motion.medium) {
         tint = newTint
         var target: [CGColor] = []
         effectiveAppearance.performAsCurrentDrawingAppearance { target = self.targetColors() }
@@ -111,7 +125,7 @@ final class SpaceTintView: NSView {
             let animation = CABasicAnimation(keyPath: "colors")
             animation.fromValue = layer.presentation()?.colors ?? layer.colors
             animation.toValue = target
-            animation.duration = Motion.medium
+            animation.duration = duration
             animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             layer.add(animation, forKey: "colors")
         }
@@ -124,7 +138,9 @@ final class SpaceTintView: NSView {
     /// Must run with the view's appearance current (dynamic colors).
     func targetColors() -> [CGColor] {
         guard let tint else { return Self.clearColors }
-        let colors = effectiveAppearance.isDark ? tint.dark : tint.light
+        var colors = effectiveAppearance.isDark ? tint.dark : tint.light
+        // Inactive: the tint desaturated with the sidebar's content (spec §I.12, 20%) as well as fainter.
+        if !isWindowActive { colors = colors.map(Self.desaturated) }
         guard let first = colors.first else { return Self.clearColors }
         let factor = isWindowActive ? 1 : Self.inactiveFactor
         let alpha = min(max(tint.alpha, Materials.tintOpacityRange.lowerBound), Materials.tintOpacityRange.upperBound) * factor
@@ -143,6 +159,14 @@ final class SpaceTintView: NSView {
             alphas = [alpha, alpha, alpha]
         }
         return zip(stops, alphas).map { $0.withAlphaComponent($1).cgColor }
+    }
+
+    /// `color` with its saturation × `SidebarMetrics.inactiveSaturation` (5.2b: the inactive tint
+    /// kept its chroma, measured from captures; only its alpha fell).
+    static func desaturated(_ color: NSColor) -> NSColor {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return color }
+        return NSColor(colorSpace: .sRGB, hue: rgb.hueComponent, saturation: rgb.saturationComponent * SidebarMetrics.inactiveSaturation,
+                       brightness: rgb.brightnessComponent, alpha: rgb.alphaComponent)
     }
 
     private static let clearColors = [NSColor.clear.cgColor, NSColor.clear.cgColor, NSColor.clear.cgColor]

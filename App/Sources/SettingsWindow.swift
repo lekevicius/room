@@ -362,6 +362,12 @@ private struct SettingsSectionView: View {
                 .foregroundStyle(.secondary)
         }
         Section {
+            Toggle("Grey window buttons", isOn: binding(\.monoTrafficLights))
+            Text("The close, minimise and zoom buttons are drawn without colour.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        Section {
             // 4.7b: the reader page's text (⌥⇧⌘R); applies to a reader page that shows.
             Picker("Reader text size", selection: binding(\.readerTextSize)) {
                 Text("Small").tag(ReaderTextSize.small)

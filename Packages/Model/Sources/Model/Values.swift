@@ -494,6 +494,8 @@ public struct Settings: Hashable, Sendable, Codable {
     public var appIcon: AppIconChoice = .room
     /// Settings ▸ Privacy ▸ Ads and trackers (B-30): Room's built-in blocker.
     public var contentBlocking = ContentBlockingSettings()
+    /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12: mono traffic lights, optional; 5.2b).
+    public var monoTrafficLights: Bool = false
 
     public init() {}
 
@@ -502,7 +504,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
-        case extensionsInIncognito, readerTextSize, appIcon, contentBlocking
+        case extensionsInIncognito, readerTextSize, appIcon, contentBlocking, monoTrafficLights
     }
 
     public init(from decoder: any Decoder) throws {
@@ -545,6 +547,7 @@ public struct Settings: Hashable, Sendable, Codable {
         appIcon = (try? container.decodeIfPresent(AppIconChoice.self, forKey: .appIcon)).flatMap { $0 } ?? defaults.appIcon
         contentBlocking = (try? container.decodeIfPresent(ContentBlockingSettings.self, forKey: .contentBlocking)).flatMap { $0 }
             ?? defaults.contentBlocking
+        monoTrafficLights = (try? container.decodeIfPresent(Bool.self, forKey: .monoTrafficLights)).flatMap { $0 } ?? defaults.monoTrafficLights
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).

@@ -130,6 +130,7 @@ struct SpaceFormView: View {
         .onAppear { focus = model.initialFocus }
         .onChange(of: model.themeColors) { onThemeChange() }
         .onChange(of: model.algorithm) { onThemeChange() }
+        .onChange(of: model.opacity) { onThemeChange() }
     }
 
     // MARK: Icon
@@ -205,6 +206,7 @@ struct SpaceFormView: View {
             .pickerStyle(.menu)
             .labelsHidden()
             .accessibilityIdentifier("space-form-algorithm")
+            TintOpacityControl(opacity: $model.opacity)
             // What the window tint will show.
             RoundedRectangle(cornerRadius: SpaceFormMetrics.cornerRadius)
                 .fill(model.paletteColors.isEmpty
@@ -252,6 +254,31 @@ struct SpaceFormView: View {
         let trimmed = profileName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         model.newProfileName = trimmed
+    }
+}
+
+/// The tint's opacity (B-23): 0–100 % of the space's `themeOpacity`, which the window maps into
+/// `Materials.tintOpacityRange`. A view of its own so the space window (5.7b) takes it as it is.
+public struct TintOpacityControl: View {
+    @Binding var opacity: Double
+
+    public init(opacity: Binding<Double>) {
+        _opacity = opacity
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            Text("Opacity").font(.subheadline).foregroundStyle(.secondary)
+            Slider(value: $opacity, in: 0...1)
+                .controlSize(.small)
+                .accessibilityIdentifier("space-form-opacity")
+            Text(opacity, format: .percent.precision(.fractionLength(0)))
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 36, alignment: .trailing)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tint opacity")
     }
 }
 

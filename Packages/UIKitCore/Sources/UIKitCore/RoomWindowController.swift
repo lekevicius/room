@@ -52,6 +52,12 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
 
     // MARK: The traffic lights and the drag region while the sidebar is hidden (spec §E, B-114)
 
+    /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12).
+    public var monoTrafficLights: Bool {
+        get { trafficLights.isMonochrome }
+        set { trafficLights.isMonochrome = newValue }
+    }
+
     /// View ▸ Show Toolbar.
     public var showsToolbar: Bool {
         get { rootView.showsToolbar }

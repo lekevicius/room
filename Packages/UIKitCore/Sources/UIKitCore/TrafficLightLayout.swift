@@ -96,8 +96,31 @@ public final class TrafficLightLayout {
         }
     }
 
+    /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12: mono traffic lights, optional): each
+    /// button drawn without colour through a saturation-0 filter on its own layer, never moved; the
+    /// hover glyphs and the inactive window's grey stay AppKit's.
+    public var isMonochrome = false {
+        didSet { if isMonochrome != oldValue { applyMonochrome() } }
+    }
+
+    private func applyMonochrome() {
+        guard let window else { return }
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap(window.standardWindowButton) {
+            if isMonochrome, let filter = CIFilter(name: "CIColorControls") {
+                filter.setValue(TrafficLightMetrics.monochromeSaturation, forKey: kCIInputSaturationKey)
+                button.wantsLayer = true
+                button.layerUsesCoreImageFilters = true
+                button.contentFilters = [filter]
+            } else if !button.contentFilters.isEmpty {
+                button.contentFilters = []
+            }
+        }
+    }
+
     /// Re-measures; calls `onChange` if the geometry moved.
     public func update() {
+        // AppKit makes new buttons when it rebuilds the titlebar (fullscreen, style changes).
+        if isMonochrome { applyMonochrome() }
         let new = Self.measure(window, includingHidden: areButtonsHidden)
         guard new != geometry else { return }
         geometry = new
