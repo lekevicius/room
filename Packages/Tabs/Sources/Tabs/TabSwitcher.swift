@@ -76,6 +76,13 @@ public final class TabSwitcher {
     public var debugPanelFrame: NSRect? { panel.map { $0.convert($0.bounds, to: nil) } }
     /// The list itself (the glass draws nothing in an in-process render).
     public var debugPanel: NSView? { panel }
+    /// ⌃Tab held past the delay, at once (the motion harness, 5.1b); `debugEnd` lets ⌃ go without switching.
+    public func debugShow() {
+        begin(backwards: false)
+        pendingShow?.cancel()
+        showPanel()
+    }
+    public func debugEnd() { cancel() }
     #endif
 
     /// Returns whether the event was consumed.
@@ -147,13 +154,6 @@ public final class TabSwitcher {
         panel.isHidden = false
         self.panel = panel
         update()
-    }
-
-    private func update() {
-        guard let state, let panel, let hostView, let sidebar, let tabs else { return }
-        let rows = state.items.compactMap { id -> TabSwitcherPanel.Row? in
-            guard let entry = sidebar.store.sidebar.entry(id) else { return nil }
-            let page = tabs.pageState(for: id)
         // Explicit: a view added in this transaction has no presentation for `animator()` to start from.
         if TabsMotion.switcherAppear.variant != .instant, let layer = panel.layer {
             let fade = CABasicAnimation(keyPath: "opacity")
@@ -163,6 +163,13 @@ public final class TabSwitcher {
             fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
             layer.add(fade, forKey: "appear")
         }
+    }
+
+    private func update() {
+        guard let state, let panel, let hostView, let sidebar, let tabs else { return }
+        let rows = state.items.compactMap { id -> TabSwitcherPanel.Row? in
+            guard let entry = sidebar.store.sidebar.entry(id) else { return nil }
+            let page = tabs.pageState(for: id)
             return TabSwitcherPanel.Row(title: EntryLabel.title(entry), domain: EntryLabel.domain(entry.currentURL) ?? "",
                                         favicon: page.favicon, isLoaded: page.isLoaded)
         }
@@ -189,6 +196,7 @@ final class TabSwitcherPanel: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        wantsLayer = true
         glass.cornerRadius = Radius.large
         let content = NSView()
         content.addSubview(highlight)
@@ -196,7 +204,6 @@ final class TabSwitcherPanel: NSView {
         stack.spacing = 0
         stack.edgeInsets = NSEdgeInsets(top: TabSwitcherMetrics.padding, left: TabSwitcherMetrics.padding,
                                         bottom: TabSwitcherMetrics.padding, right: TabSwitcherMetrics.padding)
-        wantsLayer = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([

@@ -61,6 +61,21 @@ extension SpikeRunner.Context {
             rows.append(result)
             try? await Task.sleep(for: .milliseconds(500))
         }
+        // `-RoomSpikeOnly overlays` (5.1b) runs only the overlays, toasts, downloads, split, controls and reveal.
+        let only = Set((UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "").split(separator: ",").map(String.init))
+        if only.isEmpty || only.contains("overlays") {
+            sidebar.select(fixture.today[2])
+            if let page = tabs.contents(for: fixture.today[2]) { await waitLoaded(page, timeout: 15) }
+            rows += await overlayMotion(probe: probe, fixture: fixture, base: base)
+        }
+        guard only.isEmpty || only.contains("sidebar") else {
+            probe.stop()
+            SpikeRunner.record("display_frame_interval", probe.intervalDescription)
+            for line in MotionProbe.table(rows) { SpikeRunner.record("motion_table", line) }
+            return
+        }
+        sidebar.select(fixture.today[2])
+        try? await Task.sleep(for: .milliseconds(400))
 
         // The pill follows its row as a row inserts above it, and as it leaves.
         var above: UUID?
@@ -231,7 +246,7 @@ final class MotionProbe: NSObject {
         }
     }
 
-    func measure(_ name: String, trigger: () -> Void) async -> Result {
+    func measure(_ name: String, minimum: TimeInterval = 0.1, trigger: () -> Void) async -> Result {
         found = [:]
         seen = []
         order = []
@@ -245,7 +260,7 @@ final class MotionProbe: NSObject {
         scansLeft = 3
         // Long enough for every animation it found (and a minimum, so an instant variant still shows its frames).
         try? await Task.sleep(for: .milliseconds(80))
-        let window = max(longest, 0.1)
+        let window = max(longest, minimum)
         try? await Task.sleep(for: .milliseconds(Int((window + 0.1) * 1000)))
         let recent = nominals.suffix(60).sorted()
         let nominal = recent.isEmpty ? 1.0 / 60 : recent[recent.count / 2] / 1000
