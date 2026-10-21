@@ -27,3 +27,11 @@ Outcome: the motion harness, the sidebar's motion on the tokens (0 dropped frame
 ### 5.1b — accepted; Phase 5.1 closed pending the 120 Hz run (2026-10-21 06:26 → 07:26, 60 min)
 
 Outcome: B-111 (`ControlFeedback`), B-114 (no pill, a faster reveal), Reduce Motion tables in seven packages, the overlay motion table, two review sheets. Decisions: the trigger costs before animations (B-129) go to 5.4a with B-53; the switcher's new fade stays for the user's taste; no screen recordings (they would raise a prompt). User's list for 5.1: the 120 Hz runs, taste on the two sheets, click checks a–e. DMG: build 16 started 07:28.
+
+### Build 16 (2026-10-21 07:26 → 07:30)
+
+Phase 5.1's DMG, notarized in 63 s. The user's newest DMG.
+
+### 5.2a — accepted (2026-10-21 07:29 → 08:10, 41 min)
+
+Outcome: the design audit (0 undeclared literals), the icon-weights and typography tables, hairlines at 1 px, the matrix with 14 contact sheets, B-110, B-112, B-113, B-115, B-125; B-89 was already done. Decision: task 9 and B-125 moved into 5.2a so 5.2b carries the engine step without the metric work. User's list: taste on the sheets, two click checks. DMG: build 16 (Phase 5.2's after 5.2b).
