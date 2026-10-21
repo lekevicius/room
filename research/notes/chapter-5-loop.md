@@ -119,3 +119,7 @@ Outcome: four `WebContentsUIDelegate` password members with `PasswordOffer`/`Pas
 ### The laptop's request channel (23:03 → 00:10)
 
 5.4b's first engine request (`54b-1`, f05f3d6, dev and release) waited over an hour: the laptop's 156 out/dev clean build runs and its session showed idle; messages over Remote Control are not confirmed. Asked again at 00:10 (release first). Fallback for the publish: build 23 over the installed 156 release engine (`30a60f7`) without 5.4b's and B-58's //room changes (the host handles their absence).
+
+### 5.4b — accepted with gaps; Phase 5.6 closed with B-58 (main, 22:52 → 00:56)
+
+Outcome on the laptop's 156 release build of `f05f3d6` (request `54b-1`, answered after 68 min): B-139's leak gone, B-127 held off, B-87 and B-140 as specified (B-140 saves nothing), B-141, B-58's toast member (Copy Link Address shows "Copied Link"; `chrome26a` 26/26), the numbers table v3 at 60 Hz (switching p95 18.1–18.5 ms: B-53 stays; ten pages 4.7–5.1 GB with 16–18 renderers; relaunch 0.77–1.27 s; 0 engine requests). Gaps: B-56 (four discarded pages' renderers alive at 10 s; second half `e96c4ba` waits as `54b-2`), every dev-only check (156 out/dev not yet built on the laptop), B-152 (the space switch's ⌃digit misses 59 of 60, a host regression since 4.9), B-153 (spikes leave suggestions off in the shared tour state), B-154 (three `chrome26b` checks). Phase 5.4 open for those; Phase 5.6 done.
