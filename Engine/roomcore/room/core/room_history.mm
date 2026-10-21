@@ -454,15 +454,15 @@ class ImportVisitsTask : public history::HistoryDBTask {
     completion(0);
     return;
   }
-  // The host's URLs (a hostname query), then the exact host's among them:
-  // a query for "example.com" also finds "notexample.com".
+  // The host's URLs (a hostname-suffix query since 156: the host and its
+  // subdomains), then the exact host's among them.
   history::QueryOptions options;
-  options.host_only = true;
+  options.hostname_suffix = bare;
   options.duplicate_policy = history::QueryOptions::REMOVE_ALL_DUPLICATES;
   void (^callback)(NSInteger) = [completion copy];
   base::WeakPtr<history::HistoryService> weak_service = service->AsWeakPtr();
   service->QueryHistory(
-      base::UTF8ToUTF16(bare), options,
+      std::u16string(), options,
       base::BindOnce(^(history::QueryResults results) {
         std::vector<GURL> urls;
         for (const history::URLResult& result : results) {

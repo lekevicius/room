@@ -305,7 +305,9 @@ class KeybindingRegistry : public extensions::ExtensionKeybindingRegistry {
                        const std::string& command_name) {
     LOG(INFO) << "RoomCore: extension command " << command_name << " of "
               << extension_id << " from the host";
-    CommandExecuted(extension_id, command_name);
+    // No key: an empty accelerator (156 passes the key along; a non-media
+    // one, so activeTab is granted as for the key).
+    CommandExecuted(extension_id, command_name, ui::Accelerator());
   }
 
  private:
