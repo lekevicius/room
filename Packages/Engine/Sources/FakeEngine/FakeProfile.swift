@@ -276,6 +276,10 @@ public final class FakeProfile: Profile {
     /// there to stand for passwords saved before.
     public var savedPasswords: [SavedPassword] = []
 
+    /// Sites answered "Never for this site" (Chrome's blocklist; 5.8a), as
+    /// `scheme://host[:port]`: a submit there offers nothing.
+    public var neverSavePasswordSites: Set<String> = []
+
     /// Chromium's importer, reduced: the header names the columns (Chrome's
     /// aliases), a row needs a URL with a host and a password, a row whose
     /// site and username are saved with another password is a conflict, one

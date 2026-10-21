@@ -65,7 +65,9 @@ public final class FakeWebContents: WebContents {
     private var zoom = 1.0
     private var lastFind: (text: String, matchCase: Bool)?
 
-    @ObservationIgnored private weak var profile: FakeProfile?
+    @ObservationIgnored weak var profile: FakeProfile?
+    /// The password offer the delegate presents, until answered or withdrawn (5.8a).
+    @ObservationIgnored var pendingPasswordOffer: ((FakeWebContents.PasswordSubmitOutcome) -> Void)?
     @ObservationIgnored private var pageView: FakePageView?
     @ObservationIgnored private lazy var fakeDevTools = FakeDevTools(contents: self)
 

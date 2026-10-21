@@ -38,7 +38,8 @@ public protocol WebContentsUIDelegate: AnyObject {
     func webContentsDidRequestActivation(_ webContents: any WebContents)
     /// Where the engine's own bubbles point while this page is its window's
     /// active page (RoomCore keeps Chrome's Views bubbles: password save and
-    /// update, address and card saves, device choosers, FedCM; Phase 3.7a):
+    /// update where the host does not present them (5.8a), address and card
+    /// saves, device choosers, FedCM; Phase 3.7a):
     /// a rect in the window's coordinates, the site button. `nil`: the
     /// engine's default, the window's top-left corner. Asked when a bubble is
     /// about to show and when the window moves or resizes.
@@ -114,6 +115,34 @@ public protocol WebContentsUIDelegate: AnyObject {
         runFileChooser request: FileChooserRequest,
         completion: @escaping ([URL]?) -> Void
     )
+
+    // MARK: Passwords (5.8a)
+
+    /// The engine would offer to save the password the page just submitted
+    /// (Chrome's save bubble). Return `true` if the host presents the offer
+    /// itself and later calls `completion` exactly once (`.save`, `.never`,
+    /// `.notNow`); the engine then shows nothing. `false`, the default, keeps
+    /// the engine's own bubble and `completion` is never called.
+    func webContents(
+        _ webContents: any WebContents,
+        willOfferPasswordSave offer: PasswordOffer,
+        completion: @escaping (PasswordOfferResponse) -> Void
+    ) -> Bool
+    /// The same for a password saved before with another value (Chrome's
+    /// update bubble): `.save` replaces it, `.notNow` keeps it; `.never` is
+    /// not offered for an update (answered, it counts as `.notNow`).
+    func webContents(
+        _ webContents: any WebContents,
+        willOfferPasswordUpdate offer: PasswordOffer,
+        completion: @escaping (PasswordOfferResponse) -> Void
+    ) -> Bool
+    /// The engine stored a password without asking (a generated password
+    /// accepted on the page: Chrome's saved confirmation). Return `true` if
+    /// the host confirms it with the manage link; `false` keeps the engine's.
+    func webContents(_ webContents: any WebContents, didSavePassword offer: PasswordOffer) -> Bool
+    /// The engine withdrew the offer it asked about (the page navigated or
+    /// closed, a later submit replaced it): its completion must no longer be called.
+    func webContentsDidWithdrawPasswordOffer(_ webContents: any WebContents)
 
     // MARK: The renderer, other applications, notices (3.4b)
 
@@ -202,6 +231,16 @@ public extension WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, runFileChooser request: FileChooserRequest, completion: @escaping ([URL]?) -> Void) {
         completion(nil)
     }
+    func webContents(_ webContents: any WebContents, willOfferPasswordSave offer: PasswordOffer,
+                     completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        false
+    }
+    func webContents(_ webContents: any WebContents, willOfferPasswordUpdate offer: PasswordOffer,
+                     completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        false
+    }
+    func webContents(_ webContents: any WebContents, didSavePassword offer: PasswordOffer) -> Bool { false }
+    func webContentsDidWithdrawPasswordOffer(_ webContents: any WebContents) {}
     func webContentsDidBecomeUnresponsive(_ webContents: any WebContents,
                                           completion: @escaping (UnresponsiveRendererAction) -> Void) {
         completion(.wait)
