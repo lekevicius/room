@@ -69,8 +69,10 @@ extension SpikeRunner.Context {
         try? manifest.write(to: root.appending(path: "manifest.json"), atomically: true, encoding: .utf8)
         guard let second = try? await section.extensions.loadUnpacked(at: root) else { return SpikeRunner.record("error", "second extension not loaded") }
         let ids = { field.extensionActionIDs.map { $0 == id ? "fixture" : $0 == second ? "second" : $0 } }
+        // What the bar shows (B-125): at the default width both pinned buttons, else the overflow takes them.
+        let shownIDs = { field.shownActionIDs.map { $0 == id ? "fixture" : $0 == second ? "second" : $0 } }
         _ = await waitUntil(5) { field.extensionActionIDs.count == 2 }
-        SpikeRunner.record("header_initial", "buttons=\(ids()) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil)")
+        SpikeRunner.record("header_initial", "buttons=\(ids()) shown=\(shownIDs()) bar_width=\(Int(field.bounds.width)) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil)")
         // Unpin the fixture (Settings ▸ Extensions' Unpin): the header keeps the second, the overflow menu lists the fixture with its badge.
         guard let fixture = center.sections.first?.installed.first(where: { $0.id == id }) else { return }
         center.setPinned(false, fixture, in: section)
@@ -79,7 +81,7 @@ extension SpikeRunner.Context {
         _ = await waitUntil(5) { !(center.overflowActions(profile: section.id, page: page).first?.badgeText ?? "").isEmpty }
         let menu = field.overflowMenu()
         let titles = menu.items.map { $0.attributedTitle?.string ?? $0.title }
-        SpikeRunner.record("header_unpinned", "buttons=\(ids()) overflow=\(field.overflowActionIDs.map { $0 == id ? "fixture" : $0 }) "
+        SpikeRunner.record("header_unpinned", "buttons=\(ids()) shown=\(shownIDs()) overflow=\(field.overflowActionIDs.map { $0 == id ? "fixture" : $0 }) "
             + "overflow_button=\(field.overflowButtonView != nil) menu=\(titles) badge=\(center.overflowActions(profile: section.id, page: page).first?.badgeText ?? "nil")")
         captureExtux(window, "header-overflow")
         // A click on the overflow item runs the action: its popup points at the overflow button.
@@ -106,7 +108,7 @@ extension SpikeRunner.Context {
             pinMenu.performActionForItem(at: index)
         }
         _ = await waitUntil(5) { field.extensionActionIDs == [second, id] }
-        SpikeRunner.record("header_repinned", "buttons=\(ids()) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil) "
+        SpikeRunner.record("header_repinned", "buttons=\(ids()) shown=\(shownIDs()) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil) "
             + "installed_order=\((center.sections.first?.installed ?? []).map { $0.id == id ? "fixture" : $0.id == second ? "second" : $0.name })")
         // Back to one button for the later sections.
         if let item = center.sections.first?.installed.first(where: { $0.id == second }) {

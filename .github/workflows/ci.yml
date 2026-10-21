@@ -30,6 +30,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Token drift (5.2a; a grep, no build)
+        run: scripts/design-audit.sh --strict
+
       - name: Generate project (no engine)
         run: xcodegen --spec xcodegen/ci.yml --project-root . --project .
 

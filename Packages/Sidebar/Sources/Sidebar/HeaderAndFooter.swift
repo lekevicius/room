@@ -253,6 +253,8 @@ public final class ExtensionBarView: NSView {
     public var overflowActionIDs: [String] { overflowActions.map(\.id) }
     /// The pinned extensions, in order, whether the bar shows them or the menu does (spikes read it).
     public var extensionActionIDs: [String] { actionButtons.map(\.model.id) }
+    /// The pinned extensions the bar shows, in order (B-125: the tour reads these, not the pinned list).
+    public var shownActionIDs: [String] { shownButtons.map(\.model.id) }
 
     /// The overflow menu (4.5): the pinned actions that did not fit, then each
     /// unpinned action with a "Pin" item under it; each with its badge (a

@@ -1377,11 +1377,12 @@ def _extensions(c):
                label="⇧⌘U with the sidebar's list focused reaches commands.onCommand (B-70)")
     c.contains("command_sidebar_action", "popover=true", "routed=⇧⌘Y true", label="⇧⌘Y with the sidebar focused opens the popup")
     c.contains("command_sidebar_other_key", "routed=⇧⌘C false", label="a key no extension has goes on to the menu")
-    c.contains("header_initial", 'buttons=["fixture", "second"]', "overflow_button=false", label="two pinned actions in install order, no overflow button")
-    c.contains("header_unpinned", 'buttons=["second"]', 'overflow=["fixture"]', "overflow_button=true", "Room 3.6 fixture  T", "badge=T",
+    c.contains("header_initial", 'buttons=["fixture", "second"]', 'shown=["fixture", "second"]', "overflow_button=false",
+               label="two pinned actions in install order, both shown at the default width, no overflow button (B-125)")
+    c.contains("header_unpinned", 'buttons=["second"]', 'shown=["second"]', 'overflow=["fixture"]', "overflow_button=true", "Room 3.6 fixture  T", "badge=T",
                label="unpinned: the header keeps the other, the overflow menu lists it with its badge")
     c.contains("overflow_run", "popover=true", "anchored_on_overflow=true", "shown_id=fixture", label="the overflow item runs the action; its popup on the overflow button")
-    c.contains("header_repinned", 'buttons=["second", "fixture"]', "overflow_button=false", label="Pin puts it back at the header's end (the pinned order)")
+    c.contains("header_repinned", 'buttons=["second", "fixture"]', 'shown=["second", "fixture"]', "overflow_button=false", label="Pin puts it back at the header's end (the pinned order)")
     c.contains("site_panel_section", 'rows=["fixture"]', "host=127.0.0.1", "level=0", "run_shown=true", "ran_before_run=false",
                label="the site panel lists the extension on click with Run; the script has not run")
     c.contains("site_panel_run", "ran=true", "ran_here=true", "keep_offered=true", label="the site panel's Run runs it and offers to keep it on the site")
