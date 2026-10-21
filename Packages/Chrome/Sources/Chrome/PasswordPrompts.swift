@@ -104,7 +104,10 @@ final class PasswordOfferViewController: NSViewController {
         grid.rowSpacing = Spacing.xs
         grid.columnSpacing = Spacing.m
         grid.column(at: 0).xPlacement = .trailing
+        grid.column(at: 1).xPlacement = .leading
         grid.rowAlignment = .firstBaseline
+        // Hugs its content: a stretched grid put its columns at the trailing edge (the update offer, 5.8a's capture).
+        grid.setContentHuggingPriority(.required, for: .horizontal)
         stack.addArrangedSubview(grid)
 
         let buttons = NSStackView()
