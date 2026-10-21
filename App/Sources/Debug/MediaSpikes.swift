@@ -278,7 +278,9 @@ extension SpikeRunner.Context {
     /// A visible window above the normal level that is not Room's (Chrome's video overlay).
     func overlayWindow() -> NSWindow? {
         NSApp.windows.first { candidate in
+            // Not a menu-bar status item's window (5.9: 156's engine adds one, level 25, before any PiP).
             candidate.isVisible && candidate !== window && !(candidate is NSPanel) && candidate.level != .normal
+                && candidate.level != .statusBar && !candidate.className.contains("StatusBar")
         }
     }
 
