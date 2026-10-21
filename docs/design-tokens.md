@@ -286,7 +286,6 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | ~~`ClusterMetrics.horizontalPadding`~~ | ~~12 pt beside the outer buttons (pill 84 × 38 around 60 × 14 buttons)~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
 | ~~`Timing.clusterFade`~~ | ~~2 s after the pointer was last within `ClusterMetrics.nearDistance` (60 pt) of the pill; fades with the buttons over `Motion.standard`, back over `Motion.fast`~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
 | ~~Cluster wash~~ | ~~the overlay's wash inside the pill's glass~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
-| `ContentDragMetrics.contentDragFraction` / `contentDragThreshold` (was `ClusterMetrics`, renamed 5.1b) | the top 5% of the card drags the window once a press moves 3 pt | spec §E (Zen `drag-window-from-content`); threshold = AppKit's drag distance |
 | `ToolbarMetrics.height` / `buttonSize` / `padding` / `urlHeight` | 36 / 28 / 6 / 26 pt; the bar sits in the card's top on the page's fill, its content centred on the traffic lights' line when they sit in it | spec §E (36 px); the rest chosen |
 | Toolbar and Peek header appearance | Aqua on a light page fill, Dark Aqua on a dark one (relative luminance > 0.5) | chosen (2.7a dark captures) |
 | `PeekMetrics.sizeFraction` / `cornerRadius` / `dimAlpha` | 86% of the content area (the page card), 24 pt corners, black at 30% over the card | spec §I.6 |

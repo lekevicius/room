@@ -741,17 +741,6 @@ public enum RevealMetrics {
     public static let outsideToleranceY: CGFloat = 100
 }
 
-/// The window's drag handle in the page while the sidebar is hidden (spec §E).
-/// The floating traffic-light cluster that was here went with B-114 (5.1b).
-public enum ContentDragMetrics {
-    /// The top of the card that drags the window while the sidebar is hidden
-    /// (spec §E: Zen `drag-window-from-content`, the top 5%).
-    public static let contentDragFraction: CGFloat = 0.05
-    /// A press there drags the window once it moves this far (AppKit's drag
-    /// threshold, as `SidebarMetrics.dragThreshold`); a click still reaches the page.
-    public static let contentDragThreshold: CGFloat = 3
-}
-
 /// The optional toolbar (View ▸ Show Toolbar; spec §E: 36 px with Back,
 /// Forward, Reload and the full URL).
 public enum ToolbarMetrics {

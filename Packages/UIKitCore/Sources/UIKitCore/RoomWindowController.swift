@@ -17,7 +17,6 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     public let activity: WindowActivity
     /// The hidden sidebar's hover reveal (spec §E).
     public private(set) var reveal: SidebarRevealController!
-    private var contentDrag: ContentDragMonitor!
 
     public init(contentSize: NSSize = RoomWindow.defaultContentSize) {
         let window = RoomWindow(contentRect: NSRect(origin: .zero, size: contentSize))
@@ -40,7 +39,8 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         rootView.splitterView.onEnd = { [weak self] in self?.splitterDragEnded() }
 
         reveal = SidebarRevealController(rootView: rootView)
-        contentDrag = ContentDragMonitor(rootView: rootView)
+        // A double-click on the page under the titlebar is the page's (B-32).
+        window.isPageView = { [weak self] view in self?.isPage(view) ?? false }
         rootView.onAvailabilityChange = { [weak self] in
             self?.reveal.availabilityChanged()
             self?.hiddenChromeChanged()
@@ -50,7 +50,7 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         hiddenChromeChanged()
     }
 
-    // MARK: The traffic lights and the drag region while the sidebar is hidden (spec §E, B-114)
+    // MARK: The traffic lights while the sidebar is hidden (spec §E, B-114)
 
     /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12).
     public var monoTrafficLights: Bool {
@@ -68,10 +68,9 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// traffic lights live in the sidebar (B-114, amending spec §E): hidden
     /// with it, they fade in as the overlay slides in under them and out as
     /// it leaves; they stay where AppKit put them, only hidden (a hidden
-    /// button takes no clicks). The top of the card drags the window while
-    /// the sidebar is hidden.
+    /// button takes no clicks). The card has no drag band (B-32, removed in
+    /// 5.6b): the sidebar's areas move the window.
     private func hiddenChromeChanged() {
-        contentDrag.isActive = rootView.dragsFromContent
         let hide = rootView.hidesTrafficLights
         // In with the overlay's slide, out with its slide back; ⌘S hiding the docked sidebar fades them quickly.
         let duration = hide ? (rootView.isOverlayAnimating ? Motion.revealOut : Motion.fast) : (rootView.isOverlayShown ? Motion.revealIn : 0)
@@ -80,6 +79,19 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// The view is the page itself (the engine's view in the card), not a
+    /// control, field or glass panel of Room's over it.
+    private func isPage(_ view: NSView) -> Bool {
+        guard view.isDescendant(of: cardView) else { return false }
+        var current = view
+        while current !== cardView {
+            if current is NSControl || current is NSText || current is NSGlassEffectView { return false }
+            guard let parent = current.superview else { return false }
+            current = parent
+        }
+        return true
+    }
 
     // MARK: Incognito (4.8b)
 
@@ -169,6 +181,13 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         case .closed:
             isSidebarOpen = false
         }
+    }
+
+    /// A splitter drag that ends under the snap width, as a person's would (spikes).
+    public func debugSnapSidebarClosed() {
+        splitterDragged(to: sidebarWidth - 40)
+        splitterDragged(to: SidebarMetrics.minWidth / 3)
+        splitterDragEnded()
     }
 
     private func splitterDragEnded() {
@@ -271,12 +290,6 @@ public final class BrowserWindowView: NSView {
     /// bar's window then).
     public var hidesTrafficLights: Bool {
         !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
-    }
-
-    /// The top of the card drags the window: the sidebar hidden without its
-    /// overlay, no toolbar, no fullscreen page (spec §E).
-    public var dragsFromContent: Bool {
-        buttonsOverCard && !isPageFullscreen && !showsToolbar
     }
 
     /// Nothing of the sidebar is under the traffic lights: they sit over the card's top-left corner.

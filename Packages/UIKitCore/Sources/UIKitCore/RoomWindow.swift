@@ -38,6 +38,32 @@ public final class RoomWindow: NSWindow {
         appearance = nil
     }
 
+    // MARK: The page under the titlebar (B-32, 5.6b)
+
+    /// The view is the page itself, not Room's chrome (set by the controller).
+    public var isPageView: ((NSView) -> Bool)?
+
+    /// The full-size content puts the page under the 52 pt titlebar while the
+    /// sidebar is hidden, and the engine's view lets AppKit treat a
+    /// double-click there as the titlebar's (it zoomed or filled the window
+    /// from a search field at the page's top, B-32). A double-click on the
+    /// page goes to the page alone; the rest, and every press on Room's own
+    /// views, take AppKit's path.
+    public override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .leftMouseUp, event.clickCount >= 2,
+           let target = pageViewUnderTitlebar(event) {
+            if event.type == .leftMouseDown { target.mouseDown(with: event) } else { target.mouseUp(with: event) }
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    private func pageViewUnderTitlebar(_ event: NSEvent) -> NSView? {
+        guard let isPageView, !contentLayoutRect.contains(event.locationInWindow), let frameView = contentView?.superview,
+              let hit = frameView.hitTest(frameView.convert(event.locationInWindow, from: nil)), isPageView(hit) else { return nil }
+        return hit
+    }
+
     // MARK: Tab order (5.3a)
 
     /// The Tab order's regions (`KeyViewLoop`), from the app: sidebar, header, card, footer.
