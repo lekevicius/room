@@ -718,7 +718,8 @@ enum SpikeRunner {
             if let settings = AppDelegate.current?.store?.settings {
                 settings.update { $0.shortcutOverrides["newPage:"] = "⌥⌘T" }
                 try? await Task.sleep(for: .milliseconds(400))
-                for layoutID in ["com.apple.keylayout.ABC", "com.apple.keylayout.Russian"] {
+                // The active layout (AppKit's menus match synthesized key equivalents only on it, 3.2b) and a non-Latin one.
+                for layoutID in [InputSources.currentID, "com.apple.keylayout.Russian"] {
                     guard let layout = KeyLayout(id: layoutID) else { continue }
                     focusPage(page)
                     let seenBefore = Int(await js(page, "JSON.parse(document.documentElement.dataset.keys || '[]').length")) ?? 0
@@ -732,7 +733,7 @@ enum SpikeRunner {
                     let oldKey = session.newTabRequests - before - remapped
                     let seen = await js(page, "JSON.stringify(JSON.parse(document.documentElement.dataset.keys || '[]').slice(\(seenBefore)))")
                     SpikeRunner.record("keys_remap_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))",
-                                       "⌥⌘T newPage=\(remapped) ⌘T newPage=\(oldKey) page saw \(seen) (expected 1, 0, ⌘T only)")
+                                       "⌥⌘T newPage=\(remapped) ⌘T newPage=\(oldKey) page saw \(seen) (expected on the active layout 1, 0, ⌘T only; elsewhere ⌥⌘T never reaches the page)")
                 }
                 settings.update { $0.shortcutOverrides["newPage:"] = nil }
             }
