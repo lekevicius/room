@@ -24,10 +24,9 @@ AGENTS.md; docs/setup.md (§4 Chromium, §5 signing, §5a computer use);
 docs/backlog.md rows B-10, B-48, B-93; research/notes/chapter-5-loop.md (its
 last section, "Paused 2026-10-21", says where the loop stopped and what 5.4b
 must name); docs/chapter-loop-prompt.md (the loop: written for the laptop;
-you adapt its machine section here); build/chapter-5-prompts/ does not exist
-here (gitignored): the laptop's shared prompt part is reproduced in
-research/notes/chapter-5-loop.md's rules, and you write your own
-common.md from the loop prompt plus the rules above.
+you adapt its machine section here); docs/chapter-5-session-rules.md (the
+shared part the laptop appended to every implementer prompt: copy it to
+build/chapter-5-prompts/common.md and adapt its machine section).
 
 == Part A: with the user at the Mac (do this first, quickly) ==
 1. `git pull --ff-only`. Record what this machine has: `diskutil list` and
