@@ -9,9 +9,11 @@ import Tabs
 
 /// The card's content (spec §D): one pane, or a split of up to four, each a
 /// `SplitPaneView` with its own page container (tools, prompts, DevTools).
-/// Panes are separated by 1 pt lines with 7 pt resizers (double-click
-/// equalises); while a sidebar entry is dragged, the drop overlay shows
-/// where it would land.
+/// In a split each pane is a card of its own (B-113, 5.2a: the card's corner,
+/// hairline border and shadow) with `SplitMetrics.paneGap` between them and a
+/// resizer over each gap (double-click equalises); the page card itself then
+/// draws nothing (`CardView.isSplitHost`). While a sidebar entry is dragged,
+/// the drop overlay shows where it would land.
 final class SplitView: NSView {
     private(set) var panes: [SplitPaneView] = []
     private(set) var focusedPane: SplitPaneView
@@ -19,7 +21,8 @@ final class SplitView: NSView {
     /// Sizes while a resizer is dragged (committed to the store on release).
     private var liveRatios: [Double]?
     private var resizers: [SplitResizerView] = []
-    private var lines: [CALayer] = []
+    /// Each pane's card shadow, under the panes (B-113).
+    private var shadows: [CALayer] = []
     let dropOverlay = SplitDropOverlayView()
     /// The page in element fullscreen fills the card alone (B-35).
     var fullscreenContents: (any WebContents)? { didSet { needsLayout = true } }
@@ -142,8 +145,12 @@ final class SplitView: NSView {
         super.layout()
         if let fullscreen = fullscreenContents, let pane = panes.first(where: { $0.container.pageView === fullscreen.nativeView }) {
             for other in panes { other.isHidden = other !== pane }
+            pane.isCard = false
             pane.frame = bounds
-            for line in lines { line.isHidden = true }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for shadow in shadows { shadow.isHidden = true }
+            CATransaction.commit()
             for resizer in resizers { resizer.isHidden = true }
             dropOverlay.frame = bounds
             return
@@ -151,29 +158,54 @@ final class SplitView: NSView {
         let frames = paneFrames
         for (pane, frame) in zip(panes, frames) {
             pane.isHidden = false
+            pane.isCard = isSplit
             pane.frame = frame
         }
         let dividers = SplitGeometry.dividers(in: bounds, layout: layoutKind, count: panes.count, ratios: ratios)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for (index, divider) in dividers.enumerated() where index < lines.count {
-            lines[index].isHidden = false
-            lines[index].frame = divider.line
+        for (index, divider) in dividers.enumerated() where index < resizers.count {
             resizers[index].isHidden = false
             resizers[index].divider = divider
             resizers[index].frame = divider.hit
         }
+        layoutShadows(isSplit ? frames : [])
         CATransaction.commit()
         dropOverlay.frame = bounds
     }
 
+    /// One card shadow under each pane of a split (B-113: the page card's `CardMetrics` shadow).
+    private func layoutShadows(_ frames: [CGRect]) {
+        while shadows.count < frames.count {
+            let shadow = CALayer()
+            shadow.actions = CALayer.noImplicitActions
+            layer?.insertSublayer(shadow, at: 0)
+            shadows.append(shadow)
+        }
+        let dark = effectiveAppearance.isDark
+        var color: CGColor?
+        effectiveAppearance.performAsCurrentDrawingAppearance { color = Palette.cardShadow.cgColor }
+        for (index, shadow) in shadows.enumerated() {
+            guard index < frames.count else {
+                shadow.isHidden = true
+                continue
+            }
+            let frame = frames[index]
+            shadow.isHidden = false
+            shadow.frame = frame
+            shadow.shadowColor = color
+            shadow.shadowOpacity = dark ? CardMetrics.shadowOpacityDark : CardMetrics.shadowOpacityLight
+            shadow.shadowRadius = CardMetrics.shadowRadius
+            // This view is flipped: the card's shadow falls down the screen as the page card's does.
+            shadow.shadowOffset = CGSize(width: CardMetrics.shadowOffset.width, height: -CardMetrics.shadowOffset.height)
+            let radius = min(CardMetrics.cornerRadius, frame.width / 2, frame.height / 2)
+            shadow.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: frame.size), cornerWidth: radius, cornerHeight: radius, transform: nil)
+        }
+    }
+
     private func rebuildDividers() {
         let count = SplitGeometry.dividers(in: bounds, layout: layoutKind, count: panes.count, ratios: ratios).count
-        while lines.count < count {
-            let line = CALayer()
-            line.actions = CALayer.noImplicitActions
-            layer?.addSublayer(line)
-            lines.append(line)
+        while resizers.count < count {
             let resizer = SplitResizerView()
             resizer.onDrag = { [weak self] divider, point in self?.resizerDragged(divider, to: point) }
             resizer.onEnd = { [weak self] in self?.commitRatios() }
@@ -181,25 +213,15 @@ final class SplitView: NSView {
             addSubview(resizer, positioned: .below, relativeTo: dropOverlay)
             resizers.append(resizer)
         }
-        for index in count..<lines.count {
-            lines[index].isHidden = true
-            resizers[index].isHidden = true
-        }
-        updateLineColors()
+        for index in count..<resizers.count { resizers[index].isHidden = true }
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateLineColors()
+        needsLayout = true
     }
 
-    private func updateLineColors() {
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            for line in lines { line.backgroundColor = NSColor.separatorColor.cgColor }
-        }
-    }
-
-    // MARK: Resizers (spec §D: 7 pt hit area, 1 pt line, double-click equalises)
+    // MARK: Resizers (spec §D: double-click equalises; B-113: over the gap between the cards)
 
     private func resizerDragged(_ divider: SplitGeometry.Divider, to point: CGPoint) {
         guard isSplit else { return }
@@ -243,6 +265,10 @@ final class SplitPaneView: NSView {
     var entry: UUID?
     private(set) weak var contents: (any WebContents)?
     var isInSplit = false { didSet { if !isInSplit { setHeaderShown(false, animated: false) } } }
+    /// A card of its own (B-113): the page card's corner and hairline border, clipped; its shadow is the split's.
+    var isCard = false {
+        didSet { if isCard != oldValue { applyCardStyle() } }
+    }
     var isFocused = false
     var isDropHighlighted = false { didSet { highlight.isHidden = !isDropHighlighted } }
     private let highlight = CALayer()
@@ -290,6 +316,25 @@ final class SplitPaneView: NSView {
         layer?.backgroundColor = (background ?? Palette.cardBackground).cgColor
         header.set(host: url?.host() ?? url?.absoluteString ?? "New Tab")
         header.appearance = NSAppearance.reading(on: background)
+    }
+
+    private func applyCardStyle() {
+        guard let layer else { return }
+        layer.cornerRadius = isCard ? CardMetrics.cornerRadius : 0
+        layer.cornerCurve = .continuous
+        layer.masksToBounds = isCard
+        layer.borderWidth = isCard ? CardMetrics.borderWidth * Hairline.width(in: self) : 0
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer.borderColor = Palette.cardBorder.cgColor }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyCardStyle()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        applyCardStyle()
     }
 
     override func layout() {
@@ -415,7 +460,7 @@ final class PaneHeaderView: NSVisualEffectView {
 
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
         let button = HoverButton()
-        button.image = symbol.image(pointSize: 11, accessibilityDescription: tip)
+        button.image = symbol.image(.paneControl, accessibilityDescription: tip)
         button.contentTintColor = .secondaryLabelColor
         button.toolTip = tip
         return button
@@ -429,7 +474,7 @@ final class PaneGripView: NSImageView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        image = Symbol.paneGrip.image(pointSize: 11, accessibilityDescription: "Move Pane")
+        image = Symbol.paneGrip.image(.paneControl, accessibilityDescription: "Move Pane")
         contentTintColor = .tertiaryLabelColor
         toolTip = "Drag to move the pane"
     }

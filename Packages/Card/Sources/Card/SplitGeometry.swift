@@ -18,7 +18,7 @@ public enum SplitGeometry {
     public struct Divider: Equatable, Sendable {
         public var index: Int
         public var axis: Axis
-        /// The visible line (`SplitMetrics.dividerWidth`).
+        /// The gap between the panes (`SplitMetrics.paneGap`; B-113: the cards' gap, no drawn line).
         public var line: CGRect
         /// The hit area centred on it (`SplitMetrics.resizerHitWidth`).
         public var hit: CGRect
@@ -27,7 +27,7 @@ public enum SplitGeometry {
     // MARK: Frames
 
     public static func frames(in bounds: CGRect, layout: Layout, count: Int, ratios: [Double],
-                              gap: CGFloat = SplitMetrics.dividerWidth) -> [CGRect] {
+                              gap: CGFloat = SplitMetrics.paneGap) -> [CGRect] {
         guard count > 1 else { return count == 1 ? [bounds] : [] }
         switch effective(layout, count) {
         case .hbox:
@@ -58,7 +58,7 @@ public enum SplitGeometry {
     // MARK: Resizers
 
     public static func dividers(in bounds: CGRect, layout: Layout, count: Int, ratios: [Double],
-                                gap: CGFloat = SplitMetrics.dividerWidth, hitWidth: CGFloat = SplitMetrics.resizerHitWidth) -> [Divider] {
+                                gap: CGFloat = SplitMetrics.paneGap, hitWidth: CGFloat = SplitMetrics.resizerHitWidth) -> [Divider] {
         guard count > 1 else { return [] }
         let frames = frames(in: bounds, layout: layout, count: count, ratios: ratios, gap: gap)
         func vertical(_ index: Int, x: CGFloat, y: ClosedRange<CGFloat>) -> Divider {
@@ -85,7 +85,7 @@ public enum SplitGeometry {
     /// (x for a vertical line, y for a horizontal one): only the two sides of
     /// that boundary change, and neither gets smaller than `minimumLength`.
     public static func ratios(dragging divider: Divider, to position: CGFloat, in bounds: CGRect, layout: Layout, count: Int,
-                              ratios: [Double], gap: CGFloat = SplitMetrics.dividerWidth) -> [Double] {
+                              ratios: [Double], gap: CGFloat = SplitMetrics.paneGap) -> [Double] {
         let along = divider.axis == .vertical
         let start = along ? bounds.minX : bounds.minY
         let length = along ? bounds.width : bounds.height

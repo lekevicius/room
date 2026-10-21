@@ -57,6 +57,8 @@ final class PageHost: PageDisplay {
         let keyboardInSplit = splitView.isSplit && isFirstResponderInSplit
         self.contents = contents
         splitView.apply(split, focused: contents)
+        // B-113: a split's panes are cards of their own; the page card steps back.
+        controller?.cardView.isSplitHost = split != nil
         // ⌃⇧1…4 and ⌃⇧] / ⌃⇧[ move the keyboard with the focus (a click already put it there).
         if changed, split != nil, keyboardInSplit { focusPage() }
         guard changed else { return }
@@ -296,7 +298,7 @@ final class DevToolsDividerView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.separatorColor.setFill()
-        NSRect(x: 0, y: (bounds.height / 2).rounded(.down), width: bounds.width, height: 1).fill()
+        NSRect(x: 0, y: (bounds.height / 2).rounded(.down), width: bounds.width, height: Hairline.width(in: self)).fill()
     }
 
     override func resetCursorRects() {

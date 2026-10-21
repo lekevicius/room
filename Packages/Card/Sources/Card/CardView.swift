@@ -54,12 +54,23 @@ public final class CardView: NSView {
         didSet { shadowView.isElevated = isElevated }
     }
 
+    /// Split view (B-113, 5.2a): the panes are cards of their own with a gap
+    /// between them, so the card itself draws no fill, border or shadow and
+    /// does not clip (the panes' shadows reach past its edges).
+    public var isSplitHost = false {
+        didSet {
+            guard isSplitHost != oldValue else { return }
+            container.isSplitHost = isSplitHost
+            shadowView.isHidden = isSplitHost || isEdgeToEdge
+        }
+    }
+
     /// Square, borderless and shadowless: a page in element fullscreen.
     public var isEdgeToEdge = false {
         didSet {
             guard isEdgeToEdge != oldValue else { return }
             container.isEdgeToEdge = isEdgeToEdge
-            shadowView.isHidden = isEdgeToEdge
+            shadowView.isHidden = isEdgeToEdge || isSplitHost
         }
     }
 
@@ -85,6 +96,13 @@ public final class CardContainerView: NSView {
 
     var cornerRadius: CGFloat = CardMetrics.cornerRadius {
         didSet { if !isEdgeToEdge { layer?.cornerRadius = cornerRadius } }
+    }
+
+    var isSplitHost = false {
+        didSet {
+            layer?.masksToBounds = !isSplitHost
+            needsDisplay = true
+        }
     }
 
     public var contentView: NSView? {
@@ -148,11 +166,11 @@ public final class CardContainerView: NSView {
     /// Runs inside the view's effective appearance, so dynamic colors resolve correctly.
     public override func updateLayer() {
         guard let layer else { return }
-        layer.backgroundColor = backgroundColor.cgColor
+        layer.backgroundColor = isSplitHost ? nil : backgroundColor.cgColor
         // The border draws above the layer's sublayers (CALayer composites
         // borders over contents and sublayers), so the page cannot cover it.
         layer.borderColor = Palette.cardBorder.cgColor
-        layer.borderWidth = isEdgeToEdge ? 0 : CardMetrics.borderWidth / (window?.backingScaleFactor ?? 2)
+        layer.borderWidth = isEdgeToEdge || isSplitHost ? 0 : CardMetrics.borderWidth * Hairline.width(in: self)
     }
 
     public override func viewDidChangeBackingProperties() {
