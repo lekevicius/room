@@ -19,7 +19,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${1:?Room.app required}"
 OUT="${2:?output directory required}"
 BIN="$ROOT/Packages/Integration/.build/artifacts/sparkle/Sparkle/bin"
-PREFIX="${ROOM_FEED_PREFIX:-https://updates.room.invalid/}"
+PREFIX="${ROOM_FEED_PREFIX:-https://updates.room.app/}"
 [[ -x "$BIN/sign_update" ]] || { echo "no Sparkle tools in $BIN (resolve Packages/Integration first)" >&2; exit 1; }
 # The key from local.env (gitignored) unless the environment has one; passed on
 # stdin (--ed-key-file -), never as an argument.

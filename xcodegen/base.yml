@@ -15,7 +15,7 @@ settings:
     # Apple silicon only: the fork build is arm64.
     ARCHS: arm64
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "19"
+    CURRENT_PROJECT_VERSION: "20"
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
@@ -76,8 +76,8 @@ settingGroups:
     PRODUCT_BUNDLE_IDENTIFIER: app.room.desktop$(ROOM_BUNDLE_ID_SUFFIX)
     CODE_SIGN_ENTITLEMENTS: App/Resources/Room.entitlements
     # The one place for the update feed and the crash-report DSN (2.8b report).
-    # Placeholder feed until the domain serves one; `.invalid` never resolves.
-    ROOM_UPDATE_FEED_URL: https://updates.room.invalid/appcast.xml
+    # The feed and the DMGs live in the R2 bucket behind updates.room.app (2026-10-21, the first release).
+    ROOM_UPDATE_FEED_URL: https://updates.room.app/appcast.xml
     # Empty until a Sentry project exists; with it empty, crash reports stay off whatever the setting.
     ROOM_SENTRY_DSN: ""
     # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
