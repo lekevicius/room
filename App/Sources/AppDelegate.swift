@@ -1050,7 +1050,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
         chrome.isPeekAvailable = true
-        chrome.performMenuAction = { [weak tabs, weakSession = MainActorWeak(session)] action, page in
+        chrome.performMenuAction = { [weak tabs, weak pageDelegate, weakSession = MainActorWeak(session)] action, page in
             switch action {
             case .readerMode:
                 // The page's own entry (the menu came from the card's page).
@@ -1062,6 +1062,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             case .copyLink(let url), .copyImageAddress(let url):
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                // The same feedback as the engine's Copy Link Address (B-58).
+                if case .copyLink = action, let toast = PageUIDelegate.toast(for: .linkCopied) {
+                    pageDelegate?.toasts?.show(toast)
+                }
             }
         }
     }

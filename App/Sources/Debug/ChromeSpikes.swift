@@ -338,7 +338,10 @@ extension SpikeRunner.Context {
         await rightClick(page, "#link")
         _ = await waitUntil(8) { copy.closed }
         _ = await waitUntil(3) { NSPasteboard.general.string(forType: .string) != nil }
-        SpikeRunner.record("context_menu_engine_command", "offered=\(copy.offered) pasteboard=\(NSPasteboard.general.string(forType: .string) ?? "nil")")
+        // 5.6b (B-58): Chrome's link-copied toast reaches the host's toasts.
+        _ = await waitUntil(3) { AppDelegate.current?.debugToastCenter?.currentToast?.id == "copy-link" }
+        SpikeRunner.record("context_menu_engine_command", "offered=\(copy.offered) pasteboard=\(NSPasteboard.general.string(forType: .string) ?? "nil") "
+            + "toast=\(AppDelegate.current?.debugToastCenter?.currentToast?.message ?? "none")")
         if let recorder = DelegateRecorder.active {
             SpikeRunner.record("context_menu_link_element", recorder.lastDetail("willShowContextMenu") ?? "nil")
         }

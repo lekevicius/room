@@ -592,6 +592,12 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate?.webContentsDidRequestActivation(self)
     }
 
+    /// One of Chrome's confirmation toasts (`RoomToastController`, B-58): the
+    /// host shows its own.
+    public func webContents(_ webContents: RoomWebContents, didRequestToast kind: String) {
+        uiDelegate?.webContents(self, didRequestToast: ToastKind(engineName: kind))
+    }
+
     /// Where Chrome's Views bubbles point (`RoomToolbarButtonProvider` and the
     /// window's bubble anchor, 3.7a): the host's site button.
     public func webContentsBubbleAnchorRect(_ webContents: RoomWebContents) -> NSRect {

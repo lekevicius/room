@@ -142,6 +142,11 @@ public extension FakeWebContents {
         effectiveUIDelegate.webContentsDidRequestActivation(self)
     }
 
+    /// The engine would show one of its confirmation toasts (B-58).
+    func simulateToastRequest(_ kind: ToastKind) {
+        effectiveUIDelegate.webContents(self, didRequestToast: kind)
+    }
+
     /// The engine is about to show one of its own bubbles (RoomCore's Views
     /// bubbles, 3.7a) and asks where it points.
     func simulateBubbleAnchorQuery() -> CGRect? {

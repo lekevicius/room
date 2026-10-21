@@ -718,6 +718,8 @@ def _chrome26a(c):
         c.contains(key, "sheet=true", label=f"{key}: the panel as a sheet")
     c.contains("context_menu_link", "Open Link in New Tab", "Open Link in Peek", "Copy Link", label="link context menu with Room's items")
     c.contains("context_menu_open_link", "below page=true", label="Open Link in New Tab opens below the page")
+    c.contains("context_menu_engine_command", "offered=true", "pasteboard=http", "toast=Copied Link",
+               label="Chrome's Copy Link Address copies and Room's toast shows (B-58)")
     c.contains("popup_window_open", "selected=true", "hello from open", label="window.open: a selected Today tab that can message its opener")
     c.contains("popup_window_close", "entry closed=true", label="window.close() closes the entry")
     c.contains("popup_target_blank", "Popup child (blank, no opener)", label="target=_blank: a Today tab without an opener")

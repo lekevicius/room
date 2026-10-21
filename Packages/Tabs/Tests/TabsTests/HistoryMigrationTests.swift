@@ -135,3 +135,26 @@ struct BubbleAnchorTests {
         #expect(page.simulateBubbleAnchorQuery() == answer.rect)
     }
 }
+
+/// Records the engine's toast requests.
+final class ToastRequests: WebContentsUIDelegate {
+    private(set) var kinds: [ToastKind] = []
+    func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind) { kinds.append(kind) }
+}
+
+@Suite("Chrome's toasts bridged (ROADMAP 5.6 task 6, B-58)")
+struct EngineToastTests {
+    @Test("The engine's toast reaches the window's UI delegate, which shows its own")
+    func reachesTheWindow() async throws {
+        let f = try TabsFixture()
+        let entry = try f.today("https://site.example/")
+        f.sidebar.select(entry.id)
+        await f.settle()
+        let recorder = ToastRequests()
+        f.tabs.pageUIDelegate = recorder
+        let page = try #require(f.page(entry.id))
+        page.simulateToastRequest(.linkCopied)
+        page.simulateToastRequest(ToastKind(engineName: "ClearBrowsingData"))
+        #expect(recorder.kinds == [.linkCopied, .other("ClearBrowsingData")])
+    }
+}

@@ -97,6 +97,8 @@ public enum Symbol: CaseIterable, Sendable {
     case zoomOut
     case print
     case screenshot
+    /// Something copied to the clipboard (the engine's copy toasts, B-58).
+    case copied
     /// File ▸ Save Page… (4.7a).
     case savePage
     /// View ▸ Developer ▸ View Source (4.7a).
@@ -208,6 +210,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .zoomOut: "minus.magnifyingglass"
         case .print: "printer"
         case .screenshot: "camera.viewfinder"
+        case .copied: "doc.on.clipboard"
         case .savePage: "square.and.arrow.down"
         case .viewSource: "chevron.left.forwardslash.chevron.right"
         case .readerMode: "doc.plaintext"

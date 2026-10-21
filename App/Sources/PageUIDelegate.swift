@@ -65,6 +65,26 @@ extension PageUIDelegate: WebContentsUIDelegate {
         onStatusText?(text)
     }
 
+    /// The engine's confirmation toasts (B-58): Chrome's copy commands get
+    /// Room's toast; other kinds show nothing (Room has its own notices).
+    func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind) {
+        guard let toast = Self.toast(for: kind) else {
+            NSLog("Room: the engine's toast %@ not shown", String(describing: kind))
+            return
+        }
+        toasts?.show(toast)
+    }
+
+    static func toast(for kind: ToastKind) -> Toast? {
+        switch kind {
+        case .linkCopied: Toast(id: "copy-link", symbol: .copyURL, message: "Copied Link")
+        case .imageCopied: Toast(id: "copy-image", symbol: .copied, message: "Copied Image")
+        case .videoFrameCopied: Toast(id: "copy-video-frame", symbol: .copied, message: "Copied Video Frame")
+        case .linkToHighlightCopied: Toast(id: "copy-link-to-highlight", symbol: .copyURL, message: "Copied Link to Highlight")
+        case .other: nil
+        }
+    }
+
     func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? {
         bubbleAnchorQueries += 1
         return bubbleAnchor?()

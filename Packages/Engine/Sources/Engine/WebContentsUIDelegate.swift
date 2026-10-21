@@ -36,6 +36,11 @@ public protocol WebContentsUIDelegate: AnyObject {
     /// `opener.focus()` from a page it opened, a notification's click; B-107):
     /// the host selects its tab and shows it.
     func webContentsDidRequestActivation(_ webContents: any WebContents)
+    /// The engine would show one of its confirmation toasts for this page
+    /// (RoomCore: Chrome's `ToastController`, B-58; the context menu's Copy
+    /// Link Address gives `.linkCopied`). The engine draws nothing: the host
+    /// shows its own toast, or none.
+    func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind)
     /// Where the engine's own bubbles point while this page is its window's
     /// active page (RoomCore keeps Chrome's Views bubbles: password save and
     /// update, address and card saves, device choosers, FedCM; Phase 3.7a):
@@ -172,6 +177,7 @@ public extension WebContentsUIDelegate {
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {}
     func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {}
     func webContentsDidRequestActivation(_ webContents: any WebContents) {}
+    func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind) {}
     func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? { nil }
     func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         false
@@ -467,4 +473,29 @@ nonisolated public enum TerminationStatus: Sendable, Hashable {
     case outOfMemory
     case launchFailed
     case integrityFailure
+}
+
+/// A confirmation the engine would show (`webContents(_:didRequestToast:)`).
+public enum ToastKind: Equatable, Sendable {
+    /// A link's address was copied (the context menu's Copy Link Address).
+    case linkCopied
+    /// An image was copied (Copy Image).
+    case imageCopied
+    /// A video's current frame was copied (Copy Video Frame).
+    case videoFrameCopied
+    /// A link to the selected text was copied (Copy Link to Highlight).
+    case linkToHighlightCopied
+    /// Any other of the engine's toasts, by its own name.
+    case other(String)
+
+    /// The kind for the engine's own toast name (Chrome's `GetToastName`).
+    public init(engineName name: String) {
+        switch name {
+        case "LinkCopied": self = .linkCopied
+        case "ImageCopied": self = .imageCopied
+        case "VideoFrameCopied": self = .videoFrameCopied
+        case "LinkToHighlightCopied": self = .linkToHighlightCopied
+        default: self = .other(name)
+        }
+    }
 }

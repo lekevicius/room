@@ -149,6 +149,11 @@ extension TabController: WebContentsUIDelegate {
         onActivationRequested?(entry)
     }
 
+    /// The engine's confirmation toast (B-58: Chrome's Copy Link Address): the window shows its own.
+    public func webContents(_ webContents: any WebContents, didRequestToast kind: ToastKind) {
+        pageUIDelegate?.webContents(webContents, didRequestToast: kind)
+    }
+
     /// Where the engine's bubbles point (RoomCore's Views bubbles, 3.7a): the window's answer.
     public func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? {
         pageUIDelegate?.bubbleAnchorRect(for: webContents)
