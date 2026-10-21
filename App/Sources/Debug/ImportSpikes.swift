@@ -241,7 +241,7 @@ extension SpikeRunner.Context {
     /// `-RoomWebStorePage`), the cookies line, the browsers detected on a fake
     /// home (`-RoomImportHome`: the fixtures at their real paths), the
     /// open panel offered when macOS refuses a file, and the sheet reached
-    /// from Settings ▸ General and from the first-run card.
+    /// from Settings ▸ General and from onboarding's import step (5.7b).
     private func importChecks43b(app: AppDelegate, window: NSWindow, defaultProfile: Model.Profile) async {
         guard let store = app.store, let fixtures = UserDefaults.standard.string(forKey: "RoomImportSource") else { return }
         let sidebar = store.sidebar
@@ -379,19 +379,38 @@ extension SpikeRunner.Context {
         await closeSheet()
         app.debugSettingsWindow?.window?.close()
 
-        // 11. The first-run card's "Import from another browser…".
+        // 11. Onboarding's import step (5.7b, B-121): the same sheet, over onboarding's window, on the fixtures.
         let firstRunWasDone = store.settings.settings.firstRunDone
-        app.showWelcomeCard()
-        _ = await waitUntil(3) { app.firstRunCard != nil }
-        if let card = app.firstRunCard {
-            card.onImport()
+        app.presentOnboarding()
+        _ = await waitUntil(3) { app.onboardingWindow?.window?.isVisible == true }
+        if let onboarding = app.onboardingWindow {
+            onboarding.onboarding.next()
+            onboarding.model.openImport()
             _ = await waitUntil(3) { app.importSheet != nil && window.attachedSheet === app.importSheet }
-            SpikeRunner.record("first_run_import", "card=true sheet=\(app.importSheet != nil && window.attachedSheet === app.importSheet)")
-            await closeSheet()
+            SpikeRunner.record("first_run_import", "onboarding=true step=\(onboarding.onboarding.step) sheet=\(app.importSheet != nil && window.attachedSheet === app.importSheet) "
+                + "onboarding aside=\(onboarding.window?.isVisible == false) "
+                + "sources=\(app.importModel?.sources.map(\.name).joined(separator: ",") ?? "none")")
+            // A fixture imported from there: the summary comes back to the step.
+            if let model = app.importModel,
+               let source = model.sources.first(where: { $0.kind == .bookmarksFile && $0.name.hasSuffix("(fixture)") })
+                ?? model.sources.first(where: { $0.name.hasSuffix("(fixture)") }) {
+                model.pick(source.id)
+                _ = await waitUntil(20) { model.phase == .ready }
+                await model.settle()
+                _ = await waitUntil(5) { model.plan != nil }
+                await model.performImport()
+                _ = await waitUntil(5) { onboarding.model.importSummary != nil }
+                SpikeRunner.record("onboarding_import_done", "source=\(source.name) summary=\(onboarding.model.importSummary ?? "none")")
+            }
+            app.closeImportSheet()
+            let back = await waitUntil(3) { onboarding.window?.isVisible == true }
+            SpikeRunner.record("onboarding_back_after_import", "visible=\(back) step=\(onboarding.onboarding.step) summary shown=\(onboarding.model.importSummary != nil)")
+            onboarding.onboarding.skip()
+            _ = await waitUntil(2) { app.onboardingWindow == nil }
         } else {
-            SpikeRunner.record("first_run_import", "card=false")
+            SpikeRunner.record("first_run_import", "onboarding=false")
         }
-        if firstRunWasDone { store.settings.update { $0.firstRunDone = true } }
+        if !firstRunWasDone { store.settings.update { $0.firstRunDone = false } }
         _ = defaultProfile
     }
 }

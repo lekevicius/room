@@ -1,4 +1,5 @@
 import AppKit
+import Card
 import Omnibox
 import Store
 import UIKitCore
@@ -66,6 +67,8 @@ extension AppDelegate {
         let elapsed = ContinuousClock.now - start
         lastShortcutsApplyMilliseconds = Double(elapsed.components.attoseconds) / 1e15 + Double(elapsed.components.seconds) * 1000
         for session in windows.all { applyShortcutKeys(to: session) }
+        // The empty card names New Tab's key as it is now (5.6a).
+        CardEmptyStateView.newTabKey = table.key(for: "newPage:")?.description
     }
 
     /// One window's share of the table (4.8a: each window's key router and sidebar menus).

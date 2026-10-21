@@ -4278,3 +4278,41 @@ Totals: `drops` **27/27 on dev, 27/27 on the release framework**. A standalone p
 | First launch of the new dev build | `launch_to_spike_s` 829 s once, then 2.1–7.0 s |
 | `rg -i 'right.*sidebar|sidebar.*right|trailing' \| wc -l` | 265 → 225 |
 | CI spec locally | BUILD and TEST SUCCEEDED, 706 tests, 0 failed, 2 min 8 s |
+
+## Phase 5.6 — 5.6a: details (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.7b's Debug Room running beside it; load 5–19)
+
+`scripts/details-check.sh` (new; `-RoomSpike details`), each run on a fresh `/tmp/room-5/details/run-*` state and engine directory, the pages on :8766:
+
+| Check | dev light | dev dark | release light |
+|---|---|---|---|
+| Fresh state's rows; Essentials | `space,separator,newtab`; 0, drop slot captured | same | same |
+| Empty card: default / ⌥⌘N / no key / restored | "Press ⌘T…" / "Press ⌥⌘N…" / "Click New Tab in the sidebar…" / "Press ⌘T…" | same | same |
+| "(3) Inbox" Today tab | row "Inbox", unread dot | same | same |
+| Pinned, moved to another page | label "Inbox" (stored), sublabel "Re: lunch on Friday", no dot | same | same |
+| Change Icon… | item enabled; picker 250 × 342; typed emoji applied, popover closed | same | same |
+| Clear: pointer away / over | alpha 0 / 1 | same | same |
+| B-116: 1st / 2nd / 3rd alert / after reload | no checkbox / checkbox / answered unseen (page log: 3 × ok) / shown, no checkbox | same | same |
+| B-117 drops (in-process validate + accept) | quick pass: reorder; 0.8 s rest: into the folder; 2-level folder onto depth 5: refused; onto depth 1: accepted | same | same |
+| Minidumps | 0 | 0 | 0 |
+
+**Found by the spike (fixed in `62f0c70`):** a suppressed dialog answered inside the engine's `runJavaScriptDialog` call left the page's later dialogs unshown, even after a reload (the alert after the reload never reached the host: `shown=false`). Answered on the next main-queue turn, the alert after the reload shows (`shown=true offers=false`) on all three runs.
+
+Reader (`scripts/reader-check.sh -RoomSpikeOnly article,article2`, dev and release): article1 `headings` 3, `firstHeading` "A light that had to be wound", `repeatedHeadings` 0 (before: the content's first heading was the title's "The Lighthouse Keepers of Kettle Point"); article2 `headings` 0, `repeatedHeadings` 0; distilled in 31 ms, the reader page loaded in 79 ms (dev).
+
+Motion recheck (`scripts/motion-check.sh -RoomSpikeOnly sidebar`, dev, 60 Hz, load 9–13): rename pulse 0.300 s keyframe transform (3 values), 19 frames, 0 dropped, main thread 1.82 ms; changed dot 0.120 s fade, 0 dropped; hover reset icon in / out 0.120 s fades, 0 dropped; reset crossfade 0.150 s, 0 dropped; Clear's slide-out 17 frames, 0 dropped.
+
+No window: the last window closed, 0 Room windows after 2 s, the app still running (`-RoomSpikeOnly nowindow`, dev).
+
+## Phase 5.7 — 5.7b: the space window and onboarding (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's and 5.6a's Debug Rooms running beside it; load 4.5–8.9)
+
+| Check | Result |
+|---|---|
+| `spacewindow` (dev, release framework) | from Settings and the menu's four items: shown, inside the visible frame, 420 × 672; Save read back: name, icon, colours `["#3E9B5B"]`, triadic, 0.80, profile Outdoors, routes `contains:garden.example:on`, `equals:plants.test:off`; Cancel and close button unchanged; New Space 1 → 2 spaces, shown; 0 form views in the sidebar |
+| First launch, fresh state, no flags | "onboarding shown (first launch)" 78 ms after the state opened |
+| `app28b` (light, no captures) | 28 / 29 dev, 28 / 29 release framework; Done → window gone in 44–55 ms; the feed check's log is another session's (the request is in it 25 ms (dev) and 18 ms (release) after the opt-in) |
+| `import` | 53 / 53 dev, 53 / 53 release framework |
+| `settings2` (dev) | 25 / 26 (Clear browsing data kept the cookie once), rerun 26 / 26 |
+| `rg` editor symbols / card symbols | 41 → 0 / 55 → 3 (the web card's own `accessoryHeight`) |
+| `scripts/design-audit.sh` | 0 undeclared |
+| Unit tests | Sidebar 49, Model 113, Integration 34, UIKitCore 62 |
+| CI spec locally | BUILD and TEST SUCCEEDED, 709 tests, 0 failed, 2 min 44 s |

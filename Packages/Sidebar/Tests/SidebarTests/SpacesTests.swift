@@ -126,35 +126,63 @@ struct SpacesTests {
         #expect(f.controller.activeSpaceID == spaces[1].id)
     }
 
-    @Test("The form creates a space with its look and shows it")
+    @Test("New Space opens the space window; its form creates a space with its look and shows it")
     func formCreates() throws {
         let f = try SidebarFixture()
         var tints: [SpaceTheme?] = []
+        var windows: [(UUID?, SpaceFormFocus)] = []
         f.controller.onTintChange = { theme, _ in tints.append(theme) }
+        f.controller.onShowSpaceWindow = { windows.append(($0, $1)) }
         f.controller.newSpace()
-        let model = try #require(f.controller.spaceForm?.model)
+        #expect(windows.count == 1 && windows.first?.0 == nil)
+        let model = try #require(f.controller.spaceFormModel(for: nil))
         model.name = "Garden"
         model.icon = "leaf"
         model.wells = [SpaceFormModel.color(hex: "#3E9B5B")!]
         model.algorithm = .complementary
-        f.controller.commitSpaceForm()
+        f.controller.previewTheme(model)
+        #expect(tints.last??.colors.count == 2)
+        let id = f.controller.commitSpaceForm(model)
         let created = try #require(f.sidebar.spaces.last)
+        #expect(id == created.id)
         #expect(created.name == "Garden")
         #expect(created.icon == "leaf")
         #expect(created.themeColors == ["#3E9B5B"])
         #expect(f.controller.activeSpaceID == created.id)
-        #expect(f.controller.spaceForm == nil)
-        #expect(tints.last??.colors.count == 2)
     }
 
-    @Test("An empty name takes the default; Esc goes back without a space")
+    @Test("An empty name takes the default; Cancel writes nothing and the tint goes back")
     func formDefaults() throws {
         let f = try SidebarFixture()
-        f.controller.newSpace()
-        f.controller.dismissSpaceForm(animated: false)
+        var tints: [SpaceTheme?] = []
+        f.controller.onTintChange = { theme, _ in tints.append(theme) }
+        let cancelled = try #require(f.controller.spaceFormModel(for: nil))
+        cancelled.wells = [SpaceFormModel.color(hex: "#3E9B5B")!]
+        f.controller.previewTheme(cancelled)
+        f.controller.endThemePreview(animated: false)
         #expect(f.sidebar.spaces.count == 1)
-        f.controller.newSpace()
-        f.controller.commitSpaceForm()
+        #expect(tints.last! == f.sidebar.spaces[0].theme)
+        f.controller.commitSpaceForm(try #require(f.controller.spaceFormModel(for: nil)))
         #expect(f.sidebar.spaces.map(\.name) == ["Space", "Space 2"])
+    }
+
+    @Test("The space window's edit saves name, icon, theme and profile")
+    func formEdits() throws {
+        let f = try SidebarFixture()
+        f.controller.confirmations = { _ in true }
+        let space = f.sidebar.spaces[0]
+        let work = f.sidebar.createProfile(name: "Work")
+        let model = try #require(f.controller.spaceFormModel(for: space.id, focus: .routes))
+        #expect(model.spaceID == space.id && model.initialFocus == .routes && model.name == space.name)
+        model.name = "Home"
+        model.icon = "🏠"
+        model.wells = [SpaceFormModel.color(hex: "#3E9B5B")!]
+        model.algorithm = .triadic
+        model.opacity = 0.8
+        model.profileID = work.id
+        #expect(f.controller.commitSpaceForm(model) == space.id)
+        let saved = try #require(f.sidebar.space(space.id))
+        #expect(saved.name == "Home" && saved.icon == "🏠" && saved.themeColors == ["#3E9B5B"])
+        #expect(saved.themeAlgorithm == .triadic && saved.themeOpacity == 0.8 && saved.profileID == work.id)
     }
 }

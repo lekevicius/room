@@ -17,8 +17,10 @@ import UIKitCore
 /// - `optins`: at launch neither Sparkle nor Sentry exists; then each opt-in on
 ///   and off against the local endpoints, a check the user asks for (Sparkle's
 ///   window captured), and the feed server's log read by the script.
-/// - `firstrun`: the card docked and in the hidden sidebar's
-///   overlay; the engine choice reaching the palette; Done; Show Welcome Card.
+/// - `firstrun`: onboarding (5.7b, B-121) on the first launch over the
+///   browser window; each step (the import sheet over it, the default
+///   browser's stub, the theme, the engine reaching the palette); Done; Help ▸
+///   Welcome to Room…; Skip Setup and the close button writing only done.
 /// - `settings`: Settings ▸ General (the default browser) and ▸ Privacy, the App menu open.
 /// - `runningurl`: a link from `open`, from AppleScript's `open location`, and from
 ///   another process's `NSWorkspace.open(_:withApplicationAt:)`, each timed.
@@ -130,53 +132,89 @@ extension SpikeRunner.Context {
         await activate()
     }
 
-    // MARK: First run (ROADMAP 2.8 task 4)
+    // MARK: Onboarding (5.7b, B-121; the first-run card's check until 5.7a)
 
-    private func cardState() -> String {
-        guard let app = app2, let card = app.firstRunCard, card.superview != nil, let sidebar = app.sidebar else { return "absent" }
-        let inWindow = card.convert(card.bounds, to: nil)
-        let footer = sidebar.downloadsButton.convert(sidebar.downloadsButton.bounds, to: nil)
-        return "shown frame=\(NSStringFromRect(card.frame)) in window=\(NSStringFromRect(inWindow)) above footer=\(inWindow.minY >= footer.maxY)"
+    private func onboardingState() -> String {
+        guard let app = app2, let controller = app.onboardingWindow, let window = controller.window, window.isVisible else { return "absent" }
+        let browser = app.windowController?.window
+        return "shown step=\(controller.onboarding.step) key=\(window.isKeyWindow) over browser="
+            + "\(browser.map { $0.frame.contains(NSPoint(x: window.frame.midX, y: window.frame.midY)) } ?? false) "
+            + "frame=\(NSStringFromRect(window.frame))"
     }
 
     private func firstRunCheck() async {
-        guard let app = app2, let store = app.store, let firstRun = app.firstRun else { return }
-        let root = controller.rootView
-        SpikeRunner.record("first_run_launch", "done=\(store.settings.settings.firstRunDone) card=\(cardState())")
-        controller.isSidebarOpen = true
-        try? await Task.sleep(for: .milliseconds(400))
-        await capture2("firstrun-left")
-        // Hidden sidebar: the card is in the overlay (pinned open, as Show Welcome Card does).
-        controller.isSidebarOpen = false
-        try? await Task.sleep(for: .milliseconds(400))
-        app.hiddenSidebar?.revealForSpaceForm()
-        let shown = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
-        try? await Task.sleep(for: .milliseconds(300))
-        SpikeRunner.record("first_run_overlay", "overlay shown=\(shown) card=\(cardState()) in overlay="
-            + "\(app.firstRunCard.map { $0.isDescendant(of: root.overlayView) } ?? false)")
-        await capture2("firstrun-overlay")
-        if controller.reveal.isPinned { controller.reveal.togglePin() }
-        controller.isSidebarOpen = true
-        try? await Task.sleep(for: .milliseconds(400))
-
-        // The engine choice is the field the palette reads.
+        guard let app = app2, let store = app.store else { return }
+        // A first launch (`-RoomFirstRun YES`: the state as a new one): onboarding over the browser window.
+        _ = await waitUntil(5) { app.onboardingWindow?.window?.isVisible == true }
+        SpikeRunner.record("first_run_launch", "done=\(store.settings.settings.firstRunDone) onboarding=\(onboardingState()) "
+            + "card in sidebar=false")
+        guard let controller = app.onboardingWindow else { return }
+        let onboarding = controller.onboarding
+        await capture2("onboarding-welcome", windowNumber: controller.window?.windowNumber)
+        // Import: the import sheet on the browser window, onboarding aside meanwhile and back at its step after.
+        onboarding.next()
+        controller.model.openImport()
+        let browser = app.windowController?.window
+        _ = await waitUntil(3) { app.importSheet != nil && browser?.attachedSheet === app.importSheet }
+        let aside = controller.window?.isVisible == false
+        let shown = app.importSheet != nil && browser?.attachedSheet === app.importSheet
+        let sources = app.importModel?.sources.count ?? -1
+        app.closeImportSheet()
+        let returned = await waitUntil(3) { controller.window?.isVisible == true && browser?.attachedSheet == nil }
+        SpikeRunner.record("onboarding_import", "step=\(onboarding.step) sheet on browser=\(shown) "
+            + "onboarding aside=\(aside) back after=\(returned) sources=\(sources)")
+        // Default browser: the button's request goes to the spike's stub, never to macOS.
+        onboarding.next()
+        let wasDefault = app.defaultBrowser.isDefault
+        let requests = app.debugDefaultBrowserRequests
+        controller.model.makeDefault()
+        SpikeRunner.record("onboarding_default_browser", "step=\(onboarding.step) requests=\(app.debugDefaultBrowserRequests - requests) (stub) "
+            + "asking=\(app.defaultBrowser.isAsking) default before=\(wasDefault) after=\(app.defaultBrowser.isDefault)")
+        // Theme: the shown space's colour and the appearance.
+        onboarding.next()
+        let space = sidebar.activeSpace
+        controller.model.setSpaceColor("#3E9B5B")
+        let colored = sidebar.activeSpace?.themeColors ?? []
+        onboarding.appearance = .dark
+        let appearance = store.settings.settings.appearance
+        onboarding.appearance = .system
+        controller.model.setSpaceColor(nil)
+        SpikeRunner.record("onboarding_theme", "step=\(onboarding.step) space=\(space?.name ?? "nil") colours=\(colored) "
+            + "appearance stored=\(appearance) reset colours=\(sidebar.activeSpace?.themeColors ?? ["?"])")
+        // Search and the opt-ins: the engine choice is the field the palette reads.
+        onboarding.next()
         let before = app.palette?.searchEngine().id ?? "nil"
-        firstRun.searchEngine = "duckduckgo"
-        SpikeRunner.record("first_run_engine", "palette before=\(before) after choice=\(app.palette?.searchEngine().id ?? "nil") "
+        onboarding.searchEngine = "duckduckgo"
+        SpikeRunner.record("first_run_engine", "step=\(onboarding.step) palette before=\(before) after choice=\(app.palette?.searchEngine().id ?? "nil") "
             + "stored=\(store.settings.settings.searchEngine)")
-        firstRun.searchEngine = "google"
-
-        // Done: the card goes, the list takes the space back, the store remembers.
+        onboarding.searchEngine = "google"
+        // Done: the window goes, the store remembers.
         let start = ContinuousClock.now
-        firstRun.finish()
-        let gone = await waitUntil(2) { app.firstRunCard == nil && app.sidebar?.bodyView.accessoryView == nil }
-        SpikeRunner.record("first_run_done", "card gone=\(gone) in \(String(format: "%.0f", ms(since: start))) ms; stored done=\(store.settings.settings.firstRunDone)")
-        // Settings ▸ General ▸ Show Welcome Card.
-        app.showWelcomeCard()
-        let back = await waitUntil(2) { app.firstRunCard?.superview != nil }
-        SpikeRunner.record("first_run_show_again", "card back=\(back) done=\(store.settings.settings.firstRunDone) \(cardState())")
-        firstRun.finish()
-        _ = await waitUntil(2) { app.firstRunCard == nil }
+        onboarding.next()
+        let gone = await waitUntil(2) { app.onboardingWindow == nil }
+        SpikeRunner.record("first_run_done", "onboarding gone=\(gone) ending=\(String(describing: onboarding.ending)) in "
+            + "\(String(format: "%.0f", ms(since: start))) ms; stored done=\(store.settings.settings.firstRunDone)")
+        // Help ▸ Welcome to Room…: again, from the welcome.
+        let item = NSApp.mainMenu?.item(withTitle: "Help")?.submenu?.items.first { $0.action == #selector(AppDelegate.showOnboarding(_:)) }
+        NSApp.sendAction(#selector(AppDelegate.showOnboarding(_:)), to: nil, from: item)
+        let back = await waitUntil(3) { app.onboardingWindow?.window?.isVisible == true }
+        SpikeRunner.record("first_run_show_again", "onboarding back=\(back) menu item=\(item?.title ?? "missing") "
+            + "done=\(store.settings.settings.firstRunDone) \(onboardingState())")
+        // Skip Setup at the second step: closes, and writes nothing but done.
+        let settingsBefore = store.settings.settings
+        app.onboardingWindow?.onboarding.next()
+        app.onboardingWindow?.onboarding.skip()
+        let skipped = await waitUntil(2) { app.onboardingWindow == nil }
+        SpikeRunner.record("onboarding_skip", "gone=\(skipped) unchanged=\(store.settings.settings == settingsBefore) "
+            + "done=\(store.settings.settings.firstRunDone) crashReports=\(store.settings.settings.crashReports) "
+            + "updates=\(store.settings.settings.automaticUpdateChecks) engine=\(store.settings.settings.searchEngine)")
+        // The close button is Skip Setup too.
+        NSApp.sendAction(#selector(AppDelegate.showOnboarding(_:)), to: nil, from: item)
+        _ = await waitUntil(3) { app.onboardingWindow?.window?.isVisible == true }
+        app.onboardingWindow?.window?.performClose(nil)
+        let closed = await waitUntil(2) { app.onboardingWindow == nil }
+        SpikeRunner.record("onboarding_close_button", "gone=\(closed) done=\(store.settings.settings.firstRunDone)")
+        await activate()
     }
 
     // MARK: Settings (2.8b sections) and the App menu
@@ -284,7 +322,7 @@ extension SpikeRunner.Context {
 
 /// `netcheck` (`scripts/netlog-check.sh`, which records the engine's net-log, a
 /// logging endpoint and `nettop` around it): a first launch with every
-/// opt-in declined (the first-run card left as it is and finished), idle
+/// opt-in declined (onboarding left as it is, then skipped), idle
 /// (8 s, or `-RoomNetcheckIdleSeconds`);
 /// a short browse on the local test site (two hosts, a same-site
 /// navigation, a reload); idle; quit. Each phase is stamped in seconds
@@ -299,14 +337,14 @@ extension SpikeRunner.Context {
         guard let app = AppDelegate.current, let tabs = app.tabs, let settings = app.store?.settings.settings else { return }
         SpikeRunner.record("phase", String(format: "launch %.3f", Self.processStartDate().timeIntervalSince1970))
         SpikeRunner.record("opt_ins", "crashReports=\(settings.crashReports) automaticUpdateChecks=\(settings.automaticUpdateChecks) "
-            + "searchSuggestions=\(settings.searchSuggestions) first-run card shown=\(app.firstRunCard != nil) "
+            + "searchSuggestions=\(settings.searchSuggestions) onboarding shown=\(app.onboardingWindow != nil) "
             + "updater created=\(app.optIns?.updater != nil) crash reporter created=\(app.optIns?.crashReporter != nil)")
         stamp("launch_idle")
         // 8 s by default (2.8b); `-RoomNetcheckIdleSeconds 600` for 3.1b's ten-minute idle on RoomCore.
         let idle = UserDefaults.standard.double(forKey: "RoomNetcheckIdleSeconds")
         try? await Task.sleep(for: .seconds(idle > 0 ? idle : 8))
-        // Declined: nothing switched on, Done.
-        app.firstRun?.finish()
+        // Declined: nothing switched on, Skip Setup.
+        app.onboardingWindow?.onboarding.skip()
         stamp("browse")
         for url in ["http://127.0.0.1:8770/site.html", "http://localhost:8770/other.html"] {
             tabs.openNewTab(url: url)

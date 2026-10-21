@@ -46,6 +46,15 @@ struct DropRulesTests {
         #expect(target(5, 0.5, held: true) == .join(with: tab, row: 5), "Today rows never make folders")
     }
 
+    @Test("A folder dropped onto a folder goes into it after the hold (B-117); onto a tab it makes no folder or split")
+    func folderOntoFolder() {
+        // A folder drag is never `single` (only one non-folder entry makes a folder or a split).
+        #expect(target(1, 0.5, held: true, single: false) == .intoFolder(folder, row: 1))
+        #expect(target(1, 0.5, held: false, single: false).container != nil, "before the hold it reorders")
+        #expect(target(3, 0.5, held: true, single: false).container != nil)
+        #expect(target(5, 0.5, held: true, single: false).container != nil)
+    }
+
     @Test("Join (spec §D): a single entry held on a tab's centre splits with it; a pinned entry onto a pinned one still makes a folder (§A.6)")
     func join() {
         #expect(target(5, 0.5, held: true, dragged: .pinned) == .join(with: tab, row: 5))

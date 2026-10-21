@@ -32,7 +32,6 @@ final class HiddenSidebar {
         let sidebarView = controller.sidebarView
         controller.reveal.keepOpen = [
             { [weak palette] in palette?.isOpen == true },
-            { [weak sidebar] in sidebar?.isSpaceFormOpen == true },
             // An inline rename (or any field) in the sidebar.
             { [weak sidebarView] in
                 guard let sidebarView, let editor = sidebarView.window?.firstResponder as? NSTextView, editor.isFieldEditor,
@@ -82,8 +81,8 @@ final class HiddenSidebar {
         toasts?.show(Toast(id: "space-created", symbol: .newSpace, message: "Created “\(space.name)”"))
     }
 
-    /// File ▸ New Space while the sidebar is hidden: the form shows in the pinned overlay.
-    func revealForSpaceForm() {
+    /// The sidebar's overlay pinned open while the sidebar is hidden: for the Library, an inline rename (spec §E).
+    func revealPinned() {
         guard let controller, isHidden, !controller.reveal.isPinned else { return }
         controller.reveal.togglePin()
     }

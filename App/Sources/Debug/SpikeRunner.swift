@@ -114,6 +114,7 @@ enum SpikeRunner {
         case "importlarge": await context.importLargeChecks()
         case "settings": await context.settingsChecks()
         case "profiles": await context.profilesChecks()
+        case "spacewindow": await context.spaceWindowChecks()
         case "showcase": await context.showcase()
         case "a11y": await context.accessibilityAuditSpike()
         case "keyboard": await context.keyboardChecks()
@@ -121,6 +122,7 @@ enum SpikeRunner {
         case "energy": await context.energyChecks()
         case "input": await context.inputChecks()
         case "drops": await context.dropChecks()
+        case "details": await context.detailsChecks()
         default: record("error", "unknown spike")
         }
         record("end", name)

@@ -82,6 +82,29 @@ struct ReaderTests {
         #expect(untitled == "host.example|medium", "no title: the host; an unknown size: medium")
     }
 
+    @Test("The article's first heading is hidden when it repeats the title (B-94)",
+          arguments: [("Why Sourdough Starters Smell Like Apples — Room Reader fixture", true),
+                      ("Why sourdough starters smell like apples", true),
+                      ("Food Blog | Why Sourdough Starters Smell Like Apples!", true),
+                      ("Why Sourdough Starters Smell Like Apples: A Guide", true), ("Apples", false),
+                      ("Bread notes", false)])
+    func repeatedHeading(title: String, hidden: Bool) {
+        let html = "<h1 class=\"x\">Why Sourdough <em>Starters</em> Smell Like Apples</h1>\n<p>Text.</p><h2>Later</h2>"
+        let shown = ReaderRules.withoutRepeatedHeading(html, title: title)
+        #expect(shown == (hidden ? "\n<p>Text.</p><h2>Later</h2>" : html))
+    }
+
+    @Test("Only the first heading is looked at; a page without one is unchanged")
+    func firstHeadingOnly() {
+        let later = "<p>Intro.</p><h2>Other</h2><h2>The Title</h2>"
+        #expect(ReaderRules.withoutRepeatedHeading(later, title: "The Title") == later)
+        #expect(ReaderRules.withoutRepeatedHeading("<p>No heading.</p>", title: "No heading") == "<p>No heading.</p>")
+        let page = ReaderRules.page(template: "<h1>{{TITLE}}</h1><main>{{CONTENT}}</main>",
+                                    article: ReaderArticle(title: "Kettle Point — Fixture", contentHTML: "<h1>Kettle Point</h1><p>A.</p>", text: ""),
+                                    source: URL(string: "https://x.example/")!, style: "", textSize: "medium", appearance: "light")
+        #expect(page == "<h1>Kettle Point — Fixture</h1><main><p>A.</p></main>")
+    }
+
     @Test("The CSS variables come from the tokens: the card background and label colours per appearance, the type scale")
     func cssVariables() throws {
         let light = try #require(NSAppearance(named: .aqua))

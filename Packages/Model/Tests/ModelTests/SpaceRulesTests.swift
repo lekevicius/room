@@ -130,14 +130,14 @@ struct SwipeRulesTests {
         #expect(SwipeRules.outcome(progress: 0.3, velocity: -0.4, index: 0, count: 3) == .stay)
     }
 
-    @Test("Past the last space is the new-space form; before the first stays")
+    @Test("Past the last space is a new space (the space window); before the first stays")
     func ends() {
         #expect(SwipeRules.outcome(progress: 0.5, velocity: 0, index: 2, count: 3) == .newSpace)
         #expect(SwipeRules.outcome(progress: -0.5, velocity: 0, index: 0, count: 3) == .stay)
         #expect(SwipeRules.outcome(progress: 0.5, velocity: 0, index: 0, count: 1) == .newSpace)
     }
 
-    @Test("Before the first space the lists rubber-band, bounded; elsewhere they follow the fingers")
+    @Test("Before the first and past the last space the lists rubber-band, bounded; elsewhere they follow the fingers")
     func rubberBand() {
         #expect(SwipeRules.displayedProgress(0.4, index: 0, count: 3) == 0.4)
         #expect(SwipeRules.displayedProgress(-0.4, index: 1, count: 3) == -0.4)
@@ -145,6 +145,10 @@ struct SwipeRulesTests {
         let large = SwipeRules.displayedProgress(-1, index: 0, count: 3)
         #expect(small < 0 && small > -0.05)
         #expect(large > -SwipeRules.rubberBandLimit && large < small)
+        // 5.7b (B-122): no form slides in past the last space; the lists stretch as at the first.
+        let pastLast = SwipeRules.displayedProgress(1, index: 2, count: 3)
+        #expect(pastLast > 0 && pastLast < SwipeRules.rubberBandLimit)
+        #expect(SwipeRules.displayedProgress(-0.4, index: 2, count: 3) == -0.4)
     }
 }
 

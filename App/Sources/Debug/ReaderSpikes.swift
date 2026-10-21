@@ -54,6 +54,9 @@ extension SpikeRunner.Context {
     exit: !!document.querySelector('#room-reader-exit'), \
     original: (document.querySelector('#room-reader-original') || {}).href, \
     headings: document.querySelectorAll('main h1, main h2, main h3').length, \
+    firstHeading: ((document.querySelector('main h1, main h2, main h3') || {}).textContent || '').trim(), \
+    repeatedHeadings: [...document.querySelectorAll('main h1, main h2, main h3')].filter(h => h.textContent.trim() === \
+    (document.querySelector('#room-reader-title') || {textContent: ''}).textContent.split(' — ')[0].trim()).length, \
     paragraphs: document.querySelectorAll('main p').length, \
     figures: document.querySelectorAll('main figure').length, \
     asideLinks: [...document.querySelectorAll('main a')].filter(a => /Most read|Harbour board|Waterproof/.test(a.textContent)).length, \

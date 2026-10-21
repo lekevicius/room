@@ -138,6 +138,10 @@ public enum SidebarMetrics {
     public static let popoverFieldWidth: CGFloat = 280
     /// Changed-entry badge (spec §I.8).
     nonisolated public static let changedDotSize: CGFloat = 6
+    /// The unread dot at a row's trailing edge (a title's "(3)" counter, spec §I.3; chosen: the changed dot's size).
+    public static let unreadDotSize: CGFloat = 6
+    /// A custom icon's emoji in a favicon's square, as a share of the square (chosen).
+    public static let customIconEmojiScale: CGFloat = 0.82
     /// Favicon of an unloaded entry (spec §A.1).
     public static let unloadedIconAlpha: CGFloat = 0.5
     /// The title of an unloaded entry (the design: 70% of the label colour).
@@ -220,6 +224,38 @@ public enum SpaceFormMetrics {
     /// The theme preview with no colours (secondary at this alpha), and a one-colour gradient's fade.
     public static let emptyPreviewAlpha: CGFloat = 0.12
     public static let previewFadeAlpha: CGFloat = 0.4
+    /// Change Icon…'s popover for an entry or a folder (5.6a): the picker's six columns and its padding.
+    public static let iconPopoverWidth: CGFloat = 6 * iconCell + 5 * 4 + 2 * padding + 24
+}
+
+/// The space window (5.7b, B-122): its size, fitted inside the display's visible frame.
+public enum SpaceWindowMetrics {
+    public static let width: CGFloat = 420
+    public static let height: CGFloat = 640
+    /// The least height it shrinks to on a small display (the sections scroll).
+    public static let minHeight: CGFloat = 360
+    /// The gap kept to the visible frame's edges.
+    public static let screenMargin: CGFloat = Spacing.s
+}
+
+/// Onboarding (5.7b, B-121): the window and its steps.
+public enum OnboardingMetrics {
+    public static let width: CGFloat = 560
+    public static let height: CGFloat = 440
+    public static let padding: CGFloat = 24
+    /// The step's symbol above its title.
+    public static let symbolSize: CGFloat = 40
+    /// The step dots under the content.
+    public static let dotSize: CGFloat = 6
+    /// The theme step's colour swatches.
+    public static let swatchSize: CGFloat = 28
+    /// The swatches: no colour, then six base colours (the space's algorithm extends the one chosen).
+    public static let themeSwatches: [String?] = [nil, "#1E88E5", "#3E9B5B", "#E53935", "#8E24AA", "#FB8C00", "#546E7A"]
+    /// The no-colour swatch's fill (secondary at this alpha) and the steps not shown (the dots).
+    public static let emptySwatchAlpha: Double = 0.15
+    public static let inactiveDotAlpha: Double = 0.35
+    /// The ring around the chosen swatch.
+    public static let swatchRingWidth: CGFloat = 2
 }
 
 /// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at
@@ -793,23 +829,6 @@ public enum DevToolsMetrics {
     public static let minPageHeight: CGFloat = 120
     /// The divider's drag area, centred on its 1 pt line (chosen, as the sidebar splitter).
     public static let dividerHitHeight: CGFloat = 8
-}
-
-/// The first-run card above the sidebar's footer (ROADMAP 2.8 task 4,
-/// `macos-ui-stack.md` §7.4 "an in-sidebar card, never a modal").
-public enum FirstRunMetrics {
-    /// Inside the card (chosen: the overlay panels' 12 pt).
-    public static let padding: CGFloat = Spacing.m
-    /// Between the card's rows (chosen).
-    public static let rowSpacing: CGFloat = Spacing.s
-    /// The selection pill's radius, so the card reads as one of the sidebar's own surfaces (chosen).
-    public static let cornerRadius: CGFloat = Radius.medium
-    /// Between the card and the footer, and between the list and the card (chosen).
-    public static let gapAboveFooter: CGFloat = Spacing.xs
-    public static let gapAboveList: CGFloat = Spacing.s
-    /// The card's shadow, as the pill's lift (chosen).
-    public static let shadowOpacity: Float = 0.08
-    public static let shadowRadius: CGFloat = 3
 }
 
 /// How long Room keeps what it keeps (spec §H; B-80). Numbers, not settings.

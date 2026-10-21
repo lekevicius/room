@@ -4,9 +4,12 @@ import Design
 /// An entry's icon: the favicon, or a letter tile (first letter of the
 /// domain on a colour hashed from it, spec §I.2); dimmed while unloaded,
 /// with the changed dot (§I.8), and a ring spinner in its place while the
-/// page loads (§I.2).
+/// page loads (§I.2). A custom icon (Change Icon…, an emoji or an SF
+/// Symbol) overrides the favicon and the letter tile (§I.2, 5.6a).
 public final class FaviconView: NSView {
     public var image: NSImage? { didSet { if image !== oldValue { needsDisplay = true } } }
+    /// The entry's `customIcon` (emoji or SF Symbol name); `nil`: the favicon or the letter tile.
+    public var customIcon: String? { didSet { if customIcon != oldValue { needsDisplay = true } } }
     /// Domain the letter tile is drawn from.
     public var letterSource = "" { didSet { if letterSource != oldValue { needsDisplay = true } } }
     public var isUnloaded = false { didSet { alphaValue = isUnloaded ? SidebarMetrics.unloadedIconAlpha : 1 } }
@@ -64,11 +67,36 @@ public final class FaviconView: NSView {
             spinner.strokeColor = NSColor.secondaryLabelColor.cgColor
         }
         guard !isLoading else { return }
+        if Self.drawCustomIcon(customIcon, in: bounds, appearance: effectiveAppearance) { return }
         if let image {
             image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             return
         }
         Self.drawLetterTile(letterSource, in: bounds, scale: window?.backingScaleFactor ?? 2)
+    }
+
+    /// Draws an emoji or an SF Symbol centred in `rect`; `false` for no icon (or an unknown one).
+    @discardableResult
+    static func drawCustomIcon(_ icon: String?, in rect: NSRect, appearance: NSAppearance) -> Bool {
+        switch SpaceIcon(icon) {
+        case .none:
+            return false
+        case .emoji(let emoji):
+            let font = NSFont.systemFont(ofSize: rect.height * SidebarMetrics.customIconEmojiScale)
+            let attributes: [NSAttributedString.Key: Any] = [.font: font]
+            let size = (emoji as NSString).size(withAttributes: attributes)
+            (emoji as NSString).draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
+            return true
+        case .symbol(let name):
+            var color = NSColor.labelColor
+            appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor }
+            let configuration = IconStyle.rowGlyph.configuration.applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+            guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(configuration) else { return false }
+            let size = image.size
+            image.draw(in: NSRect(x: (rect.midX - size.width / 2).rounded(), y: (rect.midY - size.height / 2).rounded(), width: size.width, height: size.height),
+                       from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            return true
+        }
     }
 
     static func drawLetterTile(_ domain: String, in rect: NSRect, scale: CGFloat = 2) {

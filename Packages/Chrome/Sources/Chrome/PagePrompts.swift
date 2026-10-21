@@ -1,5 +1,6 @@
 import AppKit
 import Engine
+import Observation
 
 /// What a page asks the user in the card (ROADMAP 2.6 task 2): JavaScript
 /// dialogs, `beforeunload`, HTTP authentication, a certificate error.
@@ -19,6 +20,15 @@ public enum PageDialog: Equatable {
         switch self {
         case .alert, .confirm, .prompt, .beforeUnload: true
         case .auth, .certificate, .externalApp: false
+        }
+    }
+
+    /// An alert, confirm or prompt: the dialogs a page can repeat, which
+    /// "Prevent additional dialogs" silences (B-116; never `beforeunload`).
+    public var isSuppressible: Bool {
+        switch self {
+        case .alert, .confirm, .prompt: true
+        case .beforeUnload, .auth, .certificate, .externalApp: false
         }
     }
 }
@@ -68,6 +78,12 @@ public enum PromptRules {
         return false
     }
 
+    /// "Prevent additional dialogs from this site" is offered from a page's
+    /// second alert, confirm or prompt on (B-116; Chrome's rule).
+    public static func offersSuppression(dialogCount: Int) -> Bool {
+        dialogCount >= 2
+    }
+
     /// The permissions Chrome offers a one-time grant for ("Allow This Time").
     public static func offersOneTimeGrant(_ requests: [PermissionRequest]) -> Bool {
         requests.allSatisfy { [.camera, .microphone, .cameraPanTiltZoom, .geolocation].contains($0.kind) }
@@ -91,8 +107,14 @@ public final class PagePrompts {
         public let dialog: PageDialog
         /// The page that asked.
         public let page: ObjectIdentifier
+        /// The page's second alert, confirm or prompt or later since it last
+        /// loaded: the dialog offers "Prevent additional dialogs from this site" (B-116).
+        public let offersSuppression: Bool
         fileprivate let answer: (DialogResponse) -> Void
     }
+
+    /// The checkbox's words (B-116).
+    public static let suppressionTitle = "Prevent additional dialogs from this site"
 
     /// A permission prompt waiting for an answer.
     public struct PendingPermission {
@@ -111,6 +133,15 @@ public final class PagePrompts {
 
     private var dialogs: [Pending] = []
     private var permissions: [PendingPermission] = []
+    /// Alerts, confirms and prompts each page asked since it last started loading (B-116).
+    private var dialogCounts: [ObjectIdentifier: Int] = [:]
+    /// Pages whose further alerts, confirms and prompts are answered at once
+    /// with their escape answer, unseen, until the page loads again (B-116).
+    public private(set) var suppressedPages: Set<ObjectIdentifier> = []
+    /// Dialogs answered unseen because their page was suppressed (spikes read it).
+    public private(set) var suppressedCount = 0
+    /// The pages whose loading is watched to end their count and suppression.
+    private var watchedPages: Set<ObjectIdentifier> = []
     private var nextID = 1
 
     public init() {}
@@ -145,7 +176,23 @@ public final class PagePrompts {
     public func ask(_ dialog: PageDialog, for page: any WebContents, answer: @escaping (DialogResponse) -> Void) -> Int {
         let id = takeID()
         let pageID = ObjectIdentifier(page)
-        dialogs.append(Pending(id: id, dialog: dialog, page: pageID, answer: answer))
+        var offersSuppression = false
+        if dialog.isSuppressible {
+            if suppressedPages.contains(pageID) {
+                // Silenced until the page loads again: Chrome's answer to a suppressed dialog (OK for an alert, Cancel otherwise).
+                // On the next turn, as a user's answer comes: the engine's dialog manager is still inside the
+                // call that asked (an answer from within it left the page's later dialogs unshown, 5.6a's spike).
+                suppressedCount += 1
+                let response = PromptRules.escapeResponse(for: dialog)
+                DispatchQueue.main.async { answer(response) }
+                return id
+            }
+            let count = (dialogCounts[pageID] ?? 0) + 1
+            dialogCounts[pageID] = count
+            offersSuppression = PromptRules.offersSuppression(dialogCount: count)
+            watchLoading(page)
+        }
+        dialogs.append(Pending(id: id, dialog: dialog, page: pageID, offersSuppression: offersSuppression, answer: answer))
         if pageID != currentPage, !PromptRules.showsImmediately(dialog) { onPageNeedsAttention?(pageID) }
         onChange?()
         return id
@@ -164,14 +211,65 @@ public final class PagePrompts {
 
     // MARK: Answering
 
-    /// Answers the visible dialog (or the one with `id`).
-    public func respond(_ response: DialogResponse, to id: Int? = nil) {
+    /// Answers the visible dialog (or the one with `id`). `suppressingFurther`:
+    /// the dialog's "Prevent additional dialogs" was checked (B-116): the
+    /// page's other waiting alerts, confirms and prompts are answered unseen
+    /// too, and so is every later one until the page loads again.
+    public func respond(_ response: DialogResponse, to id: Int? = nil, suppressingFurther: Bool = false) {
         guard let pending = id.flatMap({ id in dialogs.first { $0.id == id } }) ?? visibleDialog else { return }
         // Proceeding is refused when the error cannot be bypassed; the dialog stays.
         if response == .proceed, !PromptRules.allowsProceed(pending.dialog) { return }
         dialogs.removeAll { $0.id == pending.id }
         pending.answer(response)
+        if suppressingFurther, pending.offersSuppression {
+            suppressedPages.insert(pending.page)
+            let silenced = dialogs.filter { $0.page == pending.page && $0.dialog.isSuppressible }
+            dialogs.removeAll { $0.page == pending.page && $0.dialog.isSuppressible }
+            suppressedCount += silenced.count
+            silenced.forEach { $0.answer(PromptRules.escapeResponse(for: $0.dialog)) }
+        }
         onChange?()
+    }
+
+    /// The page started loading (a reload, a navigation): its dialog count
+    /// and its suppression end (B-116, Chrome's "until the page reloads").
+    public func pageStartedLoading(_ page: ObjectIdentifier) {
+        dialogCounts[page] = nil
+        suppressedPages.remove(page)
+    }
+
+    /// Watches `page` until it starts loading again (`PageCrashes`' pattern).
+    private func watchLoading(_ page: any WebContents) {
+        let id = ObjectIdentifier(page)
+        guard watchedPages.insert(id).inserted else { return }
+        observeLoading(PageRef(page), id: id, wasLoading: page.isLoading)
+    }
+
+    private func observeLoading(_ ref: PageRef, id: ObjectIdentifier, wasLoading: Bool) {
+        guard let page = ref.page else {
+            watchedPages.remove(id)
+            return pageStartedLoading(id)
+        }
+        withObservationTracking {
+            _ = page.isLoading
+        } onChange: { [weak self] in
+            // Fires before the new value is stored; read it on the next turn.
+            Task { @MainActor in
+                guard let self else { return }
+                guard let page = ref.page else {
+                    self.watchedPages.remove(id)
+                    return self.pageStartedLoading(id)
+                }
+                if !wasLoading {
+                    // Not loading before the change: a load began (a reload, a navigation; it may already be over,
+                    // as a fake engine's synchronous load). The count starts again; the page is watched again
+                    // from its next dialog.
+                    self.watchedPages.remove(id)
+                    return self.pageStartedLoading(id)
+                }
+                self.observeLoading(ref, id: id, wasLoading: page.isLoading)
+            }
+        }
     }
 
     public func respondToPermission(_ response: PermissionResponse, to id: Int? = nil) {
@@ -204,6 +302,9 @@ public final class PagePrompts {
     /// escape answer (dismissed for permissions), once.
     public func pageClosed(_ page: any WebContents) {
         let id = ObjectIdentifier(page)
+        // A later page at the same address starts with no count or suppression.
+        pageStartedLoading(id)
+        watchedPages.remove(id)
         let closedDialogs = dialogs.filter { $0.page == id }
         let closedPermissions = permissions.filter { $0.page == id }
         guard !closedDialogs.isEmpty || !closedPermissions.isEmpty else { return }

@@ -11,7 +11,7 @@
 #     annotations named from the Chromium checkout when it is mounted).
 # Page traffic (the local test site on 127.0.0.1:8770 and localhost:8770) is
 # excluded by host. Runs `-RoomSpike netcheck` (AppIntegration2Spikes.swift)
-# on a fresh state and engine directory with the first-run card shown.
+# on a fresh state and engine directory with onboarding shown (5.7b; the first-run card before).
 # ROOM_NETCHECK_IDLE=<seconds> lengthens the idle after launch (default 8 s;
 # 3.1b runs 600 on Room.app on RoomCore: launch, 10 min idle, browse, quit).
 # ROOM_NETCHECK_SUGGESTIONS_OFF=1 (3.5) turns the suggestions switch off and
