@@ -101,7 +101,16 @@ extension SpikeRunner.Context {
                 SpikeRunner.record("branding_\(name)", "error: probe \(json.prefix(160))")
             }
             if sheets != nil {
-                let shot = await matrixShot(scale: 0.5)
+                // The page's own pixels (a window capture shows the card without the engine's layer).
+                let shot = await PageDriver.capture(page, "branding \(name)").flatMap { image -> CGImage? in
+                    guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+                    let size = CGSize(width: CGFloat(cg.width) / 2, height: CGFloat(cg.height) / 2)
+                    guard let context = CGContext(data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: 0,
+                                                  space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return cg }
+                    context.interpolationQuality = .high
+                    context.draw(cg, in: CGRect(origin: .zero, size: size))
+                    return context.makeImage()
+                }
                 rows.append(SheetRow(label: name, cells: [shot]))
             }
             page.close()
