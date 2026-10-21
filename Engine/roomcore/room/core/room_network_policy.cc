@@ -92,6 +92,11 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   // reading list, and the translate offer is the host's infobar (3.4b), so
   // those two stay off.
   disabled += ",ReadingListToast,TranslateToast";
+  // Gemini in Chrome (Glic): 156's field-trial testing config enables it
+  // (Glic<GlicDogfood), and its menu-bar status icon (GlicChromeStatusIcon,
+  // on by default) then put an NSStatusBarWindow in Room's process (5.9's
+  // tour, 2026-10-22). Room has no Gemini surface.
+  disabled += ",Glic,GlicChromeStatusIcon";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with
