@@ -778,7 +778,10 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
             prompts?.respondToPasswordOffer(response, to: id)
         }, manage: { [weak self] in self?.onManagePasswords?() })
         let popover = NSPopover()
-        popover.behavior = .transient
+        // Semi-transient: a click in Room's window answers Not Now, but switching to another
+        // application keeps the offer (Chrome's automatic save bubble does not close on
+        // deactivation either; 5.8e lost offers to another app taking the focus).
+        popover.behavior = .semitransient
         popover.animates = ChromeMotion.popover.animates
         popover.contentViewController = controller
         popover.delegate = self
