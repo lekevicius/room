@@ -17,10 +17,10 @@ verify_chrome_framework_order reads a generated list, framework.order
 followed by room_core.exports (the order nm reports them in).
 
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 80052a531011d..1e97cca143fdb 100644
+index 5bc0c76c42958..0bf5b202ccb17 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -1272,6 +1272,13 @@ if (is_win) {
+@@ -1280,6 +1280,13 @@ if (is_win) {
        "-Wl,-exported_symbols_list",
        "-Wl," + rebase_path("app/framework.exports", root_build_dir),
      ]
@@ -34,7 +34,7 @@ index 80052a531011d..1e97cca143fdb 100644
    }
  
    # Control the order of exported symbols in the framework library.
-@@ -1336,6 +1343,9 @@ if (is_win) {
+@@ -1344,6 +1351,9 @@ if (is_win) {
        "//third_party/cld_3/src/src:cld_3",
      ]
  
@@ -44,7 +44,7 @@ index 80052a531011d..1e97cca143fdb 100644
      if (is_chromeos) {
        deps += [ "//chrome/browser/ash/schedqos" ]
      }
-@@ -1444,6 +1454,11 @@ if (is_win) {
+@@ -1452,6 +1462,11 @@ if (is_win) {
    # TOOD(crbug.com/40740432#comment9) - thakis@ look into why profile and
    # coverage instrumentation adds these symbols in different orders
    if (!is_component_build && chrome_pgo_phase != 1 && !using_sanitizer) {
@@ -56,7 +56,7 @@ index 80052a531011d..1e97cca143fdb 100644
      action("verify_chrome_framework_order") {
        script = "//chrome/tools/build/mac/verify_order.py"
        stamp_file = "$target_out_dir/run_$target_name.stamp"
-@@ -1451,7 +1466,7 @@ if (is_win) {
+@@ -1459,7 +1474,7 @@ if (is_win) {
        args = [
          "--stamp=" + rebase_path(stamp_file, root_out_dir),
          "--binary=" + rebase_path(_framework_binary_path, root_out_dir),

@@ -16,10 +16,10 @@ forward ~150 members.
 Phase 3.2a, 2026-10-05. //room: room/core/room_web_contents.mm
 (InstallWebContentsHooks).
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index d3fa7eea6db80..f6dfd061b80b2 100644
+index 3bc40bcc9139a..36323e6f2e308 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -127,6 +127,12 @@ BASE_FEATURE(kBackgroundActorTaskPopupsOpenInBackground,
+@@ -125,6 +125,12 @@
  
  DEFINE_USER_DATA(BrowserWebContentsDelegate);
  
@@ -32,7 +32,7 @@ index d3fa7eea6db80..f6dfd061b80b2 100644
  namespace {
  
  const extensions::Extension* GetExtensionForOrigin(
-@@ -798,6 +804,10 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
+@@ -796,6 +802,10 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
  
  void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
                                                   const GURL& url) {

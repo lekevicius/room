@@ -1,7 +1,8 @@
 diff --git a/chrome/browser/browser_process_impl.cc b/chrome/browser/browser_process_impl.cc
+index bed9453f156ba..25aa33ce9da7e 100644
 --- a/chrome/browser/browser_process_impl.cc
 +++ b/chrome/browser/browser_process_impl.cc
-@@ -1477,6 +1477,12 @@
+@@ -1464,6 +1464,12 @@ activity_reporter::ActivityReporter* BrowserProcessImpl::activity_reporter() {
    return activity_reporter_.get();
  }
  
@@ -14,7 +15,7 @@ diff --git a/chrome/browser/browser_process_impl.cc b/chrome/browser/browser_pro
  component_updater::ComponentUpdateService*
  BrowserProcessImpl::component_updater() {
    if (component_updater_) {
-@@ -1488,7 +1494,9 @@
+@@ -1475,7 +1481,9 @@ BrowserProcessImpl::component_updater() {
    }
  
    std::unique_ptr<component_updater::UpdateScheduler> scheduler =

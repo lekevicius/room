@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
-index c0d89c9f55032..5a97828a5243d 100644
+index 7e0fb256dc829..48f0c8796ff2b 100644
 --- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
 +++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
 @@ -52,6 +52,10 @@
@@ -13,7 +13,7 @@ index c0d89c9f55032..5a97828a5243d 100644
  namespace {
  
  // We could have a situation where the WebContents with an actor task opens a
-@@ -1173,10 +1177,14 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
+@@ -1175,10 +1179,14 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
          web_contents()->GetTopLevelNativeWindow();
      views::Widget* top_level_widget =
          views::Widget::GetWidgetForNativeWindow(top_level_native_window);
@@ -29,7 +29,7 @@ index c0d89c9f55032..5a97828a5243d 100644
    }
  
    extensions::SecurityDialogTracker::GetInstance()->AddSecurityDialog(
-@@ -1231,6 +1239,12 @@ FedCmAccountSelectionView::GetURLLoaderFactory() {
+@@ -1233,6 +1241,12 @@ FedCmAccountSelectionView::GetURLLoaderFactory() {
  }
  
  views::View* FedCmAccountSelectionView::GetAnchorView() {

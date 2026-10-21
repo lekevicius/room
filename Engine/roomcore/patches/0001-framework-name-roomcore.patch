@@ -16,7 +16,7 @@ where @executable_path/../../../../Libraries/libaperitif.dylib is expected.
 The component build is unaffected (@rpath install name).
 
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 8a60d7061bbfb..80052a531011d 100644
+index d98c86e5dace9..5bc0c76c42958 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -28,6 +28,7 @@ import("//services/shape_detection/features.gni")
@@ -27,7 +27,7 @@ index 8a60d7061bbfb..80052a531011d 100644
  import("//tools/resources/generate_resource_allowlist.gni")
  import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
  import("//ui/gl/features.gni")
-@@ -481,7 +482,7 @@ if (is_win) {
+@@ -486,7 +487,7 @@ if (is_win) {
    }
  } else if (is_mac) {
    chrome_helper_name = chrome_product_full_name + " Helper"

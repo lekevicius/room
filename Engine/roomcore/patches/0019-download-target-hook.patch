@@ -18,7 +18,7 @@ determiner.
 
 Phase 3.4a, 2026-10-05. //room: room/core/room_downloads.mm.
 diff --git a/chrome/browser/download/chrome_download_manager_delegate.cc b/chrome/browser/download/chrome_download_manager_delegate.cc
-index 4e9ae04520701..53625633b3d4d 100644
+index 0cfc34d1e08df..d0761b474cd4b 100644
 --- a/chrome/browser/download/chrome_download_manager_delegate.cc
 +++ b/chrome/browser/download/chrome_download_manager_delegate.cc
 @@ -185,6 +185,15 @@
@@ -37,7 +37,7 @@ index 4e9ae04520701..53625633b3d4d 100644
  using content::BrowserThread;
  using content::DownloadManager;
  using download::DownloadItem;
-@@ -851,6 +860,10 @@ void ChromeDownloadManagerDelegate::ReturnNextId(
+@@ -852,6 +861,10 @@ void ChromeDownloadManagerDelegate::ReturnNextId(
  bool ChromeDownloadManagerDelegate::DetermineDownloadTarget(
      DownloadItem* download,
      download::DownloadTargetCallback* callback) {

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
-index 2a4a67927d84b..7a5229c13c3f6 100644
+index 455cbfb53cd25..5af87119865e3 100644
 --- a/chrome/browser/chrome_browser_interface_binders.cc
 +++ b/chrome/browser/chrome_browser_interface_binders.cc
-@@ -444,9 +444,15 @@ void BindCredentialManager(
+@@ -449,9 +449,15 @@ void BindCredentialManager(
  
  }  // namespace
  
@@ -19,7 +19,7 @@ index 2a4a67927d84b..7a5229c13c3f6 100644
    // Defense in depth: privileged capability interfaces are not even registered
    // for a frame outside a privileged process, so a non-PWC frame cannot
 diff --git a/content/browser/media/cdm_registry_impl.cc b/content/browser/media/cdm_registry_impl.cc
-index 8db216ff5561d..51e2446e6cbfb 100644
+index 1bc9b09556c04..83f4f2106932d 100644
 --- a/content/browser/media/cdm_registry_impl.cc
 +++ b/content/browser/media/cdm_registry_impl.cc
 @@ -41,6 +41,10 @@
@@ -33,7 +33,7 @@ index 8db216ff5561d..51e2446e6cbfb 100644
  namespace content {
  
  namespace {
-@@ -261,6 +265,11 @@ void CdmRegistryImpl::Init() {
+@@ -263,6 +267,11 @@ void CdmRegistryImpl::Init() {
  
    // Let embedders register CDMs.
    GetContentClient()->AddContentDecryptionModules(&cdms_, nullptr);
@@ -45,7 +45,7 @@ index 8db216ff5561d..51e2446e6cbfb 100644
  }
  
  void CdmRegistryImpl::RegisterCdm(const CdmInfo& info) {
-@@ -288,6 +297,9 @@ void CdmRegistryImpl::RegisterCdm(const CdmInfo& info) {
+@@ -290,6 +299,9 @@ void CdmRegistryImpl::RegisterCdm(const CdmInfo& info) {
    if (!key_system_capabilities_update_callbacks_.empty()) {
      FinalizeKeySystemCapabilities();
    }
@@ -56,7 +56,7 @@ index 8db216ff5561d..51e2446e6cbfb 100644
  
  void CdmRegistryImpl::SetHardwareSecureCdmStatus(CdmInfo::Status status) {
 diff --git a/content/renderer/media/media_factory.cc b/content/renderer/media/media_factory.cc
-index 40765378e96b6..7dd2a410edd78 100644
+index 68b9cfb038f67..130b952bb7672 100644
 --- a/content/renderer/media/media_factory.cc
 +++ b/content/renderer/media/media_factory.cc
 @@ -302,6 +302,14 @@ class LocalFrameDelegate

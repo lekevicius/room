@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/autofill/address_bubbles_controller.cc b/chrome/browser/ui/autofill/address_bubbles_controller.cc
-index af32d3bd996d2..2ffe6ef9d5b50 100644
+index 86828b91de9b7..1548200019410 100644
 --- a/chrome/browser/ui/autofill/address_bubbles_controller.cc
 +++ b/chrome/browser/ui/autofill/address_bubbles_controller.cc
-@@ -311,10 +311,12 @@ void AddressBubblesController::SetUpBubble(
+@@ -312,10 +312,12 @@ void AddressBubblesController::SetUpBubble(
  }
  
  void AddressBubblesController::MaybeShowIOSDektopAddressPromo() {
@@ -20,10 +20,10 @@ index af32d3bd996d2..2ffe6ef9d5b50 100644
    // Verify if user is eligible for iOS promo, and attempt showing if they are.
    ios_promos_utils::VerifyIOSPromoEligibility(
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
-index 63c3090b4c75b..ec314932908c4 100644
+index b68f089aebf83..9e4770cc31d66 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -1160,9 +1160,19 @@ BrowserView::~BrowserView() {
+@@ -1169,9 +1169,19 @@ BrowserView::~BrowserView() {
    RemoveAllChildViews();
  }
  

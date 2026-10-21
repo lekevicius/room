@@ -16,10 +16,10 @@ caller's own client) and never for downloads.
 2026-10-17. //room: room/core/content_blocking/network_blocking.cc
 (InstallNetworkBlockingHook).
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index 19045777b3d81..9edc9529dffd5 100644
+index 2e0f287290b76..ffe01b75522f7 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -838,6 +838,19 @@ using plugins::ChromeContentBrowserClientPluginsPart;
+@@ -847,6 +847,19 @@ using plugins::ChromeContentBrowserClientPluginsPart;
  using web_app::ChromeContentBrowserClientIsolatedWebAppsPart;
  #endif
  
@@ -39,9 +39,9 @@ index 19045777b3d81..9edc9529dffd5 100644
  namespace {
  
  const char kAIManagerUserDataKey[] = "ai_manager";
-@@ -6748,6 +6761,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
- #endif  // BUILDFLAG (ENABLE_EXTENSIONS_CORE)
- #endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+@@ -6865,6 +6878,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+         frame, factory_builder);
+   }
  
 +  if (room::g_url_loader_factory_hook) {
 +    room::g_url_loader_factory_hook(browser_context, frame, render_process_id,

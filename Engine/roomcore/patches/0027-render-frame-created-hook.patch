@@ -16,10 +16,10 @@ does for patch 0007's media hook.
 
 2026-10-17. //room: room/core/content_blocking/cosmetic_filter_agent.cc.
 diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
-index 3b030af0de2d7..285acb8f5ab86 100644
+index d460c0fb699d6..a9d38544c7f2e 100644
 --- a/chrome/renderer/chrome_content_renderer_client.cc
 +++ b/chrome/renderer/chrome_content_renderer_client.cc
-@@ -639,8 +639,18 @@ void ChromeContentRendererClient::ExposeInterfacesToBrowser(
+@@ -649,8 +649,18 @@ void ChromeContentRendererClient::ExposeInterfacesToBrowser(
    ExposeChromeRendererInterfacesToBrowser(this, binders);
  }
  

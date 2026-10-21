@@ -21,10 +21,10 @@ main frame of a page RoomCore wraps.
 Phase 3.3a, 2026-10-05. //room: room/core/room_web_contents.mm
 (InstallWebContentsHooks, RoomNavigationThrottle).
 diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-index cba0d32176eb2..59740c5dcf50a 100644
+index dfa341dccc511..b32e2bdd908d7 100644
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -191,6 +191,13 @@
+@@ -192,6 +192,13 @@
  #include "extensions/browser/extensions_browser_client.h"
  #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
  
@@ -38,7 +38,7 @@ index cba0d32176eb2..59740c5dcf50a 100644
  namespace {
  
  // Wrapper for SSLErrorHandler::HandleSSLError() that supplies //chrome-level
-@@ -634,6 +641,10 @@ void CreateAndAddChromeThrottlesForNavigation(
+@@ -637,6 +644,10 @@ void CreateAndAddChromeThrottlesForNavigation(
    glic::GlicGuestNavigationThrottle::MaybeCreateAndAdd(registry);
  
    pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);
@@ -49,7 +49,7 @@ index cba0d32176eb2..59740c5dcf50a 100644
  }
  
  void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
-@@ -642,4 +653,8 @@ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
+@@ -653,4 +664,8 @@ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
    // navigations that commit without a URL loader (e.g. a subframe navigating
    // the main frame to about:blank), which never reach WillStartRequest().
    pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);

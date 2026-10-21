@@ -19,10 +19,10 @@ re-checks are refused.
 
 Phase 3.6a, 2026-10-05. //room: room/core/room_extensions.mm.
 diff --git a/chrome/browser/extensions/chrome_extensions_browser_client.cc b/chrome/browser/extensions/chrome_extensions_browser_client.cc
-index 18c8da68d3917..85625b83525fc 100644
+index 982247172ea41..0093f7a7b7304 100644
 --- a/chrome/browser/extensions/chrome_extensions_browser_client.cc
 +++ b/chrome/browser/extensions/chrome_extensions_browser_client.cc
-@@ -167,6 +167,12 @@
+@@ -168,6 +168,12 @@
  #include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
  #endif
  
@@ -35,7 +35,7 @@ index 18c8da68d3917..85625b83525fc 100644
  namespace extensions {
  
  namespace {
-@@ -607,6 +613,9 @@ ExtensionCache* ChromeExtensionsBrowserClient::GetExtensionCache() {
+@@ -608,6 +614,9 @@ ExtensionCache* ChromeExtensionsBrowserClient::GetExtensionCache() {
  }
  
  bool ChromeExtensionsBrowserClient::IsBackgroundUpdateAllowed() {
