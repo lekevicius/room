@@ -57,6 +57,8 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 - (void)room_targetURLChanged:(const GURL&)url;
 // Chrome wants the address field focused (RoomLocationBar::FocusLocation).
 - (void)room_requestFocusOnLocationBar;
+// Chrome asked to show this page (RoomBrowserWindow::Activate, B-107).
+- (void)room_requestActivation;
 // The delegate's bubble anchor (window coordinates), NSZeroRect when none.
 - (NSRect)room_bubbleAnchorRect;
 - (void)room_didEnterFullscreen:(const url::Origin&)origin;

@@ -64,6 +64,11 @@ class RoomBrowserWindowClient {
  public:
   virtual ~RoomBrowserWindowClient() = default;
   virtual void OnActiveContentsChanged(content::WebContents* contents) = 0;
+  // Chrome asked to show `contents` (WebContentsDelegate::ActivateContents:
+  // picture-in-picture's back to tab, a page's opener.focus(), a
+  // notification's click): Chrome made it the strip's active tab and
+  // activates the window; the host selects the page (B-107).
+  virtual void OnActivationRequested(content::WebContents* contents) = 0;
   // Tab fullscreen (the ExclusiveAccessContext): the page asked for element
   // fullscreen and Chrome granted it; the host makes the page fill the
   // window. Posted, never re-entrant.

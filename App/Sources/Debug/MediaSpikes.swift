@@ -17,7 +17,8 @@ import UIKitCore
 /// media row with the fixture playing in a second space; `nowplaying` what
 /// Chrome's system media controls put in `MPNowPlayingInfoCenter` and a
 /// synthetic play/pause key; `pip` document picture-in-picture in the
-/// floating panel and video picture-in-picture's overlay window.
+/// floating panel and video picture-in-picture's overlay window; `backtotab`
+/// both windows' back to tab (B-107, `BackToTabSpike.swift`).
 extension SpikeRunner.Context {
     static var mediaBase: String { UserDefaults.standard.string(forKey: "RoomMediaFixtureBase") ?? "http://127.0.0.1:8776" }
     static var mediaPage: URL { URL(string: "\(mediaBase)/phase-4.6/media.html?quiet=1")! }
@@ -30,6 +31,7 @@ extension SpikeRunner.Context {
         if runs("row") { await mediaRow() }
         if runs("nowplaying") { await mediaNowPlaying() }
         if runs("pip") { await mediaPictureInPicture() }
+        if runs("backtotab") { await mediaBackToTab() }
     }
 
     func mediaLog(_ page: any WebContents) async -> String {

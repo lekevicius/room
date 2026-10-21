@@ -503,6 +503,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // the host focuses its own field for this page.
 - (void)webContentsDidRequestFocusOnLocationBar:(RoomWebContents*)webContents
     NS_SWIFT_NAME(webContentsDidRequestFocusOnLocationBar(_:));
+// Chrome asked to show this page (WebContentsDelegate::ActivateContents:
+// picture-in-picture's back to tab, `opener.focus()` from a page it opened,
+// a notification's click). Chrome made it its window's active tab and
+// activates the window when the application is active; the host selects the
+// page's tab and shows it (B-107).
+- (void)webContentsDidRequestActivation:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(webContentsDidRequestActivation(_:));
 // Where Chrome's own bubbles point while this page is its window's active
 // page (the password save and update bubbles, address and card saves,
 // device choosers, FedCM): the host's site button, in the window's

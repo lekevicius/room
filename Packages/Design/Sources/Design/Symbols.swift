@@ -85,6 +85,8 @@ public enum Symbol: CaseIterable, Sendable {
     case pause
     case nextTrack
     case pictureInPicture
+    /// Document picture-in-picture's back to tab (B-107).
+    case pictureInPictureExit
 
     // Page tools (§C, §G)
     case find
@@ -195,6 +197,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .pause: "pause.fill"
         case .nextTrack: "forward.fill"
         case .pictureInPicture: "pip.enter"
+        case .pictureInPictureExit: "pip.exit"
         case .find: "text.magnifyingglass"
         case .zoomIn: "plus.magnifyingglass"
         case .zoomOut: "minus.magnifyingglass"

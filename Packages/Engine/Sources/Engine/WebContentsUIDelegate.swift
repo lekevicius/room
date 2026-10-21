@@ -32,6 +32,10 @@ public protocol WebContentsUIDelegate: AnyObject {
     /// focus-the-location-bar command, `IDC_FOCUS_LOCATION`, Phase 3.5): the
     /// host opens its field as ⌘L does.
     func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents)
+    /// The engine asked to show this page (picture-in-picture's back to tab,
+    /// `opener.focus()` from a page it opened, a notification's click; B-107):
+    /// the host selects its tab and shows it.
+    func webContentsDidRequestActivation(_ webContents: any WebContents)
     /// Where the engine's own bubbles point while this page is its window's
     /// active page (RoomCore keeps Chrome's Views bubbles: password save and
     /// update, address and card saves, device choosers, FedCM; Phase 3.7a):
@@ -167,6 +171,7 @@ public extension WebContentsUIDelegate {
     func webContentsDidRequestExitFullscreen(_ webContents: any WebContents) {}
     func webContents(_ webContents: any WebContents, didChangeStatusText text: String?) {}
     func webContentsDidRequestFocusOnLocationBar(_ webContents: any WebContents) {}
+    func webContentsDidRequestActivation(_ webContents: any WebContents) {}
     func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? { nil }
     func webContents(_ webContents: any WebContents, willShowContextMenu menu: MenuModel, for element: ContextMenuElement) -> Bool {
         false

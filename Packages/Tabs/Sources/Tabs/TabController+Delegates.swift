@@ -143,6 +143,12 @@ extension TabController: WebContentsUIDelegate {
         pageUIDelegate?.webContentsDidRequestFocusOnLocationBar(webContents)
     }
 
+    /// The engine asked to show a page (B-107): the entry that owns it is selected.
+    public func webContentsDidRequestActivation(_ webContents: any WebContents) {
+        guard let entry = entryID(for: webContents) else { return }
+        onActivationRequested?(entry)
+    }
+
     /// Where the engine's bubbles point (RoomCore's Views bubbles, 3.7a): the window's answer.
     public func bubbleAnchorRect(for webContents: any WebContents) -> CGRect? {
         pageUIDelegate?.bubbleAnchorRect(for: webContents)
@@ -292,6 +298,14 @@ extension TabController: WebContentsUIDelegate {
     /// The row's capture indicator follows `captureState` through `track`.
     public func webContents(_ webContents: any WebContents, didChangeCaptureState state: CaptureState) {
         pageUIDelegate?.webContents(webContents, didChangeCaptureState: state)
+    }
+
+    /// Autoconsent answered the page's cookie banner (B-30).
+    public func webContents(_ webContents: any WebContents, didHandleCookieBanner consentPlatform: String, optedOut: Bool) {
+        let entry = entryID(for: webContents)
+        NSLog("Room: cookie banner \"%@\" %@ on entry %@", consentPlatform, optedOut ? "opted out" : "not opted out",
+              entry?.uuidString ?? "none")
+        onCookieBanner?(entry, consentPlatform, optedOut)
     }
 
     /// The footer's media row is 4.6's: the session is logged once per change.

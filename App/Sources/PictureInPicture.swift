@@ -38,6 +38,8 @@ final class PictureInPicturePanels: NSObject, WebContentsUIDelegate, NSWindowDel
     /// The page's other UI (dialogs, permission prompts) goes where the card's pages' goes.
     weak var pageUIDelegate: (any WebContentsUIDelegate)?
     private(set) var items: [Item] = []
+    /// The panel's back-to-tab button (B-107): the opener's entry is selected and its window shown; the panel closes.
+    var onBackToTab: ((UUID) -> Void)?
     /// Spikes: each panel shown and closed.
     var debugOnShow: ((Item) -> Void)?
     var debugOnClose: ((Item) -> Void)?
@@ -73,6 +75,17 @@ final class PictureInPicturePanels: NSObject, WebContentsUIDelegate, NSWindowDel
         view.autoresizingMask = [.width, .height]
         container.addSubview(view)
         panel.contentView = container
+        // Back to tab (Chrome's document PiP frame has one; B-107): a button at the title bar's trailing edge.
+        let back = NSButton(image: Symbol.pictureInPictureExit.image(accessibilityDescription: "Back to Tab") ?? NSImage(),
+                            target: self, action: #selector(backToTabClicked(_:)))
+        back.isBordered = false
+        back.toolTip = "Back to Tab"
+        back.setAccessibilityLabel("Back to Tab")
+        back.frame = NSRect(x: 0, y: 0, width: 28, height: 22)
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = back
+        accessory.layoutAttribute = .trailing
+        panel.addTitlebarAccessoryViewController(accessory)
         // The card's top-right corner, inside the visible screen.
         let card = cardScreenRect()
         let frame = panel.frameRect(forContentRect: NSRect(origin: .zero, size: size))
@@ -98,6 +111,18 @@ final class PictureInPicturePanels: NSObject, WebContentsUIDelegate, NSWindowDel
     }
 
     func item(for contents: any WebContents) -> Item? { items.first { $0.contents === contents } }
+
+    /// Back to tab: the opener's entry is shown and the panel closes (its page with it).
+    @objc private func backToTabClicked(_ sender: NSButton) {
+        guard let item = items.first(where: { $0.panel === sender.window }) else { return }
+        backToTab(item)
+    }
+
+    /// Spikes press it through here.
+    func backToTab(_ item: Item) {
+        onBackToTab?(item.entry)
+        item.panel.close()
+    }
 
     /// Its window closed (4.8a): every panel and its page go.
     func closeAll() {

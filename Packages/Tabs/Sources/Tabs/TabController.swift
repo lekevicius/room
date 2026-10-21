@@ -119,6 +119,14 @@ public final class TabController: SidebarHost {
     /// opener's model profile. The app moves it into its incognito window;
     /// without a handler it is closed.
     @ObservationIgnored public var openOffTheRecord: ((_ contents: any WebContents, _ url: URL?, _ profileID: UUID?) -> Void)?
+    /// The engine asked to show a page (picture-in-picture's back to tab,
+    /// `opener.focus()`; B-107): its entry, which the app selects in its
+    /// space, bringing the window forward.
+    @ObservationIgnored public var onActivationRequested: ((_ entry: UUID) -> Void)?
+    /// The blocker's autoconsent answered a page's cookie banner (B-30):
+    /// the page's entry (nil for a page no entry owns), the consent
+    /// platform and whether it opted out. Logged; the live-site check reads it (5.0a).
+    @ObservationIgnored public var onCookieBanner: ((_ entry: UUID?, _ platform: String, _ optedOut: Bool) -> Void)?
     /// A link went to another space than its page's (the app's toast).
     @ObservationIgnored public var onLinkRouted: ((_ entry: UUID, _ space: UUID) -> Void)?
     /// Pages that close while it terminates are dropped without closing their entries.

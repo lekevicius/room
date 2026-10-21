@@ -918,4 +918,19 @@ struct CertificateInterstitialTests {
         #expect(f.page(tab.id) === page)
         #expect(f.display.shown === page)
     }
+
+    @Test("B-107: the engine asking to show a background page (picture-in-picture's back to tab) names that page's entry")
+    func activationRequestNamesTheEntry() async throws {
+        let f = try TabsFixture()
+        let opener = try f.today("https://video.example/"), other = try f.today("https://other.example/")
+        try f.select(opener.id)
+        await f.settle()
+        let page = try #require(f.page(opener.id))
+        try f.select(other.id)
+        await f.settle()
+        var asked: [UUID] = []
+        f.tabs.onActivationRequested = { asked.append($0) }
+        page.simulateActivationRequest()
+        #expect(asked == [opener.id])
+    }
 }

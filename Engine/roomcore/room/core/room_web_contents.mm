@@ -1060,6 +1060,13 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (void)room_requestActivation {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector(webContentsDidRequestActivation:)]) {
+    [delegate webContentsDidRequestActivation:self];
+  }
+}
+
 - (NSRect)room_bubbleAnchorRect {
   id<RoomWebContentsDelegate> delegate = self.delegate;
   if (![delegate respondsToSelector:@selector(webContentsBubbleAnchorRect:)]) {

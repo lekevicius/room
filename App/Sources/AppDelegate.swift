@@ -777,6 +777,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tabs.presentPictureInPicture = { [weak pictureInPicture] contents, opener, entry in
             pictureInPicture?.present(contents, opener: opener, entry: entry)
         }
+        // B-107: picture-in-picture's back to tab (Chrome's video overlay through the engine, the
+        // document panel's own button) and a page's opener.focus() select the page's tab in its space.
+        tabs.onActivationRequested = { [weak sidebar, weak controller] entry in
+            sidebar?.reveal(entry)
+            if NSApp.isActive { controller?.window?.makeKeyAndOrderFront(nil) }
+            NSLog("Room: the engine asked to show entry %@; selected", entry.uuidString)
+        }
+        pictureInPicture.onBackToTab = { [weak sidebar, weak controller] entry in
+            sidebar?.reveal(entry)
+            NSApp.activate()
+            controller?.window?.makeKeyAndOrderFront(nil)
+            NSLog("Room: document picture-in-picture back to tab, entry %@", entry.uuidString)
+        }
         session.pictureInPicture = pictureInPicture
         // The engine's notices (infobars, the translate offer) as toasts (3.4b).
         pageDelegate.chrome.showNotice = { [weak toasts] toast in toasts?.show(toast) }

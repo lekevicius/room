@@ -768,6 +768,13 @@ void RoomBrowserWindow::Activate() {
   if (!window) {
     return;
   }
+  // BrowserWebContentsDelegate::ActivateContents made the page the strip's
+  // active tab first: the host shows it (B-107), whether or not the window
+  // may take the keyboard below.
+  if (client_) {
+    client_->OnActivationRequested(
+        browser_->GetTabStripModel()->GetActiveWebContents());
+  }
   // NativeWidgetNSWindowBridge activates the application first
   // (activateIgnoringOtherApps), so a page's window.focus() or an extension
   // could take the keyboard from another application. Room does not: while

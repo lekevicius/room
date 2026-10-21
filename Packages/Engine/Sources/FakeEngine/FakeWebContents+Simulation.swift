@@ -137,6 +137,11 @@ public extension FakeWebContents {
         effectiveUIDelegate.webContentsDidRequestFocusOnLocationBar(self)
     }
 
+    /// The engine asks to show this page (picture-in-picture's back to tab, B-107).
+    func simulateActivationRequest() {
+        effectiveUIDelegate.webContentsDidRequestActivation(self)
+    }
+
     /// The engine is about to show one of its own bubbles (RoomCore's Views
     /// bubbles, 3.7a) and asks where it points.
     func simulateBubbleAnchorQuery() -> CGRect? {

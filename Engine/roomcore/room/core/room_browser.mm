@@ -38,6 +38,7 @@
 #include "content/public/browser/web_ui.h"
 #include "printing/print_job_constants.h"
 #include "chrome/browser/devtools/devtools_ui_controller.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -113,6 +114,9 @@ class Client : public room::RoomBrowserWindowClient {
 
   void OnActiveContentsChanged(content::WebContents* contents) override {
     [browser_ room_activeContentsChanged:contents];
+  }
+  void OnActivationRequested(content::WebContents* contents) override {
+    [[browser_ room_wrapperFor:contents] room_requestActivation];
   }
   void OnBrowserWindowWillClose() override { [browser_ room_windowWillClose]; }
   void OnBrowserWindowDestroyed() override { [browser_ room_windowDestroyed]; }
@@ -702,6 +706,16 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     }
     if ([action isEqualToString:@"network-accept"]) { manager->Accept(std::monostate{}); }
     return @1;
+  }
+  if ([action isEqualToString:@"pip-back-to-tab"]) {
+    // The overlay's back-to-tab button (VideoOverlayWindowViews; Chrome's
+    // document PiP frame has the same): close the window, focus the opener.
+    return @(PictureInPictureWindowManager::GetInstance()
+                     ->ExitPictureInPictureViaWindowUi(
+                         PictureInPictureWindowManager::UiBehavior::
+                             kCloseWindowAndFocusOpener)
+                 ? 1
+                 : 0);
   }
   if ([action isEqualToString:@"download-prompt-enable"]) {
     _profile.room_profile->GetPrefs()->SetBoolean(prefs::kPromptForDownload, true);

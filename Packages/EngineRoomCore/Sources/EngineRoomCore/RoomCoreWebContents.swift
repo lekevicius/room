@@ -585,6 +585,13 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         uiDelegate?.webContentsDidRequestFocusOnLocationBar(self)
     }
 
+    /// `WebContentsDelegate::ActivateContents` (B-107): Chrome made the page
+    /// its window's active tab (picture-in-picture's back to tab, `opener.focus()`).
+    public func webContentsDidRequestActivation(_ webContents: RoomWebContents) {
+        NSLog("RoomCore: Chrome asked to show a page")
+        uiDelegate?.webContentsDidRequestActivation(self)
+    }
+
     /// Where Chrome's Views bubbles point (`RoomToolbarButtonProvider` and the
     /// window's bubble anchor, 3.7a): the host's site button.
     public func webContentsBubbleAnchorRect(_ webContents: RoomWebContents) -> NSRect {
