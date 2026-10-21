@@ -1630,6 +1630,12 @@ extension SidebarController {
     /// The folder preview's window, if one is showing.
     public var debugFolderPreviewWindow: NSWindow? { folderPreview?.contentViewController?.view.window }
 
+    /// The inline rename's commit, as Return in the field (5.1a: the pulse).
+    public func debugRenameEnded(_ id: UUID, label: String) { renameEnded(id, label: label, committed: true) }
+
+    /// The Essentials grid's width (its column count follows it).
+    public var debugEssentialsWidth: CGFloat { grid.bounds.width }
+
     /// The empty grid's drop slot, as during a drag.
     public func debugShowDropSlot(_ show: Bool) {
         grid.showsDropSlot = show
