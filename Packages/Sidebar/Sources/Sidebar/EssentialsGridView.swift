@@ -104,6 +104,9 @@ final class EssentialsGridView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
 
+    /// The next layout moves the tiles to their new places (`SidebarMotion.essentialsReflow`).
+    private var reflowsAnimated = false
+
     func setEntries(_ ids: [UUID], animated: Bool) {
         let fades = animated && SidebarMotion.essentialFade.animates
         let removed = Set(order).subtracting(ids)
@@ -112,6 +115,7 @@ final class EssentialsGridView: NSView {
             if fades {
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = Motion.standard
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     tile.animator().alphaValue = 0
                 }, completionHandler: { MainActor.assumeIsolated { tile.removeFromSuperview() } })
             } else {
@@ -127,10 +131,12 @@ final class EssentialsGridView: NSView {
                 tile.alphaValue = 0
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = Motion.standard
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     tile.animator().alphaValue = 1
                 }
             }
         }
+        reflowsAnimated = animated && !order.isEmpty && order != ids && SidebarMotion.essentialsReflow.animates
         order = ids
         dropSlot.isHidden = !(showsDropSlot && order.isEmpty)
         needsLayout = true
@@ -147,8 +153,22 @@ final class EssentialsGridView: NSView {
 
     override func layout() {
         super.layout()
+        // A reflow (a tile added, removed or moved): the tiles that were on
+        // screen move to their places with the rows' timing; a new tile
+        // starts at its own (it fades in there).
+        let animated = reflowsAnimated && window != nil
+        reflowsAnimated = false
+        var moves: [(EssentialTileView, CGRect)] = []
         for (id, frame) in zip(order, tileFrames) {
-            tiles[id]?.frame = frame
+            guard let tile = tiles[id], tile.frame != frame else { continue }
+            if animated, tile.frame != .zero { moves.append((tile, frame)) } else { tile.frame = frame }
+        }
+        if !moves.isEmpty {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.standard
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                for (tile, frame) in moves { tile.animator().frame = frame }
+            }
         }
         dropSlot.frame = NSRect(x: 0, y: 0, width: bounds.width, height: SidebarMetrics.essentialTileHeight)
         let size = fullBadge.cell?.cellSize ?? .zero
@@ -230,6 +250,7 @@ final class EssentialsDropSlotView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+        border.actions = CALayer.noImplicitActions
         border.fillColor = nil
         border.lineWidth = 1
         border.lineDashPattern = [4, 3]
@@ -276,6 +297,8 @@ final class EssentialTileView: NSView {
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
     private var isChanged = false
+    /// Configured once (its first state never fades).
+    private var configured = false
     /// In the ⌘/⇧-click multi-selection (spec §A.9).
     var isMultiSelected = false { didSet { if isMultiSelected != oldValue { needsDisplay = true } } }
     private var mouseDownPoint: NSPoint?
@@ -285,6 +308,8 @@ final class EssentialTileView: NSView {
         self.entryID = entryID
         super.init(frame: .zero)
         wantsLayer = true
+        // Resized with the tile without Core Animation's implicit 0.25 s animation (5.1a).
+        multiSelectionLayer.actions = CALayer.noImplicitActions
         layer?.addSublayer(multiSelectionLayer)
         setAccessibilityRole(.button)
         setAccessibilityIdentifier("essential")
@@ -314,6 +339,11 @@ final class EssentialTileView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     func configure(entry: Entry, page: EntryPageState, isSelected: Bool, isChanged: Bool) {
+        if configured, isChanged != self.isChanged, isChanged ? SidebarMotion.changedDot.animates : SidebarMotion.resetCrossfade.animates {
+            // The dot fades in as the page leaves the pinned URL; on reset the tile crossfades back (spec §A.5, §I.8).
+            layer?.add(EntryCellView.fade(isChanged ? Motion.fast : Motion.resetCrossfade), forKey: "changed")
+        }
+        configured = true
         self.isSelected = isSelected
         self.isChanged = isChanged
         favicon.image = page.favicon
@@ -329,7 +359,12 @@ final class EssentialTileView: NSView {
     }
 
     private func update() {
-        resetButton.isHidden = !(hovering && isChanged)
+        let showReset = hovering && isChanged
+        if showReset == resetButton.isHidden, SidebarMotion.resetIconSwap.animates {
+            // The favicon and the reset icon swap with the hover fill (spec §I.8; hover fades).
+            layer?.add(EntryCellView.fade(Motion.fast), forKey: "hover-swap")
+        }
+        resetButton.isHidden = !showReset
         favicon.isHidden = !resetButton.isHidden
         dot.isHidden = !isChanged || hovering
         needsDisplay = true

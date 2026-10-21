@@ -400,6 +400,7 @@ final class OverflowIndicatorView: NSView {
         self.edge = edge
         super.init(frame: .zero)
         wantsLayer = true
+        line.actions = CALayer.noImplicitActions
         layer?.addSublayer(line)
         isHidden = true
         setAccessibilityRole(.button)

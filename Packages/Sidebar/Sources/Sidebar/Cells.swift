@@ -106,10 +106,13 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     var isCommandHeld = false { didSet { if isCommandHeld != oldValue { updateHoverState() } } }
     var isHoveringIcon = false { didSet { if isHoveringIcon != oldValue { updateHoverState() } } }
     private(set) var isRenaming = false
+    /// The entry the hover state was last shown for (a reused cell's first state never fades).
+    private var hoverEntryID: UUID?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
+        wantsLayer = true
         textField = titleField
         titleField.delegate = self
         // A long title fades out over its last points (`updateTrailingFade`).
@@ -166,10 +169,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             favicon.isUnloaded = unloaded
             if previous?.entry.id == entry.id, previous?.isChanged == true, !model.isChanged, SidebarMotion.resetCrossfade.animates {
                 // Reset: crossfade back to the stored icon (spec §A.5).
-                let fade = CATransition()
-                fade.type = .fade
-                fade.duration = Motion.resetCrossfade
-                favicon.layer?.add(fade, forKey: "reset")
+                favicon.layer?.add(Self.fade(Motion.resetCrossfade), forKey: "reset")
+            } else if previous?.entry.id == entry.id, previous?.isChanged == false, model.isChanged, SidebarMotion.changedDot.animates {
+                // The page left the pinned URL: the changed dot fades in (spec §I.8).
+                favicon.layer?.add(Self.fade(Motion.fast), forKey: "changed")
             }
         }
         if !isRenaming { titleField.stringValue = EntryLabel.title(entry) }
@@ -215,10 +218,23 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
 
     // MARK: Hover
 
+    /// A crossfade of a layer's changes in the current transaction.
+    static func fade(_ duration: TimeInterval) -> CATransition {
+        let fade = CATransition()
+        fade.type = .fade
+        fade.duration = duration
+        return fade
+    }
+
     private func updateHoverState() {
         guard let model else { return }
         let entry = model.entry
         let showReset = isHovered && model.isChanged
+        if showReset == resetButton.isHidden, hoverEntryID == entry.id, SidebarMotion.resetIconSwap.animates {
+            // The favicon and the reset icon swap with the hover's other changes (spec §I.4, §I.8; hover fades).
+            layer?.add(Self.fade(Motion.fast), forKey: "hover-swap")
+        }
+        hoverEntryID = entry.id
         resetButton.isHidden = !showReset
         favicon.isHidden = entry.kind == .folder || showReset
         closeButton.isHidden = !(isHovered && entry.kind == .today) || isRenaming

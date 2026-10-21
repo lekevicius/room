@@ -105,8 +105,8 @@ The reader page (`App/Resources/Reader/reader.html`) takes its CSS variables fro
 | `Motion.fast` | 0.12 s | palette open, hover fades (§I.1) |
 | `Motion.standard` | 0.15 s | row insert/remove, hover-reveal dwell, keep-open grace (§E, §I.1) |
 | `Motion.medium` | 0.25 s | space switch slide, tint crossfade, sidebar reveal (§B, §E) |
-| `Motion.slow` | 0.35 s | Peek open, selection pill (§I.1, §I.6) |
-| `Motion.pill` | spring 0.35 s, bounce 0.15 | selection pill |
+| `Motion.slow` | 0.35 s | Peek open (§I.1, §I.6) |
+| ~~`Motion.pill`~~ | ~~spring 0.35 s, bounce 0.15~~ | removed with the Room Browser design (2026-10-07): a new selection switches the pill at once; the pill follows its own row while rows insert or leave, with the rows (`Motion.standard`, ease-out; 5.1a) |
 | `Motion.toast` | spring 0.5 s, bounce 0.2 | toasts, download-button bounce (§F) |
 | `Motion.smooth` | spring 0.25 s, bounce 0 | sidebar open/close, splitter snap |
 
@@ -390,3 +390,19 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Token | Value | Provenance |
 |---|---|---|
 | `Retention.screenshotsAge` / `screenshotsKept` | 7 days / the newest 50: ⇧⌘2's Open as Tab files in `<state>/Screenshots/` beyond either are deleted at launch (`ScreenshotRules.pruned`) | B-92 (the planner's rule, 2026-10-07; no setting) |
+
+## Added in Phase 5.1a (the sidebar's motion audited)
+
+Measured by `-RoomSpike motion` (`scripts/motion-check.sh`; `research/notes/spike-results.md` "Phase 5.1"), which reads every animation back from the window's layers.
+
+| Token / animation | Value | Provenance |
+|---|---|---|
+| `Motion.renamePulse` | 0.3 s (2 × `standard`), keyframes 1 → `renamePulseScale` → 1, linear | spec §I.9 gives no length; the 2.2a value made a token |
+| `Motion.preferences` / `MotionPreferences` | `.system` (`accessibilityDisplayShouldReduceMotion`); `.fixed(reduceMotion:)` for tests and DEBUG's `-RoomReduceMotion YES\|NO` | spec §I.1 (the injected seam); `Motion.reduceMotion` reads it |
+| `MotionVariant` | `full`, `crossfade`, `instant` | spec §I.1 ("crossfade instead") |
+| `SidebarMotion` | each sidebar animation's case and its Reduce Motion variant: instant for the pill, rows and folders, the footer's indicator and reorder, the grid's reflow, the pulse, scrolling, the ring, the equaliser, the folder preview; crossfade for the space slide, the space name, the tiles' fades, the shake (a flash), the changed dot, the reset-icon swap, the reset crossfade, Clear (a fade) | spec §I.1; chosen per animation (movement goes, fades stay) |
+| Essentials reflow | the tiles on screen move to their new frames over `Motion.standard`, ease-out; the list under the grid moves with them when the grid gains or loses a row (a position animation from its old place); a new tile fades in at its place, a removed one fades out, both `Motion.standard` ease-out (were the default curve) | spec §I.1 (the rows' insert and remove); before 5.1a the tiles snapped and only their selection layer slid (Core Animation's implicit 0.25 s) |
+| Changed dot | fades in over `Motion.fast` when the page leaves the pinned URL (row and tile); on reset it goes with the favicon's `Motion.resetCrossfade` | spec §I.8; hover fades `Motion.fast`; before 5.1a an implicit 0.25 s fade |
+| Reset-icon swap | the favicon and the reset icon crossfade over `Motion.fast` on hover in and out (the row's or tile's other hover changes with them) | spec §I.4, §I.8; hover fades `Motion.fast`; before 5.1a instant |
+| `CALayer.noImplicitActions` | plain sublayers (the changed dot, the loading ring, the tile's multi-selection layer, the drop slot's border, the overflow line, the split row's tint and dividers) never animate on their own | 5.1a: Core Animation's implicit 0.25 s default was on no token |
+

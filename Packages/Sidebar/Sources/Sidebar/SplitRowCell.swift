@@ -36,6 +36,7 @@ final class SplitGroupCellView: NSTableCellView {
         super.init(frame: frame)
         identifier = Self.identifier
         wantsLayer = true
+        focusTint.actions = CALayer.noImplicitActions
         focusTint.cornerRadius = Radius.small
         focusTint.cornerCurve = .continuous
         focusTint.isHidden = true
@@ -62,6 +63,7 @@ final class SplitGroupCellView: NSTableCellView {
             addSubview(icon)
             addSubview(title)
             let line = CALayer()
+            line.actions = CALayer.noImplicitActions
             dividers.append(line)
             layer?.addSublayer(line)
         }

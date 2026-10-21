@@ -327,6 +327,8 @@ public enum Motion {
     public static let toastOut: TimeInterval = 0.2
     /// Row pulse on rename commit, 1 → 0.98 → 1 (spec §I.9).
     public static let renamePulseScale: CGFloat = 0.98
+    /// The pulse's length, in and out (spec §I.9 gives none; twice `standard`, as since 2.2a).
+    public static let renamePulse: TimeInterval = 2 * standard
     /// Clear's staggered slide-out: per row, and the cap on the whole stagger (spec §A.7).
     public static let clearStagger: TimeInterval = 0.03
     public static let clearStaggerMax: TimeInterval = 0.3

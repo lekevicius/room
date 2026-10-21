@@ -19,6 +19,10 @@ public final class FaviconView: NSView {
     public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
+        // Shown, hidden and moved without Core Animation's implicit 0.25 s fade (5.1a):
+        // the row adds its own crossfades on the tokens.
+        dot.actions = CALayer.noImplicitActions
+        spinner.actions = CALayer.noImplicitActions
         dot.isHidden = true
         dot.cornerRadius = SidebarMetrics.changedDotSize / 2
         spinner.fillColor = nil

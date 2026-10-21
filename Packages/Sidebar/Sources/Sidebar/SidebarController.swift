@@ -596,6 +596,7 @@ public final class SidebarController: NSObject {
 
     private func reloadGrid(animated: Bool) {
         let ids = tree.essentialIDs
+        bodyView.reflowsListAnimated = animated && SidebarMotion.essentialsReflow.animates
         grid.setEntries(ids, animated: animated)
         refreshTiles()
         bodyView.needsLayout = true
@@ -799,7 +800,7 @@ public final class SidebarController: NSObject {
         }
         let animation = CAKeyframeAnimation(keyPath: "transform")
         animation.values = [scale(1), scale(Motion.renamePulseScale), scale(1)]
-        animation.duration = Motion.standard * 2
+        animation.duration = Motion.renamePulse
         layer.add(animation, forKey: "pulse")
     }
 
@@ -1104,6 +1105,9 @@ public final class SidebarBodyView: NSView {
     var onScrollWheel: ((NSEvent) -> Bool)?
     /// Stretches the slide (DEBUG captures of a mid-slide frame).
     var slideSlowdown: Double = 1
+    /// The next layout moves the list with the grid's reflow when the grid's height changed
+    /// (`SidebarMotion.essentialsReflow`; compositor-only, from its old place).
+    var reflowsListAnimated = false
     /// A card above the footer at the rows' width (2.8b: the first-run card); the list ends above it.
     /// It moves with the sidebar into the hidden sidebar's overlay.
     public var accessoryView: NSView? {
@@ -1383,7 +1387,18 @@ public final class SidebarBodyView: NSView {
             accessoryView.frame = NSRect(x: inset, y: listBottom - FirstRunMetrics.gapAboveFooter - height, width: width, height: height)
             listBottom = accessoryView.frame.minY - FirstRunMetrics.gapAboveList
         }
+        let listFrom = listContainer.layer?.position
+        let wasShown = listContainer.frame.height > 0
         listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
+        if reflowsListAnimated, wasShown, window != nil, let layer = listContainer.layer, let listFrom, listFrom != layer.position {
+            let move = CABasicAnimation(keyPath: "position")
+            move.fromValue = NSValue(point: listFrom)
+            move.toValue = NSValue(point: layer.position)
+            move.duration = Motion.standard
+            move.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(move, forKey: "reflow")
+        }
+        reflowsListAnimated = false
         for list in listContainer.subviews {
             list.frame = listContainer.bounds
             guard !list.isHidden, let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { continue }
