@@ -472,8 +472,8 @@ extension SidebarController {
         if debugSlidesBack != session.animatesToStartingPositionsOnCancelOrFail {
             NSLog("Room drag: slides back %@ at %@", session.animatesToStartingPositionsOnCancelOrFail ? "yes" : "no", NSStringFromPoint(screenPoint))
         }
-        #endif
         debugSlidesBack = session.animatesToStartingPositionsOnCancelOrFail
+        #endif
     }
 
     /// A drag that no target took (`operation` empty), of one entry, ending
