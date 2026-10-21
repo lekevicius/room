@@ -39,3 +39,11 @@ Outcome: the design audit (0 undeclared literals), the icon-weights and typograp
 ### 5.2b — accepted; Phase 5.2 closed (2026-10-21 08:12 → 09:30, 81 min)
 
 Outcome: the inactive tint fixed, grey traffic lights, B-23, B-37, the secondary-text contrast rule, the branding engine step (B-103; 48 → 0 visible "Chromium" on dev), review sheets; no new icon placeholder (the user's Room.icon ships since build 13). Incident: a display capture from the shell raised macOS's screen-capture dialog twice; left for the user. Decision: every later prompt forbids shell screen capture (`screencapture`, CGDisplay/SCStream helpers); captures stay in-process of the session's own window. Rows B-130 to B-133. DMG: build 17 with the official incremental from 09:32.
+
+### Build 17 (2026-10-21 09:33 → 09:41)
+
+Phase 5.2's DMG with the official incremental (227 s) for B-103. The release framework's branding confirmed by 5.3a (0 visible "Chromium").
+
+### 5.3a — accepted (2026-10-21 09:40 → 10:52, 72 min)
+
+Outcome: the self-audit (14 → 0 on both builds), labels and roles, the keyboard order and rings, the key path by keyboard alone, the VoiceOver script. Decisions: row states in the label (the outline drops values); Full Keyboard Access simulated in-process, the real switch the user's. One stray Google search from a spike: prompts now forbid Return on web-search rows. DMG: build 17.
