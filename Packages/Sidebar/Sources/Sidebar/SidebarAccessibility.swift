@@ -8,7 +8,7 @@ import Model
 /// capture and reader glyphs), in the order the eye meets them.
 enum EntryAccessibility {
     static func value(kind: EntryKind, isCollapsed: Bool = false, children: Int? = nil, page: EntryPageState,
-                      isSelected: Bool, isChanged: Bool) -> String {
+                      isSelected: Bool, isChanged: Bool, hasUnread: Bool = false) -> String {
         var parts: [String]
         switch kind {
         case .essential: parts = ["Essential"]
@@ -26,6 +26,7 @@ enum EntryAccessibility {
             parts.append("not loaded")
         }
         if isChanged { parts.append("changed from its pinned URL") }
+        if hasUnread { parts.append("unread") }
         if page.isMuted {
             parts.append("muted")
         } else if page.isAudible {

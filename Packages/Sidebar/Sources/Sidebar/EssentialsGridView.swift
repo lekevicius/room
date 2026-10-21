@@ -297,6 +297,8 @@ final class EssentialTileView: PressableView {
     private let resetButton = NSButton()
     private let audio = NSImageView()
     private let dot = NSView()
+    /// The page's title leads with an unread counter (spec §I.3): the tile's top-left corner.
+    private let unreadDot = UnreadDotView()
     private let multiSelectionLayer = CALayer()
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
@@ -334,6 +336,8 @@ final class EssentialTileView: PressableView {
         addSubview(resetButton)
         addSubview(audio)
         addSubview(dot)
+        unreadDot.isHidden = true
+        addSubview(unreadDot)
     }
 
     @available(*, unavailable)
@@ -352,15 +356,19 @@ final class EssentialTileView: PressableView {
         self.isSelected = isSelected
         self.isChanged = isChanged
         favicon.image = page.favicon
+        favicon.customIcon = entry.customIcon
         favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
         favicon.isUnloaded = !page.isLoaded
+        let unread = EntryLabel.hasUnread(entry, isLoaded: page.isLoaded)
+        unreadDot.isHidden = !unread
         favicon.isLoading = page.isLoading
         let audible = page.isAudible || page.isMuted
         audio.isHidden = !audible
         audio.image = AudioGlyph.symbol(muted: page.isMuted).image(.tileBadge)
         toolTip = EntryLabel.title(entry)
         setAccessibilityLabel(EntryLabel.title(entry))
-        setAccessibilityValue(EntryAccessibility.value(kind: .essential, page: page, isSelected: isSelected, isChanged: isChanged))
+        setAccessibilityValue(EntryAccessibility.value(kind: .essential, page: page, isSelected: isSelected, isChanged: isChanged,
+                                                       hasUnread: unread))
         setAccessibilityCustomActions(isChanged ? [NSAccessibilityCustomAction(name: "Back to Pinned URL") { [weak self] in
             guard let self else { return false }
             self.events?.tileResetClicked(self.entryID)
@@ -419,6 +427,8 @@ final class EssentialTileView: PressableView {
         dot.frame = NSRect(x: bounds.maxX - dotSize / 2 - inset - mark / 2, y: bounds.maxY - dotSize / 2 - inset - mark / 2,
                            width: mark, height: mark)
         audio.frame = NSRect(x: bounds.maxX - badge - inset, y: inset, width: badge, height: badge)
+        let unread = SidebarMetrics.unreadDotSize
+        unreadDot.frame = NSRect(x: inset + (badge - unread) / 2, y: inset + (badge - unread) / 2, width: unread, height: unread)
         multiSelectionLayer.frame = bounds
     }
 

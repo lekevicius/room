@@ -103,6 +103,14 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let captureIndicator = NSImageView()
     /// The entry is in reader mode (4.7b).
     private let readerIndicator = NSImageView()
+    /// The page's title leads with an unread counter ("(3) Inbox", spec §I.3).
+    private let unreadDot = UnreadDotView()
+
+    /// A folder with a custom icon shows it in the favicon's place.
+    private var showsCustomFolderIcon: Bool {
+        guard let entry = model?.entry, entry.kind == .folder else { return false }
+        return SpaceIcon(entry.customIcon) != .none
+    }
 
     /// The pointer is over the row.
     var isHovered = false { didSet { if isHovered != oldValue { updateHoverState() } } }
@@ -149,7 +157,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         favicon.hideFromAccessibility()
         captureIndicator.hideFromAccessibility()
         readerIndicator.hideFromAccessibility()
-        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator, readerIndicator] as [NSView] {
+        unreadDot.isHidden = true
+        unreadDot.setAccessibilityIdentifier("row-unread")
+        for view in [favicon, folderIcon, titleField, sublabel, resetButton, closeButton, audioButton, captureIndicator, readerIndicator,
+                     unreadDot] as [NSView] {
             addSubview(view)
         }
     }
@@ -168,11 +179,17 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         self.model = model
         let entry = model.entry
         let isFolder = entry.kind == .folder
-        favicon.isHidden = isFolder
-        folderIcon.isHidden = !isFolder
+        // Change Icon… (5.6a): the chosen emoji or symbol in the favicon's place, a folder's too.
+        favicon.customIcon = entry.customIcon
+        favicon.isHidden = isFolder && !showsCustomFolderIcon
+        folderIcon.isHidden = !isFolder || showsCustomFolderIcon
         if isFolder {
             let open = !entry.isCollapsed
             folderIcon.image = (open ? Symbol.folderOpen : Symbol.folder).image(.folder)
+            favicon.image = nil
+            favicon.isLoading = false
+            favicon.showsChangedDot = false
+            favicon.isUnloaded = false
         } else {
             favicon.image = model.page.favicon
             favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
@@ -221,7 +238,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         // element passes a cell view's label through but not its value (5.3a, read back from the tree).
         setAccessibilityLabel(EntryLabel.title(entry) + ", " + EntryAccessibility.value(kind: entry.kind, isCollapsed: entry.isCollapsed,
                                                                                         page: model.page, isSelected: model.isSelected,
-                                                                                        isChanged: model.isChanged))
+                                                                                        isChanged: model.isChanged,
+                                                                                        hasUnread: EntryLabel.hasUnread(entry, isLoaded: model.page.isLoaded)))
         setAccessibilityCustomActions(EntryAccessibility.actionNames(kind: entry.kind, page: model.page, isChanged: model.isChanged).map { name in
             NSAccessibilityCustomAction(name: name) { [weak self] in self?.performAction(named: name) ?? false }
         })
@@ -257,8 +275,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         }
         hoverEntryID = entry.id
         resetButton.isHidden = !showReset
-        favicon.isHidden = entry.kind == .folder || showReset
+        favicon.isHidden = (entry.kind == .folder && !showsCustomFolderIcon) || showReset
         closeButton.isHidden = !(isHovered && entry.kind == .today) || isRenaming
+        // The unread dot (spec §I.3) gives way to the close button.
+        unreadDot.isHidden = !(EntryLabel.hasUnread(entry, isLoaded: model.page.isLoaded) && closeButton.isHidden)
         // Sublabel: over the reset icon, what clicking it does (⌘ swaps it);
         // elsewhere on a changed entry, the live page's title (spec §I.3, §I.4).
         var text: String?
@@ -309,6 +329,12 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         if !closeButton.isHidden {
             closeButton.frame = NSRect(x: trailing - button, y: ((bounds.height - button) / 2).rounded(), width: button, height: button)
             trailing -= button
+            titleEnd = trailing - Spacing.xs
+        }
+        if !unreadDot.isHidden {
+            let side = SidebarMetrics.unreadDotSize
+            unreadDot.frame = NSRect(x: trailing - side - Spacing.xs, y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
+            trailing = unreadDot.frame.minX - Spacing.xs
             titleEnd = trailing - Spacing.xs
         }
         if !captureIndicator.isHidden {
@@ -746,5 +772,29 @@ final class NewTabCellView: NSTableCellView {
         let height = ceil(label.cell?.cellSize.height ?? 16)
         let titleX = x + size + SidebarMetrics.faviconTitleGap
         label.frame = NSRect(x: titleX, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - titleX - x), height: height)
+    }
+}
+
+/// The unread dot (spec §I.3): `SidebarMetrics.unreadDotSize`, `Palette.accent`.
+final class UnreadDotView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        hideFromAccessibility()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.cornerRadius = bounds.height / 2
+        layer?.backgroundColor = Palette.accent.cgColor
+    }
+
+    override func layout() {
+        super.layout()
+        needsDisplay = true
     }
 }

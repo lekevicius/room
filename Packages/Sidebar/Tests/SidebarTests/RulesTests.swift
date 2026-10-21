@@ -62,13 +62,46 @@ struct EntryLabelTests {
         #expect(EntryLabel.title(today) == "News")
     }
 
+    @Test("customLabel ?? currentTitle ?? storedTitle ?? domain; a pinned entry at its stored URL shows the live title (spec §I.3)")
+    func precedence() {
+        var pinned = Entry(kind: .pinned, spaceID: space, profileID: profile, storedURL: "https://mail.example.com/",
+                           storedTitle: "Mail", liveURL: "https://mail.example.com", liveTitle: "(4) Inbox")
+        // At its stored URL (not changed): the current title, its counter extracted.
+        #expect(EntryLabel.title(pinned) == "Inbox")
+        #expect(EntryLabel.currentTitle(pinned) == nil)
+        pinned.liveTitle = nil
+        #expect(EntryLabel.title(pinned) == "Mail")
+        pinned.storedTitle = nil
+        #expect(EntryLabel.title(pinned) == "mail.example.com")
+        // A title that is only a counter falls through to the next candidate.
+        let counterOnly = Entry(kind: .today, spaceID: space, profileID: profile, storedTitle: "Chat", liveURL: "https://chat.example.com",
+                                liveTitle: "(2)")
+        #expect(EntryLabel.title(counterOnly) == "Chat")
+        // An essential away from its URL keeps the stored title, as a pinned entry does.
+        let essential = Entry(kind: .essential, spaceID: nil, profileID: profile, storedURL: "https://a.example.com", storedTitle: "A",
+                              liveURL: "https://a.example.com/b", liveTitle: "B")
+        #expect(EntryLabel.title(essential) == "A")
+        #expect(EntryLabel.currentTitle(essential) == "B")
+    }
+
+    @Test("Unread counters become a dot: the count is read from a leading (N) or (N+), only for a loaded page",
+          arguments: [("(3) Inbox", 3), ("(99+) Chat", 99), ("(0) Feed", nil), ("Inbox (3)", nil), ("(a) b", nil), ("(1976) Film", 1976),
+                      (nil, nil)] as [(String?, Int?)])
+    func unread(raw: String?, count: Int?) {
+        #expect(EntryLabel.unreadCount(raw) == count)
+        let entry = Entry(kind: .today, spaceID: space, profileID: profile, liveURL: "https://x.example", liveTitle: raw)
+        #expect(EntryLabel.hasUnread(entry, isLoaded: true) == (count != nil))
+        #expect(EntryLabel.hasUnread(entry, isLoaded: false) == false)
+    }
+
     @Test("Without a title the label is the domain (no www.)")
     func domainFallback() {
         let entry = Entry(kind: .today, spaceID: space, profileID: profile, liveURL: "https://www.example.org/a?b")
         #expect(EntryLabel.title(entry) == "example.org")
     }
 
-    @Test("Unread counters never show", arguments: [("(3) Inbox", "Inbox"), ("(12)Chat", "Chat"), ("(a) b", "(a) b"), ("Inbox (3)", "Inbox (3)")])
+    @Test("Unread counters never show", arguments: [("(3) Inbox", "Inbox"), ("(12)Chat", "Chat"), ("(99+) Chat", "Chat"), ("(a) b", "(a) b"),
+                                                ("Inbox (3)", "Inbox (3)")])
     func counters(raw: String, shown: String) {
         #expect(EntryLabel.withoutCounter(raw) == shown)
     }

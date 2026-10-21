@@ -75,6 +75,7 @@ final class SplitGroupCellView: NSTableCellView {
             icon.isHidden = false
             icon.image = segment.page.favicon
             icon.letterSource = EntryLabel.domain(segment.entry.currentURL) ?? EntryLabel.title(segment.entry)
+            icon.customIcon = segment.entry.customIcon
             icon.isLoading = segment.page.isLoading
             icon.isUnloaded = !segment.page.isLoaded
             icon.showsChangedDot = segment.isChanged

@@ -138,6 +138,10 @@ public enum SidebarMetrics {
     public static let popoverFieldWidth: CGFloat = 280
     /// Changed-entry badge (spec §I.8).
     nonisolated public static let changedDotSize: CGFloat = 6
+    /// The unread dot at a row's trailing edge (a title's "(3)" counter, spec §I.3; chosen: the changed dot's size).
+    public static let unreadDotSize: CGFloat = 6
+    /// A custom icon's emoji in a favicon's square, as a share of the square (chosen).
+    public static let customIconEmojiScale: CGFloat = 0.82
     /// Favicon of an unloaded entry (spec §A.1).
     public static let unloadedIconAlpha: CGFloat = 0.5
     /// The title of an unloaded entry (the design: 70% of the label colour).
