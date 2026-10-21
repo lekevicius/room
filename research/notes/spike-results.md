@@ -3593,3 +3593,143 @@ Load average 17–25 throughout (no Chromium build). Dev = `build/roomcore/…/D
 - Release (`build/grand-tour/20261021-053228-roomcore`, archive, recovery, settings, settings2, extensions, reader, routing, import, windows, incognito): **295 passed, 3 failed**: settings2's reorder (the same shared-state cause; alone 26/26, `20261021-053829-roomcore`) and B-125's two.
 - `scripts/download-remove-check.sh` (steps 7, 10): `result: passed` on both builds.
 - The print jobs: CUPS lists `HP_LaserJet_MFP_M234sdw__8BA835_-67` (04:58:37, the tour's reader step), `-68` (05:07:20) and `-69` (05:08:10, the first two runs of the `print` section), 52,224 B each, completed; none after the guard.
+
+## Phase 5.1 — motion (5.1a: the harness and the sidebar's motion, 2026-10-21, M1 Max laptop, 64 GB, 60 Hz Pro Display XDR main, RoomCore 155.0.8059.36, series 25, `RoomCoreCommit 981429c`, no engine change)
+
+**Method.** `scripts/motion-check.sh <out> [-RoomReduceMotion YES]` runs `-RoomSpike motion` (`App/Sources/Debug/MotionSpikes.swift`) on a fresh throwaway state (`/tmp/room-5/motion/`, suggestions off): its own sidebar (two themed spaces, five Essentials, a folder of three, two pinned, five Today tabs, all on :8766), the window key and visible at 1280 × 800, sidebar 300 pt. Each named animation is run through the code its click or store change runs. Per animation: a `CADisplayLink` on the window from 150 ms before the trigger to the end of the longest animation found (at least 100 ms); **dropped** = for each interval between the link's timestamps, its whole multiple of the display interval minus one; **sync ms** = the trigger's own main-thread time; **read back** = every animation on the window's layers right after the trigger and on the next three frames (one sighting per layer and key; `×n` = n layers), with its key path, duration and curve (named from the control points; `linear(default)` = no timing function). The main thread's frames are what our code can drop; the render server's are not visible here. A spike, not a test.
+
+**Conditions.** `display: Pro Display XDR max_fps=60 main=true asleep=false`; `window: key=true main=true visible=true`; `display_frame_interval` median 16.67 ms (min 16.67, max 16.67, 1,351–1,384 frames per run); load average 22–34 (the 1-minute figure per run below; OrbStack, WindowServer, Spotlight and the Claude app busy; no Chromium build, the user's Room not running).
+
+**Audit against spec §I.1 and `docs/design-tokens.md` Motion (before → after):**
+
+| animation | spec / token | before (read back) | after |
+|---|---|---|---|
+| selection pill | §I.1's spring 0.35 s was removed by the Room Browser design (2026-10-07): it follows its own row with the rows | position + bounds 0.150 s ease-out, with the rows | unchanged (on spec); `Motion.pill` marked removed in the tokens doc |
+| row insert / remove | 150 ms ease-out + fade (§I.1; rows 36 pt, 2.2a) | rows' position 0.150 s ease-out, the row's opacity 0.150 s ease-out | unchanged (on spec) |
+| folder collapse with the peeking child | rows (§A.6) | as rows; the selected child stays (`space,folder,pinned,pinned,pinned,…`) | unchanged (on spec) |
+| Essentials reflow | the rows' timing (no own value) | tiles snapped; their selection sublayer slid by Core Animation's implicit **0.250 s default**; tile fades 0.150 s **default curve**; the list jumped | tiles' bounds + position **0.150 s ease-out**, fades 0.150 s ease-out, the list's position 0.150 s ease-out (`ListContainerView.reflow`) when the grid gains or loses a row |
+| changed dot | §I.8 (hover fades `Motion.fast`) | the dot's own implicit **0.250 s default** fade | the favicon's fade **0.120 s** (`Motion.fast`) |
+| reset-icon swap on hover | §I.4, §I.8 | **none** (instant) both ways | the row's fade **0.120 s** both ways |
+| reset crossfade | `Motion.resetCrossfade` 0.15 s (§A.5) | favicon fade 0.150 s **plus** the dot's implicit 0.250 s fade | favicon fade 0.150 s only |
+| rename pulse | 1 → 0.98 → 1 (§I.9; no length) | keyframes 0.300 s (`standard × 2` in code) | the same as `Motion.renamePulse` |
+| space slide + tint | 250 ms (§B; `Motion.medium` ease-out; tint ease-in-out) | lists 0.250 s ease-out, tint colours 0.250 s ease-in-out, footer highlight 0.250 s ease-out, icon scale and alpha 0.250 s ease-out | unchanged (on spec) |
+| Clear (not in the list; measured) | 150 ms slide + fade, ease-in, 30 ms steps (§A.7) | groups 0.150 s ease-in at +0, +30 … +120 ms | unchanged |
+
+**Dropped frames.** 0 in every animation of every run at 60 Hz but one: the reset on the dev build under Reduce Motion (one frame, a 33.3 ms interval; sync 11.1 ms). The reset's cost is the engine's synchronous `load` (`reset_parts`: store change median 0.55–1.21 ms, engine load median 4.34–6.92 ms, max 8.85 ms, five each per run), not the animation; release 0. Triggers above 8.33 ms (a 120 Hz frame) are B-128 for the 120 Hz run.
+
+### Before the fixes, dev build (`ced75ea`: the harness on the pre-5.1a sidebar)
+
+`motion-before-dev-final.txt` (build/5.1a/), load 26.9 27.4 26.4; reduce_motion false; reset_parts: store_change n=5 median=1.16ms p95=1.17ms max=1.58ms; engine_load n=5 median=6.92ms p95=7.02ms max=8.85ms
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| pill_follow_insert | 10 | 0 | 16.7 | 9.54 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6 |
+| pill_follow_remove | 10 | 0 | 16.7 | 2.79 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_insert | 10 | 0 | 16.7 | 1.96 | 160 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_remove | 10 | 0 | 16.7 | 0.86 | 150 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| folder_collapse_peek | 10 | 0 | 16.7 | 1.46 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| folder_expand | 10 | 0 | 16.7 | 2.75 | 159 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| essentials_add_reflow | 17 | 0 | 16.7 | 5.07 | 270 | CALayer in EssentialTileView.position: basic position 0.250s default ×5<br>CALayer in EssentialTileView.bounds: basic bounds 0.250s default ×5<br>EssentialTileView.opacity: basic opacity 0.150s default |
+| essentials_remove_reflow | 18 | 0 | 16.7 | 2.99 | 277 | EssentialTileView.opacity: basic opacity 0.150s default<br>CALayer in EssentialTileView.position: basic position 0.250s default ×5<br>CALayer in EssentialTileView.bounds: basic bounds 0.250s default ×5 |
+| hover_reset_icon_in | 7 | 0 | 16.7 | 0.41 | 0 | none |
+| hover_reset_icon_out | 7 | 0 | 16.7 | 0.55 | 0 | none |
+| reset_crossfade | 16 | 0 | 16.7 | 8.57 | 250 | FaviconView.transition: transition fade 0.150s linear(default)<br>CAShapeLayer in FaviconView.spin: basic transform.rotation.z 0.900s linear(default) repeats<br>CALayer in FaviconView.transition: transition fade 0.250s default |
+| changed_dot_in | 16 | 0 | 16.7 | 1.25 | 250 | CALayer in FaviconView.transition: transition fade 0.250s default |
+| rename_pulse | 19 | 0 | 16.7 | 1.45 | 300 | SidebarRowView.pulse: keyframe transform 0.300s 3 values linear(default) |
+| space_slide_tint | 16 | 0 | 16.7 | 7.98 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| space_slide_back | 16 | 0 | 16.7 | 5.77 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| clear_today | 18 | 0 | 16.7 | 0.83 | 270 | SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.030s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.060s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.090s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.120s |
+
+### After, dev build (`1b69698`)
+
+`motion-after-dev-3.txt` (build/5.1a/), load 27.3 27.6 26.3; reduce_motion false; reset_parts: store_change n=5 median=1.10ms p95=1.27ms max=4.19ms; engine_load n=5 median=6.42ms p95=7.03ms max=7.24ms
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| pill_follow_insert | 10 | 0 | 16.7 | 11.93 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6 |
+| pill_follow_remove | 10 | 0 | 16.7 | 2.79 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_insert | 11 | 0 | 16.7 | 1.82 | 170 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_remove | 10 | 0 | 16.7 | 0.81 | 150 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| folder_collapse_peek | 10 | 0 | 16.7 | 1.39 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| folder_expand | 10 | 0 | 16.7 | 2.72 | 158 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| essentials_add_reflow | 12 | 0 | 16.7 | 5.40 | 175 | EssentialTileView.bounds: basic bounds 0.150s easeOut ×5<br>EssentialTileView.position: basic position 0.150s easeOut ×4<br>EssentialTileView.opacity: basic opacity 0.150s easeOut<br>ListContainerView.reflow: basic position 0.150s easeOut |
+| essentials_remove_reflow | 10 | 0 | 16.7 | 3.03 | 162 | EssentialTileView.opacity: basic opacity 0.150s easeOut<br>EssentialTileView.bounds: basic bounds 0.150s easeOut ×5<br>EssentialTileView.position: basic position 0.150s easeOut ×4<br>ListContainerView.reflow: basic position 0.150s easeOut |
+| hover_reset_icon_in | 8 | 0 | 16.7 | 0.42 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| hover_reset_icon_out | 8 | 0 | 16.7 | 0.66 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| reset_crossfade | 10 | 0 | 16.7 | 6.56 | 150 | FaviconView.transition: transition fade 0.150s linear(default)<br>CAShapeLayer in FaviconView.spin: basic transform.rotation.z 0.900s linear(default) repeats |
+| changed_dot_in | 8 | 0 | 16.7 | 1.05 | 120 | FaviconView.transition: transition fade 0.120s linear(default) |
+| rename_pulse | 19 | 0 | 16.7 | 1.77 | 300 | SidebarRowView.pulse: keyframe transform 0.300s 3 values linear(default) |
+| space_slide_tint | 16 | 0 | 16.7 | 7.23 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| space_slide_back | 16 | 0 | 16.7 | 6.68 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| clear_today | 17 | 0 | 16.7 | 0.82 | 270 | SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.030s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.060s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.090s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.120s |
+
+### After, dev build, `-RoomReduceMotion YES`
+
+`motion-after-dev-reduceYES.txt` (build/5.1a/), load 27.2 23.5 24.0; reduce_motion true; reset_parts: 
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| pill_follow_insert | 7 | 0 | 16.7 | 7.70 | 0 | none |
+| pill_follow_remove | 7 | 0 | 16.7 | 3.76 | 0 | none |
+| row_insert | 7 | 0 | 16.7 | 1.82 | 0 | none |
+| row_remove | 7 | 0 | 16.7 | 1.10 | 0 | none |
+| folder_collapse_peek | 7 | 0 | 16.7 | 1.95 | 0 | none |
+| folder_expand | 7 | 0 | 16.7 | 2.26 | 0 | none |
+| essentials_add_reflow | 11 | 0 | 16.7 | 6.23 | 168 | EssentialTileView.opacity: basic opacity 0.150s easeOut |
+| essentials_remove_reflow | 10 | 0 | 16.7 | 1.07 | 150 | EssentialTileView.opacity: basic opacity 0.150s easeOut |
+| hover_reset_icon_in | 8 | 0 | 16.7 | 0.42 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| hover_reset_icon_out | 8 | 0 | 16.7 | 1.35 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| reset_crossfade | 9 | 1 | 33.3 | 11.11 | 150 | FaviconView.transition: transition fade 0.150s linear(default) |
+| changed_dot_in | 8 | 0 | 16.7 | 1.72 | 120 | FaviconView.transition: transition fade 0.120s linear(default) |
+| rename_pulse | 7 | 0 | 16.7 | 3.10 | 0 | none |
+| space_slide_tint | 16 | 0 | 16.7 | 7.65 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.fade: basic opacity 0.250s easeOut ×2 |
+| space_slide_back | 16 | 0 | 16.7 | 6.66 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.fade: basic opacity 0.250s easeOut ×2 |
+| clear_today | 9 | 0 | 16.7 | 0.67 | 150 | SidebarRowView.clear: group(opacity) 0.150s easeIn ×5 |
+
+### After, release framework (`ROOM_TOUR_APP`: the Debug app over `build/roomcore-release`)
+
+`motion-after-release-reduceNO.txt` (build/5.1a/), load 34.0 26.5 25.1; reduce_motion false; reset_parts: store_change n=5 median=1.21ms p95=1.23ms max=1.34ms; engine_load n=5 median=4.47ms p95=4.56ms max=4.66ms
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| pill_follow_insert | 10 | 0 | 16.7 | 8.86 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6 |
+| pill_follow_remove | 10 | 0 | 16.7 | 2.81 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×6<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_insert | 11 | 0 | 16.7 | 3.99 | 168 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| row_remove | 10 | 0 | 16.7 | 0.92 | 150 | SidebarRowView.position: basic position 0.150s easeOut<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| folder_collapse_peek | 10 | 0 | 16.7 | 3.77 | 150 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| folder_expand | 11 | 0 | 16.7 | 6.99 | 169 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×10<br>SidebarRowView.opacity: basic opacity 0.150s easeOut ×2 |
+| essentials_add_reflow | 12 | 0 | 16.7 | 4.55 | 171 | EssentialTileView.bounds: basic bounds 0.150s easeOut ×5<br>EssentialTileView.position: basic position 0.150s easeOut ×4<br>EssentialTileView.opacity: basic opacity 0.150s easeOut<br>ListContainerView.reflow: basic position 0.150s easeOut |
+| essentials_remove_reflow | 12 | 0 | 16.7 | 2.69 | 172 | EssentialTileView.opacity: basic opacity 0.150s easeOut<br>EssentialTileView.bounds: basic bounds 0.150s easeOut ×5<br>EssentialTileView.position: basic position 0.150s easeOut ×4<br>ListContainerView.reflow: basic position 0.150s easeOut |
+| hover_reset_icon_in | 8 | 0 | 16.7 | 0.85 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| hover_reset_icon_out | 9 | 0 | 16.7 | 0.56 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| reset_crossfade | 10 | 0 | 16.7 | 6.67 | 150 | FaviconView.transition: transition fade 0.150s linear(default)<br>CAShapeLayer in FaviconView.spin: basic transform.rotation.z 0.900s linear(default) repeats |
+| changed_dot_in | 9 | 0 | 16.7 | 1.12 | 120 | FaviconView.transition: transition fade 0.120s linear(default) |
+| rename_pulse | 19 | 0 | 16.7 | 1.92 | 300 | SidebarRowView.pulse: keyframe transform 0.300s 3 values linear(default) |
+| space_slide_tint | 16 | 0 | 16.7 | 6.77 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| space_slide_back | 16 | 0 | 16.7 | 8.06 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.slide: basic transform 0.250s easeOut ×2<br>NSView.position: basic position 0.250s easeOut<br>SpaceIconView.scale: basic sublayerTransform 0.250s easeOut ×2<br>SpaceIconView.opacity: basic opacity 0.250s easeOut ×2 |
+| clear_today | 17 | 0 | 16.7 | 1.05 | 270 | SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.030s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.060s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.090s<br>SidebarRowView.clear: group(transform.translation.x+opacity) 0.150s easeIn begins +0.120s |
+
+### After, release framework, `-RoomReduceMotion YES`
+
+`motion-after-release-reduceYES.txt` (build/5.1a/), load 29.9 26.2 25.0; reduce_motion true; reset_parts: store_change n=5 median=1.12ms p95=1.16ms max=1.31ms; engine_load n=5 median=4.71ms p95=4.97ms max=5.43ms
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| pill_follow_insert | 7 | 0 | 16.7 | 7.96 | 0 | none |
+| pill_follow_remove | 7 | 0 | 16.7 | 3.88 | 0 | none |
+| row_insert | 7 | 0 | 16.7 | 4.68 | 0 | none |
+| row_remove | 7 | 0 | 16.7 | 2.90 | 0 | none |
+| folder_collapse_peek | 7 | 0 | 16.7 | 4.45 | 0 | none |
+| folder_expand | 7 | 0 | 16.7 | 5.75 | 0 | none |
+| essentials_add_reflow | 11 | 0 | 16.7 | 6.07 | 170 | EssentialTileView.opacity: basic opacity 0.150s easeOut |
+| essentials_remove_reflow | 10 | 0 | 16.7 | 1.06 | 150 | EssentialTileView.opacity: basic opacity 0.150s easeOut |
+| hover_reset_icon_in | 8 | 0 | 16.7 | 0.42 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| hover_reset_icon_out | 8 | 0 | 16.7 | 0.62 | 120 | EntryCellView.transition: transition fade 0.120s linear(default) |
+| reset_crossfade | 10 | 0 | 16.7 | 6.39 | 150 | FaviconView.transition: transition fade 0.150s linear(default) |
+| changed_dot_in | 8 | 0 | 16.7 | 1.05 | 120 | FaviconView.transition: transition fade 0.120s linear(default) |
+| rename_pulse | 7 | 0 | 16.7 | 0.63 | 0 | none |
+| space_slide_tint | 16 | 0 | 16.7 | 5.90 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.fade: basic opacity 0.250s easeOut ×2 |
+| space_slide_back | 16 | 0 | 16.7 | 6.41 | 250 | SpaceTintView.colors: basic colors 0.250s easeInEaseOut<br>SpaceScrollView.fade: basic opacity 0.250s easeOut ×2 |
+| clear_today | 9 | 0 | 16.7 | 0.31 | 150 | SidebarRowView.clear: group(opacity) 0.150s easeIn ×5 |
+
+Two more dev runs after the fixes (`motion-after-dev-2.txt`, `motion-after-dev-reduceNO.txt`) read back the same animations; 0 dropped; sync ranges with the table above: pill insert 9.0–11.9 ms, space switch 3.7–8.4 ms, reset 6.6–9.9 ms. Earlier harness versions (before the one-sighting rule and the sixth Essential) are not tabulated.
