@@ -791,6 +791,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     KeyViewRegion(card),
                     KeyViewRegion([sidebar.footerView])]
         }
+        // The mouse's back and forward buttons anywhere in the window (5.5a); over a page the engine navigates.
+        (controller.window as? RoomWindow)?.onMouseNavigation = { [weak tabs] navigation in
+            guard let page = tabs?.current else { return }
+            switch navigation {
+            case .back: if page.canGoBack { page.goBack() }
+            case .forward: if page.canGoForward { page.goForward() }
+            }
+        }
+        (controller.window as? RoomWindow)?.isPageView = { view in
+            var current: NSView? = view
+            while let candidate = current {
+                let name = NSStringFromClass(type(of: candidate))
+                if name.contains("RenderWidgetHostView") || name.contains("WebContentsView") { return true }
+                current = candidate.superview
+            }
+            return false
+        }
         // The window's title (Window menu, Mission Control) is not drawn: set after the switch's frame.
         sidebar.onSpaceChange = { [weak controller] space in
             DispatchQueue.main.async { controller?.spaceTitle = space.name }

@@ -84,3 +84,13 @@ struct MenuActionTests {
         #expect(!RoomWindow.instancesRespond(to: #selector(RoomWindowController.toggleSidebarOverlayPin(_:))))
     }
 }
+
+@Suite("Mouse side buttons (5.5a)")
+struct MouseNavigationTests {
+    @Test("Button 4 goes back, button 5 forward; the others are not navigation")
+    func buttons() {
+        #expect(MouseNavigation(buttonNumber: 3) == .back)
+        #expect(MouseNavigation(buttonNumber: 4) == .forward)
+        #expect([0, 1, 2, 5].allSatisfy { MouseNavigation(buttonNumber: $0) == nil })
+    }
+}
