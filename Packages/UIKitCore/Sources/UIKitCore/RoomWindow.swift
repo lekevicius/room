@@ -38,6 +38,25 @@ public final class RoomWindow: NSWindow {
         appearance = nil
     }
 
+    // MARK: Close and Zoom without their buttons (5.6b)
+
+    /// The traffic lights hide with the sidebar (B-114), and AppKit's
+    /// `perform…` methods refuse (a beep) while their button is hidden: ⇧⌘W
+    /// and Window ▸ Zoom did nothing with the sidebar hidden (found by 5.6b's
+    /// Window-menu check). With the button hidden they do what the button
+    /// would. ⌘M still refuses (B-150: `miniaturize` too, even with the button
+    /// shown transparent around the call).
+    public override func performClose(_ sender: Any?) {
+        guard standardWindowButton(.closeButton)?.isHidden == true else { return super.performClose(sender) }
+        if let delegate, delegate.windowShouldClose?(self) == false { return }
+        close()
+    }
+
+    public override func performZoom(_ sender: Any?) {
+        guard standardWindowButton(.zoomButton)?.isHidden == true else { return super.performZoom(sender) }
+        zoom(sender)
+    }
+
     // MARK: The page under the titlebar (B-32, 5.6b)
 
     /// The view is the page itself, not Room's chrome (set by the controller).
