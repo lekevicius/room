@@ -102,6 +102,21 @@ nonisolated public enum PaletteSemantics {
         }
     }
 
+    /// B-102 (as Arc): what the field shows while ↑, ↓ or ⇥ select a row: the row's
+    /// destination (its URL, or its query), so the field says where Return goes. `nil`:
+    /// the typed text stays (the top hit, with its inline completion; commands, the
+    /// site-search hint and Paste and Go, whose destinations are not text to edit).
+    public static func selectionText(for action: MatchAction, isTopHit: Bool) -> String? {
+        guard !isTopHit else { return nil }
+        switch action {
+        case .navigate(let url): return url
+        case .search(let query, _): return query
+        case .switchToEntry(_, _, let url): return url
+        case .restoreArchived(_, let url): return url
+        case .command, .enterSiteSearch, .pasteAndGo: return nil
+        }
+    }
+
     public static func escape(mode: PaletteMode, text: String) -> EscapeAction {
         if case .edit(_, let url) = mode, text != url { return .restore(url) }
         return .close

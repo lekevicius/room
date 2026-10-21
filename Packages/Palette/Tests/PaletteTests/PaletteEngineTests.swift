@@ -97,4 +97,43 @@ struct PaletteEngineTests {
         #expect(history.entries["https://delete.example/page"] == nil)
         #expect(!f.palette.result.matches.contains { $0.action.url == "https://delete.example/page" })
     }
+
+    @Test("B-102: ↓ puts the selected row's destination in the field, the rows unchanged; ↑ to the top hit and Esc restore the typed text")
+    func selectionInField() throws {
+        let (f, _, history) = try engineFixture()
+        history.addVisit(URL(string: "https://github.com/")!, title: "GitHub", transition: .typed)
+        history.addVisit(URL(string: "https://github.com/apple/swift")!, title: "apple/swift")
+        f.palette.toggleNew()
+        f.palette.setText("gi")
+        #expect(f.palette.fieldText == "github.com")
+        let rows = f.palette.result.matches.map(\.id)
+        let second = try #require(f.palette.result.matches.dropFirst().first)
+        f.palette.moveHighlight(1)
+        #expect(f.palette.highlightedIndex == 1)
+        #expect(f.palette.fieldText == PaletteSemantics.selectionText(for: second.action, isTopHit: false))
+        #expect(f.palette.typedText == "gi")
+        #expect(f.palette.result.matches.map(\.id) == rows)
+        f.palette.moveHighlight(-1)
+        #expect(f.palette.fieldText == "github.com")
+        f.palette.moveHighlight(1)
+        f.palette.escape()
+        #expect(f.palette.isOpen)
+        #expect(f.palette.highlightedIndex == 0)
+        #expect(f.palette.fieldText == "github.com")
+        #expect(f.palette.result.matches.map(\.id) == rows)
+        // The second Esc closes, as before.
+        f.palette.escape()
+        #expect(!f.palette.isOpen)
+    }
+
+    @Test("B-102: the destination by kind: a URL, a search's query; the top hit, commands and Paste and Go keep the typed text")
+    func selectionText() {
+        #expect(PaletteSemantics.selectionText(for: .navigate(url: "https://a.example/x"), isTopHit: false) == "https://a.example/x")
+        #expect(PaletteSemantics.selectionText(for: .search(query: "swift actors", url: "https://s.example/?q=swift+actors"), isTopHit: false) == "swift actors")
+        #expect(PaletteSemantics.selectionText(for: .switchToEntry(id: UUID(), space: nil, url: "https://t.example/"), isTopHit: false) == "https://t.example/")
+        #expect(PaletteSemantics.selectionText(for: .navigate(url: "https://a.example/x"), isTopHit: true) == nil)
+        #expect(PaletteSemantics.selectionText(for: .command(id: "reload"), isTopHit: false) == nil)
+        #expect(PaletteSemantics.selectionText(for: .pasteAndGo, isTopHit: false) == nil)
+    }
+
 }

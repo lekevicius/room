@@ -78,6 +78,8 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public private(set) var highlightedIndex: Int?
     /// What the user typed (without inline completion).
     public private(set) var typedText = ""
+    /// B-102: the field shows the keyboard-selected row's destination instead of the typed text.
+    public private(set) var showsSelection = false
     /// The site-search chip in the field (`yt` + Tab), if any.
     public private(set) var siteSearch: SiteSearch?
     /// How many times the sidebar snapshot was built (DEBUG measurements, tests).
@@ -476,13 +478,14 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
 
     private func rank(keepingHighlight: Bool) {
         let highlightedID = highlightedIndex.flatMap { result.matches.indices.contains($0) ? result.matches[$0].id : nil }
+        if !keepingHighlight { showsSelection = false }
         let suggested = SuggestClient.matches(for: suggestions.items, engine: context.searchEngine)
         result = OmniboxResult(ranking: localMatches + suggested + engineMatches, input: input)
         if keepingHighlight, let highlightedID, let index = result.matches.firstIndex(where: { $0.id == highlightedID }) {
             highlightedIndex = index
         } else {
             highlightedIndex = result.isEmpty ? nil : 0
-            applyInlineCompletion()
+            if showsSelection { restoreTypedText() } else { applyInlineCompletion() }
         }
         updateRows()
     }
@@ -590,6 +593,7 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         guard let profile = sidebar.activeSpace?.profileID, let history = engineHistory(profile) else { return false }
         deleteEngineHistory(match, in: history)
         // The completion goes with it and does not come back on this text.
+        showsSelection = false
         overlay?.panel.field.stringValue = input.mode == .commands ? ">" + input.text : typedText
         query(preventingInline: true)
         if !result.isEmpty { highlight(min(index, result.matches.count - 1)) }
@@ -650,16 +654,44 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
                           startsGroup: startsGroup, isDeletable: match.isDeletable, groupName: match.group.accessibilityName)
     }
 
-    private func highlight(_ index: Int?) {
+    private func highlight(_ index: Int?, byKeyboard: Bool = false) {
         guard let index, result.matches.indices.contains(index) else { return }
         let moved = highlightedIndex != index
         highlightedIndex = index
         overlay?.panel.rows.highlighted = index
+        if byKeyboard, moved { showSelectionInField() } else if moved, showsSelection { restoreTypedText() }
         // The keyboard stays in the field: VoiceOver hears the row ↑, ↓ or ⇥ moved to (5.3a).
         if moved, let field = overlay?.panel.field {
             let match = result.matches[index]
             Announcement.post([match.title, match.detail, match.group.accessibilityName].compactMap { $0 }.joined(separator: ", "), from: field)
         }
+    }
+
+    /// B-102: the selected row's destination in the field, the caret at its end; the rows
+    /// stay as they are (no query: the text was not typed). Back on the top hit, the typed text.
+    private func showSelectionInField() {
+        guard let index = highlightedIndex, let field = overlay?.panel.field, input.mode != .commands, !hasMarkedText else { return }
+        guard let text = PaletteSemantics.selectionText(for: result.matches[index].action, isTopHit: index == 0) else {
+            if showsSelection { restoreTypedText() }
+            return
+        }
+        showsSelection = true
+        field.stringValue = text
+        field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+    }
+
+    /// The typed text back in the field, with the top hit's inline completion selected after it.
+    private func restoreTypedText() {
+        showsSelection = false
+        guard let field = overlay?.panel.field else { return }
+        let completion = result.inlineCompletion ?? ""
+        field.stringValue = typedText + completion
+        field.currentEditor()?.selectedRange = NSRange(location: (typedText as NSString).length, length: (completion as NSString).length)
+    }
+
+    /// IME composition in progress (marked text in the field editor).
+    private var hasMarkedText: Bool {
+        (overlay?.panel.field.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
     }
 
     /// The user's edit of the field (`NSTextFieldDelegate`); also the entry
@@ -669,22 +701,25 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
         textChanged(to: text)
     }
 
-    private func textChanged(to text: String) {
-        // A deletion (the new text is a prefix of what was there) never completes inline.
+    private func textChanged(to text: String, composing: Bool = false) {
+        // A deletion (the new text is a prefix of what was there) never completes inline;
+        // nor does text an input method is still composing (its marked text must stay as it is).
         let deleting = typedText.hasPrefix(text) && text.count < typedText.count
         typedText = text
-        query(preventingInline: deleting)
+        showsSelection = false
+        query(preventingInline: deleting || composing)
     }
 
     public func controlTextDidChange(_ notification: Notification) {
         guard isOpen, let field = overlay?.panel.field else { return }
         // With an inline completion selected, the field holds more than was typed.
         var text = field.stringValue
-        if let editor = field.currentEditor(), editor.selectedRange.length > 0,
+        let composing = hasMarkedText
+        if !composing, let editor = field.currentEditor(), editor.selectedRange.length > 0,
            NSMaxRange(editor.selectedRange) == (text as NSString).length {
             text = (text as NSString).substring(to: editor.selectedRange.location)
         }
-        textChanged(to: text)
+        textChanged(to: text, composing: composing)
     }
 
     // MARK: Keys (field-editor commands, ROADMAP 2.4 task 1)
@@ -733,18 +768,23 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     public func moveHighlight(_ offset: Int) {
         guard !result.isEmpty else { return }
         let current = highlightedIndex ?? (offset > 0 ? -1 : result.matches.count)
-        highlight(min(max(0, current + offset), result.matches.count - 1))
+        highlight(min(max(0, current + offset), result.matches.count - 1), byKeyboard: true)
     }
 
     /// ⇥ / ⇧⇥: the next (previous) group's first row (spec §C).
     public func cycleGroup(backwards: Bool) {
         guard let next = result.groupStart(after: highlightedIndex ?? 0, backwards: backwards) else { return }
-        highlight(next)
+        highlight(next, byKeyboard: true)
     }
 
     /// Esc: ⌘L with edited text restores the URL, selected; otherwise closes (spec §C).
     public func escape() {
         guard let mode else { return }
+        // B-102: the first Esc after ↑/↓ puts the typed text back on the top hit; the list stays.
+        if showsSelection {
+            if !result.isEmpty { highlight(0) }
+            return restoreTypedText()
+        }
         switch PaletteSemantics.escape(mode: mode, text: typedText) {
         case .restore(let url):
             setText(url)
@@ -821,6 +861,9 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
             break
         }
     }
+
+    /// The field's text as shown (typed text, inline completion, or the selection's destination).
+    public var fieldText: String { overlay?.panel.field.stringValue ?? "" }
 
     #if DEBUG
     /// The panel, while open (captures).
