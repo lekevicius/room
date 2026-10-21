@@ -793,7 +793,7 @@ Two `//room` commits in `54b-1` (`git push origin main` at 23:03, `requests/54b-
 |---|---|---|
 | request → the laptop's `WATCHING` | 68 min (23:03 → 00:11) | no `WATCHING` within the 20 minutes the session waited; the session went on with host work and measurements |
 | `54b-1` release (out/release, official incremental) | picked 00:11, staged and copied **00:20** (~9 min) | compiled first time; `RoomCoreCommit f05f3d6` |
-| `54b-1` dev (out/dev) | not done at 00:52 | 156's first `out/dev` (the planner's `156/READY` said `building` since 22:46): a full component build, not an incremental |
+| `54b-1` dev (out/dev) | `DONE` at **01:40** (dev 49 s, "build done in 11 s"; release 600 s, "build done in 509 s"; load 276–395) | the incremental after 156's first full `out/dev`, which the laptop built first |
 | packaging here | `--release --app-only` 14–33 s (app), the Release app 74 s | `ROOM_PACKAGE_STAGED=1` |
 | `54b-2` (`e96c4ba`, B-56's second half, release) | requested 00:34, not picked by 00:52 | queued behind `54b-1`'s dev |
 

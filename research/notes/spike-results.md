@@ -4347,7 +4347,7 @@ No window: the last window closed, 0 Room windows after 2 s, the app still runni
 
 ## Phase 5.4 — 5.4b: the engine side, the numbers table v3 (2026-10-22, Mac mini M4, 24 GB, the Screen Sharing virtual display 1920 × 1080 at 60 Hz, RoomCore 156.0.8078.48, series 25)
 
-**Conditions.** The Debug app over the release framework (`build/roomcore-release`), light, window key and visible, test servers local, no other Room, no Chromium build on this Mac (the laptop builds; load1 2.0–4.4 throughout). Two release frameworks: **156 `30a60f7`** (the planner's official build of the rebase, before 5.4b's engine step) and **156 `f05f3d6`** (5.4b's `54b-1`, built on the laptop: B-139, B-127, B-56's check, B-87, B-140, B-58). The dev engine (`out/dev` on 156, spike hooks) had not landed when this was written (`156/READY`: `building`), so the dev-only parts (the baseline, the renderer census, `leaks` with stacks on dev) wait for it. 120 Hz is the user's (no 120 Hz panel here).
+**Conditions.** The Debug app over the release framework (`build/roomcore-release`), light, window key and visible, test servers local, no other Room, no Chromium build on this Mac (the laptop builds; load1 2.0–4.4 throughout). Two release frameworks: **156 `30a60f7`** (the planner's official build of the rebase, before 5.4b's engine step) and **156 `f05f3d6`** (5.4b's `54b-1`, built on the laptop: B-139, B-127, B-56's check, B-87, B-140, B-58). The dev engine (`out/dev` on 156, spike hooks) landed at 01:40; its checks are under "The dev engine" below. 120 Hz is the user's (no 120 Hz panel here).
 
 ### The numbers table v3 (every row of `chapter-3-review.md`'s table)
 
@@ -4415,7 +4415,7 @@ Chrome's own `AttemptFastKillForDiscard` asks `FastShutdownIfPossible(1)` and is
 
 ### B-139 and leaks (`f05f3d6`)
 
-`scripts/leaks-check.sh … openclose` on the release framework: with `MallocStackLogging` **0 leaks** (5.4a: dev with stacks, 46 + 1 + 1 `room::PendingHostWindow` roots); without it 558 leaks / 13,568 B (5.4a release: 559 / 13,296 B: the stackless count is the same noise both times). Footprint 73.2 → 84.2 MB over 50 opens and closes (5.4a: 75.1 → 86.2). The stacks run on dev waits for the 156 dev engine.
+`scripts/leaks-check.sh … openclose` on the release framework: with `MallocStackLogging` **0 leaks** (5.4a: dev with stacks, 46 + 1 + 1 `room::PendingHostWindow` roots); without it 558 leaks / 13,568 B (5.4a release: 559 / 13,296 B: the stackless count is the same noise both times). Footprint 73.2 → 84.2 MB over 50 opens and closes (5.4a: 75.1 → 86.2). On dev with stacks: 0 leaks too (below).
 
 ### B-99: Clear Browsing Data's cookie
 
@@ -4425,9 +4425,14 @@ Not reproduced: `clear_hour` passed in both `settings2` runs on `f05f3d6` (`cook
 
 `OsIntegrationManager::ScopedSuppressForTesting` held for the process (`f05f3d6`); the fault was never reproduced standalone (5.4a), and no `ExcUserFault_Room*` report appeared in this session's runs.
 
-### 54b-2 and the dev engine
+### The dev engine (`54b-1`'s `out/dev`, landed 01:40) and 54b-2
 
-Not built in this session: the laptop picked up `54b-1` at 00:11 (68 min after the request; no `WATCHING` until then), staged its release framework at 00:20 and was still building 156's first `out/dev` at 00:52 (no `DONE` 40 min after pick-up); `54b-2` (`e96c4ba`, release, B-56's second half) waits behind it. So B-56's holders, the renderer census (`-RoomSpike switch`'s `renderer_census`), the dev baseline (`roomcore-baseline.sh`), `leaks` with stacks on dev and "0 applied / 25 already" for `f05f3d6` are the next session's.
+`54b-1` finished at 01:40 (laptop: release 600 s, "build done in 509 s"; dev 49 s, "build done in 11 s", at load 276–395: the planner's full 156 `out/dev` had built in between). Installed into `build/roomcore`, the dev app rebuilt (`RoomCoreCommit f05f3d6`).
+
+- **Baseline** (`scripts/roomcore-baseline.sh build/evidence-5.4b/baseline-1`): nav assertions passed (15.2 s); ten-page quits **0.363 / 0.356 / 0.465 s**, 0 helpers left, 0 crash reports (load1 13–20).
+- **B-139 on dev with stacks** (`leaks-check.sh … openclose`, `MallocStackLogging`): **0 leaks** after 50 opens and closes (5.4a: 464 leaks, 46 + 1 + 1 `room::PendingHostWindow` roots). Closed.
+- **The renderer census** (`-RoomSpike switch -RoomSidebarFixture 50`, the ten typical sites loaded; `RoomCore census:` lines, `build/5.4b/census-lines.txt`): **17 renderers for ten pages** = 10 pages' own processes (one per site, each its main frame and same-site subframes; 5 of them run a service worker) + **3 for cross-site subframes under site isolation** (accounts.google.com; pay.google.com and www.google.com together, 5 frames; a sandboxed `null`-origin frame) + **the spare** (1, sometimes 2 seen across the call) + **2 processes with no frame** (one `unused`, one used and empty: the B-56 kind). No process reuse between sites (each site its own process, Chrome's desktop default under its process limit). Levers, none taken: the spare (`--disable-features=SpareRendererForSitePerProcess`, ~1 process, saves its ~60–100 MB but costs the next new site's process start) and site isolation (`--disable-site-isolation-trials` would merge the 3 subframe processes: a security default, not Room's to drop). No `//room` default changed.
+- `54b-2` (`e96c4ba`, B-56's holders) is queued on the laptop; not built in this session.
 
 ### Unit tier and checks
 
