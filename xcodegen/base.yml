@@ -221,6 +221,7 @@ schemes:
         - package: Tabs/TabsTests
         - package: Omnibox/OmniboxTests
         - package: Palette/PaletteTests
+        - package: Palette/AccessibilityAuditTests
         - package: Library/LibraryTests
         - package: Import/ImportTests
         - package: Integration/IntegrationTests

@@ -10,7 +10,7 @@ public enum KeyboardAccess {
     public static var allControlsOverride: Bool?
 
     /// Whether Tab reaches buttons too.
-    public static var allControls: Bool { allControlsOverride ?? NSApp.isFullKeyboardAccessEnabled }
+    public static var allControls: Bool { allControlsOverride ?? NSApplication.shared.isFullKeyboardAccessEnabled }
 
     /// Space, Return and Enter press a focused control (no ⌘, ⌃ or ⌥).
     public static func isPressKey(_ event: NSEvent) -> Bool {
@@ -121,7 +121,7 @@ public enum Announcement {
     public static func post(_ message: String, from view: NSView?) {
         last = message
         count += 1
-        let element: Any = view?.window ?? NSApp.mainWindow ?? NSApp as Any
+        let element: Any = view?.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared
         NSAccessibility.post(element: element, notification: .announcementRequested,
                              userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }

@@ -15,6 +15,10 @@ let package = Package(
         .package(path: "../Sidebar"),
         .package(path: "../Tabs"),
         .package(path: "../Omnibox"),
+        // The window-tier accessibility audit (5.3a) assembles the window from every package above Palette.
+        .package(path: "../UIKitCore"),
+        .package(path: "../Library"),
+        .package(path: "../Chrome"),
     ],
     targets: [
         .target(name: "Palette", dependencies: ["Design", "Engine", "Model", "Store", "Sidebar", "Tabs", "Omnibox"],
@@ -22,6 +26,12 @@ let package = Package(
         .testTarget(name: "PaletteTests",
                     dependencies: ["Palette", "Engine", .product(name: "FakeEngine", package: "Engine"), "Model", "Store", "Sidebar",
                                    "Tabs", "Omnibox"],
+                    swiftSettings: mainActorByDefault),
+        // 5.3a: the browser window assembled from the packages (sidebar, header, footer, Essentials, card,
+        // palette, toasts, the Library) on FakeEngine, its accessibility tree audited and its Tab order walked.
+        .testTarget(name: "AccessibilityAuditTests",
+                    dependencies: ["Palette", "Engine", .product(name: "FakeEngine", package: "Engine"), "Model", "Store", "Sidebar",
+                                   "Tabs", "Design", "UIKitCore", "Library", "Chrome"],
                     swiftSettings: mainActorByDefault),
     ]
 )

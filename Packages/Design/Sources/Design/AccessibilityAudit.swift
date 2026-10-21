@@ -87,7 +87,7 @@ public enum AccessibilityAudit {
     /// trees from then on too (the cost is the audit run's only).
     public static func requestTree() {
         // The informal setter (deprecated as API, still how a client's attribute reaches the app).
-        _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: NSNumber(value: true), with: "AXEnhancedUserInterface")
+        _ = NSApplication.shared.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: NSNumber(value: true), with: "AXEnhancedUserInterface")
     }
 
     /// Audits a window: its accessibility tree and its views' click targets.
