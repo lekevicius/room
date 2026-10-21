@@ -8,6 +8,7 @@ import Model
 import Omnibox
 import Sidebar
 import Store
+import SwiftUI
 import Tabs
 import UIKitCore
 
@@ -217,6 +218,53 @@ extension SpikeRunner.Context {
             app.hideLibrary()
         }
         sidebar.confirmations = nil
+
+        // Step 7: History in the Library: rows by day, a click opens a new tab, Delete All from <host>.
+        app.showLibrary(section: .history)
+        library.loadHistory()
+        _ = await waitUntil(5) { library.currentRows.contains { if case .history = $0 { true } else { false } } }
+        let items = library.currentRows.compactMap { if case .history(let item) = $0 { item } else { nil } }
+        let days = library.currentRows.filter { if case .day(.history, _) = $0 { true } else { false } }.count
+        if let item = items.first(where: { $0.url.host == "127.0.0.1" }) {
+            let count = model.today(space: sidebar.activeSpaceID).count
+            library.onOpen?(item.url)
+            _ = await waitUntil(5) { model.today(space: self.sidebar.activeSpaceID).count == count + 1 }
+            let opened = model.today(space: sidebar.activeSpaceID).contains { $0.liveURL == item.url.absoluteString && $0.id != a }
+            library.deleteHistory(host: item.host)
+            _ = await waitUntil(5) { !library.currentRows.contains { if case .history(let row) = $0 { row.host == item.host } else { false } } }
+            let left = library.currentRows.filter { if case .history(let row) = $0 { row.host == item.host } else { false } }.count
+            SpikeRunner.record("step7_history", "rows=\(items.count) days=\(days) click_opens_tab=\(opened) delete_all_from \(item.host): rows_left=\(left)")
+        } else {
+            SpikeRunner.record("step7_history", "rows=\(items.count) days=\(days) no 127.0.0.1 row")
+        }
+        app.hideLibrary()
+
+        // Step 8 (and 5.0a's click check a): Help ▸ Restore Sidebar…'s sheet after a real deletion; the restore; the "before restore" row.
+        guard let backups = app.backupScheduler, let kept = try? model.createSpace(name: "Skipped Restore", profile: profile) else { return }
+        _ = try? model.addEntry(.today, url: "http://127.0.0.1:8766/find.html?restore", title: "Skipped restore", space: kept.id)
+        room.flush()
+        _ = try? backups.takeNow(label: nil)
+        sidebar.confirmations = { _ in true }
+        sidebar.deleteSpace(kept.id)
+        sidebar.confirmations = nil
+        app.debugToastCenter?.dismiss(id: app.debugToastCenter?.currentToast?.id ?? "")
+        room.flush()
+        func sheetList() -> RestoreSidebarList? { (app.restoreSheet?.contentViewController as? NSHostingController<RestoreSidebarList>)?.rootView }
+        NSApp.sendAction(#selector(AppDelegate.showRestoreSidebar(_:)), to: nil, from: nil)
+        await pause(600)
+        guard let list = sheetList(), let newest = list.backups.first else { return SpikeRunner.record("step8_sheet", "no sheet or no backup") }
+        let dates = list.backups.map(\.file.date)
+        SpikeRunner.record("step8_sheet", "shown=\(app.restoreSheet?.isVisible ?? false) backups=\(list.backups.count) newest_first=\(dates == dates.sorted(by: >)) "
+            + "newest=\(newest.entries) entries · \(newest.spaces) spaces · \(newest.archived) archived")
+        list.onRestore(newest)
+        await pause(1200)
+        SpikeRunner.record("step8_restore", "space_back=\(model.space(kept.id) != nil) toast=\(toastLine(app)) selected_loaded=\(tabs.current != nil)")
+        NSApp.sendAction(#selector(AppDelegate.showRestoreSidebar(_:)), to: nil, from: nil)
+        await pause(600)
+        let again = sheetList()
+        SpikeRunner.record("step8_before_restore_row", "first_label=\(again?.backups.first?.file.label ?? "none") rows=\(again?.backups.count ?? 0)")
+        again?.onCancel()
+        await pause(300)
     }
 
     // MARK: 4.6, step 54: autoplay and its line
