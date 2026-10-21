@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
@@ -114,6 +115,10 @@ class RoomBrowserWindowClient {
   // NSWindow's coordinates (AppKit, bottom-left origin), asked through the
   // active page's delegate (3.7a); nullopt: RoomCore's default corner.
   virtual std::optional<gfx::Rect> GetBubbleAnchorRect() = 0;
+  // Chrome would show one of its confirmation toasts in this window (B-58):
+  // `kind` is Chrome's toast name (GetToastName: "LinkCopied", …). Chrome
+  // draws nothing; the host shows its own for the active page.
+  virtual void OnToastRequested(std::string_view kind) = 0;
 };
 
 // Installs the BrowserWindow factory hook (patches/0003): a Browser created

@@ -8,6 +8,8 @@
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
+#include "base/logging.h"
+#include "base/strings/sys_string_conversions.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "content/public/browser/permission_controller.h"
@@ -103,6 +105,7 @@
                    selection:(const TabStripSelectionChange&)selection;
 - (RoomWebContents*)room_wrapperFor:(content::WebContents*)contents;
 - (void)room_focusLocationBarRequested;
+- (void)room_toastRequested:(NSString*)kind;
 - (NSRect)room_bubbleAnchorRect;
 - (RoomWebContents*)room_keyTargetFor:(NSEvent*)event;
 - (BOOL)room_handleExtensionKeyEvent:(const input::NativeWebKeyboardEvent&)event;
@@ -149,6 +152,9 @@ class Client : public room::RoomBrowserWindowClient {
   }
   void OnFocusLocationBarRequested(bool is_user_initiated) override {
     [browser_ room_focusLocationBarRequested];
+  }
+  void OnToastRequested(std::string_view kind) override {
+    [browser_ room_toastRequested:base::SysUTF8ToNSString(kind)];
   }
   std::optional<gfx::Rect> GetBubbleAnchorRect() override {
     const NSRect rect = [browser_ room_bubbleAnchorRect];
@@ -552,6 +558,13 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 
 // Chrome's bubbles point at the host's site button: the active page's
 // delegate knows where it is (3.7a).
+- (void)room_toastRequested:(NSString*)kind {
+  RoomWebContents* page = self.activeWebContents;
+  LOG(INFO) << "RoomCore: Chrome's toast " << base::SysNSStringToUTF8(kind)
+            << (page ? " to the active page's host" : " with no active page");
+  [page room_requestToast:kind];
+}
+
 - (NSRect)room_bubbleAnchorRect {
   return [self.activeWebContents room_bubbleAnchorRect];
 }

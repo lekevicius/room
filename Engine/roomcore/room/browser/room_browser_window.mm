@@ -34,6 +34,9 @@
 #include "components/translate/core/browser/language_state.h"
 #include "components/translate/core/browser/translate_manager.h"
 #include "chrome/browser/ui/unload_controller.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
+#include "chrome/browser/ui/toasts/toast_service.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
@@ -328,6 +331,35 @@ class RoomModalDialogHost : public web_modal::WebContentsModalDialogHost {
   base::ObserverList<web_modal::ModalDialogHostObserver> observers_;
 };
 
+// Chrome's confirmation toasts (B-58). ToastController draws a Views bubble
+// on a BrowserView's contents container and CHECKs (CHECK_IS_TEST) when a
+// window has none, which the context menu's Copy Link Address hit in 3.4a.
+// Every caller finds the controller as user data on the Browser
+// (ToastController::From, MaybeGetForWebContents), so a Room window
+// registers this one: MaybeShowToast hands the toast's kind to the host,
+// which shows its own toast (spec §F), and nothing Chrome's is drawn. Chrome
+// would make the Browser a ToastService (and its own controller in the same
+// user-data slot) in InitPostWindowConstruction; RoomBrowserWindow's
+// factory override below makes none for a Room window.
+class RoomToastController : public ToastController {
+ public:
+  RoomToastController(BrowserWindowInterface* browser,
+                      room::RoomBrowserWindowClient* client)
+      : ToastController(browser, /*toast_registry=*/nullptr), client_(client) {}
+  ~RoomToastController() override = default;
+
+  bool MaybeShowToast(ToastParams params) override {
+    if (!client_) {
+      return false;
+    }
+    client_->OnToastRequested(GetToastName(params.toast_id));
+    return true;
+  }
+
+ private:
+  raw_ptr<room::RoomBrowserWindowClient> client_;
+};
+
 struct PendingHostWindow {
   NSWindow* __weak window = nil;
   raw_ptr<room::RoomBrowserWindowClient> client = nullptr;
@@ -465,6 +497,25 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  // No ToastService for a Room window (B-58): its RoomBrowserWindow
+  // registered a RoomToastController in the slot ToastService's controller
+  // would take. The factory's override is named for tests upstream but has
+  // no test behaviour (BrowserWindowFeatures' UserDataFactory). Chrome's
+  // only unchecked ToastService::From caller is send-tab-to-self, which
+  // needs sync (off in Room).
+  static base::NoDestructor<ui::UserDataFactory::ScopedOverride>
+      no_toast_service(
+          BrowserWindowFeatures::GetUserDataFactoryForTesting()
+              .AddOverrideForTesting<ToastService>(base::BindRepeating(
+                  [](BrowserWindowInterface& browser)
+                      -> std::unique_ptr<ToastService> {
+                    // Every Browser here has a RoomBrowserWindow (a
+                    // headless one has no controller: callers skip).
+                    if (RoomWindows().contains(&browser)) {
+                      return nullptr;
+                    }
+                    return std::make_unique<ToastService>(&browser);
+                  })));
   g_browser_for_disposition_hook = &BrowserForDisposition;
   g_find_browser_window_hook = +[](content::WebContents* contents) -> BrowserWindow* {
     for (const auto& [browser, window] : RoomWindows()) {
@@ -527,6 +578,9 @@ struct RoomBrowserWindow::ObjCMembers {
   // owns (3.7a); a headless Browser has none (its bubbles have no window).
   std::unique_ptr<RoomToolbarButtonProvider> toolbar_provider;
   std::unique_ptr<autofill::AutofillBubbleHandlerImpl> autofill_handler;
+  // The Browser's ToastController (B-58), for a window the host owns; a
+  // headless Browser has none (Chrome's callers check for null).
+  std::unique_ptr<RoomToastController> toasts;
 };
 
 RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
@@ -535,12 +589,15 @@ RoomBrowserWindow::RoomBrowserWindow(BrowserWindowInterface* browser,
     : browser_(browser),
       client_(client),
       objc_(std::make_unique<ObjCMembers>(
-          ObjCMembers{window, nullptr, nullptr, nullptr})),
+          ObjCMembers{window, nullptr, nullptr, nullptr, nullptr})),
       exclusive_access_context_(
           std::make_unique<room::RoomExclusiveAccessContext>(browser, client)) {
   RoomWindows().emplace(browser, this);
   objc_->toolbar_provider = std::make_unique<RoomToolbarButtonProvider>(
       this, is_headless() ? nullptr : browser);
+  if (!is_headless()) {
+    objc_->toasts = std::make_unique<RoomToastController>(browser, client);
+  }
   // Payment bubbles resolve AutofillBubbleHandler through window user data,
   // without calling the legacy BrowserWindow getter first.
   GetAutofillBubbleHandler();
@@ -583,6 +640,7 @@ RoomBrowserWindow::~RoomBrowserWindow() {
   // data host does.
   objc_->autofill_handler.reset();
   objc_->toolbar_provider.reset();
+  objc_->toasts.reset();
   // What BrowserView and WebUIBrowserWindow do in their destructors: features
   // that hold on to window-scoped objects (side panel entries, for example)
   // let go of them before the Browser destroys the features themselves.

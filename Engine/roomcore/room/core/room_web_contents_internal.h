@@ -59,6 +59,8 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 - (void)room_requestFocusOnLocationBar;
 // Chrome asked to show this page (RoomBrowserWindow::Activate, B-107).
 - (void)room_requestActivation;
+// Chrome would show a confirmation toast (RoomToastController, B-58).
+- (void)room_requestToast:(NSString*)kind;
 // The delegate's bubble anchor (window coordinates), NSZeroRect when none.
 - (NSRect)room_bubbleAnchorRect;
 - (void)room_didEnterFullscreen:(const url::Origin&)origin;

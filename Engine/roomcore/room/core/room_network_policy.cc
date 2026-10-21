@@ -87,12 +87,11 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   // replaces the WebContents and its process goes; RoomCore moves the page's
   // wrapper to the replacement (TabStripModelChange::kReplaced).
   disabled += ",WebContentsDiscard";
-  // Not network: Chrome's confirmation toasts (ToastController) anchor on a
-  // BrowserView's toolbar and CHECK in a Room window, which has none: the
-  // context menu's Copy Link Address crashed in 3.4a. Room shows its own
-  // toasts (spec §F).
-  disabled += ",LinkCopiedToast,ImageCopiedToast,VideoFrameCopiedToast,"
-              "LinkToHighlightCopiedToast,ReadingListToast,TranslateToast";
+  // Not network: Chrome's confirmation toasts reach the host through
+  // RoomToastController (B-58: the copy toasts are on again). Room has no
+  // reading list, and the translate offer is the host's infobar (3.4b), so
+  // those two stay off.
+  disabled += ",ReadingListToast,TranslateToast";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with

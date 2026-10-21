@@ -1144,6 +1144,13 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (void)room_requestToast:(NSString*)kind {
+  id<RoomWebContentsDelegate> delegate = self.delegate;
+  if ([delegate respondsToSelector:@selector(webContents:didRequestToast:)]) {
+    [delegate webContents:self didRequestToast:kind];
+  }
+}
+
 - (NSRect)room_bubbleAnchorRect {
   id<RoomWebContentsDelegate> delegate = self.delegate;
   if (![delegate respondsToSelector:@selector(webContentsBubbleAnchorRect:)]) {

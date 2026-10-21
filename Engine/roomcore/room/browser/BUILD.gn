@@ -24,6 +24,8 @@ source_set("browser") {
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/navigator",
     "//chrome/browser/ui/tabs:tab_strip",
+    "//chrome/browser/ui/toasts",
+    "//chrome/browser/ui/toasts/api:toasts",
     "//chrome/browser/ui/views:bubble_anchor_util_views",
     "//chrome/browser/ui/views/frame:toolbar_button_provider",
     "//chrome/browser/ui/views/interaction:impl",

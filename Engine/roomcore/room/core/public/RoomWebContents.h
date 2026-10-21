@@ -510,6 +510,14 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 // page's tab and shows it (B-107).
 - (void)webContentsDidRequestActivation:(RoomWebContents*)webContents
     NS_SWIFT_NAME(webContentsDidRequestActivation(_:));
+// Chrome would show one of its confirmation toasts for this page (its
+// window's active page): `kind` is Chrome's toast name ("LinkCopied" after
+// the context menu's Copy Link Address, "ImageCopied", "VideoFrameCopied",
+// "LinkToHighlightCopied", …; B-58). Chrome draws nothing; the host shows
+// its own toast, or none.
+- (void)webContents:(RoomWebContents*)webContents
+    didRequestToast:(NSString*)kind
+    NS_SWIFT_NAME(webContents(_:didRequestToast:));
 // Where Chrome's own bubbles point while this page is its window's active
 // page (the password save and update bubbles, address and card saves,
 // device choosers, FedCM): the host's site button, in the window's
