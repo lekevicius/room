@@ -3733,3 +3733,171 @@ Load average 17–25 throughout (no Chromium build). Dev = `build/roomcore/…/D
 | clear_today | 9 | 0 | 16.7 | 0.31 | 150 | SidebarRowView.clear: group(opacity) 0.150s easeIn ×5 |
 
 Two more dev runs after the fixes (`motion-after-dev-2.txt`, `motion-after-dev-reduceNO.txt`) read back the same animations; 0 dropped; sync ranges with the table above: pill insert 9.0–11.9 ms, space switch 3.7–8.4 ms, reset 6.6–9.9 ms. Earlier harness versions (before the one-sighting rule and the sixth Essential) are not tabulated.
+
+## Phase 5.1 — motion (5.1b: overlays, toasts, downloads, split, the controls, the reveal; 2026-10-21, M1 Max laptop, 64 GB, 60 Hz Pro Display XDR main, RoomCore 155.0.8059.36, series 25, `RoomCoreCommit 981429c`, no engine change)
+
+**Method.** 5.1a's harness with a second group: `scripts/motion-check.sh <out> -RoomSpikeOnly overlays [-RoomReduceMotion YES]` (`App/Sources/Debug/MotionOverlaySpikes.swift`) on the same throwaway sidebar, each animation through the code its click, key or event runs: the palette (the window's first open and a later one, the closes), Peek from a click 30%/40% into the card and its close, the ⌃Tab switcher (a DEBUG hook that holds ⌃ past the delay; first and later show), a toast's spring, the same id's pop and its leave, the download fly-in from the card's centre and the button's bounce, Reload's hover and press (`feedback.setHovering`, `highlight`), the downloads button's press, a split from two Today tabs, its layout to vbox and the unsplit, ⌘S hiding and docking, the reveal pinned in and out (⌥⌘S's path) and the hover reveal from the band. Columns as 5.1a's. SwiftUI's toasts animate in SwiftUI's own render loop, so their read-back is empty and the window is the token's length (the frames are the measure). **Conditions:** `display_frame_interval` 16.67 ms throughout, window key and visible, load 17–27 (OrbStack, WindowServer, the Claude app; no Chromium build; the user's Room not running).
+
+**Audit against spec §I.1, §E, §F and the tokens (before → after).** "Before" is the first run of the harness on this session's start (`motion-dev-try1.txt`); the controls had no press before B-111.
+
+| animation | spec / token | before | after |
+|---|---|---|---|
+| palette open / close | scale 0.96 → 1 + fade 120 ms (§I.1) | group(opacity+transform) 0.120 s ease-out; close 0.120 s fade; Reduce Motion: close instant | unchanged on spec; Reduce Motion: open a fade, close a fade (`PaletteMotion`) |
+| Peek open / close | from the link's rect 350 ms (§I.1, §I.6; the engine gives no link rect, the click is used) | spring transform perceptual 0.350 s bounce 0, dim and card fade 0.120 s; close 0.120 s fade | unchanged on spec; `CardMotion` (Reduce Motion: 0.25 s fades both, was instant close) |
+| ⌃Tab switcher | none in the spec | **none read back** (an `animator()` fade on a view added in the same transaction never ran); 18 ms build per show | an explicit 0.120 s ease-out fade; the panel kept between shows (later shows 6.6–8.6 ms, 0 dropped) |
+| toasts in / pop / out | spring 0.5 s bounce 0.2, pop, fade + scale 0.2 s (§F) | SwiftUI; Reduce Motion read SwiftUI's own environment value, not `Motion.preferences` | values on tokens (`toastIn*`, `toastPop*`, `toastOutScale`); the variants follow `Motion.preferences` (`ChromeMotion`) |
+| download fly-in | 1000 ms arc, end scale 0.45 (§F) | group(position+scale+opacity) 1.000 s ease-in-out | unchanged on spec |
+| download bounce | spring 0.5 s (§F) | spring on `transform.scale` after moving the layer's anchor point to its centre | spring perceptual 0.500 s bounce 0.20 on `transform` about the centre, the anchor untouched |
+| download ring, badge | — | implicit 0.25 s default animations on the ring's frame and strokeEnd and the badge | `CALayer.noImplicitActions`; strokeEnd over `Motion.medium` ease-out explicitly |
+| split create / layout / unsplit | none (§D) | the sidebar rows' 0.150 s; the panes at once | unchanged; the lines and the drop highlight lose their implicit 0.25 s actions (not triggered in this run) |
+| controls' hover and press | B-111 | a fill set at once on hover and on press; the downloads button's alpha 0.6 at once | fill fade 0.120 s ease-out; press transform 0.080 s ease-out held, release spring 0.300 s bounce 0.35 (settling 0.553 s); Reduce Motion: opacity 0.120 s ease-out |
+| ⌘S hide | — | buttons hidden by the cluster after 2 s | the traffic lights fade 0.120 s ease-in (no cluster, B-114) |
+| reveal in / out | dwell 150 ms + 250 ms ease-out; out ease-in (§E) | position 0.250 s; **sync 40.2 ms, 3 dropped frames** (the sidebar view moved into the overlay as the slide began); the cluster's pill over the card | dwell 60 ms, position 0.180 s ease-out / 0.150 s ease-in with the traffic lights' opacity on the same lengths; sync 9.9–11.0 ms, 0 dropped (the sidebar moves into the hidden overlay at ⌘S, straight across) |
+| hover reveal end to end | — | (2.7a: dwell 150 + slide 250) | band → shown median 86–89 ms, band → in place median 282–292 ms, over five rounds per run |
+
+**Dropped frames at 60 Hz after the fixes.** 0 in every animation of the four runs except where the trigger itself outlasts a frame before its animation starts: the window's first palette open (sync 15.8–34.6 ms, 2–4 dropped), Peek's open (23.2–33.9 ms, 1–2; of which the engine's `createWebContents` 6.1 ms median and its first `load` call 4.0 ms: `peek_open_parts`, the rest the host's), the window's first ⌃Tab show (20.9–26.0 ms, 2), ⌘S hiding (23.9–28.7 ms, 2–3) and docking (15.5–29.1 ms, 1–2): moving the sidebar between the window and the hidden overlay, which a reveal paid before (B-129). One toast_in on dev without Reduce Motion dropped one frame (33.3 ms, sync 0.4 ms: SwiftUI's own frame), none in the other three runs. A first try of the move with `removeFromSuperview` cost 49 ms at hide and 33 ms at dock; moving the view straight across halved it.
+
+### 5.1b — Dev build
+
+`motion-dev-overlays-reduceNO.txt` (build/5.1b/), load 27.24 18.25 16.81; reduce_motion false; reveal_band_to_shown n=5 median=86.63ms p95=89.27ms max=95.08ms (dwell 60 ms); reveal_band_to_in_place n=5 median=286.83ms p95=289.02ms max=294.38ms (dwell 60 ms + slide 180 ms; before B-114 150 + 250); peek_open_parts not in this run
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| palette_open_first | 16 | 4 | 73.8 | 34.57 | 314 | PalettePanelView.open: group(opacity+transform) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default begins +0.064s |
+| palette_close | 8 | 0 | 16.7 | 6.16 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| palette_open | 17 | 0 | 16.7 | 6.40 | 261 | PalettePanelView.open: group(opacity+transform) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default |
+| palette_close_again | 9 | 0 | 16.7 | 2.32 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| peek_open | 35 | 2 | 53.7 | 33.85 | 600 | PeekDimView.peek-open: basic opacity 0.120s linear(default)<br>CardView.peek-open: spring transform perceptual=0.350s bounce=0.00 (mass 1.0 stiffness 322.3 damping 35.9) settling=0.600s<br>CardView.peek-open-fade: basic opacity 0.120s linear(default) |
+| peek_close | 8 | 0 | 16.7 | 6.10 | 120 | PeekOverlayView.opacity: basic opacity 0.120s default |
+| switcher_show_first | 9 | 2 | 53.7 | 25.06 | 156 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut begins +0.036s |
+| switcher_end | 8 | 0 | 16.7 | 0.97 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_show | 8 | 0 | 16.7 | 8.20 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_end_again | 9 | 0 | 16.7 | 0.56 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| toast_in | 30 | 1 | 33.3 | 0.40 | 0 | none |
+| toast_pop | 23 | 0 | 16.7 | 0.24 | 0 | none |
+| toast_out | 13 | 0 | 16.7 | 0.25 | 0 | none |
+| download_fly_in | 63 | 0 | 16.7 | 1.00 | 1028 | CALayer in FlightView.fly: group(position+transform.scale+opacity) 1.000s easeInEaseOut |
+| download_bounce | 47 | 0 | 16.7 | 0.14 | 771 | DownloadsButton.bounce: spring transform perceptual=0.500s bounce=0.20 (mass 1.0 stiffness 157.9 damping 20.1) settling=0.711s |
+| button_hover_in | 8 | 0 | 16.7 | 0.48 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| button_press_in | 7 | 0 | 16.7 | 0.76 | 80 | HoverButton.control-press: basic transform 0.080s easeOut |
+| button_press_release | 34 | 0 | 16.7 | 0.50 | 553 | HoverButton.control-press: spring transform perceptual=0.300s bounce=0.35 (mass 1.0 stiffness 438.6 damping 27.2) settling=0.553s |
+| button_hover_out | 8 | 0 | 16.7 | 0.10 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| downloads_press_in | 9 | 0 | 16.7 | 0.37 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.control-press: basic transform 0.080s easeOut |
+| downloads_press_release | 34 | 0 | 16.7 | 0.35 | 553 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.control-press: spring transform perceptual=0.300s bounce=0.35 (mass 1.0 stiffness 438.6 damping 27.2) settling=0.553s |
+| split_create | 10 | 0 | 16.7 | 9.92 | 150 | SidebarRowView.position: basic position 0.150s easeOut ×2<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| split_layout_vbox | 7 | 0 | 16.7 | 2.37 | 0 | none |
+| split_unsplit | 11 | 0 | 16.7 | 13.69 | 174 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×2<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| sidebar_hide | 5 | 3 | 54.6 | 25.09 | 120 | _NSThemeCloseWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.120s easeIn |
+| reveal_in | 11 | 0 | 16.7 | 11.03 | 180 | SidebarOverlayView.position: basic position 0.180s easeOut<br>_NSThemeCloseWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.180s easeIn |
+| reveal_out | 10 | 0 | 16.7 | 3.04 | 150 | SidebarOverlayView.position: basic position 0.150s easeIn<br>_NSThemeCloseWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.150s easeIn |
+| reveal_dwell_slide | 15 | 0 | 16.7 | 0.10 | 0 | none |
+| sidebar_dock | 5 | 2 | 48.5 | 22.91 | 0 | none |
+
+### 5.1b — Dev build, `-RoomReduceMotion YES`
+
+`motion-dev-overlays-reduceYES.txt` (build/5.1b/), load 17.55 17.69 16.77; reduce_motion true; reveal_band_to_shown n=5 median=86.25ms p95=87.42ms max=90.72ms (dwell 60 ms); reveal_band_to_in_place n=5 median=291.64ms p95=293.82ms max=301.15ms (dwell 60 ms + slide 180 ms; before B-114 150 + 250); peek_open_parts not in this run
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| palette_open_first | 16 | 3 | 61.3 | 32.14 | 310 | PalettePanelView.open: group(opacity) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default begins +0.060s |
+| palette_close | 8 | 0 | 16.7 | 6.15 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| palette_open | 17 | 0 | 16.7 | 2.36 | 257 | PalettePanelView.open: group(opacity) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default |
+| palette_close_again | 8 | 0 | 16.7 | 4.63 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| peek_open | 14 | 2 | 43.4 | 24.73 | 250 | PeekDimView.peek-open: basic opacity 0.250s linear(default)<br>CardView.peek-open: basic opacity 0.250s linear(default) |
+| peek_close | 8 | 0 | 16.7 | 5.79 | 120 | PeekOverlayView.opacity: basic opacity 0.120s default |
+| switcher_show_first | 8 | 2 | 42.1 | 20.92 | 148 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_end | 7 | 0 | 16.7 | 0.72 | 0 | none |
+| switcher_show | 8 | 0 | 16.7 | 8.12 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_end_again | 7 | 0 | 16.7 | 0.64 | 0 | none |
+| toast_in | 31 | 0 | 16.7 | 0.31 | 0 | none |
+| toast_pop | 23 | 0 | 16.7 | 0.57 | 0 | none |
+| toast_out | 13 | 0 | 16.7 | 0.12 | 0 | none |
+| download_fly_in | 7 | 0 | 16.7 | 0.04 | 0 | none |
+| download_bounce | 16 | 0 | 16.7 | 0.10 | 250 | DownloadsButton.bounce: basic opacity 0.250s easeOut |
+| button_hover_in | 8 | 0 | 16.7 | 0.27 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| button_press_in | 8 | 0 | 16.7 | 0.82 | 120 | HoverButton.opacity: basic opacity 0.120s easeOut |
+| button_press_release | 8 | 0 | 16.7 | 0.57 | 120 | HoverButton.opacity: basic opacity 0.120s easeOut |
+| button_hover_out | 8 | 0 | 16.7 | 0.18 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| downloads_press_in | 8 | 0 | 16.7 | 0.80 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.opacity: basic opacity 0.120s easeOut |
+| downloads_press_release | 8 | 0 | 16.7 | 0.47 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.opacity: basic opacity 0.120s easeOut |
+| split_create | 7 | 0 | 16.7 | 10.47 | 0 | none |
+| split_layout_vbox | 7 | 0 | 16.7 | 2.36 | 0 | none |
+| split_unsplit | 7 | 0 | 16.7 | 8.38 | 0 | none |
+| sidebar_hide | 6 | 2 | 54.1 | 28.66 | 120 | _NSThemeCloseWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.120s easeIn |
+| reveal_in | 12 | 0 | 16.7 | 9.94 | 180 | SidebarOverlayView.opacity: basic opacity 0.180s easeOut<br>_NSThemeCloseWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.180s easeIn |
+| reveal_out | 10 | 0 | 16.7 | 2.06 | 150 | SidebarOverlayView.opacity: basic opacity 0.150s easeIn<br>_NSThemeCloseWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.150s easeIn |
+| reveal_dwell_slide | 16 | 0 | 16.7 | 0.09 | 0 | none |
+| sidebar_dock | 5 | 2 | 50.9 | 29.11 | 0 | none |
+
+### 5.1b — Release framework (`ROOM_APP`: the Debug app over `build/roomcore-release`)
+
+`motion-release-overlays-reduceNO.txt` (build/5.1b/), load 20.55 17.90 16.77; reduce_motion false; reveal_band_to_shown n=5 median=88.53ms p95=89.88ms max=90.07ms (dwell 60 ms); reveal_band_to_in_place n=5 median=283.90ms p95=284.65ms max=289.45ms (dwell 60 ms + slide 180 ms; before B-114 150 + 250); peek_open_parts not in this run
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| palette_open_first | 17 | 2 | 51.8 | 24.89 | 297 | PalettePanelView.open: group(opacity+transform) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default begins +0.047s |
+| palette_close | 9 | 0 | 16.7 | 5.59 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| palette_open | 16 | 0 | 16.7 | 3.75 | 259 | PalettePanelView.open: group(opacity+transform) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default |
+| palette_close_again | 8 | 0 | 16.7 | 3.27 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| peek_open | 35 | 2 | 38.4 | 23.24 | 600 | PeekDimView.peek-open: basic opacity 0.120s linear(default)<br>CardView.peek-open: spring transform perceptual=0.350s bounce=0.00 (mass 1.0 stiffness 322.3 damping 35.9) settling=0.600s<br>CardView.peek-open-fade: basic opacity 0.120s linear(default) |
+| peek_close | 8 | 0 | 16.7 | 7.44 | 120 | PeekOverlayView.opacity: basic opacity 0.120s default |
+| switcher_show_first | 8 | 2 | 42.7 | 25.95 | 156 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut begins +0.036s |
+| switcher_end | 7 | 0 | 16.7 | 1.36 | 0 | none |
+| switcher_show | 9 | 0 | 16.7 | 6.64 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_end_again | 7 | 0 | 16.7 | 1.26 | 0 | none |
+| toast_in | 31 | 0 | 16.7 | 0.41 | 0 | none |
+| toast_pop | 23 | 0 | 16.7 | 0.27 | 0 | none |
+| toast_out | 13 | 0 | 16.7 | 0.20 | 0 | none |
+| download_fly_in | 61 | 0 | 16.7 | 2.72 | 1010 | CALayer in FlightView.fly: group(position+transform.scale+opacity) 1.000s easeInEaseOut |
+| download_bounce | 48 | 0 | 16.7 | 0.08 | 771 | DownloadsButton.bounce: spring transform perceptual=0.500s bounce=0.20 (mass 1.0 stiffness 157.9 damping 20.1) settling=0.711s |
+| button_hover_in | 48 | 0 | 16.7 | 0.32 | 771 | DownloadsButton.bounce: spring transform perceptual=0.500s bounce=0.20 (mass 1.0 stiffness 157.9 damping 20.1) settling=0.711s<br>HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| button_press_in | 7 | 0 | 16.7 | 0.48 | 80 | HoverButton.control-press: basic transform 0.080s easeOut |
+| button_press_release | 34 | 0 | 16.7 | 0.54 | 553 | HoverButton.control-press: spring transform perceptual=0.300s bounce=0.35 (mass 1.0 stiffness 438.6 damping 27.2) settling=0.553s |
+| button_hover_out | 9 | 0 | 16.7 | 0.11 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| downloads_press_in | 8 | 0 | 16.7 | 0.32 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.control-press: basic transform 0.080s easeOut |
+| downloads_press_release | 34 | 0 | 16.7 | 0.15 | 553 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.control-press: spring transform perceptual=0.300s bounce=0.35 (mass 1.0 stiffness 438.6 damping 27.2) settling=0.553s |
+| split_create | 10 | 0 | 16.7 | 18.34 | 150 | SidebarRowView.position: basic position 0.150s easeOut ×2<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| split_layout_vbox | 7 | 0 | 16.7 | 6.41 | 0 | none |
+| split_unsplit | 11 | 0 | 16.7 | 8.43 | 166 | SelectionPillView.position: basic position 0.150s easeOut<br>SelectionPillView.bounds: basic bounds 0.150s easeOut<br>SidebarRowView.position: basic position 0.150s easeOut ×2<br>SidebarRowView.opacity: basic opacity 0.150s easeOut |
+| sidebar_hide | 6 | 2 | 51.4 | 23.90 | 120 | _NSThemeCloseWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.120s easeIn |
+| reveal_in | 12 | 0 | 16.7 | 9.94 | 180 | SidebarOverlayView.position: basic position 0.180s easeOut<br>_NSThemeCloseWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.180s easeIn |
+| reveal_out | 10 | 0 | 16.7 | 2.65 | 150 | SidebarOverlayView.position: basic position 0.150s easeIn<br>_NSThemeCloseWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.150s easeIn |
+| reveal_dwell_slide | 15 | 0 | 16.7 | 0.10 | 0 | none |
+| sidebar_dock | 6 | 1 | 36.2 | 15.46 | 0 | none |
+
+### 5.1b — Release framework, `-RoomReduceMotion YES`
+
+`motion-release-overlays-reduceYES.txt` (build/5.1b/), load 21.88 18.51 17.10; reduce_motion true; reveal_band_to_shown n=5 median=86.69ms p95=88.52ms max=92.19ms (dwell 60 ms); reveal_band_to_in_place n=5 median=282.01ms p95=284.01ms max=286.86ms (dwell 60 ms + slide 180 ms; before B-114 150 + 250); peek_open_parts not in this run
+
+| animation | frames | dropped | max interval ms | sync ms | longest animation ms | read back |
+|---|---|---|---|---|---|---|
+| palette_open_first | 16 | 2 | 37.8 | 15.77 | 286 | PalettePanelView.open: group(opacity) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default begins +0.036s |
+| palette_close | 8 | 0 | 16.7 | 6.42 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| palette_open | 18 | 0 | 16.7 | 4.55 | 269 | PalettePanelView.open: group(opacity) 0.120s easeOut<br>indicator in NSTextInsertionIndicator.opacity: basic opacity 0.250s default |
+| palette_close_again | 8 | 0 | 16.7 | 3.10 | 120 | PaletteOverlayView.opacity: basic opacity 0.120s default |
+| peek_open | 15 | 1 | 35.3 | 25.57 | 250 | PeekDimView.peek-open: basic opacity 0.250s linear(default)<br>CardView.peek-open: basic opacity 0.250s linear(default) |
+| peek_close | 8 | 0 | 16.7 | 6.71 | 120 | PeekOverlayView.opacity: basic opacity 0.120s default |
+| switcher_show_first | 9 | 2 | 47.6 | 25.99 | 154 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut begins +0.034s |
+| switcher_end | 8 | 0 | 16.7 | 0.63 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_show | 8 | 0 | 16.7 | 8.56 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| switcher_end_again | 8 | 0 | 16.7 | 0.67 | 120 | TabSwitcherPanel.appear: basic opacity 0.120s easeOut |
+| toast_in | 31 | 0 | 16.7 | 0.24 | 0 | none |
+| toast_pop | 23 | 0 | 16.7 | 0.11 | 0 | none |
+| toast_out | 13 | 0 | 16.7 | 0.09 | 0 | none |
+| download_fly_in | 7 | 0 | 16.7 | 0.04 | 0 | none |
+| download_bounce | 16 | 0 | 16.7 | 0.08 | 250 | DownloadsButton.bounce: basic opacity 0.250s easeOut |
+| button_hover_in | 16 | 0 | 16.7 | 0.43 | 250 | DownloadsButton.bounce: basic opacity 0.250s easeOut<br>HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| button_press_in | 8 | 0 | 16.7 | 0.53 | 120 | HoverButton.opacity: basic opacity 0.120s easeOut |
+| button_press_release | 8 | 0 | 16.7 | 0.47 | 120 | HoverButton.opacity: basic opacity 0.120s easeOut |
+| button_hover_out | 8 | 0 | 16.7 | 0.09 | 120 | HoverButton.control-hover: basic backgroundColor 0.120s easeOut |
+| downloads_press_in | 8 | 0 | 16.7 | 0.80 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.opacity: basic opacity 0.120s easeOut |
+| downloads_press_release | 8 | 0 | 16.7 | 0.22 | 120 | DownloadsButton.control-hover: basic backgroundColor 0.120s easeOut<br>DownloadsButton.opacity: basic opacity 0.120s easeOut |
+| split_create | 7 | 0 | 16.7 | 16.53 | 0 | none |
+| split_layout_vbox | 7 | 0 | 16.7 | 7.33 | 0 | none |
+| split_unsplit | 7 | 0 | 16.7 | 7.53 | 0 | none |
+| sidebar_hide | 5 | 3 | 55.4 | 24.28 | 120 | _NSThemeCloseWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.120s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.120s easeIn |
+| reveal_in | 11 | 0 | 16.7 | 10.89 | 180 | SidebarOverlayView.opacity: basic opacity 0.180s easeOut<br>_NSThemeCloseWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.180s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.180s easeIn |
+| reveal_out | 10 | 0 | 16.7 | 3.56 | 150 | SidebarOverlayView.opacity: basic opacity 0.150s easeIn<br>_NSThemeCloseWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeZoomWidget.opacity: basic opacity 0.150s easeIn<br>_NSThemeWidget.opacity: basic opacity 0.150s easeIn |
+| reveal_dwell_slide | 15 | 0 | 16.7 | 0.10 | 0 | none |
+| sidebar_dock | 5 | 2 | 45.2 | 19.21 | 0 | none |
+

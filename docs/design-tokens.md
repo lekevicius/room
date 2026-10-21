@@ -103,8 +103,9 @@ The reader page (`App/Resources/Reader/reader.html`) takes its CSS variables fro
 | Token | Value | Use (spec) |
 |---|---|---|
 | `Motion.fast` | 0.12 s | palette open, hover fades (§I.1) |
-| `Motion.standard` | 0.15 s | row insert/remove, hover-reveal dwell, keep-open grace (§E, §I.1) |
-| `Motion.medium` | 0.25 s | space switch slide, tint crossfade, sidebar reveal (§B, §E) |
+| `Motion.standard` | 0.15 s | row insert/remove (§I.1); the reveal's dwell and grace are `Timing.revealDwell`/`revealGrace` |
+| `Motion.medium` | 0.25 s | space switch slide, tint crossfade (§B); the sidebar's reveal moved to `Motion.revealIn`/`revealOut` (B-114, 5.1b) |
+| `Motion.revealIn` / `revealOut` | 0.18 s ease-out / 0.15 s ease-in | the hidden sidebar's slide in and out (§E as amended by B-114, 5.1b) |
 | `Motion.slow` | 0.35 s | Peek open (§I.1, §I.6) |
 | ~~`Motion.pill`~~ | ~~spring 0.35 s, bounce 0.15~~ | removed with the Room Browser design (2026-10-07): a new selection switches the pill at once; the pill follows its own row while rows insert or leave, with the rows (`Motion.standard`, ease-out; 5.1a) |
 | `Motion.toast` | spring 0.5 s, bounce 0.2 | toasts, download-button bounce (§F) |
@@ -271,18 +272,18 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Token | Value | Provenance |
 |---|---|---|
 | `RevealMetrics.edgeBand` | 4 pt at the window's leading edge | spec §E (4 px) |
-| `Timing.revealDwell` / `revealGrace` | 0.15 / 0.15 s | spec §E (150 ms dwell; Zen `sidebar-keep-hover.duration` 150 ms) |
+| `Timing.revealDwell` / `revealGrace` | ~~0.15~~ **0.06** (B-114, 5.1b) / 0.15 s | spec §E (150 ms dwell; Zen `sidebar-keep-hover.duration` 150 ms); the dwell shortened 2026-10-21 (B-114) |
 | `RevealMetrics.outsideToleranceX` / `Y` | 200 / 100 pt around the overlay, pointer outside the window | spec §E (Zen `outside-window-edge-offset`) |
 | `RevealMetrics.overlayInset` | 10 pt from the top, leading and bottom edges | spec §E (Zen `--zen-compact-float`) |
-| Overlay slide | `Motion.medium` (0.25 s) ease-out in, ease-in out, fully off the leading edge; Reduce Motion: a fade | spec §E (250 ms) |
+| Overlay slide | ~~`Motion.medium` (0.25 s)~~ `Motion.revealIn` (0.18 s) ease-out in, `Motion.revealOut` (0.15 s) ease-in out, fully off the leading edge; Reduce Motion: a fade | spec §E (250 ms); shortened by B-114 (5.1b) |
 | `RevealMetrics.overlayCornerRadius` | `Radius.large` (12) on `NSGlassEffectView` | chosen (the overlays' radius) |
 | Overlay wash (`overlayTintWhiteLight` / `Dark`, `overlayTintAlpha`) | white 0.88 / 0.16 at α 0.75 inside the glass | chosen: untinted glass let page text read through the rows; the glass's own `tintColor` rendered near white and hid the white selection pill (2.7a captures) |
 | Overlay header | Back, Forward, Reload (`navigationButtonSize` 28) beside the traffic lights; the address field on its own row below, `addressRowGap` 4 | spec §E ("present in the revealed overlay header"); layout chosen (Arc's two rows) |
-| `ClusterMetrics.height` | 38 pt glass pill centred on the window's own buttons | spec §E (38 px) |
-| `ClusterMetrics.horizontalPadding` | 12 pt beside the outer buttons (pill 84 × 38 around 60 × 14 buttons) | chosen |
-| `Timing.clusterFade` | 2 s after the pointer was last within `ClusterMetrics.nearDistance` (60 pt) of the pill; fades with the buttons over `Motion.standard`, back over `Motion.fast` | spec §E (2 s); distance chosen |
-| Cluster wash | the overlay's wash inside the pill's glass | chosen (page text read through the clear glass behind the buttons) |
-| `ClusterMetrics.contentDragFraction` / `contentDragThreshold` | the top 5% of the card drags the window once a press moves 3 pt | spec §E (Zen `drag-window-from-content`); threshold = AppKit's drag distance |
+| ~~`ClusterMetrics.height`~~ | ~~38 pt glass pill centred on the window's own buttons~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
+| ~~`ClusterMetrics.horizontalPadding`~~ | ~~12 pt beside the outer buttons (pill 84 × 38 around 60 × 14 buttons)~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
+| ~~`Timing.clusterFade`~~ | ~~2 s after the pointer was last within `ClusterMetrics.nearDistance` (60 pt) of the pill; fades with the buttons over `Motion.standard`, back over `Motion.fast`~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
+| ~~Cluster wash~~ | ~~the overlay's wash inside the pill's glass~~ | removed by B-114 (5.1b, 2026-10-21): no floating traffic-light pill |
+| `ContentDragMetrics.contentDragFraction` / `contentDragThreshold` (was `ClusterMetrics`, renamed 5.1b) | the top 5% of the card drags the window once a press moves 3 pt | spec §E (Zen `drag-window-from-content`); threshold = AppKit's drag distance |
 | `ToolbarMetrics.height` / `buttonSize` / `padding` / `urlHeight` | 36 / 28 / 6 / 26 pt; the bar sits in the card's top on the page's fill, its content centred on the traffic lights' line when they sit in it | spec §E (36 px); the rest chosen |
 | Toolbar and Peek header appearance | Aqua on a light page fill, Dark Aqua on a dark one (relative luminance > 0.5) | chosen (2.7a dark captures) |
 | `PeekMetrics.sizeFraction` / `cornerRadius` / `dimAlpha` | 86% of the content area (the page card), 24 pt corners, black at 30% over the card | spec §I.6 |
@@ -310,7 +311,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 |---|---|---|
 | Settings window | toolbar tabs (`NSTabViewController.tabStyle = .toolbar`, `toolbarStyle = .preference`), sections General, Appearance, Search, Downloads; each a grouped SwiftUI `Form` 480 pt wide at its own height; the title follows the section | the Mac's settings windows; width chosen (460 in 2.4b, wider for the segmented pickers) |
 | Settings section symbols | `gearshape` / `paintpalette` / `magnifyingglass` / `arrow.down.circle` | chosen (system settings conventions) |
-| Sidebar on the right | the docked layout mirrored with the same tokens (`CardMetrics.inset` on the card's outer sides, `sidebarSideInset` against the sidebar, the splitter's hit area mostly inside the sidebar), the reveal band (`RevealMetrics.edgeBand`) and the overlay (`overlayInset`) at the right edge; the traffic lights stay where AppKit puts them, over the card, with the floating cluster (`ClusterMetrics`) and the card-top drag band; the header starts at `SidebarMetrics.edgeInset` | Settings v0 (ROADMAP 2.8 task 2); Chapter 1 traffic-light rule |
+| Sidebar on the right | the docked layout mirrored with the same tokens (`CardMetrics.inset` on the card's outer sides, `sidebarSideInset` against the sidebar, the splitter's hit area mostly inside the sidebar), the reveal band (`RevealMetrics.edgeBand`) and the overlay (`overlayInset`) at the right edge; the traffic lights stay where AppKit puts them, over the card, with the card-top drag band (the floating cluster went with B-114, 5.1b); the header starts at `SidebarMetrics.edgeInset` | Settings v0 (ROADMAP 2.8 task 2); Chapter 1 traffic-light rule |
 | Planned menu items | present, disabled, tooltip "Comes in Chapter N"; keys the menu cannot carry (Esc, Return) named in the tooltip | ROADMAP 2.8 task 1 |
 
 ## Added in Phase 2.8b (the first-run card, Settings ▸ Privacy)
@@ -405,4 +406,26 @@ Measured by `-RoomSpike motion` (`scripts/motion-check.sh`; `research/notes/spik
 | Changed dot | fades in over `Motion.fast` when the page leaves the pinned URL (row and tile); on reset it goes with the favicon's `Motion.resetCrossfade` | spec §I.8; hover fades `Motion.fast`; before 5.1a an implicit 0.25 s fade |
 | Reset-icon swap | the favicon and the reset icon crossfade over `Motion.fast` on hover in and out (the row's or tile's other hover changes with them) | spec §I.4, §I.8; hover fades `Motion.fast`; before 5.1a instant |
 | `CALayer.noImplicitActions` | plain sublayers (the changed dot, the loading ring, the tile's multi-selection layer, the drop slot's border, the overflow line, the split row's tint and dividers) never animate on their own | 5.1a: Core Animation's implicit 0.25 s default was on no token |
+
+## Added in Phase 5.1b (the overlays' motion, hover and press, the reveal)
+
+Measured by `-RoomSpike motion -RoomSpikeOnly overlays` (`scripts/motion-check.sh`; `spike-results.md` "Phase 5.1" 5.1b), read back from the window's layers.
+
+| Token / animation | Value | Provenance |
+|---|---|---|
+| `ControlFeedback`, `ControlMotion` | one hover and press style for the chrome's controls (Design): `HoverButton` (the top bar, the address field's buttons, New Tab, the media row, the find bar, Peek's and a pane's header) and the downloads button and the space icons directly | B-111 (the user, 2026-10-21: "as Arc's") |
+| Hover | the layer's fill fades to `Palette.sidebarHover` over `Motion.fast`, ease-out, and back; space icons brighten from `SpaceIconMetrics.inactiveAlpha` to 1 instead | spec §I.4 (hover fill 6%, fades `Motion.fast`) |
+| `Palette.addressFieldHover` | 10% label colour (light and dark): the address field's fill under the pointer, from its resting `sidebarHover` 6% | chosen (B-111) |
+| `Motion.pressScale` / `pressIn` | 0.9 about the control's centre over 0.08 s, ease-out, held while pressed (an animation only: the layer's model transform stays identity) | chosen (B-111, Arc's press) |
+| `Motion.pressRelease` | spring 0.3 s, bounce 0.35 (settles in 0.553 s) | chosen (B-111) |
+| `Motion.pressReducedAlpha` | 0.6: under Reduce Motion a press dims the control over `Motion.fast` and back, no scale | spec §I.1 |
+| `Motion.toastInOffset` / `toastInScale` / `toastOutScale` | 12 pt, 0.9 / 0.95 (the 2.2a values made tokens) | spec §F (spring in, fade + scale out) |
+| `Motion.toastPopScale` / `toastPopUp` / `toastPopDown` | 1.06 over 0.12 s, back over 0.25 s (spring keyframes; the 2.2a values) | spec §F ("replaces with a pop") |
+| `DownloadsMetrics.bounceReducedAlpha` | 0.4 (the Reduce Motion bounce's start, was a literal) | spec §F, §I.1 |
+| Download bounce | now a `transform` spring about the centre (`ControlFeedback.centredScale`), no longer moving the layer's anchor point | 5.1b |
+| Download ring | grows to the new progress over `Motion.medium`, ease-out (was Core Animation's implicit 0.25 s); the spinner stops under Reduce Motion | 5.1b |
+| ⌃Tab switcher | fades in over `Motion.fast`, ease-out (an explicit animation; it goes at once) | chosen: the spec gives the switcher none; as the palette's fade |
+| `ChromeMotion`, `PaletteMotion`, `TabsMotion`, `CardMotion`, `WindowMotion` | each package's animations and their Reduce Motion variants (the pattern of `SidebarMotion`): toasts in and out fade, the pop, the fly-in, the ring and the popovers' animation end at once, the bounce fades; the palette's open loses its scale, its close stays a fade (was instant); Peek opens and closes by fades; the pane header stays a fade, the drop preview jumps; the split's layout never animates; the reveal fades; the traffic lights, the tint and the inactive fade stay fades | spec §I.1 |
+| Traffic lights with the hidden sidebar | hidden with it; fade in over `Motion.revealIn` ease-in as the overlay slides in under them, out over `revealOut` with it, over `Motion.fast` on ⌘S; never moved; over the card with the sidebar on the right | B-114 (amends spec §E) |
+
 
