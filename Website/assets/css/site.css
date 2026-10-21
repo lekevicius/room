@@ -456,6 +456,8 @@ section { position: relative; }
 .letter-sign { margin-top: 1.1em; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .letter-name { font: 400 clamp(22px, 1.7vw, 25px)/1 var(--hand); }
 .letter-role { font: 500 13px/1.4 var(--sans); color: var(--ink-3); }
+/* Without the video, the letter stands alone in the middle. */
+.letter:not(:has(.letter-video)) { grid-template-columns: 1fr; justify-items: center; }
 .letter-video { margin: 0; }
 .letter-video-frame {
   position: relative; aspect-ratio: 4 / 5; border-radius: 28px; overflow: hidden;
