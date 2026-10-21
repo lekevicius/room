@@ -30,6 +30,8 @@ final class SplitGroupCellView: NSTableCellView {
     private var icons: [FaviconView] = []
     private var titles: [NSTextField] = []
     private var dividers: [CALayer] = []
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b).
+    private var textScale = TextScaleApplied()
     private let focusTint = CALayer()
 
     override init(frame: NSRect) {
@@ -51,6 +53,7 @@ final class SplitGroupCellView: NSTableCellView {
 
     func configure(_ model: SplitRowModel) {
         self.model = model
+        if textScale.needsUpdate() { for title in titles { title.font = Typography.sidebarRow } }
         let count = model.segments.count
         while icons.count < count {
             let icon = FaviconView()

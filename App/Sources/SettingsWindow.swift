@@ -362,6 +362,18 @@ private struct SettingsSectionView: View {
                 .foregroundStyle(.secondary)
         }
         Section {
+            // 5.3b: the sidebar's and the palette's type and row heights (`TextScale`).
+            Picker("Sidebar text", selection: binding(\.sidebarTextSize)) {
+                Text("Small").tag(SidebarTextSize.small)
+                Text("Medium").tag(SidebarTextSize.medium)
+                Text("Large").tag(SidebarTextSize.large)
+            }
+            .pickerStyle(.segmented)
+            Text("The size of the sidebar's and the command palette's text and rows.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        Section {
             Toggle("Grey window buttons", isOn: binding(\.monoTrafficLights))
             Text("The close, minimise and zoom buttons are drawn without colour.")
                 .font(.callout)

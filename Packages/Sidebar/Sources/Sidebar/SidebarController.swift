@@ -158,6 +158,8 @@ public final class SidebarController: NSObject {
             copyURL(of: id, markdown: false)
         }
         token = store.sidebar.observe { [weak self] change in self?.apply(change) }
+        // Settings ▸ Appearance ▸ Sidebar text and the system's display options (5.3b): rows re-measured and redrawn.
+        NotificationCenter.default.addObserver(self, selector: #selector(lookDidChange), name: TextScale.didChange, object: nil)
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.isCommandHeld = event.modifierFlags.contains(.command)
             return event
@@ -381,6 +383,12 @@ public final class SidebarController: NSObject {
         retainMultiSelection()
         updateOverflow()
         if let space = tree.space { onSpaceChange?(space) }
+    }
+
+    /// The text size (or a display option) changed: every list lays out again at its row heights
+    /// and fonts; the panes not shown rebuild before they are next shown.
+    @objc private func lookDidChange() {
+        reloadAll()
     }
 
     /// Restore Sidebar… (4.1b): the store's state was replaced wholesale.
@@ -1010,7 +1018,9 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
             cell.clearButton.action = #selector(clearToday(_:))
             view = cell
         case .newTab:
-            view = outlineView.makeView(withIdentifier: NewTabCellView.identifier, owner: self) ?? NewTabCellView()
+            let cell = outlineView.makeView(withIdentifier: NewTabCellView.identifier, owner: self) as? NewTabCellView ?? NewTabCellView()
+            cell.configure()
+            view = cell
         }
         configure(view, for: node, in: pane(for: outlineView))
         return view

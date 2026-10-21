@@ -136,10 +136,12 @@ final class PaletteRowView: NSView {
 
     private let favicon = FaviconView(frame: NSRect(x: 0, y: 0, width: PaletteMetrics.iconSize, height: PaletteMetrics.iconSize))
     private let symbol = NSImageView()
-    private let label = PaletteRowView.makeLabel(font: Typography.row)
+    private let label = PaletteRowView.makeLabel(font: Typography.paletteRow)
     private let chip = NSView()
-    private let chipLabel = PaletteRowView.makeLabel(font: Typography.secondary)
-    private let hint = PaletteRowView.makeLabel(font: Typography.secondary)
+    private let chipLabel = PaletteRowView.makeLabel(font: Typography.paletteSecondary)
+    private let hint = PaletteRowView.makeLabel(font: Typography.paletteSecondary)
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b): the row's type follows it.
+    private var textScale = TextScaleApplied()
     private let delete = PaletteDeleteButton()
     private let pill = CALayer()
     private var hovering = false {
@@ -153,8 +155,14 @@ final class PaletteRowView: NSView {
     private static let symbolConfiguration = IconStyle.paletteRow.configuration
     /// Looking a symbol up in the catalogue on every row update showed in the profile (2.6a).
     private static var symbolImages: [String: NSImage] = [:]
-    /// One line of `Typography.row` (labels are never measured per row).
-    private static let labelHeight = ceil(NSLayoutManager().defaultLineHeight(for: Typography.row))
+    /// One line of `Typography.paletteRow` per text size (labels are never measured per row).
+    private static var labelHeights: [TextScale.Size: CGFloat] = [:]
+    private static var labelHeight: CGFloat {
+        if let height = labelHeights[TextScale.size] { return height }
+        let height = TextScale.lineHeight(Typography.paletteRow)
+        labelHeights[TextScale.size] = height
+        return height
+    }
 
     private static func symbolImage(_ name: String) -> NSImage? {
         if let image = symbolImages[name] { return image }
@@ -216,6 +224,7 @@ final class PaletteRowView: NSView {
 
     private func apply() {
         guard let row else { return }
+        applyTextScale()
         switch row.icon {
         case .favicon(let image, let domain, let dimmed):
             favicon.image = image
@@ -251,16 +260,26 @@ final class PaletteRowView: NSView {
         needsLayout = true
     }
 
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b): the fonts at the current size, the texts measured again.
+    private func applyTextScale() {
+        guard textScale.needsUpdate() else { return }
+        chipLabel.font = Typography.paletteSecondary
+        hint.font = Typography.paletteSecondary
+        chipSize = chipLabel.cell?.cellSize ?? .zero
+        hintSize = hint.cell?.cellSize ?? .zero
+        if let row { label.attributedStringValue = Self.text(title: row.title, detail: row.detail) }
+    }
+
     /// Title and detail in one text, the detail cut first (tail truncation).
     private static func text(title: String, detail: String?) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         let string = NSMutableAttributedString(string: title, attributes: [
-            .font: Typography.row, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
+            .font: Typography.paletteRow, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
         ])
         if let detail {
             string.append(NSAttributedString(string: "  " + detail, attributes: [
-                .font: Typography.row, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph,
+                .font: Typography.paletteRow, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph,
             ]))
         }
         return string
@@ -300,6 +319,7 @@ final class PaletteRowView: NSView {
 
     override func layout() {
         super.layout()
+        applyTextScale()
         if pill.frame != bounds { pill.frame = bounds }
         let height = bounds.height
         let inset = SidebarMetrics.rowContentInset

@@ -496,6 +496,8 @@ public struct Settings: Hashable, Sendable, Codable {
     public var contentBlocking = ContentBlockingSettings()
     /// Settings ▸ Appearance ▸ Grey window buttons (spec §I.12: mono traffic lights, optional; 5.2b).
     public var monoTrafficLights: Bool = false
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b): the sidebar's and the palette's type and row heights.
+    public var sidebarTextSize: SidebarTextSize = .medium
 
     public init() {}
 
@@ -504,7 +506,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case showsToolbar, peekOffSiteLinks, sidebarSide, appearance, firstRunDone, crashReports, automaticUpdateChecks
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
-        case extensionsInIncognito, readerTextSize, appIcon, contentBlocking, monoTrafficLights
+        case extensionsInIncognito, readerTextSize, appIcon, contentBlocking, monoTrafficLights, sidebarTextSize
     }
 
     public init(from decoder: any Decoder) throws {
@@ -548,6 +550,7 @@ public struct Settings: Hashable, Sendable, Codable {
         contentBlocking = (try? container.decodeIfPresent(ContentBlockingSettings.self, forKey: .contentBlocking)).flatMap { $0 }
             ?? defaults.contentBlocking
         monoTrafficLights = (try? container.decodeIfPresent(Bool.self, forKey: .monoTrafficLights)).flatMap { $0 } ?? defaults.monoTrafficLights
+        sidebarTextSize = (try? container.decodeIfPresent(SidebarTextSize.self, forKey: .sidebarTextSize)).flatMap { $0 } ?? defaults.sidebarTextSize
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).
@@ -673,6 +676,11 @@ public struct CustomFilterList: Hashable, Sendable, Codable, Identifiable {
         self.title = title ?? url.host() ?? url.absoluteString
         self.isEnabled = isEnabled
     }
+}
+
+/// Settings ▸ Appearance ▸ Sidebar text (5.3b); Design's `TextScale.Size` has the same raw values.
+public enum SidebarTextSize: String, Hashable, Sendable, Codable, CaseIterable {
+    case small, medium, large
 }
 
 /// The reader page's three text sizes (4.7b; `ReaderMetrics` holds the points).

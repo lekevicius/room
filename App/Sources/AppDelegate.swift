@@ -189,7 +189,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else if SnapshotRunner.directory != nil || SpikeRunner.requested != nil || SidebarFixtures.requested != nil {
             store?.settings.update { $0.firstRunDone = true }
         }
+        // `-RoomSidebarTextSize small|medium|large` (5.3b): a spike's or fixture's text size, as its state's setting.
+        if let raw = UserDefaults.standard.string(forKey: "RoomSidebarTextSize"), let size = SidebarTextSize(rawValue: raw) {
+            store?.settings.update { $0.sidebarTextSize = size }
+        }
         #endif
+        // Settings ▸ Appearance ▸ Sidebar text (5.3b) before the first window's rows are measured.
+        if let size = store?.settings.settings.sidebarTextSize { TextScale.size = TextScale.Size(rawValue: size.rawValue) ?? .medium }
         // Before anything else runs: crash reports start here when the user opted in, and only then.
         optIns = makeOptIns()
         applyOptIns()
@@ -1038,8 +1044,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// applied now and again whenever either changes.
     private func applyLookSettings() {
         guard let settings = store?.settings else { return }
-        let (appearance, side, toolbar, _) = withObservationTracking {
-            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar, settings.settings.monoTrafficLights)
+        let (appearance, side, toolbar, _, textSize) = withObservationTracking {
+            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar, settings.settings.monoTrafficLights,
+             settings.settings.sidebarTextSize)
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.applyLookSettings() }
         }
@@ -1057,6 +1064,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
         for session in windows.all { applyLook(to: session, side: side, toolbar: toolbar) }
+        // Settings ▸ Appearance ▸ Sidebar text (5.3b): the sidebars and palettes lay out again on the change.
+        TextScale.size = TextScale.Size(rawValue: textSize.rawValue) ?? .medium
     }
 
     /// Settings ▸ Appearance ▸ App Icon (Chapter 5): the Dock's icon while Room runs, now and

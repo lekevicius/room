@@ -94,7 +94,7 @@ public enum SidebarMetrics {
     // the pill and the title 10 pt after it.
 
     /// Height of an entry row; the selection pill leaves `pillVerticalInset` above and below.
-    public static let rowHeight: CGFloat = 36
+    public static var rowHeight: CGFloat { TextScale.length(36) }
     public static let pillVerticalInset: CGFloat = 0
     /// The pill is "slightly elevated" (B-112, 5.2a: a subtle shadow under
     /// the selected row, as Arc's and Dia's; was the design's `0 0.5 2` at
@@ -143,9 +143,9 @@ public enum SidebarMetrics {
     /// The title of an unloaded entry (the design: 70% of the label colour).
     public static let unloadedTitleAlpha: CGFloat = 0.7
     /// The Today separator row ("Clear") (chosen).
-    public static let separatorRowHeight: CGFloat = 24
+    public static var separatorRowHeight: CGFloat { TextScale.length(24) }
     /// Space title row above the pinned list (chosen; same pitch as entries).
-    public static let spaceTitleRowHeight: CGFloat = 36
+    public static var spaceTitleRowHeight: CGFloat { TextScale.length(36) }
 
     /// Essentials tiles (spec §I.2): 40 pt tall, icon 16 pt, on the rows'
     /// hover fill (the Room Browser design: neutral tiles, the selected one
@@ -294,7 +294,8 @@ public enum LibraryMetrics {
     /// A day's label inside the Archive and History.
     public static let dayRowHeight: CGFloat = 22
     /// An item: favicon, title, domain, the space chip, its buttons.
-    public static let itemRowHeight: CGFloat = SidebarMetrics.rowHeight
+    /// The sidebar row's medium height: the Library keeps its sizes under `TextScale` (5.3b).
+    public static let itemRowHeight: CGFloat = 36
     /// A row's Restore, Reveal and × buttons.
     public static let buttonSize: CGFloat = 20
     /// The space chip and the "Archived" mark.
@@ -351,14 +352,22 @@ public enum CardMetrics {
 public enum Typography {
     /// Rows outside the sidebar (palette, menus, panels).
     public static var row: NSFont { .systemFont(ofSize: 13, weight: .regular) }
-    /// Sidebar rows and the address field (the Room Browser design: SF Pro 14).
-    public static var sidebarRow: NSFont { .systemFont(ofSize: 14, weight: .regular) }
+    /// Sidebar rows and the address field (the Room Browser design: SF Pro 14; `TextScale`: 12 / 14 / 16).
+    public static var sidebarRow: NSFont { .systemFont(ofSize: TextScale.fontSize(14), weight: .regular) }
+    /// A sidebar row's sublabel and the Today separator's Clear (`secondary` scaled by `TextScale`, 5.3b).
+    public static var sidebarSecondary: NSFont { .systemFont(ofSize: TextScale.fontSize(11), weight: .regular) }
+    /// The space's name above its pinned list (`spaceTitle` scaled by `TextScale`, 5.3b).
+    public static var sidebarSpaceTitle: NSFont { .systemFont(ofSize: TextScale.fontSize(13), weight: .semibold) }
+    /// A palette row's title and detail (`row` scaled by `TextScale`, 5.3b).
+    public static var paletteRow: NSFont { .systemFont(ofSize: TextScale.fontSize(13), weight: .regular) }
+    /// A palette row's space chip and hint, and the site-search chip (`secondary` scaled by `TextScale`, 5.3b).
+    public static var paletteSecondary: NSFont { .systemFont(ofSize: TextScale.fontSize(11), weight: .regular) }
     /// Space title in the sidebar header.
     public static var spaceTitle: NSFont { .systemFont(ofSize: 13, weight: .semibold) }
     /// Sublabels, footer labels, badges.
     public static var secondary: NSFont { .systemFont(ofSize: 11, weight: .regular) }
-    /// The palette's text field (chosen; Arc's command bar is a size up from its rows).
-    public static var paletteField: NSFont { .systemFont(ofSize: 18, weight: .regular) }
+    /// The palette's text field (chosen; Arc's command bar is a size up from its rows; `TextScale` since 5.3b).
+    public static var paletteField: NSFont { .systemFont(ofSize: TextScale.fontSize(18), weight: .regular) }
 
     // Added in 5.2a (the token-drift audit: each was a literal at its call site).
 
@@ -600,8 +609,8 @@ public enum PaletteMetrics {
     public static let fieldHeight: CGFloat = 48
     /// Text inset in the field; the search icon sits in it (chosen, `Spacing.l`).
     public static let fieldInset: CGFloat = 16
-    /// Rows match the sidebar's (measured from Dia).
-    public static let rowHeight: CGFloat = 36
+    /// Rows match the sidebar's (measured from Dia; `TextScale` since 5.3b).
+    public static var rowHeight: CGFloat { TextScale.length(36) }
     /// Around the list; the highlight pill is inset like the sidebar's selection pill.
     public static let listPadding: CGFloat = 6
     public static let iconSize: CGFloat = 16

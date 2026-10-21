@@ -49,6 +49,8 @@ final class PalettePanelView: NSView {
     /// The site-search chip ("YouTube") left of the field (spec §C).
     private let chip = NSView()
     private let chipLabel = NSTextField(labelWithString: "")
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b): the field and the chip follow it.
+    private var textScale = TextScaleApplied()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -61,7 +63,7 @@ final class PalettePanelView: NSView {
         chip.wantsLayer = true
         chip.layer?.cornerRadius = PaletteMetrics.chipHeight / 2
         chip.isHidden = true
-        chipLabel.font = NSFont.systemFont(ofSize: Typography.secondary.pointSize, weight: .semibold)
+        chipLabel.font = NSFont.systemFont(ofSize: Typography.paletteSecondary.pointSize, weight: .semibold)
         chipLabel.textColor = .labelColor
         chip.addSubview(chipLabel)
         content.addSubview(chip)
@@ -112,6 +114,10 @@ final class PalettePanelView: NSView {
 
     override func layout() {
         super.layout()
+        if textScale.needsUpdate() {
+            field.font = Typography.paletteField
+            chipLabel.font = NSFont.systemFont(ofSize: Typography.paletteSecondary.pointSize, weight: .semibold)
+        }
         let width = bounds.width
         let inset = PaletteMetrics.fieldInset
         let icon: CGFloat = 18

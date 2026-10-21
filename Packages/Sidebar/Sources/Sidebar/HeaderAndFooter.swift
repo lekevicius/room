@@ -56,6 +56,13 @@ public final class AddressFieldView: PressableView {
         addSubview(domainField)
         addSubview(copyButton)
         setURL(nil, isSecure: false)
+        // Settings ▸ Appearance ▸ Sidebar text (5.3b): the domain is the rows' type.
+        NotificationCenter.default.addObserver(self, selector: #selector(textScaleDidChange), name: TextScale.didChange, object: nil)
+    }
+
+    @objc private func textScaleDidChange() {
+        domainField.font = Typography.sidebarRow
+        needsLayout = true
     }
 
     @available(*, unavailable)

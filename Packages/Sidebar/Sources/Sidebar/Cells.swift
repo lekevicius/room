@@ -85,7 +85,9 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     let favicon = FaviconView()
     private let folderIcon = NSImageView()
     let titleField = makeLabel(font: Typography.sidebarRow, color: .labelColor)
-    private let sublabel = makeLabel(font: Typography.secondary, color: Palette.sidebarSecondaryLabel)
+    private let sublabel = makeLabel(font: Typography.sidebarSecondary, color: Palette.sidebarSecondaryLabel)
+    /// The text size last applied (Settings ▸ Appearance ▸ Sidebar text, 5.3b).
+    private var textScale = TextScaleApplied()
     private let resetButton = makeIconButton(.resetPinned, style: .rowAction, label: "Back to pinned URL")
     private let closeButton: NSButton = {
         let button = HoverButton()
@@ -158,6 +160,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     override var isFlipped: Bool { true }
 
     func configure(_ model: EntryRowModel) {
+        if textScale.needsUpdate() {
+            titleField.font = Typography.sidebarRow
+            sublabel.font = Typography.sidebarSecondary
+        }
         let previous = self.model
         self.model = model
         let entry = model.entry
@@ -480,9 +486,17 @@ final class AudioIndicatorView: NSImageView {
 final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     static let identifier = NSUserInterfaceItemIdentifier("space-title")
 
-    private let iconField = makeLabel(font: Typography.spaceTitle, color: Palette.sidebarSecondaryLabel)
+    private let iconField = makeLabel(font: Typography.sidebarSpaceTitle, color: Palette.sidebarSecondaryLabel)
     private let iconImage = NSImageView()
-    private let nameField = makeLabel(font: Typography.spaceTitle, color: .labelColor)
+    private let nameField = makeLabel(font: Typography.sidebarSpaceTitle, color: .labelColor)
+    private var textScale = TextScaleApplied()
+
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b).
+    private func applyTextScale() {
+        guard textScale.needsUpdate() else { return }
+        iconField.font = Typography.sidebarSpaceTitle
+        nameField.font = Typography.sidebarSpaceTitle
+    }
     let chevron = makeIconButton(.disclosure, style: .rowChevron, label: "Collapse Pinned")
     let moreButton = makeIconButton(.more, style: .rowAction, label: "Space Menu")
     var onToggle: (() -> Void)?
@@ -522,6 +536,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     override var isFlipped: Bool { true }
 
     func configure(_ space: Space) {
+        applyTextScale()
         isNote = false
         nameField.textColor = .labelColor
         spaceName = space.name
@@ -549,6 +564,7 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
     /// The incognito window's note in place of a space's name (4.8b): no
     /// icon, no chevron, no menu, no rename.
     func configureNote(_ text: String) {
+        applyTextScale()
         isNote = true
         spaceName = text
         nameField.stringValue = text
@@ -652,12 +668,13 @@ final class SeparatorCellView: NSTableCellView {
 
     private let line = HairlineView()
     let clearButton = NSButton(title: "Clear", target: nil, action: nil)
+    private var textScale = TextScaleApplied()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
         clearButton.isBordered = false
-        clearButton.font = Typography.secondary
+        clearButton.font = Typography.sidebarSecondary
         clearButton.contentTintColor = Palette.sidebarSecondaryLabel
         clearButton.setAccessibilityIdentifier("clear-today")
         clearButton.toolTip = "Clear Today Tabs (⇧⌘K)"
@@ -671,6 +688,7 @@ final class SeparatorCellView: NSTableCellView {
     override var isFlipped: Bool { true }
 
     func configure(todayCount: Int) {
+        if textScale.needsUpdate() { clearButton.font = Typography.sidebarSecondary }
         clearButton.isHidden = todayCount == 0
         needsLayout = true
     }
@@ -692,6 +710,14 @@ final class NewTabCellView: NSTableCellView {
 
     private let icon = NSImageView()
     private let label = makeLabel(font: Typography.sidebarRow, color: Palette.sidebarSecondaryLabel)
+    private var textScale = TextScaleApplied()
+
+    /// Settings ▸ Appearance ▸ Sidebar text (5.3b).
+    func configure() {
+        guard textScale.needsUpdate() else { return }
+        label.font = Typography.sidebarRow
+        needsLayout = true
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
