@@ -29,6 +29,7 @@
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/browser/web_contents.h"
+#include "room/branding/room_branded_strings.h"
 #include "room/browser/room_browser_window.h"
 #include "ui/color/color_provider.h"
 
@@ -318,6 +319,13 @@ namespace room {
 
 void InstallAppController() {
   g_app_controller_hook = +[]() -> id {
+    // The first call is ChromeBrowserMainPartsMac::PreCreateThreads: the resource bundle has
+    // its locale, and no surface has asked for a string yet (B-103).
+    static const bool branded = [] {
+      InstallBrandedStrings();
+      return true;
+    }();
+    (void)branded;
     return [RoomAppController sharedController];
   };
 }

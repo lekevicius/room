@@ -1,0 +1,47 @@
+# Room's branding inside RoomCore (B-103, 5.2b). The product name, bundle ids and theme
+# directory come from BRANDING and args (branding_file_path, branding_path_component "room";
+# the theme files: tools/install_theme.sh). This target renames Chromium in the locale strings
+# Chrome's own surfaces show (its WebUI pages, infobars, dialogs): at startup every string of the
+# headers below whose text names Chromium is overridden through ui::ResourceBundle's public
+# OverrideLocaleStringResource, so no grd file, xtb file or resource id changes and no patch is
+# needed. The ids are read from the generated grit headers at build time.
+
+import("//build/config/python.gni")
+
+_headers = [
+  "$root_gen_dir/chrome/grit/branded_strings.h",
+  "$root_gen_dir/chrome/grit/generated_resources.h",
+  "$root_gen_dir/components/strings/grit/components_branded_strings.h",
+  "$root_gen_dir/components/strings/grit/components_strings.h",
+  "$root_gen_dir/components/strings/grit/privacy_sandbox_strings.h",
+  "$root_gen_dir/extensions/strings/grit/extensions_strings.h",
+]
+
+action("string_ids") {
+  script = "tools/gen_string_ids.py"
+  inputs = _headers
+  outputs = [ "$target_gen_dir/room_string_ids.inc" ]
+  args = [ rebase_path(outputs[0], root_build_dir) ] + rebase_path(_headers, root_build_dir)
+  deps = [
+    "//chrome/app:branded_strings",
+    "//chrome/app:generated_resources",
+    "//components/strings:components_branded_strings",
+    "//components/strings:components_strings",
+    "//components/strings:privacy_sandbox_strings",
+    "//extensions/strings",
+  ]
+}
+
+source_set("branding") {
+  sources = [
+    "room_branded_strings.cc",
+    "room_branded_strings.h",
+  ]
+  deps = [
+    ":string_ids",
+    "//base",
+    "//chrome/app:branded_strings",
+    "//chrome/common:version_header",
+    "//ui/base",
+  ]
+}

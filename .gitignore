@@ -30,3 +30,6 @@ research/art/
 # Room's vendored Rust crates (Engine/roomcore/tools/vendor_rust_crates.sh)
 Engine/roomcore/room/third_party/rust/vendor/
 Engine/roomcore/room/third_party/rust/target/
+
+# Room's compiled mac icons for the fork (Engine/roomcore/room/branding/tools/install_theme.sh)
+Engine/roomcore/room/branding/theme/gen/

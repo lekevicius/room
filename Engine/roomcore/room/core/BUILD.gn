@@ -158,6 +158,7 @@ source_set("core") {
     "//chrome/common:version_header",
     "//content/public/browser",
     "//net",
+    "//room/branding",
     "//room/browser",
     "//room/build:buildflags",
     "//ui/base",

@@ -3,8 +3,9 @@
 #   1. links //room (Engine/roomcore/room) into the checkout as src/room;
 #   2. creates the `room` branch at the pinned tag and applies
 #      Engine/roomcore/patches/series, one commit per patch;
-#   3. creates the branding placeholders (theme dirs named "room" that point at
-#      Chromium's own icons) and writes <out>/args.gn from args/<args file>
+#   3. installs the branding theme directories (named "room": Chromium's icons
+#      with Room's logos and mac icons over them, room/branding/tools/install_theme.sh)
+#      and writes <out>/args.gn from args/<args file>
 #      (out/dev from args/dev.gn by default; the release build is
 #      ROOM_OUT_DIR=out/release ROOM_GN_ARGS=release.gn).
 # Idempotent: a patch whose commit on `room` matches the patch file is
@@ -178,11 +179,9 @@ if [[ -n "$DROP" ]]; then
 fi
 (( DRY_RUN )) && exit 0
 
-# 3. Branding placeholders: Chromium's icons under the "room" component name.
-for dir in chrome/app/theme chrome/app/theme/default_100_percent \
-           chrome/app/theme/default_200_percent components/vector_icons; do
-  [[ -e "$dir/room" ]] || ln -s chromium "$dir/room"
-done
+# 3. Branding: the "room" theme directories, Chromium's files with Room's logos and mac icons
+# over them (B-103, 5.2b; room/branding/tools/install_theme.sh).
+"$ROOMCORE/room/branding/tools/install_theme.sh" "$SRC"
 
 mkdir -p "$OUT"
 if ! cmp -s "$ARGS_FILE" "$OUT/args.gn"; then
