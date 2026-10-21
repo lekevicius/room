@@ -81,8 +81,8 @@ final class HiddenSidebar {
         toasts?.show(Toast(id: "space-created", symbol: .newSpace, message: "Created “\(space.name)”"))
     }
 
-    /// File ▸ New Space while the sidebar is hidden: the form shows in the pinned overlay.
-    func revealForSpaceForm() {
+    /// The sidebar's overlay pinned open while the sidebar is hidden: for the Library, an inline rename (spec §E).
+    func revealPinned() {
         guard let controller, isHidden, !controller.reveal.isPinned else { return }
         controller.reveal.togglePin()
     }

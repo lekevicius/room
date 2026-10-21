@@ -1005,7 +1005,8 @@ def _import(c):
     c.contains("home_firefox", "bookmarks=10", "profiles=default-release", "errors=0", label="Firefox's profile found under Profiles/")
     c.contains("permission_denied", "needs_access=true", "error=true", "Choose a File or Folder", label="a file macOS refuses: the sheet offers the open panel")
     c.contains("settings_import", "sheet=true", label="Settings ▸ General ▸ Import… opens the sheet")
-    c.contains("first_run_import", "card=true", "sheet=true", label="the first-run card's Import from another browser… opens the sheet")
+    c.contains("first_run_import", "onboarding=true", "step=importData", "sheet=true", "(fixture)", label="onboarding's import step opens the sheet on the fixtures (5.7b)")
+    c.contains("onboarding_import_done", "(fixture)", "summary=Imported", label="a fixture imported from onboarding's sheet: the summary back in the step")
     for key in ("read_chrome", "read_safari", "read_netscape", "read_arc", "read_firefox", "chrome_applied", "passwords_sheet"):
         c.number(key)
 
@@ -1430,11 +1431,19 @@ def _app28b(c):
     c.contains("cold_url", "arrived queued (inbox closed: true)", label="a cold launch by a link: queued until the engine is up")
     c.contains("cold_url_entry", "kind=today", "selected=http://127.0.0.1:8770/site.html?cold-", label="the cold link opens as the selected Today tab")
     c.contains("opt_ins_launch", "updater created=false", "crash reporter created=false", label="at launch with both opt-ins off, neither Sparkle nor Sentry exists")
-    c.contains("first_run_launch", "card=shown", "above footer=true", label="the first-run card shows (docked left)")
-    c.contains("first_run_overlay", "in overlay=true", label="the card in the hidden sidebar's overlay")
-    c.contains("first_run_engine", "after choice=duckduckgo", label="the card's engine choice reaches the palette")
-    c.contains("first_run_done", "card gone=true", "stored done=true", label="Done stores the first run")
-    c.contains("first_run_show_again", "card back=true", label="Show Welcome Card brings it back")
+    # 5.7b (B-121): onboarding in its own window replaced the first-run card.
+    c.contains("first_run_launch", "done=false", "onboarding=shown step=welcome", "over browser=true", label="a first launch shows onboarding over the window")
+    c.contains("onboarding_import", "step=importData", "sheet=true", "over onboarding=true", label="the import step's button opens the import sheet over onboarding")
+    c.contains("onboarding_default_browser", "requests=1 (stub)", label="the default-browser step asks (the spike's stub, never macOS)")
+    v = c.first("onboarding_default_browser") or ""
+    m = re.search(r"default before=(\w+) after=(\w+)", v)
+    c.check("the default browser unchanged by the spike", bool(m) and m.group(1) == m.group(2), v[:200])
+    c.contains("onboarding_theme", "step=theme", "colours=[\"#3E9B5B\"]", "appearance stored=dark", "reset colours=[]", label="the theme step colours the shown space and sets the appearance")
+    c.contains("first_run_engine", "step=search", "after choice=duckduckgo", label="the search step's engine reaches the palette")
+    c.contains("first_run_done", "onboarding gone=true", "finished", "stored done=true", label="Done stores it and closes the window")
+    c.contains("first_run_show_again", "onboarding back=true", "menu item=Welcome to Room…", "step=welcome", label="Help ▸ Welcome to Room… shows it again from the welcome")
+    c.contains("onboarding_skip", "gone=true", "unchanged=true", "crashReports=false", "updates=false", label="Skip Setup writes nothing but done")
+    c.contains("onboarding_close_button", "gone=true", "done=true", label="the close button skips")
     for method in ("open", "applescript", "workspace"):
         c.contains(f"running_url_{method}", f"selected=http://127.0.0.1:8770/site.html?running-{method}", label=f"a running link by {method}: selected Today tab")
     c.contains("closed_window_link", "window visible=true", "main=true", label="a link after ⇧⌘W brings the window back with it")

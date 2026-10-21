@@ -48,7 +48,7 @@ extension AppDelegate {
         ensureWindow()
         guard let sidebar, let library else { return }
         // With the sidebar hidden, its overlay is pinned open for the Library (spec §E).
-        if windowController?.isSidebarOpen == false { hiddenSidebar?.revealForSpaceForm() }
+        if windowController?.isSidebarOpen == false { hiddenSidebar?.revealPinned() }
         sidebar.bodyView.replacementView = library.view
         library.show(section: section)
     }

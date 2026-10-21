@@ -13,13 +13,17 @@ extension AppDelegate {
     /// The palette's "Import from another browser…": a sheet over the
     /// browser window. Nothing is read until a source is picked and nothing
     /// is written before Import.
-    @objc func showImportSheet(_ sender: Any?) {
+    @objc func showImportSheet(_ sender: Any?) { presentImportSheet(over: nil) }
+
+    /// The import sheet over `parent` (the browser window by default; onboarding's import step, 5.7b);
+    /// `announced` hears the summary the toast shows.
+    func presentImportSheet(over parent: NSWindow?, announced: ((String) -> Void)? = nil) {
         guard let store else { return }
         if let sheet = importSheet {
             sheet.makeKeyAndOrderFront(nil)
             return
         }
-        guard let window = windowController?.window else { return }
+        guard let window = parent ?? windowController?.window else { return }
         var sources = ImportSources.detectInstalls(home: Self.importHome)
         #if DEBUG
         // `-RoomImportSource <directory>`: each source in it listed first, as a detected install (spikes, the tour).
@@ -31,6 +35,7 @@ extension AppDelegate {
         model.engineProfile = { [weak self] profile in await self?.engineProfile(for: profile) }
         model.announce = { [weak self] message in
             self?.toastCenter?.show(Toast(id: "imported", symbol: .importData, message: message))
+            announced?(message)
         }
         model.openStorePages = { [weak self] ids, space in
             (self?.openExtensionStorePages(ids, space: space)?.sequence).map { $0.opened.count + $0.pending.count } ?? 0

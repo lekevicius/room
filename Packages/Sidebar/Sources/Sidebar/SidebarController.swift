@@ -1136,18 +1136,6 @@ public final class SidebarBodyView: NSView {
     /// The next layout moves the list with the grid's reflow when the grid's height changed
     /// (`SidebarMotion.essentialsReflow`; compositor-only, from its old place).
     var reflowsListAnimated = false
-    /// A card above the footer at the rows' width (2.8b: the first-run card); the list ends above it.
-    /// It moves with the sidebar into the hidden sidebar's overlay.
-    public var accessoryView: NSView? {
-        didSet {
-            guard accessoryView !== oldValue else { return }
-            oldValue?.removeFromSuperview()
-            if let accessoryView { addSubview(accessoryView) }
-            needsLayout = true
-        }
-    }
-    /// The accessory's height at a width (its content wraps).
-    public var accessoryHeight: ((CGFloat) -> CGFloat)?
     /// The media row (4.6) directly above the footer, in the spaces view and
     /// the Library alike; hidden while nothing plays elsewhere.
     var mediaRowView: NSView? {
@@ -1158,8 +1146,7 @@ public final class SidebarBodyView: NSView {
             needsLayout = true
         }
     }
-    /// A view in place of the spaces view (the essentials, the lists, the
-    /// accessory) between the header and the footer, which stay: the Library
+    /// A view in place of the spaces view (the essentials and the lists) between the header and the footer, which stay: the Library
     /// (⇧⌘L, 4.1a). `nil` shows the spaces again.
     public var replacementView: NSView? {
         didSet {
@@ -1168,7 +1155,6 @@ public final class SidebarBodyView: NSView {
             let replaced = replacementView != nil
             grid?.isHidden = replaced
             listContainer.isHidden = replaced
-            accessoryView?.isHidden = replaced
             if let replacementView {
                 addSubview(replacementView)
                 setOverflow(above: false, below: false)
@@ -1409,12 +1395,7 @@ public final class SidebarBodyView: NSView {
             replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bodyBottom))
             return
         }
-        var listBottom = bodyBottom
-        if let accessoryView, !accessoryView.isHidden {
-            let height = ceil(accessoryHeight?(width) ?? accessoryView.fittingSize.height)
-            accessoryView.frame = NSRect(x: inset, y: listBottom - FirstRunMetrics.gapAboveFooter - height, width: width, height: height)
-            listBottom = accessoryView.frame.minY - FirstRunMetrics.gapAboveList
-        }
+        let listBottom = bodyBottom
         let listFrom = listContainer.layer?.position
         let wasShown = listContainer.frame.height > 0
         listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))

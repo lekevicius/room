@@ -111,8 +111,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var peek: PeekPresenter? { activeWindow?.peek }
     /// The hidden sidebar's overlay header, keep-open checks and toasts (2.7a).
     var hiddenSidebar: HiddenSidebar? { activeWindow?.hiddenSidebar }
-    /// The first-run card in the active window's sidebar (spikes read it).
-    var firstRunCard: FirstRunCardView? { activeWindow?.firstRunCard }
     /// Links from the system, held until the store and the engine are up (ROADMAP 2.8 task 3).
     let inbox = URLInbox()
     /// Whether Room is the default browser, and the request (2.8b).
@@ -129,8 +127,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// The rendition in the Dock (`settings` spike, `-RoomSpikeOnly appicon`); `nil` for the bundle's icon.
     var debugAppliedAppIcon: String? { appliedAppIcon.map { AppIconImages.resourceName($0.choice, dark: $0.dark) } }
     #endif
-    /// The first run over Settings and its card in the sidebar (ROADMAP 2.8 task 4).
-    private(set) var firstRun: FirstRun?
+    /// Onboarding's window while it shows (`OnboardingWindow.swift`, 5.7b, B-121).
+    var onboardingWindow: OnboardingWindowController?
+    /// Onboarding is considered once per launch, after the first window.
+    var onboardingCheckedAtLaunch = false
+    #if DEBUG
+    /// The default-browser step's requests in a spike (never sent to macOS).
+    var debugDefaultBrowserRequests = 0
+    #endif
     #if DEBUG
     /// URL ingestion as it happens (the 2.8b spike reads it): each event, whether it was queued, each tab opened.
     private(set) var debugIncomingLog: [(event: String, url: URL, at: Date)] = []
@@ -199,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
         #if DEBUG
-        // Spikes, captures and fixtures run on a throwaway store without the card, unless they ask for it;
+        // Spikes, captures and fixtures run on a throwaway store without onboarding, unless they ask for it;
         // `-RoomFirstRun YES` shows it even on a state where it was done (the grand tour's one state, Phase 2.9).
         if UserDefaults.standard.bool(forKey: "RoomFirstRun") {
             store?.settings.update { $0.firstRunDone = false }
@@ -380,64 +384,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         optIns.apply(crashReports: crashReports, automaticUpdateChecks: updateChecks)
     }
 
-    // MARK: First run (ROADMAP 2.8 task 4)
-
-    private func installFirstRun(_ session: WindowSession, settings: SettingsStore) {
-        if firstRun == nil {
-            firstRun = FirstRun(read: { [weak settings] in settings?.settings ?? Settings() },
-                                write: { [weak settings] body in settings?.update(body) })
-        }
-        updateFirstRunCard(session, settings: settings)
-    }
-
-    /// The card shows while the first run is not done: at the first launch and after Settings ▸ Show Welcome Card
-    /// (in every window's sidebar, 4.8a).
-    private func updateFirstRunCard(_ session: WindowSession, settings: SettingsStore) {
-        guard let sidebar = session.sidebar else { return }
-        let showing = withObservationTracking {
-            !settings.settings.firstRunDone
-        } onChange: { [weakSelf = MainActorWeak(self), weakSession = MainActorWeak(session), weakSettings = MainActorWeak(settings)] in
-            Task { @MainActor in
-                guard let session = weakSession.value, let settings = weakSettings.value else { return }
-                weakSelf.value?.updateFirstRunCard(session, settings: settings)
-            }
-        }
-        let body = sidebar.bodyView
-        if showing, session.firstRunCard == nil, let firstRun {
-            let card = FirstRunCardView(firstRun: firstRun, defaultBrowser: defaultBrowser,
-                                        crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
-                                        onImport: { [weak self] in self?.showImportSheet(nil) }) { [weak firstRun] in
-                firstRun?.finish()
-            }
-            session.firstRunCard = card
-            body.accessoryHeight = { [weak card] width in card?.height(forWidth: width) ?? 0 }
-            body.accessoryView = card
-        } else if !showing, let card = session.firstRunCard {
-            session.firstRunCard = nil
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = Motion.fast
-                card.animator().alphaValue = 0
-            } completionHandler: {
-                MainActor.assumeIsolated {
-                    if body.accessoryView === card { body.accessoryView = nil }
-                }
-            }
-        }
-    }
-
-    /// Settings ▸ General ▸ Show Welcome Card: the card again, in sight (the hidden sidebar's overlay is pinned for it).
-    func showWelcomeCard() {
-        firstRun?.showAgain()
-        ensureWindow()
-        if windowController?.isSidebarOpen == false { hiddenSidebar?.revealForSpaceForm() }
-    }
-
     /// App ▸ Check for Updates…, Settings ▸ Privacy ▸ Check Now.
     @objc func checkForAppUpdates(_ sender: Any?) {
         optIns?.checkForUpdates(automaticUpdateChecks: store?.settings.settings.automaticUpdateChecks ?? false)
     }
 
-    /// App ▸ Set as Default Browser…, Settings ▸ General, the first-run card: the system's dialog.
+    /// App ▸ Set as Default Browser…, Settings ▸ General, onboarding: the system's dialog.
     @objc func makeDefaultBrowser(_ sender: Any?) {
         defaultBrowser.setAsDefault()
     }
@@ -957,7 +909,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             tabs.setEngineProfile(incognito.twin, for: incognito.profileID)
             installIncognitoParts(session, incognito: incognito)
         } else {
-            installFirstRun(session, settings: store.settings)
+            showOnboardingAtLaunchIfNeeded()
             for (id, profile) in engineProfiles where tabs.engineProfiles[id] == nil { tabs.setEngineProfile(profile, for: id) }
         }
         // RoomCore reports memory pressure itself (Chromium's listener, 3.7b);
@@ -1626,7 +1578,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if settingsWindow == nil {
             let services = SettingsServices(
                 defaultBrowser: defaultBrowser, crashReportsUnavailable: optIns?.crashReportsUnavailable ?? true,
-                showWelcomeCard: { [weak self] in self?.showWelcomeCard() },
                 checkForUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
                 canCheckForUpdates: { [weak self] in self?.optIns?.canCheckForUpdates ?? false },
                 extensions: { [weak self] in self?.extensions },
@@ -1888,7 +1839,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// Tab ▸ Rename… (spec §I.9): the selected row's inline field; the hidden sidebar's overlay is pinned for it.
     @objc func renameSelected(_ sender: Any?) {
-        hiddenSidebar?.revealForSpaceForm()
+        hiddenSidebar?.revealPinned()
         sidebar?.renameSelected()
     }
 
@@ -1933,6 +1884,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         },
         #selector(newPage(_:)): { app, _ in app.tabs != nil },
         // Help
+        #selector(showOnboarding(_:)): { app, _ in app.store != nil },
         #selector(showRestoreSidebar(_:)): { app, _ in app.store != nil && app.backupScheduler != nil && app.restoreSheet == nil },
         #selector(newRoomWindow(_:)): { app, _ in app.store != nil },
         #selector(newIncognitoWindow(_:)): { app, _ in app.store != nil },

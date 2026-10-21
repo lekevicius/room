@@ -99,6 +99,7 @@ extension SpikeRunner.Context {
             ("themes", "Space themes (each algorithm; 5.2b)", themeNotes, themeStates()),
             ("menus", "Menus' key glyphs (B-37; 5.2b)", menuNotes, menuStates()),
             ("spaceform", "The space window (B-23; 5.7b, B-122)", spaceFormNotes, spaceFormStates()),
+            ("onboarding", "Onboarding, each step (5.7b, B-121)", onboardingNotes, onboardingStates()),
         ]
         // The name without its dash (an argument value starting with "-" would read as a flag).
         let suffix = (UserDefaults.standard.string(forKey: "RoomMatrixSuffix") ?? "").isEmpty ? "" : "-" + UserDefaults.standard.string(forKey: "RoomMatrixSuffix")!
