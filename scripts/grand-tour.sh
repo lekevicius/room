@@ -66,6 +66,9 @@ now() { perl -MTime::HiRes=time -e 'printf "%.3f\n", time'; }
 # Room's own crash reports and its helpers' (a renderer `chrome://crash` kills is expected in 2.6b).
 crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room-' || true; }
 helper_crash_count() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -c '^Room Helper' || true; }
+# B-127 (5.4a): macOS's simulated faults (`ExcUserFault_Room-*`: a library's os_log fault, the process
+# goes on) are not crashes; each step's new ones are listed in faults.tsv, never counted as a failure.
+fault_reports() { ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep '^ExcUserFault_Room' || true; }
 # The engine's minidumps (pending and completed) under the run's engine directory.
 crashpad_dumps() { ls "$ENGINE"/Crashpad/pending/*.dmp "$ENGINE"/Crashpad/completed/*.dmp 2>/dev/null | sort || true; }
 # This tour's app only: a Room run from elsewhere is not the tour's to stop.
@@ -159,6 +162,7 @@ step() {
   crashes_before=$(crash_count)
   helpers_before=$(helper_crash_count)
   dumps_before=$(crashpad_dumps)
+  local faults_before; faults_before=$(fault_reports)
   if ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked | grep -q '<true/>'; then
     echo "the screen locked before $name; stopping (unlock and rerun with --from $name)" >&2; exit 1
   fi
@@ -179,6 +183,10 @@ step() {
     # (`|| true`: grep -m1 closes the pipe early, and pipefail would count that as a failure.)
     fatal=$(strings -n 8 "$dump" | grep -m1 -oE 'FATAL:[^]]*\] .{0,160}' || true)
     printf '%s\t%s\n' "$(basename "$dump")" "${fatal:-no FATAL line (killed, or a crash without a check)}" >> "$STEPS/$name.crashpad"
+  done
+  local fault
+  for fault in $(comm -13 <(printf '%s\n' "$faults_before") <(fault_reports)); do
+    printf '%s\t%s\n' "$name" "$fault" >> "$RUN/faults.tsv"
   done
   printf '%s\t%s\t%s\t%.1f\t%s\t%s\t%s\n' "$name" "$group" "$status" "$(perl -e "print $t1 - $t0")" \
     "$(( $(crash_count) - crashes_before ))" "$left" "$(( $(helper_crash_count) - helpers_before + dumps ))" >> "$RUN/steps.tsv"
