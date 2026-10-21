@@ -469,7 +469,7 @@ final class SidebarFooterView: NSView {
     private func applyActive(animated: Bool) {
         guard let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index) else { return }
         let target = icons[index].frame.insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
-        let duration = animated && !Motion.reduceMotion ? Motion.medium : 0
+        let duration = animated && SidebarMotion.spaceIndicator.animates ? Motion.medium : 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -494,7 +494,7 @@ final class SidebarFooterView: NSView {
         // A name longer than the gap before "+" takes its place while shown.
         let covers = name != nil && nameLabel.frame.maxX > plusButton.frame.minX - Spacing.xs
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.fast
+            context.duration = SidebarMotion.spaceName.animates ? Motion.fast : 0
             nameLabel.animator().alphaValue = name == nil ? 0 : 1
             plusButton.animator().alphaValue = covers ? 0 : 1
         }
@@ -566,8 +566,9 @@ final class SidebarFooterView: NSView {
         var order = Array(icons.indices)
         order.remove(at: from)
         order.insert(from, at: to)
+        let animates = SidebarMotion.spaceIconReorder.animates
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.standard
+            context.duration = animates ? Motion.standard : 0
             for (slot, index) in order.enumerated() where index != from {
                 var frame = icons[index].frame
                 frame.origin.x = CGFloat(slot) * pitch + (pitch - frame.width) / 2

@@ -331,7 +331,7 @@ final class SelectionPillView: NSView {
         }
         let wasHidden = isHidden
         isHidden = false
-        guard let layer, animated, sameEntry, !wasHidden, frame != target, !Motion.reduceMotion else {
+        guard let layer, animated, sameEntry, !wasHidden, frame != target, SidebarMotion.pillFollow.animates else {
             layer?.removeAllAnimations()
             CATransaction.begin()
             CATransaction.setDisableActions(true)

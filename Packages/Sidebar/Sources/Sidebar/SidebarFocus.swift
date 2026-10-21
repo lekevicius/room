@@ -286,7 +286,7 @@ extension SidebarController {
         let rect = outline.rect(ofRow: row)
         let maxY = max(0, outline.frame.height - clip.bounds.height)
         let y = min(max(0, rect.midY - clip.bounds.height / 2), maxY)
-        if Motion.reduceMotion {
+        if !SidebarMotion.scrollToSelected.animates {
             clip.scroll(to: NSPoint(x: 0, y: y))
             scrollView.reflectScrolledClipView(clip)
             return
@@ -320,7 +320,7 @@ extension SidebarController {
             return
         }
         isClearing = true
-        let reduce = Motion.reduceMotion
+        let reduce = SidebarMotion.clearSlide.variant == .crossfade
         let duration = Motion.standard * clearSlowdown
         let step = reduce ? 0 : min(Motion.clearStagger, Motion.clearStaggerMax / Double(max(1, rows.count - 1))) * clearSlowdown
         let start = CACurrentMediaTime()

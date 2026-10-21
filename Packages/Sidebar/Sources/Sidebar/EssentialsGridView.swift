@@ -105,10 +105,11 @@ final class EssentialsGridView: NSView {
     override var mouseDownCanMoveWindow: Bool { true }
 
     func setEntries(_ ids: [UUID], animated: Bool) {
+        let fades = animated && SidebarMotion.essentialFade.animates
         let removed = Set(order).subtracting(ids)
         for id in removed {
             guard let tile = tiles.removeValue(forKey: id) else { continue }
-            if animated, !Motion.reduceMotion {
+            if fades {
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = Motion.standard
                     tile.animator().alphaValue = 0
@@ -122,7 +123,7 @@ final class EssentialsGridView: NSView {
             tile.events = events
             tiles[id] = tile
             addSubview(tile, positioned: .below, relativeTo: insertionLine)
-            if animated {
+            if fades {
                 tile.alphaValue = 0
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = Motion.standard
@@ -183,7 +184,7 @@ final class EssentialsGridView: NSView {
     func shake() {
         wantsLayer = true
         guard let layer else { return }
-        if Motion.reduceMotion {
+        if SidebarMotion.refusedDrop.variant == .crossfade {
             let flash = CABasicAnimation(keyPath: "opacity")
             flash.fromValue = 0.4
             flash.toValue = 1

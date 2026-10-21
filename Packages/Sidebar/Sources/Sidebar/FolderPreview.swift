@@ -46,7 +46,7 @@ final class FolderPreviewController: NSViewController, NSSearchFieldDelegate {
         let controller = FolderPreviewController(folderName: folderName, items: items, onOpen: onOpen)
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = !Motion.reduceMotion
+        popover.animates = SidebarMotion.folderPreview.animates
         popover.contentViewController = controller
         controller.popover = popover
         popover.show(relativeTo: rect, of: view, preferredEdge: .maxX)

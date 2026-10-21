@@ -164,7 +164,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             favicon.showsChangedDot = model.isChanged
             let unloaded = !model.page.isLoaded
             favicon.isUnloaded = unloaded
-            if previous?.entry.id == entry.id, previous?.isChanged == true, !model.isChanged, !Motion.reduceMotion {
+            if previous?.entry.id == entry.id, previous?.isChanged == true, !model.isChanged, SidebarMotion.resetCrossfade.animates {
                 // Reset: crossfade back to the stored icon (spec §A.5).
                 let fade = CATransition()
                 fade.type = .fade
@@ -184,7 +184,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             audioButton.toolTip = label
             audioButton.setAccessibilityLabel(label)
             audioButton.removeAllSymbolEffects()
-            if model.page.isAudible, !model.page.isMuted, !Motion.reduceMotion {
+            if model.page.isAudible, !model.page.isMuted, SidebarMotion.audioIndicator.animates {
                 audioButton.addSymbolEffect(.variableColor.iterative)
             }
         }

@@ -166,6 +166,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // The address field's full-URL tooltip appears after 600 ms (spec §C).
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Int(Timing.urlTooltipDelay * 1000)])
         NSLog("Room: NSApp.delegate is %@", NSApp.delegate.map { String(describing: type(of: $0)) } ?? "nil")
+        #if DEBUG
+        // `-RoomReduceMotion YES|NO` (5.1a): the motion harness on either set of variants, whatever System Settings says.
+        if UserDefaults.standard.object(forKey: "RoomReduceMotion") != nil {
+            Motion.preferences = .fixed(reduceMotion: UserDefaults.standard.bool(forKey: "RoomReduceMotion"))
+        }
+        #endif
         NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()
         if Self.quitRequested {

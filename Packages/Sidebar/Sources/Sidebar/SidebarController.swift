@@ -454,8 +454,10 @@ public final class SidebarController: NSObject {
         perform(update, in: pane, animated: true)
     }
 
-    private func perform(_ update: SidebarTree.Update, in target: SpacePane, animated: Bool) {
+    private func perform(_ update: SidebarTree.Update, in target: SpacePane, animated requested: Bool) {
         let outline = target.outline
+        // Reduce Motion: the rows take their places at once (no slide); the pill follows the same way.
+        let animated = requested && SidebarMotion.rows.animates
         if update.changesRows {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = animated ? Motion.standard : 0
@@ -783,7 +785,7 @@ public final class SidebarController: NSObject {
     }
 
     private func pulse(_ id: UUID) {
-        guard !Motion.reduceMotion, let node = tree.displayedNode(for: id) else { return }
+        guard SidebarMotion.renamePulse.animates, let node = tree.displayedNode(for: id) else { return }
         let row = outline.row(forItem: node)
         guard row >= 0, let rowView = outline.rowView(atRow: row, makeIfNecessary: false) else { return }
         rowView.wantsLayer = true
@@ -1243,7 +1245,7 @@ public final class SidebarBodyView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         CATransaction.setCompletionBlock { finish() }
-        if Motion.reduceMotion {
+        if SidebarMotion.spaceSlide.variant == .crossfade {
             // Crossfade only (spec §I.1).
             inLayer.transform = CATransform3DIdentity
             outLayer.transform = CATransform3DIdentity

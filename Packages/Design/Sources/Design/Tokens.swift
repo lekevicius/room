@@ -335,10 +335,48 @@ public enum Motion {
     /// Favicon crossfade back to the stored icon on reset (spec §A.5).
     public static let resetCrossfade: TimeInterval = 0.15
 
+    /// The motion preferences the UI reads: the system's by default; tests
+    /// and the `-RoomReduceMotion` launch flag (DEBUG) inject their own (5.1a).
+    @MainActor public static var preferences: MotionPreferences = .system
+
     /// Whether to replace movement with crossfades (spec §I.1).
-    @MainActor public static var reduceMotion: Bool {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    @MainActor public static var reduceMotion: Bool { preferences.reduceMotion() }
+}
+
+/// What the UI asks before animating (spec §I.1: every animation honours
+/// Reduce Motion). Injected through `Motion.preferences`.
+public struct MotionPreferences: Sendable {
+    public var reduceMotion: @MainActor @Sendable () -> Bool
+
+    public init(reduceMotion: @escaping @MainActor @Sendable () -> Bool) {
+        self.reduceMotion = reduceMotion
     }
+
+    /// System Settings ▸ Accessibility ▸ Display ▸ Reduce motion.
+    public static let system = MotionPreferences { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+
+    /// A fixed answer (tests, `-RoomReduceMotion YES`).
+    public static func fixed(reduceMotion: Bool) -> MotionPreferences { MotionPreferences { reduceMotion } }
+}
+
+/// How one animation runs under the current motion preferences.
+public enum MotionVariant: String, Sendable, Equatable {
+    /// As specified: movement, scale, springs (or the crossfade an animation already is).
+    case full
+    /// Movement replaced by a crossfade.
+    case crossfade
+    /// No animation: the end state at once.
+    case instant
+}
+
+public extension CALayer {
+    /// Actions that turn off a plain layer's implicit animations (Core
+    /// Animation's 0.25 s default on any property change): our layers
+    /// animate only through explicit animations on the tokens (5.1a).
+    static let noImplicitActions: [String: any CAAction] = Dictionary(uniqueKeysWithValues: [
+        "hidden", "position", "bounds", "frame", "opacity", "backgroundColor", "borderColor", "cornerRadius", "contents",
+        "path", "strokeColor", "fillColor", "lineWidth", "transform", "sublayers", "onOrderIn", "onOrderOut", "shadowOpacity",
+    ].map { ($0, NSNull() as any CAAction) })
 }
 
 /// How long transient UI stays up (seconds).

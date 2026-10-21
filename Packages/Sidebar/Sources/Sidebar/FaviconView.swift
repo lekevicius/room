@@ -116,7 +116,7 @@ public final class FaviconView: NSView {
         spinner.isHidden = !isLoading
         needsDisplay = true
         spinner.removeAllAnimations()
-        guard isLoading, !Motion.reduceMotion else { return }
+        guard isLoading, SidebarMotion.loadingRing.animates else { return }
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = 0
         spin.toValue = -2 * Double.pi
