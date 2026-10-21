@@ -608,6 +608,10 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
     private var shownCrash: (page: ObjectIdentifier, view: CrashedPageView, unresponsive: Bool)?
     private var shownDialog: (id: Int, view: PromptOverlayView)?
     private var shownPermission: (id: Int, popover: NSPopover)?
+    /// The password offer's popover (5.8a), on the same anchor.
+    private var shownPasswordOffer: (id: Int, popover: NSPopover)?
+    /// The password popover's Manage Passwords: `chrome://password-manager` as a tab (5.8a).
+    public var onManagePasswords: (() -> Void)?
     /// Set while Room closes the popover itself (a tab switch): not an answer.
     private var closingPopover = false
 
@@ -632,11 +636,14 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
     public var dialogView: NSView? { shownDialog?.view }
     /// The permission popover's content on screen (DEBUG captures, spikes).
     public var permissionView: NSView? { shownPermission?.popover.contentViewController?.view }
+    /// The password popover's content on screen (DEBUG captures, spikes).
+    public var passwordOfferView: NSView? { shownPasswordOffer?.popover.contentViewController?.view }
 
     public func update() {
         updateCrash()
         updateDialog()
         updatePermission()
+        updatePasswordOffer()
     }
 
     /// The focused page's prompt layer (the card's, Peek's; 2.7b: a pane's):
@@ -652,6 +659,12 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
             shown.popover.close()
             closingPopover = false
             shownPermission = nil
+        }
+        if let shown = shownPasswordOffer {
+            closingPopover = true
+            shown.popover.close()
+            closingPopover = false
+            shownPasswordOffer = nil
         }
         self.host = host
         update()
@@ -745,19 +758,62 @@ public final class PagePromptPresenter: NSObject, NSPopoverDelegate {
         popover.contentViewController = controller
         popover.delegate = self
         shownPermission = (id, popover)
+        show(popover, in: host)
+    }
+
+    /// The password offer as a popover on the site button (5.8a), while no
+    /// dialog or permission prompt shows; its key gets the keyboard.
+    private func updatePasswordOffer() {
+        let visible = prompts.visiblePasswordOffer
+        guard visible?.id != shownPasswordOffer?.id else { return }
+        if let shown = shownPasswordOffer {
+            closingPopover = true
+            shown.popover.close()
+            closingPopover = false
+            shownPasswordOffer = nil
+        }
+        guard let visible, let host, host.window != nil else { return }
+        let id = visible.id
+        let controller = PasswordOfferViewController(pending: visible, respond: { [weak prompts] response in
+            prompts?.respondToPasswordOffer(response, to: id)
+        }, manage: { [weak self] in self?.onManagePasswords?() })
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = ChromeMotion.popover.animates
+        popover.contentViewController = controller
+        popover.delegate = self
+        shownPasswordOffer = (id, popover)
+        show(popover, in: host)
+        // The keyboard in the popover: Return saves, Esc answers Not Now (the page has it back when it closes).
+        if let content = popover.contentViewController?.view, let popoverWindow = content.window {
+            popoverWindow.makeKey()
+            popoverWindow.makeFirstResponder(content)
+        }
+    }
+
+    private func show(_ popover: NSPopover, in host: NSView) {
         if let anchor = permissionAnchor(), anchor.view.window != nil {
             popover.show(relativeTo: anchor.rect, of: anchor.view, preferredEdge: .maxY)
         } else {
-            // No header (hidden sidebar): the card's top-left corner.
-            let corner = NSRect(x: 12, y: host.isFlipped ? 0 : host.bounds.height - 1, width: 24, height: 1)
+            // No header (hidden sidebar): the card's top-left corner. The rect spans the content's
+            // width, so the popover (centred on it) stays inside the card instead of hanging past
+            // the window's left edge (5.8a's capture).
+            let width = max(24, popover.contentViewController?.view.fittingSize.width ?? 24)
+            let corner = NSRect(x: 12, y: host.isFlipped ? 0 : host.bounds.height - 1, width: min(width, max(24, host.bounds.width - 24)), height: 1)
             popover.show(relativeTo: corner, of: host, preferredEdge: host.isFlipped ? .maxY : .minY)
         }
     }
 
-    /// Closed by a click elsewhere or Esc: the prompt is dismissed (the page may ask again).
+    /// Closed by a click elsewhere or Esc: the prompt is dismissed (the page
+    /// may ask again); a password offer is answered Not Now.
     public func popoverDidClose(_ notification: Notification) {
-        guard !closingPopover, let popover = notification.object as? NSPopover, let shown = shownPermission,
-              shown.popover === popover else { return }
+        guard !closingPopover, let popover = notification.object as? NSPopover else { return }
+        if let shown = shownPasswordOffer, shown.popover === popover {
+            shownPasswordOffer = nil
+            prompts.respondToPasswordOffer(PasswordOfferRules.closeResponse, to: shown.id)
+            return
+        }
+        guard let shown = shownPermission, shown.popover === popover else { return }
         shownPermission = nil
         prompts.respondToPermission(.dismissed, to: shown.id)
     }

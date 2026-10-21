@@ -117,6 +117,8 @@ public enum Symbol: CaseIterable, Sendable {
     case location
     case notifications
     case clipboard
+    /// The password save and update popover and its confirmation (5.8a).
+    case password
 
     // Toasts (§F)
     case success
@@ -224,6 +226,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .location: "location"
         case .notifications: "bell"
         case .clipboard: "list.clipboard"
+        case .password: "key.fill"
         case .success: "checkmark.circle.fill"
         case .undo: "arrow.uturn.backward.circle"
         case .info: "info.circle"

@@ -1061,6 +1061,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         find.setPage(pageHost.contents)
         sidebar.addressField.onSiteButton = { [weak self] in self?.showSitePanel() }
         chrome.prompts.setCurrentPage(pageHost.contents)
+        // The password popover's Manage and the saved confirmation's (5.8a): Chrome's manager as a tab.
+        let openPasswordManager = { [weak tabs] in
+            _ = tabs?.openNewTab(url: PasswordOfferRules.managerURL.absoluteString, transition: .link)
+        }
+        chrome.openPasswordManager = openPasswordManager
+        session.promptPresenter?.onManagePasswords = openPasswordManager
         chrome.isPeekAvailable = true
         chrome.performMenuAction = { [weak tabs, weak pageDelegate, weakSession = MainActorWeak(session)] action, page in
             switch action {

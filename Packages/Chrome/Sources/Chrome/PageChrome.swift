@@ -33,6 +33,9 @@ public final class PageChrome: WebContentsUIDelegate {
     public var dismissNotice: ((String) -> Void)?
     /// The notices still pending, oldest first (spikes read them).
     public private(set) var notices: [InfoBar] = []
+    /// Opens `chrome://password-manager` as a tab (the password popover's
+    /// Manage, the saved confirmation's action; 5.8a).
+    public var openPasswordManager: (() -> Void)?
 
     public init() {}
 
@@ -95,6 +98,45 @@ public final class PageChrome: WebContentsUIDelegate {
             completion(proceed)
             if !proceed, let webContents, webContents.canGoBack { webContents.goBack() }
         }
+    }
+
+    // MARK: Passwords (5.8a)
+
+    /// Room presents every save offer: the popover on the site button; Save
+    /// is confirmed with a toast whose Manage opens the password manager.
+    public func webContents(_ webContents: any WebContents, willOfferPasswordSave offer: PasswordOffer,
+                            completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        offerPassword(offer, for: webContents, completion: completion)
+    }
+
+    public func webContents(_ webContents: any WebContents, willOfferPasswordUpdate offer: PasswordOffer,
+                            completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        offerPassword(offer, for: webContents, completion: completion)
+    }
+
+    /// The engine saved a password itself (a generated one): the same confirmation.
+    public func webContents(_ webContents: any WebContents, didSavePassword offer: PasswordOffer) -> Bool {
+        confirmSaved(offer, after: .save)
+        return true
+    }
+
+    public func webContentsDidWithdrawPasswordOffer(_ webContents: any WebContents) {
+        prompts.engineWithdrewPasswordOffer(for: webContents)
+    }
+
+    private func offerPassword(_ offer: PasswordOffer, for webContents: any WebContents,
+                               completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        prompts.offerPassword(offer, for: webContents) { [weak self] response in
+            completion(response)
+            self?.confirmSaved(offer, after: response)
+        }
+        return true
+    }
+
+    private func confirmSaved(_ offer: PasswordOffer, after response: PasswordOfferResponse) {
+        guard let message = PasswordOfferRules.confirmation(offer, after: response) else { return }
+        let manage = Toast.Action(title: "Manage") { [weak self] in self?.openPasswordManager?() }
+        showNotice?(Toast(id: PasswordOfferRules.confirmationToastID, symbol: .password, message: message, action: manage))
     }
 
     // MARK: Menus and files

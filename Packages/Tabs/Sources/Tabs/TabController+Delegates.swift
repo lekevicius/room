@@ -196,6 +196,25 @@ extension TabController: WebContentsUIDelegate {
         pageUIDelegate?.webContentsDidDismissPermissionPrompt(webContents)
     }
 
+    /// The password save and update offers (5.8a): the window's popover; without a window delegate, the engine's bubble.
+    public func webContents(_ webContents: any WebContents, willOfferPasswordSave offer: PasswordOffer,
+                            completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        pageUIDelegate?.webContents(webContents, willOfferPasswordSave: offer, completion: completion) ?? false
+    }
+
+    public func webContents(_ webContents: any WebContents, willOfferPasswordUpdate offer: PasswordOffer,
+                            completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        pageUIDelegate?.webContents(webContents, willOfferPasswordUpdate: offer, completion: completion) ?? false
+    }
+
+    public func webContents(_ webContents: any WebContents, didSavePassword offer: PasswordOffer) -> Bool {
+        pageUIDelegate?.webContents(webContents, didSavePassword: offer) ?? false
+    }
+
+    public func webContentsDidWithdrawPasswordOffer(_ webContents: any WebContents) {
+        pageUIDelegate?.webContentsDidWithdrawPasswordOffer(webContents)
+    }
+
     public func webContents(_ webContents: any WebContents, didReceiveAuthChallenge challenge: AuthChallenge,
                             completion: @escaping (URLCredential?) -> Void) {
         guard let pageUIDelegate else { return completion(nil) }

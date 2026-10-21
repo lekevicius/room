@@ -4432,3 +4432,24 @@ Not built in this session: the laptop picked up `54b-1` at 00:11 (68 min after t
 ### Unit tier and checks
 
 `swift test` with the window tier: Engine 80, Tabs 89 (+1: the toast reaches the window's page delegate), Design 21, all passing; `swift build -c release` in Engine, Tabs and Design, and the Release app (`ROOM_PACKAGE_STAGED=1 scripts/roomcore-package.sh --release --app-only`): built. The CI spec locally (`xcodegen --spec xcodegen/ci.yml`, the `Room` scheme's `build test` with `CI=1`, `build/ci-local/5.4b.log`): **TEST SUCCEEDED, 730 tests**, the normal project regenerated after.
+
+## Phase 5.8 — 5.8a: the password popover, the host side (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged 156 engines; no engine change (`//room` and `Packages/EngineRoomCore` untouched; 5.4b's engine work in the main checkout); 5.4b's Debug Room running beside it; load 4.6–7.3)
+
+`scripts/password-popover-check.sh` (new; `-RoomSpike passwordpopover`), each run on a fresh `/tmp/room-5/passwordpopover/run-*` state and engine directory, the 3.7a sign-in fixture `http://127.0.0.1:8776/phase-3.7/login.html`, window 1200 × 780 pt, sidebar 280 pt. RoomCore does not call the members yet (the engine half is the next session's): the spike fires them through the page's own UI delegate (`page.uiDelegate`, the tab controller, then the window's `PageUIDelegate` and `PageChrome`), the path the `//room` adapter's calls will take.
+
+| Check | dev light | dev dark | release light |
+|---|---|---|---|
+| Save offer: the host presents it (`willOfferPasswordSave` → `true`) | popover shown, key window; frame {{452, 720}, {386, 184}} under the site button {{634, 902}, {24, 24}} (arrow tip 2 pt into the button's frame, x overlapping); title "Save password for “127.0.0.1”?", username, 9 bullets | same | same |
+| Return (keyCode 36 to the key popover) | `.save`; popover closed; toast "Password saved for 127.0.0.1" · Manage | same | same |
+| Esc (keyCode 53) | `.notNow`; popover closed; no toast | same | same |
+| Never for This Site | button present; `.never` | same | same |
+| Update offer | title "Update password for “127.0.0.1”?"; primary "Update", the default button (Return); no Never; Update → `.save`; toast "Password updated for 127.0.0.1" | same | same |
+| Manage Passwords… | `.notNow`; a new Today tab, selected, `chrome://password-manager/` (Chrome's page loads: the "Password Manager" row) | same | same |
+| Sidebar hidden | popover at the card's top-left: frame minX 399 vs the card's 400 (the popover window's 1 pt margin; before the anchor change it was 231, half outside the window, as the permission popover's corner anchor still was); Esc → `.notNow` | same | same |
+| Withdrawn by the engine | popover closed, no answer (6 answers in total, as expected) | same | same |
+| The engine's own saved confirmation (`didSavePassword`) | host returns `true`; toast "Password saved for 127.0.0.1" | same | same |
+| Minidumps | 0 | 0 | 0 |
+
+Unit tier (`ChromeTests` "The password save and update popover (5.8a, FakeEngine)", 7 tests; `EngineTests` 1): the keys' answers (Return and Enter save, Esc Not Now, other keys nothing; a click elsewhere and Manage Not Now), Save stored and confirmed with Manage, Never recorded per origin (that origin offers nothing more, `localhost:8772` still asks), Not Now records nothing, the update (Update replaces; Never not offered and counted as Not Now; an unchanged password offers nothing), a background page's offer waits for the card, a withdrawn offer goes unanswered, a closed page's is Not Now, the automatic save's confirmation; a delegate without the members keeps the engine's bubble.
+
+Review sheet: `research/screenshots/phase-5.8/phase-5.8a-passwords-light.png` and `-dark.png` (the five captures each; the page itself is blank in window captures, the GPU layer, 1.4's deviation 6).

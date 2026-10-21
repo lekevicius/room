@@ -357,4 +357,18 @@ struct DelegateDispatchTests {
         #expect(page.themeColor == .systemRed)
         #expect(page.rootBackgroundColor == .black)
     }
+
+    // MARK: Passwords (5.8a)
+
+    @Test("A delegate without the password members keeps the engine's bubble; the offer carries a mask, never the password")
+    func passwordOfferDefaultsToTheEngineBubble() async throws {
+        let (_, profile) = try makeProfile()
+        let page = profile.makeWebContents()
+        page.uiDelegate = RecordingUIDelegate()
+        page.load(url("http://127.0.0.1:8772/login"))
+        #expect(await page.simulatePasswordSubmit(username: "ada", password: "hunter2") == .engineBubble(.save))
+        #expect(profile.savedPasswords.isEmpty)
+        #expect(PasswordOffer.mask(length: 7) == "•••••••")
+        #expect(PasswordOffer.mask(length: 40).count == PasswordOffer.maskLimit)
+    }
 }
