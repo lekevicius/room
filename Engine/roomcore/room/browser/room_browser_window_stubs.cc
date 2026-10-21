@@ -83,6 +83,11 @@ ui::AcceleratorProvider* RoomBrowserWindow::GetAcceleratorProvider() {
   return nullptr;
 }
 
+PinnedToolbarActions* RoomBrowserWindow::GetPinnedToolbarActions() {
+  RoomStubHit("GetPinnedToolbarActions");
+  return nullptr;
+}
+
 void RoomBrowserWindow::UpdateCustomTabBarVisibility(bool visible, bool animate) {
   RoomStubHit("UpdateCustomTabBarVisibility");
 }
