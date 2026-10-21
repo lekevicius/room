@@ -779,8 +779,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 if sidebar?.mediaRowContent != nil { rect.size.height -= MediaRowMetrics.height + MediaRowMetrics.gap }
                 return ToastCenter.Anchor(rect: rect, alignment: .center)
             }
-            // Bottom-left of the window.
-            return ToastCenter.Anchor(rect: CGRect(x: layout.card.minX, y: 0, width: SidebarMetrics.defaultWidth,
+            // Bottom-left of the window, as wide as the widest sidebar (at the default 240 pt the
+            // "Sidebar hidden" hint was cut off, 5.6b).
+            return ToastCenter.Anchor(rect: CGRect(x: layout.card.minX, y: 0, width: min(SidebarMetrics.maxWidth, layout.card.width),
                                                    height: rootView.bounds.height - CardMetrics.inset), alignment: .leading)
         }
         sidebar.toasts = toasts
