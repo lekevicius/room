@@ -5,13 +5,13 @@ import Testing
 
 @Suite("Sidebar hover reveal (spec §E)")
 struct SidebarRevealTests {
-    @Test("Resting 150 ms in the edge band shows the overlay; leaving the band before that does not")
+    @Test("Resting the dwell in the edge band shows the overlay; leaving the band before that does not")
     func dwell() {
         var reveal = SidebarReveal()
         reveal.update(zone: .band, keepOpen: false, now: 10)
         #expect(!reveal.isShown)
         #expect(reveal.deadline == 10 + Timing.revealDwell)
-        reveal.update(zone: .band, keepOpen: false, now: 10.1)
+        reveal.update(zone: .band, keepOpen: false, now: 10 + Timing.revealDwell / 2)
         #expect(!reveal.isShown)
         // The pointer rests: the deadline's tick shows it.
         reveal.update(zone: .band, keepOpen: false, now: 10 + Timing.revealDwell)

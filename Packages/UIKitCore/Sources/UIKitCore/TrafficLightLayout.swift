@@ -55,17 +55,25 @@ public final class TrafficLightLayout {
         tokens.forEach(NotificationCenter.default.removeObserver)
     }
 
-    /// The floating cluster faded the buttons out (spec §E): they keep their
-    /// frames and still count as present; hidden, they take no clicks.
+    /// The hidden sidebar took the buttons with it (spec §E as amended by
+    /// B-114): they keep their frames and still count as present; hidden,
+    /// they take no clicks.
     public private(set) var areButtonsHidden = false
 
-    public func setButtonsHidden(_ hidden: Bool) {
+    /// Fades the buttons out or in over `duration` (0: at once), never moving them.
+    public func setButtonsHidden(_ hidden: Bool, duration: TimeInterval) {
         guard hidden != areButtonsHidden, let window else { return }
         areButtonsHidden = hidden
         let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap(window.standardWindowButton)
+        let fades = duration > 0 && WindowMotion.trafficLights.variant != .instant
         if hidden {
+            guard fades else {
+                buttons.forEach { $0.alphaValue = 0; $0.isHidden = true }
+                return
+            }
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = Motion.standard
+                context.duration = duration
+                context.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 buttons.forEach { $0.animator().alphaValue = 0 }
             }, completionHandler: { [weak self] in
                 MainActor.assumeIsolated {
@@ -75,8 +83,14 @@ public final class TrafficLightLayout {
             })
         } else {
             buttons.forEach { $0.isHidden = false }
+            guard fades else {
+                buttons.forEach { $0.alphaValue = 1 }
+                return
+            }
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = Motion.fast
+                context.duration = duration
+                // They arrive with the sidebar sliding in under them.
+                context.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 buttons.forEach { $0.animator().alphaValue = 1 }
             }
         }

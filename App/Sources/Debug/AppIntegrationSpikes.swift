@@ -221,7 +221,7 @@ extension SpikeRunner.Context {
         let layout = root.currentLayout
         let buttons = controller.trafficLights.geometry.buttonsRect ?? .zero
         SpikeRunner.record("right_docked", "sidebar=\(NSStringFromRect(layout.sidebar)) card=\(NSStringFromRect(layout.card)) splitter=\(layout.splitter.map(NSStringFromRect) ?? "nil")")
-        SpikeRunner.record("right_docked_chrome", "buttons=\(NSStringFromRect(buttons)) over the card=\(layout.card.contains(CGPoint(x: buttons.midX, y: buttons.midY))) cluster shown=\(!root.clusterView.isHidden) header x in sidebar=\(headerX)")
+        SpikeRunner.record("right_docked_chrome", "buttons=\(NSStringFromRect(buttons)) over the card=\(layout.card.contains(CGPoint(x: buttons.midX, y: buttons.midY))) buttons shown=\(self.window.standardWindowButton(.closeButton)?.isHidden == false) header x in sidebar=\(headerX)")
         await capture28("sidebar-right")
         // Hidden: the overlay comes from the right edge.
         controller.isSidebarOpen = false
@@ -230,7 +230,7 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(300))
         post(.mouseMoved, at: CGPoint(x: root.bounds.width - 1, y: 300))
         let shown = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
-        SpikeRunner.record("right_overlay", "shown=\(shown) frame=\(NSStringFromRect(root.overlayView.frame)) cluster shown=\(!root.clusterView.isHidden)")
+        SpikeRunner.record("right_overlay", "shown=\(shown) frame=\(NSStringFromRect(root.overlayView.frame)) buttons shown=\(self.window.standardWindowButton(.closeButton)?.isHidden == false)")
         await capture28("sidebar-right-overlay")
         post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 300))
         _ = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }

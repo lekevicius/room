@@ -292,12 +292,16 @@ public enum Materials {
 public enum Motion {
     /// Palette open, hover fades.
     public static let fast: TimeInterval = 0.12
-    /// Row insert/remove, hover-reveal dwell, keep-open grace.
+    /// Row insert/remove (the hover reveal's grace is `Timing.revealGrace`).
     public static let standard: TimeInterval = 0.15
-    /// Space switch slide, tint crossfade, sidebar reveal.
+    /// Space switch slide, tint crossfade (the sidebar's reveal is `revealIn`/`revealOut` since B-114).
     public static let medium: TimeInterval = 0.25
     /// Peek open.
     public static let slow: TimeInterval = 0.35
+    /// The hidden sidebar slides in over this long, ease-out (spec §E said 250 ms;
+    /// B-114: shortened with the dwell), and out over `revealOut`, ease-in.
+    public static let revealIn: TimeInterval = 0.18
+    public static let revealOut: TimeInterval = 0.15
 
     /// A spring described like SwiftUI's `Spring(duration:bounce:)`.
     public struct Spring: Sendable, Equatable {
@@ -337,10 +341,6 @@ public enum Motion {
     /// Favicon crossfade back to the stored icon on reset (spec §A.5).
     public static let resetCrossfade: TimeInterval = 0.15
 
-    /// The motion preferences the UI reads: the system's by default; tests
-    /// and the `-RoomReduceMotion` launch flag (DEBUG) inject their own (5.1a).
-    @MainActor public static var preferences: MotionPreferences = .system
-
     // MARK: Hover and press (B-111, 5.1b)
 
     /// An icon button pressed: it shrinks to this scale about its centre (chosen, as Arc's press).
@@ -363,6 +363,10 @@ public enum Motion {
     public static let toastPopScale: CGFloat = 1.06
     public static let toastPopUp: TimeInterval = 0.12
     public static let toastPopDown: TimeInterval = 0.25
+
+    /// The motion preferences the UI reads: the system's by default; tests
+    /// and the `-RoomReduceMotion` launch flag (DEBUG) inject their own (5.1a).
+    @MainActor public static var preferences: MotionPreferences = .system
 
     /// Whether to replace movement with crossfades (spec §I.1).
     @MainActor public static var reduceMotion: Bool { preferences.reduceMotion() }
@@ -455,14 +459,12 @@ public enum Timing {
     /// does not flicker it (chosen).
     public static let statusPillHideGrace: TimeInterval = 0.1
     /// The pointer rests this long in the edge band before the hidden sidebar
-    /// slides in (spec §E: 150 ms).
-    public static let revealDwell: TimeInterval = 0.15
+    /// slides in (spec §E said 150 ms; B-114, 2026-10-21: shortened so the
+    /// sidebar, with the traffic lights in it, arrives sooner).
+    public static let revealDwell: TimeInterval = 0.06
     /// The revealed sidebar hides this long after the pointer left it (spec §E,
     /// Zen `sidebar-keep-hover.duration`: 150 ms).
     public static let revealGrace: TimeInterval = 0.15
-    /// The floating traffic-light cluster fades after this long without the
-    /// pointer moving near it (spec §E: 2 s).
-    public static let clusterFade: TimeInterval = 2
     /// `window.location` set by a page this soon after a user gesture
     /// navigates in place, never into Peek (spec §A.4: 2 s).
     nonisolated public static let peekGestureWindow: TimeInterval = 2
@@ -553,16 +555,9 @@ public enum RevealMetrics {
     public static let outsideToleranceY: CGFloat = 100
 }
 
-/// The floating traffic-light cluster while the sidebar is hidden (spec §E).
-public enum ClusterMetrics {
-    /// The glass pill behind the window's own buttons (spec §E: 38 px).
-    public static let height: CGFloat = 38
-    /// Pill padding beside the outer buttons (chosen: as the pill's vertical
-    /// room around the 14 pt buttons, 12 pt).
-    public static let horizontalPadding: CGFloat = 12
-    /// The pointer counts as near the cluster within this distance of the
-    /// pill (chosen).
-    public static let nearDistance: CGFloat = 60
+/// The window's drag handle in the page while the sidebar is hidden (spec §E).
+/// The floating traffic-light cluster that was here went with B-114 (5.1b).
+public enum ContentDragMetrics {
     /// The top of the card that drags the window while the sidebar is hidden
     /// (spec §E: Zen `drag-window-from-content`, the top 5%).
     public static let contentDragFraction: CGFloat = 0.05

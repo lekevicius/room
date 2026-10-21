@@ -4,7 +4,7 @@ import Design
 /// The top 5% of the card as a window drag handle while the sidebar is hidden
 /// (spec §E, Zen `drag-window-from-content`; Chapter 1 carry-over). The page
 /// keeps its clicks there: a press goes to the page as always, and only once
-/// it moves `ClusterMetrics.contentDragThreshold` does it become a window
+/// it moves `ContentDragMetrics.contentDragThreshold` does it become a window
 /// drag (the page then gets a mouse-up, so it ends its press). Presses on
 /// Room's own controls over the page (the find bar) are left alone.
 final class ContentDragMonitor {
@@ -43,13 +43,13 @@ final class ContentDragMonitor {
         switch event.type {
         case .leftMouseDown:
             press = nil
-            guard event.clickCount == 1, ClusterGeometry.contentDragBand(card: rootView.currentLayout.card).contains(point),
+            guard event.clickCount == 1, ContentDragGeometry.band(card: rootView.currentLayout.card).contains(point),
                   isPage(rootView.hitTest(rootView.superview?.convert(event.locationInWindow, from: nil) ?? point)) else { return event }
             press = (point, event)
             return event
         case .leftMouseDragged:
             guard let press else { return event }
-            guard ClusterGeometry.startsWindowDrag(from: press.start, to: point) else { return event }
+            guard ContentDragGeometry.startsWindowDrag(from: press.start, to: point) else { return event }
             self.press = nil
             window.performDrag(with: event)
             endPagePress(at: event.locationInWindow, in: window)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase 2.7a: serves research/spikes/phase-2.7/ (HTTP :8770, answering as
 # 127.0.0.1 and as localhost, two sites), runs `-RoomSpike layoutmodes`
-# (hide/reveal timing, the floating traffic-light cluster, the optional
+# (hide/reveal timing, the traffic lights with the hidden sidebar (B-114), the optional
 # toolbar, Peek's off-site rule, Peek open timing, event isolation
 # under the Peek dim and the sidebar overlay) once per appearance (light,
 # dark) and answers its `capture: <name>` requests with a window-server

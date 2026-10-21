@@ -18,8 +18,6 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// The hidden sidebar's hover reveal (spec §E).
     public private(set) var reveal: SidebarRevealController!
     private var contentDrag: ContentDragMonitor!
-    private var clusterFade = ClusterFade()
-    private var clusterTimer: Timer?
 
     public init(contentSize: NSSize = RoomWindow.defaultContentSize) {
         let window = RoomWindow(contentRect: NSRect(origin: .zero, size: contentSize))
@@ -48,12 +46,11 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
             self?.hiddenChromeChanged()
         }
         rootView.onOverlayChange = { [weak self] in self?.hiddenChromeChanged() }
-        reveal.onPointer = { [weak self] point in self?.pointerMoved(to: point) }
         reveal.availabilityChanged()
         hiddenChromeChanged()
     }
 
-    // MARK: The floating cluster and the drag regions (spec §E)
+    // MARK: The traffic lights and the drag region while the sidebar is hidden (spec §E, B-114)
 
     /// View ▸ Show Toolbar.
     public var showsToolbar: Bool {
@@ -61,39 +58,18 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         set { rootView.showsToolbar = newValue }
     }
 
-    /// The sidebar, the overlay, the toolbar or fullscreen changed: the cluster
-    /// starts its 2 s again, the top of the card drags the window while the cluster is up.
+    /// The sidebar, the overlay, the toolbar or fullscreen changed. The
+    /// traffic lights live in the sidebar (B-114, amending spec §E): hidden
+    /// with it, they fade in as the overlay slides in under them and out as
+    /// it leaves; they stay where AppKit put them, only hidden (a hidden
+    /// button takes no clicks). The top of the card drags the window while
+    /// the sidebar is hidden.
     private func hiddenChromeChanged() {
-        let shows = rootView.showsCluster
-        contentDrag.isActive = shows
-        if shows {
-            clusterFade.reset(now: ProcessInfo.processInfo.systemUptime)
-        }
-        applyClusterFade()
-    }
-
-    private func pointerMoved(to point: CGPoint) {
-        guard rootView.showsCluster else { return }
-        clusterFade.pointerMoved(near: ClusterGeometry.isNear(point, pill: rootView.clusterView.frame), now: ProcessInfo.processInfo.systemUptime)
-        applyClusterFade()
-    }
-
-    /// The cluster and the window's own buttons fade together; they stay
-    /// where AppKit put them, only hidden (a hidden button takes no clicks).
-    private func applyClusterFade() {
-        clusterTimer?.invalidate()
-        clusterTimer = nil
-        let now = ProcessInfo.processInfo.systemUptime
-        let faded = rootView.showsCluster && !clusterFade.isVisible(now: now)
-        rootView.isClusterFaded = faded
-        trafficLights.setButtonsHidden(faded)
-        if rootView.showsCluster, !faded, let deadline = clusterFade.deadline {
-            let timer = Timer(timeInterval: max(0.01, deadline - now), repeats: false) { [weak self] _ in
-                MainActor.assumeIsolated { self?.applyClusterFade() }
-            }
-            RunLoop.main.add(timer, forMode: .common)
-            clusterTimer = timer
-        }
+        contentDrag.isActive = rootView.dragsFromContent
+        let hide = rootView.hidesTrafficLights
+        // In with the overlay's slide, out with its slide back; ⌘S hiding the docked sidebar fades them quickly.
+        let duration = hide ? (rootView.isOverlayAnimating ? Motion.revealOut : Motion.fast) : (rootView.isOverlayShown ? Motion.revealIn : 0)
+        trafficLights.setButtonsHidden(hide, duration: duration)
     }
 
     @available(*, unavailable)
@@ -271,8 +247,6 @@ public final class BrowserWindowView: NSView {
     let splitterView = SidebarSplitterView()
     /// The hidden sidebar's floating glass overlay (spec §E).
     public let overlayView = SidebarOverlayView()
-    /// The pill behind the traffic lights while the sidebar is hidden, and the window's drag handle (spec §E).
-    public let clusterView = TrafficLightClusterView()
     /// View ▸ Show Toolbar (spec §E), across the card's top.
     public let toolbarView = PageToolbarView()
     weak var trafficLights: TrafficLightLayout?
@@ -286,10 +260,17 @@ public final class BrowserWindowView: NSView {
         }
     }
 
-    /// The cluster applies: the traffic lights sit over the card (the sidebar hidden without its
-    /// overlay, or docked on the right), no toolbar, no fullscreen page, buttons in the window.
-    public var showsCluster: Bool {
-        buttonsOverCard && !isPageFullscreen && !showsToolbar && trafficLights?.geometry.buttonsRect != nil
+    /// The traffic lights hide with the sidebar (B-114): the sidebar hidden on the left without its
+    /// overlay, no toolbar (whose leading end holds them), no fullscreen page (they are in the menu
+    /// bar's window then). With the sidebar docked on the right they stay over the card.
+    public var hidesTrafficLights: Bool {
+        sidebarEdge == .left && !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
+    }
+
+    /// The top of the card drags the window: the sidebar hidden (or on the right) without its
+    /// overlay, no toolbar, no fullscreen page (spec §E).
+    public var dragsFromContent: Bool {
+        buttonsOverCard && !isPageFullscreen && !showsToolbar
     }
 
     /// Nothing of the sidebar is under the traffic lights: they sit over the card's top-left corner.
@@ -306,17 +287,6 @@ public final class BrowserWindowView: NSView {
             needsLayout = true
             layoutSubtreeIfNeeded()
             onAvailabilityChange?()
-        }
-    }
-
-    /// The cluster faded (2 s without the pointer near it); the buttons hide with it.
-    var isClusterFaded = false {
-        didSet {
-            guard isClusterFaded != oldValue else { return }
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = Motion.standard
-                clusterView.animator().alphaValue = isClusterFaded ? 0 : 1
-            }
         }
     }
 
@@ -359,7 +329,7 @@ public final class BrowserWindowView: NSView {
     public var onLayout: (() -> Void)?
     /// The sidebar was hidden or docked, a page entered or left fullscreen, the toolbar came or went.
     var onAvailabilityChange: (() -> Void)?
-    /// The overlay started or finished sliding in or out (the cluster goes before it and comes back after it).
+    /// The overlay started or finished sliding in or out (the traffic lights come and go with it).
     var onOverlayChange: (() -> Void)?
 
     public override init(frame: NSRect) {
@@ -372,8 +342,6 @@ public final class BrowserWindowView: NSView {
         addSubview(sidebarView)
         addSubview(cardView)
         addSubview(splitterView)
-        clusterView.isHidden = true
-        addSubview(clusterView)
         // Above the card and everything the window adds over it later stays above (palette, toasts).
         addSubview(overlayView)
     }
@@ -397,8 +365,11 @@ public final class BrowserWindowView: NSView {
         sidebarEdge == .left ? geometry.relative(to: origin) : .none
     }
 
-    /// The sidebar view lives in the overlay (shown or sliding).
-    private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen && (isOverlayShown || isOverlayAnimating) }
+    /// The sidebar view lives in the overlay whenever the sidebar is hidden, the overlay shown or
+    /// not: a reveal then only shows and slides it. Moving the sidebar into the overlay as the
+    /// slide began cost 40 ms on the main thread and three frames of the slide (5.1b's motion
+    /// harness); ⌘S pays it now, while nothing slides.
+    private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen }
 
     public override func layout() {
         super.layout()
@@ -427,8 +398,6 @@ public final class BrowserWindowView: NSView {
             }
         }
         cardView.frame = layout.card
-        clusterView.isHidden = !showsCluster
-        if let buttons = geometry.buttonsRect { clusterView.frame = ClusterGeometry.pill(around: buttons) }
         if showsToolbar {
             // The traffic lights over the card: they sit in the bar's leading end.
             if buttonsOverCard, let buttons = geometry.buttonsRect {
@@ -455,7 +424,8 @@ public final class BrowserWindowView: NSView {
         let inOverlay = sidebarInOverlay
         let target = inOverlay ? overlayView.contentView : self
         if sidebarView.superview !== target {
-            sidebarView.removeFromSuperview()
+            // Moved straight across (no `removeFromSuperview` first, which takes the whole
+            // tree out of the window and back: viewWillMove(toWindow:) for every row).
             if inOverlay {
                 overlayView.contentView.addSubview(sidebarView)
             } else {
@@ -467,14 +437,14 @@ public final class BrowserWindowView: NSView {
 
     // MARK: The overlay (spec §E)
 
-    /// Slides the hidden sidebar in over the card (`Motion.medium`, ease-out)
-    /// or out again; Reduce Motion fades it instead. Ignored while the sidebar
-    /// is docked or a page is fullscreen.
+    /// Slides the hidden sidebar in over the card (`Motion.revealIn`, ease-out)
+    /// or out again (`Motion.revealOut`, ease-in); Reduce Motion fades it
+    /// instead (`WindowMotion.reveal`). Ignored while the sidebar is docked or
+    /// a page is fullscreen.
     public func setOverlayShown(_ shown: Bool, animated: Bool = true) {
         guard shown != isOverlayShown else { return }
         if shown, isSidebarOpen || isPageFullscreen { return }
         isOverlayShown = shown
-        onOverlayChange?()
         overlayGeneration += 1
         let generation = overlayGeneration
         let frame = overlayFrame
@@ -482,18 +452,21 @@ public final class BrowserWindowView: NSView {
         let away = sidebarEdge == .left
             ? frame.offsetBy(dx: -(frame.maxX + Spacing.l), dy: 0)
             : frame.offsetBy(dx: bounds.maxX - frame.minX + Spacing.l, dy: 0)
-        guard animated else { return finishOverlay(shown: shown) }
-        let reduceMotion = Motion.reduceMotion
+        let variant = WindowMotion.reveal.variant
+        guard animated, variant != .instant else { return finishOverlay(shown: shown) }
+        let reduceMotion = variant == .crossfade
         if shown, !isOverlayAnimating {
             overlayView.frame = reduceMotion ? frame : away
             overlayView.alphaValue = reduceMotion ? 0 : 1
         }
         isOverlayAnimating = true
+        // The traffic lights fade with the slide (B-114).
+        onOverlayChange?()
         overlayView.isHidden = false
         needsLayout = true
         layoutSubtreeIfNeeded()
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = Motion.medium
+            context.duration = shown ? Motion.revealIn : Motion.revealOut
             context.timingFunction = CAMediaTimingFunction(name: shown ? .easeOut : .easeIn)
             if reduceMotion {
                 overlayView.animator().alphaValue = shown ? 1 : 0

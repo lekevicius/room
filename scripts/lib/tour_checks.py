@@ -782,12 +782,16 @@ def _layoutmodes(c):
     c.contains("menu_sidebar_hidden", "enabled=true target=AppDelegate", label="View ▸ Show Sidebar enabled while hidden")
     c.contains("menu_command_s", "hid the sidebar=true", "second ⌘S docked it=true", label="⌘S through the menu hides and docks")
     v = c.first("reveal_band_to_shown")
-    c.check("reveal: the 150 ms dwell, then shown (under 250 ms)", v and 150 <= (field(v, "median") or 0) < 250, v or "missing")
+    # The dwell is the line's own (B-114 shortened it from 150 ms to Timing.revealDwell); shown within 100 ms after it.
+    dwell = float(re.search(r"dwell (\d+) ms", v).group(1)) if v and re.search(r"dwell (\d+) ms", v) else 150
+    c.check(f"reveal: the {dwell:.0f} ms dwell, then shown (within 100 ms after it)", v and dwell <= (field(v, "median") or 0) < dwell + 100, v or "missing")
     c.check("reveal slide drops no frame", (field(c.first("reveal_slide_frame_intervals"), "max") or 99) <= 1.5 * (field(c.first("reveal_slide_frame_intervals"), "median") or 0), c.first("reveal_slide_frame_intervals") or "missing")
     c.contains("isolation_overlay", "page clicks=0 downs=0 moves=0", label="no event reaches the page under the overlay")
     c.contains("reveal_pin", "stays after leaving=true", "hidden by a page click=true", label="⌥⌘S pins; a page click hides")
-    c.contains("cluster_fade", "buttons kept their frames=true", "back when near=true", label="the cluster fades after 2 s and comes back")
-    c.contains("drag_regions", "hit=TrafficLightClusterView movable=true", label="the pill is a drag region")
+    c.contains("traffic_lights_hidden", "no cluster view=true", "inside the overlay=true", "gone with it=true", "buttons kept their frames=true",
+               label="B-114: no cluster; the traffic lights come and go with the hidden sidebar, never moved")
+    c.contains("traffic_lights_docked", "buttons visible=true", label="docked again: the traffic lights back")
+    c.contains("drag_regions", "drags from content=true", label="the top of the card drags the window while hidden")
     c.contains("peek_onsite", "in place → http://127.0.0.1:8770/other.html", label="Peek rule: a same-site link navigates in place")
     c.contains("peek_offsite", "peek http://localhost:8770/", label="Peek rule: an off-site link from a pinned entry opens Peek")
     c.check("Peek opens (timings measured)", not (c.first("peek_open_to_overlay_frame") or "n=0").startswith("n=0"), c.first("peek_open_to_overlay_frame") or "missing")
@@ -810,7 +814,7 @@ def _layoutmodes(c):
                "page fullscreen=true", 'document.fullscreenElement="true"', label="B-35: a Peek page's fullscreen expands it into a Today tab, then fullscreen")
     c.contains("peek_fullscreen_exit", "window back=true", "the tab stays=true", label="leaving it restores the window; the tab stays")
     c.contains("split_element_fullscreen", "focused pane fills the card=true", "after exit panes visible=true", label="element fullscreen of a pane")
-    for key in ("reveal_band_to_shown", "reveal_leave_to_hidden", "cluster_fade", "peek_open_to_overlay_frame", "peek_open_to_first_contentful_paint",
+    for key in ("reveal_band_to_shown", "reveal_leave_to_hidden", "peek_open_to_overlay_frame", "peek_open_to_first_contentful_paint",
                 "split_create_to_laid_out", "split_create_to_next_frame", "focus_click_to_field_updated", "focus_click_to_next_frame"):
         c.number(key)
 
@@ -1410,7 +1414,7 @@ def _app28a(c):
     for section in ("general", "appearance", "search", "downloads", "privacy"):
         c.check(f"Settings ▸ {section.title()} shows", (c.first(f"settings_{section}") or "").startswith(f"title={section.title()}"), c.first(f"settings_{section}") or "missing")
     c.contains("settings_sidebar_side", "right applied=true", label="Settings ▸ Sidebar Right applies at once")
-    c.contains("right_docked_chrome", "over the card=true", "cluster shown=true", label="sidebar right: buttons over the card, the cluster shown")
+    c.contains("right_docked_chrome", "over the card=true", "buttons shown=true", label="sidebar right: the traffic lights over the card (no cluster since B-114)")
     c.contains("right_overlay", "shown=true", label="sidebar right: the overlay from the right edge")
     for i in range(3):
         c.contains(f"fullscreen_enter_{i}", "entered=true", "laid out=true", label=f"⌃⌘F round {i + 1}: in, header laid out")

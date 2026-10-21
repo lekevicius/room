@@ -33,8 +33,8 @@ final class PeekPresenter: PeekDisplay {
         overlay.header.onClose = { [weak self] in self?.onClose?() }
         overlay.header.onExpand = { [weak self] in self?.onExpand?() }
         overlay.header.onSplit = { [weak self] in self?.onSplit?() }
-        // Under the floating cluster and the sidebar overlay, over the card.
-        rootView.addSubview(overlay, positioned: .below, relativeTo: rootView.clusterView)
+        // Under the sidebar's overlay, over the card.
+        rootView.addSubview(overlay, positioned: .below, relativeTo: rootView.overlayView)
     }
 
     var isShown: Bool { contents != nil }

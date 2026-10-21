@@ -14,7 +14,7 @@ import UIKitCore
 /// localhost:8770). With a pinned entry on the test site it measures the
 /// hover reveal (edge-band dwell to the overlay shown, the slide's frame
 /// times, the grace), checks the overlay keeps events from the page, then
-/// the floating traffic-light cluster and the optional toolbar, and Peek:
+/// the traffic lights coming and going with the sidebar (B-114) and the optional toolbar, and Peek:
 /// the off-site rule for each kind of navigation the spec names, Peek open
 /// to its first frame, events under the dim, Open as Tab and ⇧⌘T.
 /// `-RoomSpikeOnly reveal,peek` runs only those checks; captures
@@ -40,7 +40,7 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(500))
         if runs("menu") { await menuCheck() }
         if runs("reveal") { await revealCheck() }
-        if runs("cluster") { await clusterCheck() }
+        if runs("trafficlights") { await trafficLightsCheck() }
         if runs("toolbar") { await toolbarCheck() }
         if runs("peek") { await peekCheck(pinned: pinned) }
         if runs("split") { await splitCheck(pinned: pinned) }
@@ -198,36 +198,44 @@ extension SpikeRunner.Context {
 }
 
 extension SpikeRunner.Context {
-    // MARK: The floating cluster (spec §E)
+    // MARK: The traffic lights while the sidebar is hidden (spec §E as amended by B-114, 5.1b)
 
-    fileprivate func clusterCheck() async {
+    /// No floating cluster: hidden, the sidebar takes the traffic lights with it; they fade in
+    /// as the overlay slides in under them and out as it leaves, never moving.
+    fileprivate func trafficLightsCheck() async {
         let root = controller.rootView
+        let reveal = controller.reveal!
+        let closeButton = window.standardWindowButton(.closeButton)
+        let docked = controller.trafficLights.geometry.buttonsRect
         controller.isSidebarOpen = false
+        let hiddenAt = ContinuousClock.now
+        _ = await waitUntil(2) { closeButton?.isHidden == true }
+        let hiddenAfter = ms(since: hiddenAt)
+        await capture27("hidden-no-buttons")
+        post(.mouseMoved, at: CGPoint(x: 600, y: 300))
         try? await Task.sleep(for: .milliseconds(300))
-        let near = ContinuousClock.now
-        post(.mouseMoved, at: CGPoint(x: 50, y: 30))
-        try? await Task.sleep(for: .milliseconds(400))
-        let buttons = controller.trafficLights.geometry.buttonsRect
-        SpikeRunner.record("cluster", "shown=\(!root.clusterView.isHidden) pill=\(NSStringFromRect(root.clusterView.frame)) buttons=\(buttons.map(NSStringFromRect) ?? "none")")
-        await capture27("cluster")
-        // Away from it for 2 s: the pill and the buttons fade (the buttons keep their frames).
-        post(.mouseMoved, at: CGPoint(x: 700, y: 500))
-        _ = await waitUntil(4) { root.clusterView.alphaValue < 0.01 && self.window.standardWindowButton(.closeButton)?.isHidden == true }
-        let fadedAfter = ms(since: near)
-        let geometryKept = controller.trafficLights.geometry.buttonsRect == buttons
-        await capture27("cluster-faded")
-        post(.mouseMoved, at: CGPoint(x: 60, y: 60))
-        _ = await waitUntil(2) { root.clusterView.alphaValue > 0.99 && self.window.standardWindowButton(.closeButton)?.isHidden == false }
-        SpikeRunner.record("cluster_fade", String(format: "faded %.0f ms after the last movement near it (configured %d ms, + %d ms fade); buttons kept their frames=%@; back when near=%@",
-                                                  fadedAfter, Int(Timing.clusterFade * 1000), Int(Motion.standard * 1000), "\(geometryKept)",
-                                                  "\(root.clusterView.alphaValue > 0.99)"))
-        // The drag regions: the pill and the top 5% of the card (the drag itself needs a person's pointer).
-        let band = ClusterGeometry.contentDragBand(card: root.currentLayout.card)
-        let hit = root.hitTest(root.superview?.convert(root.convert(CGPoint(x: root.clusterView.frame.midX, y: root.clusterView.frame.maxY - 3), to: nil), from: nil) ?? .zero)
-        SpikeRunner.record("drag_regions", "pill hit=\(hit.map { String(describing: Swift.type(of: $0)) } ?? "nil") movable=\(hit?.mouseDownCanMoveWindow ?? false) content band=\(NSStringFromRect(band))")
+        let start = ContinuousClock.now
+        post(.mouseMoved, at: CGPoint(x: 1, y: 300))
+        _ = await waitUntil(2) { reveal.isShown && closeButton?.isHidden == false }
+        let visibleAfter = ms(since: start)
+        _ = await waitUntil(2) { !root.isOverlayAnimating && (closeButton?.alphaValue ?? 0) > 0.99 }
+        let inOverlay = ms(since: start)
+        let overlayButtons = controller.trafficLights.geometry.buttonsRect
+        let inside = overlayButtons.map { root.overlayFrame.contains(CGPoint(x: $0.midX, y: $0.midY)) } ?? false
+        await capture27("overlay-buttons")
+        post(.mouseMoved, at: CGPoint(x: 700, y: 400))
+        _ = await waitUntil(2) { !reveal.isShown && closeButton?.isHidden == true }
+        let geometryKept = controller.trafficLights.geometry.buttonsRect == docked && overlayButtons == docked
+        SpikeRunner.record("traffic_lights_hidden", String(format: "no cluster view=%@; ⌘S: buttons hidden after %.0f ms; reveal: visible %.0f ms after the band, in place with the overlay at %.0f ms (dwell %d ms, slide %d ms); inside the overlay=%@; gone with it=%@; buttons kept their frames=%@",
+                                                           "\(!root.subviews.contains { String(describing: Swift.type(of: $0)).contains("Cluster") })", hiddenAfter, visibleAfter, inOverlay,
+                                                           Int(Timing.revealDwell * 1000), Int(Motion.revealIn * 1000), "\(inside)",
+                                                           "\(closeButton?.isHidden == true)", "\(geometryKept)"))
+        // The drag region: the top 5% of the card (the drag itself needs a person's pointer).
+        let band = ContentDragGeometry.band(card: root.currentLayout.card)
+        SpikeRunner.record("drag_regions", "content band=\(NSStringFromRect(band)) drags from content=\(root.dragsFromContent)")
         controller.isSidebarOpen = true
-        try? await Task.sleep(for: .milliseconds(300))
-        SpikeRunner.record("cluster_docked", "hidden=\(root.clusterView.isHidden) buttons visible=\(self.window.standardWindowButton(.closeButton)?.isHidden == false)")
+        _ = await waitUntil(2) { closeButton?.isHidden == false && (closeButton?.alphaValue ?? 0) > 0.99 }
+        SpikeRunner.record("traffic_lights_docked", "buttons visible=\(closeButton?.isHidden == false) alpha=\(closeButton?.alphaValue ?? 0)")
     }
 
     // MARK: The optional toolbar (spec §E)
@@ -240,7 +248,7 @@ extension SpikeRunner.Context {
         await capture27("toolbar")
         controller.isSidebarOpen = false
         try? await Task.sleep(for: .milliseconds(400))
-        SpikeRunner.record("toolbar_hidden_sidebar", "leading=\(root.toolbarView.leadingInset) centre=\(root.toolbarView.contentCenterY.map { "\($0)" } ?? "nil") cluster hidden=\(root.clusterView.isHidden)")
+        SpikeRunner.record("toolbar_hidden_sidebar", "leading=\(root.toolbarView.leadingInset) centre=\(root.toolbarView.contentCenterY.map { "\($0)" } ?? "nil") buttons shown=\(self.window.standardWindowButton(.closeButton)?.isHidden == false)")
         await capture27("toolbar-hidden-sidebar")
         controller.showsToolbar = false
         controller.isSidebarOpen = true
