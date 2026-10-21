@@ -42,22 +42,22 @@ namespace {
 int ChromeProviderTypes(RoomAutocompleteProviders providers) {
   int types = 0;
   if (providers & RoomAutocompleteProviderHistoryQuick) {
-    types |= AutocompleteProvider::TYPE_HISTORY_QUICK;
+    types |= static_cast<int>(AutocompleteProvider::Type::kHistoryQuick);
   }
   if (providers & RoomAutocompleteProviderHistoryURL) {
-    types |= AutocompleteProvider::TYPE_HISTORY_URL;
+    types |= static_cast<int>(AutocompleteProvider::Type::kHistoryUrl);
   }
   if (providers & RoomAutocompleteProviderBookmark) {
-    types |= AutocompleteProvider::TYPE_BOOKMARK;
+    types |= static_cast<int>(AutocompleteProvider::Type::kBookmark);
   }
   if (providers & RoomAutocompleteProviderShortcuts) {
-    types |= AutocompleteProvider::TYPE_SHORTCUTS;
+    types |= static_cast<int>(AutocompleteProvider::Type::kShortcuts);
   }
   if (providers & RoomAutocompleteProviderOpenTab) {
-    types |= AutocompleteProvider::TYPE_OPEN_TAB;
+    types |= static_cast<int>(AutocompleteProvider::Type::kOpenTab);
   }
   if (providers & RoomAutocompleteProviderSearch) {
-    types |= AutocompleteProvider::TYPE_SEARCH;
+    types |= static_cast<int>(AutocompleteProvider::Type::kSearch);
   }
   return types;
 }
@@ -67,53 +67,53 @@ RoomAutocompleteProviders RoomProvider(const AutocompleteProvider* provider) {
     return 0;
   }
   switch (provider->type()) {
-    case AutocompleteProvider::TYPE_HISTORY_QUICK:
+    case AutocompleteProvider::Type::kHistoryQuick:
       return RoomAutocompleteProviderHistoryQuick;
-    case AutocompleteProvider::TYPE_HISTORY_URL:
+    case AutocompleteProvider::Type::kHistoryUrl:
       return RoomAutocompleteProviderHistoryURL;
-    case AutocompleteProvider::TYPE_BOOKMARK:
+    case AutocompleteProvider::Type::kBookmark:
       return RoomAutocompleteProviderBookmark;
-    case AutocompleteProvider::TYPE_SHORTCUTS:
+    case AutocompleteProvider::Type::kShortcuts:
       return RoomAutocompleteProviderShortcuts;
-    case AutocompleteProvider::TYPE_OPEN_TAB:
+    case AutocompleteProvider::Type::kOpenTab:
       return RoomAutocompleteProviderOpenTab;
-    case AutocompleteProvider::TYPE_SEARCH:
+    case AutocompleteProvider::Type::kSearch:
       return RoomAutocompleteProviderSearch;
     default:
       return 0;
   }
 }
 
-RoomAutocompleteMatchType RoomMatchType(AutocompleteMatchType::Type type) {
+RoomAutocompleteMatchType RoomMatchType(omnibox::AutocompleteMatchType type) {
   switch (type) {
-    case AutocompleteMatchType::URL_WHAT_YOU_TYPED:
+    case omnibox::AutocompleteMatchType::kUrlWhatYouTyped:
       return RoomAutocompleteMatchTypeURLWhatYouTyped;
-    case AutocompleteMatchType::HISTORY_URL:
+    case omnibox::AutocompleteMatchType::kHistoryUrl:
       return RoomAutocompleteMatchTypeHistoryURL;
-    case AutocompleteMatchType::HISTORY_TITLE:
+    case omnibox::AutocompleteMatchType::kHistoryTitle:
       return RoomAutocompleteMatchTypeHistoryTitle;
-    case AutocompleteMatchType::HISTORY_BODY:
+    case omnibox::AutocompleteMatchType::kHistoryBody:
       return RoomAutocompleteMatchTypeHistoryBody;
-    case AutocompleteMatchType::HISTORY_KEYWORD:
+    case omnibox::AutocompleteMatchType::kHistoryKeyword:
       return RoomAutocompleteMatchTypeHistoryKeyword;
-    case AutocompleteMatchType::NAVSUGGEST:
-    case AutocompleteMatchType::NAVSUGGEST_PERSONALIZED:
+    case omnibox::AutocompleteMatchType::kNavsuggest:
+    case omnibox::AutocompleteMatchType::kNavsuggestPersonalized:
       return RoomAutocompleteMatchTypeNavSuggest;
-    case AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED:
+    case omnibox::AutocompleteMatchType::kSearchWhatYouTyped:
       return RoomAutocompleteMatchTypeSearchWhatYouTyped;
-    case AutocompleteMatchType::SEARCH_HISTORY:
+    case omnibox::AutocompleteMatchType::kSearchHistory:
       return RoomAutocompleteMatchTypeSearchHistory;
-    case AutocompleteMatchType::SEARCH_SUGGEST:
-    case AutocompleteMatchType::SEARCH_SUGGEST_ENTITY:
-    case AutocompleteMatchType::SEARCH_SUGGEST_TAIL:
-    case AutocompleteMatchType::SEARCH_SUGGEST_PERSONALIZED:
-    case AutocompleteMatchType::SEARCH_SUGGEST_PROFILE:
+    case omnibox::AutocompleteMatchType::kSearchSuggest:
+    case omnibox::AutocompleteMatchType::kSearchSuggestEntity:
+    case omnibox::AutocompleteMatchType::kSearchSuggestTail:
+    case omnibox::AutocompleteMatchType::kSearchSuggestPersonalized:
+    case omnibox::AutocompleteMatchType::kSearchSuggestProfile:
       return RoomAutocompleteMatchTypeSearchSuggest;
-    case AutocompleteMatchType::SEARCH_OTHER_ENGINE:
+    case omnibox::AutocompleteMatchType::kSearchOtherEngine:
       return RoomAutocompleteMatchTypeSearchOtherEngine;
-    case AutocompleteMatchType::BOOKMARK_TITLE:
+    case omnibox::AutocompleteMatchType::kBookmarkTitle:
       return RoomAutocompleteMatchTypeBookmarkTitle;
-    case AutocompleteMatchType::OPEN_TAB:
+    case omnibox::AutocompleteMatchType::kOpenTab:
       return RoomAutocompleteMatchTypeOpenTab;
     default:
       return RoomAutocompleteMatchTypeOther;
