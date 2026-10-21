@@ -4,7 +4,7 @@ Since 2026-10-21 sessions verify their own work (AGENTS.md "Testing"). This file
 
 ## The current DMG
 
-- Build 14: `build/sparkle-14/Room-0.1.0-14.dmg` (2026-10-19).
+- Build 15: `build/sparkle-15/Room-0.1.0-15.dmg` (2026-10-21 05:48, Phase 5.0: the dev bundle id, B-107/B-108/B-109; notarized and stapled). Build 14: `build/sparkle-14/Room-0.1.0-14.dmg` (2026-10-19).
 
 ## For the user
 

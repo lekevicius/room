@@ -15,3 +15,11 @@ Outcome: the dev bundle id `app.room.desktop.dev` (Debug only, own default state
 ### 5.0b — accepted; Phase 5.0 closed (2026-10-21 04:53 → 05:45, 52 min)
 
 Outcome: the `skipped` spike group (4.1–4.8 by phase) and `scripts/skipped-steps.sh`; a result line per skipped step (32 passed, 8 with click parts left, 5 the user's, X1 from step 0); B-124 (5.6), B-125 (5.2), B-126 (5.7, with B-95), B-127 (5.4). Incident: three real print jobs went to the laptop's printer before the guard (B-126); the prompts now forbid pressing Return in a print preview with printers present, and require suggestions off in palette spikes (one suggest request left). Decisions: none beyond the rows. User's list: four steps for Phase 5.0. DMG: build 15 started at 05:47 (no `//room` change since 5.0a's official incremental).
+
+### Build 15 (2026-10-21 05:44 → 05:48)
+
+Phase 5.0's DMG: `build/sparkle-15/Room-0.1.0-15.dmg`, notarized in 72 s, stapled, the appcast entry verified. The user has build 14 installed; build 15 is the one to install next.
+
+### 5.1a — accepted (2026-10-21 05:50 → 06:24, 38 min)
+
+Outcome: the motion harness, the sidebar's motion on the tokens (0 dropped frames at 60 Hz but one reduced reset frame on dev), Reduce Motion variants with a test, B-123 fixed, B-128 for the 120 Hz run. Decisions: the pill spring stays removed (the 2026-10-07 design wins over §I.1's spring); instant variants where `NSOutlineView` cannot crossfade. User's list: the 120 Hz run (one step, 5.1b completes it). DMG: build 15 built; the next after 5.1b.
