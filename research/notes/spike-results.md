@@ -4458,3 +4458,27 @@ Not reproduced: `clear_hour` passed in both `settings2` runs on `f05f3d6` (`cook
 Unit tier (`ChromeTests` "The password save and update popover (5.8a, FakeEngine)", 7 tests; `EngineTests` 1): the keys' answers (Return and Enter save, Esc Not Now, other keys nothing; a click elsewhere and Manage Not Now), Save stored and confirmed with Manage, Never recorded per origin (that origin offers nothing more, `localhost:8772` still asks), Not Now records nothing, the update (Update replaces; Never not offered and counted as Not Now; an unchanged password offers nothing), a background page's offer waits for the card, a withdrawn offer goes unanswered, a closed page's is Not Now, the automatic save's confirmation; a delegate without the members keeps the engine's bubble.
 
 Review sheet: `research/screenshots/phase-5.8/phase-5.8a-passwords-light.png` and `-dark.png` (the five captures each; the page itself is blank in window captures, the GPU layer, 1.4's deviation 6).
+
+## Phase 5.8 — 5.8e: the password adapter on the engine (2026-10-22, Mac mini M4, the Screen Sharing virtual display 1920 × 1080 at 60 Hz, RoomCore 156.0.8078.48 at `b1a9445`; a 5.9 grand tour and a 5.4b spike running beside it, which took the focus between steps; load 3.6–8.5)
+
+`scripts/passwords-autofill.sh` with `ROOM_PA_ONLY=passwords` (the 3.7a fixtures: `http://127.0.0.1:8772`, `http://localhost:8772`, `https://127.0.0.1:8773`), on throwaway state and engine directories under `/Volumes/JL4/room-build/pa-58e-*`; the save phase, then the fill phase after a relaunch on the same directories.
+
+| check | before (release engine of 54b-1, no adapter) | after, release engine (`pa-58e-release-final`, Debug app) | after, dev engine (`pa-58e-dev-dark3`, dark) |
+|---|---|---|---|
+| save, site A | Chrome's Views bubble 320 × 386, shown 511 ms after the submit, Return saved | **the host's popover** ("Save password for “127.0.0.1”?", alice, 9 bullets) shown 881 ms after the submit; **0 new Chrome windows**; Return saved | popover 556 ms; Return saved |
+| save, site B | Views, 599 ms | popover 647 ms ("“localhost”"); Return saved | popover 518 ms; saved |
+| update, site A (`secret-a2`) | Views 320 × 394, 483 ms | popover "Update password for “127.0.0.1”?" 651 ms, Update the default, no Never; Return updated | popover 1,132 ms; updated |
+| sign-up page (HTTPS) | Views, 44 ms | popover 53 ms; carol saved (`signup.html|carol`) | popover 69 ms; saved |
+| Not Now (HTTPS, dave) | (not answered: Views) | popover 568 ms; Esc closed it; **no dave row** | popover 527 ms; Esc |
+| Never for This Site (HTTPS, dave again) | (not answered) | popover 1,176 ms; Never closed it; **the blocklist row** (`https://127.0.0.1:8773/`, `blacklisted_by_user` 1) | popover 939 ms; Never |
+| a third submit after Never (erin) | Views again (no Never answered) | **no offer within 6 s**, no Chrome window | an **update** offer (no Never): the dev run's sign-up row had lost its username to the focus thief, and Chrome offers a username-less credential's update; the blocklist covers saves only (Chrome's logic) |
+| fill after the relaunch (Down + Return in Chrome's popup) | both sites: popup 32 / 23 ms, username and password match | site B in the run, site A in a fill-only rerun (the run's first click came while another process held the focus): popup 38 / 22–28 ms; **alice fills `secret-a2`** (the update through the popover took), bob matches; both sign in | popups 28 / 24 ms; both signed in (the Return reached the form and submitted it before the values were read) |
+| crash dumps | 0 | 0 | 0 |
+
+Surfaces the 3.7a runs counted as Chrome's are the host's now: `chrome_windows_new=0` on every offer of every run after the adapter; `anchor_queries=0` (Chrome no longer asks for its bubble anchor). The popover's frame against the site button: 386 × 184 pt, its arrow 2 pt into the button, spanning it (as 5.8a measured on FakeEngine). The offer-shown times include the sign-in's navigation (the offer follows the committed post-login page); the sign-up's 44–69 ms is a same-document submit.
+
+**Focus.** Two earlier runs beside the grand tour lost offers when another process took the focus mid-step (`none within 12 s`, `still open`): the popover was `.transient` and closed as Not Now when Room deactivated. Chrome's automatic save bubble does not close on deactivation (`PasswordBubbleViewBase(…, easily_dismissable)` with `easily_dismissable = reason == USER_GESTURE`), so the popover is `.semitransient` now (a click in Room's window still answers Not Now); the spike reactivates Room before each sign-in and each fill click. The final runs above are with both.
+
+**5.8a's host check again** (`scripts/password-popover-check.sh`, dev engine `b1a9445`, light, the semi-transient popover): every line as in 5.8a: Return saves with the toast, Esc Not Now, Never, Update without Never, Manage opens the manager tab, the hidden sidebar's corner (minX 398 vs the card's 399), a withdrawn offer unanswered, the confirmation toast; answers `save,notNow,never,save,notNow,notNow`; 0 dumps.
+
+**Baseline** (`scripts/roomcore-baseline.sh build/baseline/5.8e-dev`, RoomCore Host over the dev engine `b1a9445`): nav assertions passed (16.7 s); quits **0.296 / 0.252 / 0.259 s** (load 5.1–18.7), 0 helpers left, 0 new crash reports.

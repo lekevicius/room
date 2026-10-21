@@ -798,3 +798,16 @@ Two `//room` commits in `54b-1` (`git push origin main` at 23:03, `requests/54b-
 | `54b-2` (`e96c4ba`, B-56's second half, release) | requested 00:34, not picked by 00:52 | queued behind `54b-1`'s dev |
 
 "0 applied / 25 already" on the laptop for `f05f3d6`: asked (`check=apply`), not reported (no `DONE` file yet). Next: when `builds/54b-1/DONE` and `builds/54b-2/DONE` exist, install `54b-1/roomcore/RoomCore.framework` into `build/roomcore` and `54b-2/roomcore-release/RoomCore.framework` into `build/roomcore-release` (`rm -rf` the old, `cp -Rc`), rebuild both apps with `ROOM_PACKAGE_STAGED=1`, run `roomcore-baseline.sh`, the switch spike's census on dev, `leaks-check.sh … openclose` on dev with stacks, and the `tabs` step for B-56's holders.
+
+## 2026-10-22 — Phase 5.8e: the password adapter through the laptop (requests `58-1`, `58-2`)
+
+Mac mini (M4, 24 GB) commits and pushes, the M1 Max laptop builds (`/Volumes/JL4/laptop-engines`). `//room` change: `room_page_dialogs.mm` (`room::PasswordOffers` in `RoomTabDialogs`), `public/RoomWebContents.h` (three delegate members), `core/BUILD.gn` (two deps); commit `b1a9445`.
+
+| step | time | note |
+|---|---|---|
+| `58-1` requested (`b1a9445`, release) | 01:09 | queued behind `54b-1`'s dev (out/dev's first 156 build) and `54b-2`; nothing taken 00:20–01:40 |
+| `54b-2` (requested `e96c4ba`, built at laptop HEAD `b1a9445`) | `DONE` 01:46:20: release **312 s** ("build done in 250 s", load 50–292) | the laptop pulls main before building, so `54b-2`'s release already held the adapter |
+| `58-1` release | `DONE` 01:47:25: **62 s** ("build done in 4 s") | nothing left to compile; the framework identical in content to `54b-2`'s (`RoomCoreCommit b1a9445`) |
+| `58-2` dev (`check=apply`) | requested 01:42, `DONE` 01:49:09: **71 s** ("build done in 34 s", load 47–240) | the series' "0 applied / 25 already" not in the `DONE` file (asked, not reported, as for `54b-1`) |
+| request → framework here | 38 min for `58-1` (all of it the queue), 7 min for `58-2` | the 30-minute rule passed while the queue was stalled; the planner's 01:42 note reopened it |
+| packaging here | Debug app over release 27 s, dev app 29 s, RoomCore Host 27 s, the Release app 128 s | `ROOM_PACKAGE_STAGED=1` |
