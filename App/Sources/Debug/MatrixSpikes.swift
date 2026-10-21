@@ -189,7 +189,7 @@ extension SpikeRunner.Context {
             + "then two Today tabs multi-selected (accent 18%) with the keyboard focus ring and the folder closed; then an Essential selected."]
     }
 
-    private func rowStates(_ fixture: MotionFixture) -> [MatrixState] {
+    func rowStates(_ fixture: MotionFixture) -> [MatrixState] {
         let rect = { self.sidebarRect(top: 96, height: 470) }
         return [
             MatrixState(label: "selected, changed + hover, unloaded, folder open", setup: {
@@ -231,7 +231,7 @@ extension SpikeRunner.Context {
          "Hover: ControlFeedback, the fill Palette.sidebarHover over Motion.fast; the address field's fill Palette.sidebarHover → Palette.addressFieldHover."]
     }
 
-    private func headerStates() -> [MatrixState] {
+    func headerStates() -> [MatrixState] {
         let rect = { self.sidebarRect(top: 0, height: 100) }
         let back = { Self.view(in: self.controller.rootView, identifier: "nav-back") as? HoverButton }
         return [
@@ -264,7 +264,7 @@ extension SpikeRunner.Context {
     static var spaceIconInactiveAlpha: CGFloat { SpaceIconMetrics.inactiveAlpha }
     static var spaceIconActiveScale: CGFloat { SpaceIconMetrics.activeScale }
 
-    private func footerStates() -> [MatrixState] {
+    func footerStates() -> [MatrixState] {
         let rect = { self.sidebarRect(height: SidebarMetrics.footerHeight + 8, fromBottom: true) }
         let plus = { Self.view(in: self.controller.rootView, identifier: "footer-plus") as? HoverButton }
         let inactiveIcon = { () -> NSView? in
@@ -298,7 +298,7 @@ extension SpikeRunner.Context {
                 PaletteMetrics.width, PaletteMetrics.fieldHeight, PaletteMetrics.rowHeight, PaletteMetrics.iconSize, PaletteMetrics.listPadding, PaletteMetrics.groupGap)]
     }
 
-    private func paletteStates() -> [MatrixState] {
+    func paletteStates() -> [MatrixState] {
         guard let palette = AppDelegate.current?.activeWindow?.palette else { return [] }
         let rect = { () -> CGRect? in
             guard let panel = palette.debugPanel else { return nil }
@@ -330,7 +330,7 @@ extension SpikeRunner.Context {
                 PeekMetrics.headerButtonSize, PeekMetrics.shadowRadius, PeekMetrics.shadowOpacityLight, PeekMetrics.shadowOpacityDark)]
     }
 
-    private func peekStates() -> [MatrixState] {
+    func peekStates() -> [MatrixState] {
         [MatrixState(label: "a Peek over a Today tab", setup: {
             guard let page = self.tabs.current else { return }
             self.tabs.openPeek(URL(string: Self.server + "find.html?peek")!, from: page)
@@ -349,7 +349,7 @@ extension SpikeRunner.Context {
                 CardMetrics.borderWidth, CardMetrics.shadowRadius, CardMetrics.shadowOpacityLight, CardMetrics.shadowOpacityDark)]
     }
 
-    private func splitStates(_ fixture: MotionFixture) -> [MatrixState] {
+    func splitStates(_ fixture: MotionFixture) -> [MatrixState] {
         func state(_ label: String, layout: SplitLayout) -> MatrixState {
             MatrixState(label: label, setup: {
                 self.sidebar.select(fixture.today[2])
@@ -375,7 +375,7 @@ extension SpikeRunner.Context {
                 Motion.toast.duration, Timing.toast, Timing.toastWithAction)]
     }
 
-    private func toastStates() -> [MatrixState] {
+    func toastStates() -> [MatrixState] {
         guard let toasts = AppDelegate.current?.activeWindow?.toasts else { return [] }
         let rect = { self.sidebarRect(height: 160, fromBottom: true) }
         func state(_ label: String, _ toast: Toast) -> MatrixState {
@@ -399,7 +399,7 @@ extension SpikeRunner.Context {
          "States: empty; one finished and one in progress (a 6 MB file at 1 MB/s from :8766)."]
     }
 
-    private func downloadStates() -> [MatrixState] {
+    func downloadStates() -> [MatrixState] {
         guard let downloads = AppDelegate.current?.downloads else { return [] }
         func open() async {
             if !downloads.popover.isShown { downloads.togglePopover() }
@@ -434,7 +434,7 @@ extension SpikeRunner.Context {
                 SitePanelMetrics.width)]
     }
 
-    private func sitePanelStates() -> [MatrixState] {
+    func sitePanelStates() -> [MatrixState] {
         guard let app = AppDelegate.current else { return [] }
         return [MatrixState(label: "permissions.html", setup: {
             _ = await self.openTest("permissions.html")
@@ -458,7 +458,7 @@ extension SpikeRunner.Context {
                 PromptMetrics.interstitialIconSize)]
     }
 
-    private func promptStates() -> [MatrixState] {
+    func promptStates() -> [MatrixState] {
         [
             MatrixState(label: "confirm() sheet", setup: {
                 guard let page = await self.openTest("dialogs.html") else { return }
@@ -496,7 +496,7 @@ extension SpikeRunner.Context {
                 LibraryMetrics.buttonSize, LibraryMetrics.chipHeight)]
     }
 
-    private func libraryStates() -> [MatrixState] {
+    func libraryStates() -> [MatrixState] {
         guard let app = AppDelegate.current else { return [] }
         return [MatrixState(label: "the Library", setup: {
             if !app.isLibraryShown { app.toggleLibrary(nil) }
@@ -512,7 +512,7 @@ extension SpikeRunner.Context {
             + "Inactive: the browser window key, Settings behind it."]
     }
 
-    private func settingsStates() -> [MatrixState] {
+    func settingsStates() -> [MatrixState] {
         guard let app = AppDelegate.current else { return [] }
         return SettingsWindowController.Section.allCases.map { section in
             MatrixState(label: section.title, setup: {
@@ -535,7 +535,7 @@ extension SpikeRunner.Context {
             + String(format: "the \"Incognito\" label WindowMetrics.incognitoLabelHeight %.0f. Its own window: light and dark columns are the same window.", WindowMetrics.incognitoLabelHeight)]
     }
 
-    private func incognitoStates() -> [MatrixState] {
+    func incognitoStates() -> [MatrixState] {
         guard let app = AppDelegate.current else { return [] }
         var incognito: WindowSession? { app.windows.all.first { $0.isIncognito } }
         return [MatrixState(label: "a new incognito window", setup: {
@@ -561,7 +561,7 @@ extension SpikeRunner.Context {
             + "rows: both pinned at the default sidebar width (300), then the fixture unpinned (the overflow button)."]
     }
 
-    private func extensionStates() async -> [MatrixState] {
+    func extensionStates() async -> [MatrixState] {
         let only = Set((UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "").split(separator: ",").map(String.init))
         guard only.isEmpty || only.contains("extensions"), let app = AppDelegate.current, let center = app.extensions,
               let section = center.sections.first else { return [] }

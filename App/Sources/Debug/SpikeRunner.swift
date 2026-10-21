@@ -115,6 +115,7 @@ enum SpikeRunner {
         case "settings": await context.settingsChecks()
         case "profiles": await context.profilesChecks()
         case "showcase": await context.showcase()
+        case "a11y": await context.accessibilityAuditSpike()
         default: record("error", "unknown spike")
         }
         record("end", name)

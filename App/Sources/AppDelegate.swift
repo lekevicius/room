@@ -171,6 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if UserDefaults.standard.object(forKey: "RoomReduceMotion") != nil {
             Motion.preferences = .fixed(reduceMotion: UserDefaults.standard.bool(forKey: "RoomReduceMotion"))
         }
+        // The accessibility spikes (5.3a) read SwiftUI's trees, which SwiftUI builds only for a client that
+        // asked before the hosting views were made: ask on the app's own behalf, before the first window.
+        if ["a11y", "keyboard"].contains(SpikeRunner.requested) { AccessibilityAudit.requestTree() }
         #endif
         NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()
