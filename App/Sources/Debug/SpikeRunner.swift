@@ -643,7 +643,7 @@ enum SpikeRunner {
             // 5.5a: with an enabled Japanese or Chinese input method selected for the run (restored after);
             // without one, the non-Latin layouts below still check the reserved set's US-key matching.
             let ime = InputSources.selectEnabledIME()
-            SpikeRunner.record("keys_ime_source", ime.map { "\($0.selected) selected (was \(InputSources.id($0.previous)))" }
+            SpikeRunner.record("ime_source_keys", ime.map { "\($0.selected) selected (was \(InputSources.id($0.previous)))" }
                 ?? "none enabled (enabled: \(InputSources.currentInputID); enabling one is a System Settings change)")
             defer { if let ime { TISSelectInputSource(ime.previous) } }
             try? await Task.sleep(for: .milliseconds(300))
@@ -724,15 +724,16 @@ enum SpikeRunner {
                     focusPage(page)
                     let seenBefore = Int(await js(page, "JSON.parse(document.documentElement.dataset.keys || '[]').length")) ?? 0
                     let before = session.newTabRequests
-                    send(layout, 17, [.command, .option])
+                    let t = layout.keyCode(for: "t") ?? 17
+                    send(layout, t, [.command, .option])
                     try? await Task.sleep(for: .milliseconds(400))
                     let remapped = session.newTabRequests - before
                     focusPage(page)
-                    send(layout, 17, [.command])
+                    send(layout, t, [.command])
                     try? await Task.sleep(for: .milliseconds(400))
                     let oldKey = session.newTabRequests - before - remapped
                     let seen = await js(page, "JSON.stringify(JSON.parse(document.documentElement.dataset.keys || '[]').slice(\(seenBefore)))")
-                    SpikeRunner.record("keys_remap_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))",
+                    SpikeRunner.record("remap_keys_\(layoutID.replacingOccurrences(of: "com.apple.keylayout.", with: ""))",
                                        "⌥⌘T newPage=\(remapped) ⌘T newPage=\(oldKey) page saw \(seen) (expected on the active layout 1, 0, ⌘T only; elsewhere ⌥⌘T never reaches the page)")
                 }
                 settings.update { $0.shortcutOverrides["newPage:"] = nil }

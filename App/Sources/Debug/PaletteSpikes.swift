@@ -67,6 +67,8 @@ extension SpikeRunner.Context {
     // MARK: Behaviour on the engine
 
     func paletteChecks() async {
+        // 5.5a: suggestions off in every spike that types into the palette (`-RoomSuggestionsOff YES`).
+        if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff") { tabs.store.settings.update { $0.searchSuggestions = false } }
         restorePaletteHooks()
         guard let palette else { return SpikeRunner.record("error", "no palette") }
         if let id = store.today(space: sidebar.activeSpaceID).first(where: { $0.currentURL?.contains("wikipedia") == true })?.id {

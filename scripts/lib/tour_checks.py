@@ -268,8 +268,17 @@ def _diaframe(c):
 
 @step_check("keys")
 def _keys(c):
-    layouts = [k for k in c.values if k.startswith("keys_")]
+    # 5.5a added non-Latin layouts (Russian, Greek): their ⌘ keys are on the US keys and their letters are not "o".
+    non_latin = [k for k in c.values if k in ("keys_Russian", "keys_Greek")]
+    layouts = [k for k in c.values if k.startswith("keys_") and k not in non_latin]
     c.check("three layouts (ABC, Colemak, Lithuanian)", len(layouts) >= 3, ", ".join(layouts))
+    for k in non_latin:
+        v = c.first(k)
+        c.check(f"{k}: ⌘T and ⌘L classified reserved on the US keys, never seen by the page",
+                "reserved calls=2" in v and "⌘t/" not in v and "⌘l/" not in v, v[:200])
+    for k in [k for k in c.values if k.startswith("remap_keys_")]:
+        v = c.first(k)
+        c.check(f"{k}: the remapped reserved key never reaches the page", "⌘⌥" not in v.split("page saw", 1)[-1], v[:200])
     for k in layouts:
         v = c.first(k)
         # ⌘V lands in the field: RoomCore pastes at the caret the spike placed at the end
@@ -513,7 +522,11 @@ def _palette(c):
     c.check("⌘T ⌘T and ⌘L ⌘T close", c.first("cmd_t_again_closes") == "true" and c.first("cmd_t_closes_cmd_l") == "true", "")
     c.contains("option_enter_background", "added=1", "selection_kept=true", label="⌥Enter opens in the background")
     c.contains("tab_cycles_groups", "groups=topHit,openTabs", "highlighted_after_tab=1", "cmd_enter_closed=true", label="⇥ cycles groups; ⌘Enter opens")
-    c.contains("header_click_docked", "presentation=docked", "panel={{91, 6}, {640, 48}}", label="header click: docked 640 pt panel on the field")
+    # The panel sits on the header's field, 640 pt wide (the field moved under the traffic lights in 5.1, B-114).
+    docked = c.first("header_click_docked") or ""
+    m = re.search(r"panel=\{\{([\d.]+), ([\d.]+)\}, \{640, 48\}\} field=\{\{([\d.]+), ([\d.]+)\}", docked)
+    c.check("header click: docked 640 pt panel on the field", "presentation=docked" in docked and m is not None
+            and m.group(1) == m.group(3) and abs(float(m.group(2)) + 6 - float(m.group(4))) <= 1, "got: " + docked[:240])
     caps = [k for k in c.values if k.startswith("capture_")]
     c.check("eight captures (four states × light/dark)", len(caps) == 8, f"{len(caps)}")
 

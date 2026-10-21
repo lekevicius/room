@@ -59,7 +59,7 @@ public enum EngineHistoryProvider {
         // with suggestions on, Chrome's default is often its verbatim search, which hid the completion),
         // only in normal mode with inline completion allowed.
         let inlineOffset: Int? = if input.mode == .normal, !input.preventsInlineCompletion {
-            history.first { completes(input.text, $0.element) }?.offset
+            history.first { $0.offset == 0 ? completes($0.element) : completes(input.text, $0.element) }?.offset
         } else { nil }
         return history.enumerated().map { rank, element in
             let (offset, engineMatch) = element
@@ -86,9 +86,15 @@ public enum EngineHistoryProvider {
     /// Whether `match` may complete `text` inline: allowed to be default, and its completion made for this
     /// text (Chrome carries matches over from the previous keystroke while its providers run; their
     /// completions belong to the old text: 5.5a's IME run put "日本.0.0.1:8770" in the field).
+    /// Chrome's default match (the first) is always made for the current text.
+    static func completes(_ match: AutocompleteMatch) -> Bool {
+        match.allowedToBeDefault && !match.inlineCompletion.isEmpty
+    }
+
     static func completes(_ text: String, _ match: AutocompleteMatch) -> Bool {
         guard match.allowedToBeDefault, !match.inlineCompletion.isEmpty else { return false }
-        return match.fillIntoEdit.isEmpty || (text + match.inlineCompletion).lowercased() == match.fillIntoEdit.lowercased()
+        // Chrome's fill text may carry what the typed text leaves out ("https://", "www."): a suffix.
+        return match.fillIntoEdit.isEmpty || match.fillIntoEdit.lowercased().hasSuffix((text + match.inlineCompletion).lowercased())
     }
 
     /// ⌘Y with nothing typed: the engine's history pages (most recent first), in its order.

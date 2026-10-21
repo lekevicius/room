@@ -22,6 +22,8 @@ extension SpikeRunner.Context {
     // MARK: History recording (the engine's, since 3.5)
 
     func palette2Checks() async {
+        // 5.5a: suggestions off in every spike that types into the palette (`-RoomSuggestionsOff YES`).
+        if UserDefaults.standard.bool(forKey: "RoomSuggestionsOff") { tabs.store.settings.update { $0.searchSuggestions = false } }
         restorePaletteHooks()
         guard let palette else { return SpikeRunner.record("error", "no palette") }
         func settle(_ milliseconds: Int = 600) async { try? await Task.sleep(for: .milliseconds(milliseconds)) }

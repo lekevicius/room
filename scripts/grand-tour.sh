@@ -239,15 +239,15 @@ for appearance in "${appearances[@]}"; do
   run cookies scripts/spaces-cookies.sh
 
   group=palette
-  run palette spike palette -RoomSidebarFixture demo -RoomSpikeCaptureDirectory "$CAPS/palette"
-  run palette2 spike palette2 -RoomSidebarFixture demo -RoomSpikeCaptureDirectory "$CAPS/palette2"
+  run palette spike palette -RoomSidebarFixture demo -RoomSpikeCaptureDirectory "$CAPS/palette" -RoomSuggestionsOff YES
+  run palette2 spike palette2 -RoomSidebarFixture demo -RoomSpikeCaptureDirectory "$CAPS/palette2" -RoomSuggestionsOff YES
   # The suggestion checks go through the logging proxy on :8771 (it refuses every tunnel): no query leaves the Mac.
   : > "$endpoints"
   run suggeston spike suggestcheck -RoomSidebarFixture demo -RoomSuggestProxy 127.0.0.1:8771
   cp "$endpoints" "$STEPS/suggeston.proxy"; : > "$endpoints"
   run suggestoff spike suggestcheck -RoomSidebarFixture demo -RoomSuggestProxy 127.0.0.1:8771 -RoomSuggestionsOff YES
   cp "$endpoints" "$STEPS/suggestoff.proxy"; : > "$endpoints"
-  run palettemeasure spike palettemeasure -RoomSidebarFixture 500 -RoomHistoryRows 50000
+  run palettemeasure spike palettemeasure -RoomSidebarFixture 500 -RoomHistoryRows 50000 -RoomSuggestionsOff YES
 
   group=tabs
   run tabs spike tabs
