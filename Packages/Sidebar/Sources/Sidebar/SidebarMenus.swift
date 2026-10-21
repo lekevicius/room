@@ -162,6 +162,8 @@ extension SidebarController {
             self?.closeToday(today.filter { $0.id != id }.map(\.id), keeping: id)
         })
         menu.addItem(action(CommandName.closeTab, symbol: .closeTab, key: "w") { [weak self] in self?.close(id) })
+        menu.addItem(.separator())
+        addRoutingItem(menu, entry)
     }
 
     private func buildPinnedMenu(_ menu: NSMenu, _ entry: Entry) {
@@ -178,6 +180,8 @@ extension SidebarController {
         addPageItems(menu, entry)
         menu.addItem(.separator())
         menu.addItem(action(CommandName.remove, symbol: .closeTab) { [weak self] in self?.removeEntry(id, undoable: true) })
+        menu.addItem(.separator())
+        addRoutingItem(menu, entry)
     }
 
     private func buildEssentialMenu(_ menu: NSMenu, _ entry: Entry) {
@@ -254,7 +258,11 @@ extension SidebarController {
         })
         menu.addItem(action(CommandName.copyMarkdown, symbol: .copyMarkdown, key: "c", modifiers: [.command, .shift, .option],
                             enabled: hasURL) { [weak self] in self?.copyURL(of: id, markdown: true) })
-        // Spec §B: a `contains` rule for the page's host, targeting this space, in the routing sheet.
+    }
+
+    /// Spec §B: a `contains` rule for the page's host, targeting this space, in the routing sheet;
+    /// below the fold since 5.7a (B-120: routing lives in Settings ▸ Spaces), the menu's last group.
+    private func addRoutingItem(_ menu: NSMenu, _ entry: Entry) {
         let host = entry.currentURL.flatMap { URL(string: $0) }.flatMap { url in
             ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? url.host(percentEncoded: false) : nil
         }

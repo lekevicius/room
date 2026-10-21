@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import SwiftUI
 import Chrome
 import Design
 import Engine
@@ -92,6 +93,7 @@ extension SpikeRunner.Context {
             ("prompts", "The page's prompts", promptNotes, promptStates()),
             ("library", "Library", libraryNotes, libraryStates()),
             ("settings", "Settings (each section)", settingsNotes, settingsStates()),
+            ("settingssheets", "Settings' sheets (5.7a)", settingsSheetNotes, settingsSheetStates()),
             ("incognito", "Incognito window", incognitoNotes, incognitoStates()),
             ("extensions", "Top bar with extensions (B-89, B-125)", extensionNotes, await extensionStates()),
             ("themes", "Space themes (each algorithm; 5.2b)", themeNotes, themeStates()),
@@ -550,8 +552,52 @@ extension SpikeRunner.Context {
     }
 
     private var settingsNotes: [String] {
-        ["Settings: toolbar tabs, 560 pt (ShortcutsSettingsMetrics.width), each section a grouped SwiftUI Form (Shortcuts an AppKit table). "
+        [String(format: "Settings: toolbar tabs, %.0f pt (SettingsWindowFit.contentWidth), every pane %.0f pt tall at most (SettingsWindowFit.preferredContentHeight; ", SettingsWindowFit.contentWidth, SettingsWindowFit.preferredContentHeight)
+            + "less on a smaller display) and scrolling inside; each a grouped SwiftUI Form (Shortcuts an AppKit table). "
             + "Inactive: the browser window key, Settings behind it."]
+    }
+
+    private var settingsSheetNotes: [String] {
+        [String(format: "Privacy's sheets (5.7a): filter lists, custom rules, allowed sites %.0f × %.0f (ContentBlockingSheetMetrics); ", ContentBlockingSheetMetrics.width, ContentBlockingSheetMetrics.height)
+            + String(format: "site permissions %.0f × %.0f (SitePermissionsMetrics), Safari's Websites layout. Each shot alone, as the sheet's own window.", SitePermissionsMetrics.width, SitePermissionsMetrics.height)]
+    }
+
+    func settingsSheetStates() -> [MatrixState] {
+        guard let app = AppDelegate.current, let store = app.store else { return [] }
+        let blocking = app.contentBlocking
+        var sheets: [(String, () -> NSViewController?)] = []
+        if let blocking {
+            for which in [ContentBlockingSettingsView.Sheet.lists, .rules, .sites] {
+                sheets.append((which.rawValue.capitalized, {
+                    NSHostingController(rootView: ContentBlockingSheet(controller: blocking, which: which) {})
+                }))
+            }
+        }
+        sheets.append(("Site permissions", {
+            NSHostingController(rootView: SitePermissionsSheet(sidebar: store.sidebar, profiles: app.profileServices()) {})
+        }))
+        var sheetWindow: NSWindow?
+        return sheets.map { label, make in
+            MatrixState(label: label, setup: {
+                app.showSettings(section: .privacy)
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let settings = app.debugSettingsWindow?.window, let content = make() else { return }
+                let sheet = NSWindow(contentViewController: content)
+                sheetWindow = sheet
+                settings.beginSheet(sheet, completionHandler: nil)
+                try? await Task.sleep(for: .milliseconds(800))
+            }, shoot: {
+                guard let sheet = sheetWindow, let settings = app.debugSettingsWindow?.window else { return nil }
+                if self.matrixActive { settings.makeKeyAndOrderFront(nil) } else { self.window.makeKeyAndOrderFront(nil) }
+                try? await Task.sleep(for: .milliseconds(400))
+                return await self.matrixShot(in: sheet, scale: 0.5)
+            }, teardown: {
+                if let sheet = sheetWindow { app.debugSettingsWindow?.window?.endSheet(sheet) }
+                sheetWindow = nil
+                app.debugSettingsWindow?.window?.orderOut(nil)
+                self.window.makeKeyAndOrderFront(nil)
+            })
+        }
     }
 
     func settingsStates() -> [MatrixState] {

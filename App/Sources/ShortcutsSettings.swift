@@ -4,9 +4,10 @@ import Store
 import UIKitCore
 
 /// Settings ▸ Shortcuts sizes (4.4a; chosen: the sections' width, 560 pt since eight sections fit the toolbar at it).
+/// 5.7a (B-120): the table takes the pane's height (`SettingsWindowFit`), inside a 20 pt margin.
 enum ShortcutsSettingsMetrics {
-    static let width: CGFloat = 560
-    static let tableHeight: CGFloat = 380
+    static let width: CGFloat = SettingsWindowFit.contentWidth
+    static let margin: CGFloat = 20
     static let keyColumnWidth: CGFloat = 120
     static let resetColumnWidth: CGFloat = 28
     static let rowHeight: CGFloat = 34
@@ -42,21 +43,22 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
     private let confirmButton = NSButton(title: "Use It", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private let resetAllButton = NSButton(title: "Reset All", target: nil, action: nil)
+    /// The message line with its buttons, hidden while it has nothing to say (5.7a: no empty gap under the table).
+    private var promptRow: NSStackView?
 
     init(settings: SettingsStore, extensionCommands: @escaping () -> [(extension: String, title: String, shortcut: String)] = { [] }) {
         self.settings = settings
         self.extensionCommands = extensionCommands
         table = ShortcutTable(overrides: settings.settings.shortcutOverrides)
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = NSSize(width: ShortcutsSettingsMetrics.width, height: ShortcutsSettingsMetrics.tableHeight + 130)
+        preferredContentSize = NSSize(width: ShortcutsSettingsMetrics.width, height: SettingsWindowFit.preferredContentHeight)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func loadView() {
-        let intro = NSTextField(wrappingLabelWithString: "Click a shortcut and press the new keys: ⌫ removes it, Esc cancels. "
-            + "Shortcuts marked ◆ never reach the page, under any key you give them.")
+        let intro = NSTextField(wrappingLabelWithString: "Click a shortcut and press the new keys: ⌫ removes it, Esc cancels.")
         intro.font = Typography.secondary
         intro.textColor = .secondaryLabelColor
 
@@ -70,8 +72,9 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         resetColumn.width = ShortcutsSettingsMetrics.resetColumnWidth
         for column in [actionColumn, keyColumn, resetColumn] { tableView.addTableColumn(column) }
         tableView.rowHeight = ShortcutsSettingsMetrics.rowHeight
-        tableView.style = .inset
+        tableView.style = .fullWidth
         tableView.usesAlternatingRowBackgroundColors = true
+        tableView.intercellSpacing = NSSize(width: Spacing.s, height: 0)
         tableView.selectionHighlightStyle = .none
         tableView.dataSource = self
         tableView.delegate = self
@@ -79,10 +82,11 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         let scroll = NSScrollView()
         scroll.documentView = tableView
         scroll.hasVerticalScroller = true
+        scroll.borderType = .lineBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        // At least this tall; the table takes whatever height the window has (it keeps the last section's).
-        scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: ShortcutsSettingsMetrics.tableHeight).isActive = true
+        // The table takes the pane's height left by the lines above and below it.
         scroll.setContentHuggingPriority(.defaultLow - 1, for: .vertical)
+        scroll.setContentCompressionResistancePriority(.defaultLow - 1, for: .vertical)
 
         messageLabel.font = Typography.secondary
         confirmButton.target = self
@@ -93,6 +97,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         resetAllButton.target = self
         resetAllButton.action = #selector(resetAllClicked)
         let prompt = NSStackView(views: [messageLabel, confirmButton, cancelButton])
+        promptRow = prompt
         prompt.orientation = .horizontal
         prompt.alignment = .centerY
         messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -103,26 +108,20 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.distribution = .fill
-        stack.spacing = Spacing.s
-        stack.edgeInsets = NSEdgeInsets(top: Spacing.l, left: Spacing.l, bottom: Spacing.l, right: Spacing.l)
+        stack.spacing = Spacing.m
+        let margin = ShortcutsSettingsMetrics.margin
+        stack.edgeInsets = NSEdgeInsets(top: margin, left: margin, bottom: margin, right: margin)
         for view in [intro, scroll, prompt, footer] {
-            view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * Spacing.l).isActive = true
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * margin).isActive = true
         }
-        stack.widthAnchor.constraint(equalToConstant: ShortcutsSettingsMetrics.width).isActive = true
         view = stack
         refresh()
         observeSettings()
     }
 
-    /// The window keeps the last section's height otherwise (the SwiftUI sections size it themselves).
     override func viewWillAppear() {
         super.viewWillAppear()
         refresh()
-        guard let window = view.window else { return }
-        let content = window.contentRect(forFrameRect: window.frame)
-        let size = preferredContentSize
-        let frame = window.frameRect(forContentRect: NSRect(x: content.minX, y: content.maxY - size.height, width: size.width, height: size.height))
-        window.setFrame(frame, display: true)
     }
 
     /// Another writer (the palette, a spike, a second window) changes the overrides: the rows follow.
@@ -225,6 +224,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         messageLabel.stringValue = ""
         confirmButton.isHidden = true
         cancelButton.isHidden = true
+        promptRow?.isHidden = true
     }
 
     /// Ids marked on screen: a conflict waiting for an answer, or stored keys two actions share.
@@ -250,6 +250,7 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
         confirmButton.title = pending.map { "Use for \(title($0.id))" } ?? "Use It"
         confirmButton.isHidden = pending == nil
         cancelButton.isHidden = pending == nil
+        promptRow?.isHidden = message.isEmpty && pending == nil
         resetAllButton.isEnabled = !table.overrides.isEmpty
     }
 
@@ -296,7 +297,9 @@ final class ShortcutsSettingsViewController: NSViewController, NSTableViewDataSo
             let cell = tableView.makeView(withIdentifier: .init("actionCell"), owner: nil) as? ShortcutActionCell ?? ShortcutActionCell()
             cell.identifier = .init("actionCell")
             let chapter = action.chapter.map { " · Chapter \($0)" } ?? ""
-            cell.set(title: (action.isReserved ? "◆ " : "") + action.displayTitle, detail: action.menu + chapter, marked: marked)
+            cell.set(title: action.displayTitle, detail: action.menu + chapter, marked: marked)
+            // Reserved stays an internal property (5.7a, B-120): the tooltip says it, no marker.
+            cell.toolTip = action.isReserved ? "Never reaches the page, under any key you give it." : nil
             return cell
         case "key":
             let recorder = tableView.makeView(withIdentifier: .init("keyCell"), owner: nil) as? ShortcutRecorderButton ?? ShortcutRecorderButton()

@@ -5,12 +5,16 @@ import SwiftUI
 
 /// Settings ▸ Privacy ▸ Ads and trackers (B-30): Room's built-in blocker.
 /// Everything here is Room's own UI; the engine only receives the result.
+/// 5.7a (B-120): the pane keeps the switches and one summary row per list;
+/// the list catalogue, the custom rules and the allowed sites open in sheets.
 struct ContentBlockingSettingsView: View {
     let controller: ContentBlockingController
-    @State private var rulesDraft: String?
-    @State private var newListURL = ""
-    @State private var newSite = ""
-    @State private var updating = false
+    @State private var sheet: Sheet?
+
+    enum Sheet: String, Identifiable {
+        case lists, rules, sites
+        var id: String { rawValue }
+    }
 
     private var value: ContentBlockingSettings { controller.settingsValue }
 
@@ -40,15 +44,55 @@ struct ContentBlockingSettingsView: View {
                 Text(cookieBannerExplanation)
             }
             .accessibilityIdentifier("blocking-cookie-banners")
+            LabeledContent {
+                Button("Lists…") { sheet = .lists }.accessibilityIdentifier("blocking-lists-button")
+            } label: {
+                Text("Filter lists")
+                Text(listsSummary)
+            }
+            LabeledContent {
+                Button("Edit…") { sheet = .rules }.accessibilityIdentifier("blocking-rules-button")
+            } label: {
+                Text("Custom rules")
+                Text(rulesSummary)
+            }
+            LabeledContent {
+                Button("Edit…") { sheet = .sites }.accessibilityIdentifier("blocking-sites-button")
+            } label: {
+                Text("Allowed sites")
+                Text(sitesSummary)
+            }
         } header: {
             Text("Ads and trackers")
         } footer: {
             Text("Blocking runs on this Mac with open-source lists and code (adblock-rust, DuckDuckGo's autoconsent). Turn it off for one site from the site button in the sidebar's header.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
-        lists
-        customRules
-        allowedSites
+        .sheet(item: $sheet) { which in
+            ContentBlockingSheet(controller: controller, which: which) { sheet = nil }
+        }
+    }
+
+    private var listsSummary: String {
+        let builtIn = FilterListCatalog.all.filter { $0.isBundled }.count
+        let optional = value.enabledLists.count + value.customLists.filter(\.isEnabled).count
+        let rules = controller.ruleCounts.values.reduce(0, +)
+        var parts = ["\(builtIn) built in" + (optional > 0 ? ", \(optional) more turned on" : "")]
+        if rules > 0 { parts.append("\(rules.formatted()) rules") }
+        parts.append(value.automaticListUpdates ? "updated automatically" : "updated with Room")
+        return parts.joined(separator: " · ")
+    }
+
+    private var rulesSummary: String {
+        let count = value.customRules.split(whereSeparator: \.isNewline).count { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return count == 0 ? "None." : "\(count) rule\(count == 1 ? "" : "s") of your own."
+    }
+
+    private var sitesSummary: String {
+        let sites = value.allowedSites
+        if sites.isEmpty { return "None: blocking is on everywhere." }
+        let shown = sites.prefix(3).joined(separator: ", ")
+        return sites.count > 3 ? "\(shown) and \(sites.count - 3) more" : shown
     }
 
     private var cookieBannerExplanation: String {
@@ -57,6 +101,62 @@ struct ContentBlockingSettingsView: View {
         case .hide: "Room hides banners without answering them."
         case .off: "Banners show as the site draws them."
         }
+    }
+}
+
+/// The blocker's three lists in a sheet over Settings (5.7a, B-120).
+struct ContentBlockingSheet: View {
+    let controller: ContentBlockingController
+    let which: ContentBlockingSettingsView.Sheet
+    let dismiss: () -> Void
+    @State private var rulesDraft: String?
+    @State private var newListURL = ""
+    @State private var newSite = ""
+    @State private var updating = false
+
+    private var value: ContentBlockingSettings { controller.settingsValue }
+
+    private func binding<T>(_ keyPath: WritableKeyPath<ContentBlockingSettings, T>) -> Binding<T> {
+        Binding(get: { controller.settingsValue[keyPath: keyPath] },
+                set: { newValue in controller.update { $0[keyPath: keyPath] = newValue } })
+    }
+
+    private var title: String {
+        switch which {
+        case .lists: "Filter Lists"
+        case .rules: "Custom Rules"
+        case .sites: "Allowed Sites"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.headline).padding([.top, .horizontal], 20)
+            Form {
+                switch which {
+                case .lists: lists
+                case .rules: customRules
+                case .sites: allowedSites
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                if which == .rules {
+                    Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Apply") {
+                        if let draft = rulesDraft { controller.update { $0.customRules = draft } }
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(rulesDraft == nil || rulesDraft == value.customRules)
+                } else {
+                    Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding([.bottom, .horizontal], 20)
+        }
+        .frame(width: ContentBlockingSheetMetrics.width, height: ContentBlockingSheetMetrics.height)
     }
 
     // MARK: Lists
@@ -190,21 +290,12 @@ struct ContentBlockingSettingsView: View {
         Section {
             TextEditor(text: Binding(get: { rulesDraft ?? value.customRules }, set: { rulesDraft = $0 }))
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 90)
+                .frame(minHeight: 260)
                 .accessibilityLabel("Custom rules")
                 .accessibilityIdentifier("blocking-custom-rules")
-            HStack {
-                Text("One rule per line in filter-list syntax, e.g. ||ads.example.com^ or example.com##.banner.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Spacer()
-                Button("Apply") {
-                    if let draft = rulesDraft { controller.update { $0.customRules = draft } }
-                    rulesDraft = nil
-                }
-                .disabled(rulesDraft == nil || rulesDraft == value.customRules)
-            }
-        } header: {
-            Text("Custom rules")
+        } footer: {
+            Text("One rule per line in filter-list syntax, e.g. ||ads.example.com^ or example.com##.banner.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
@@ -237,4 +328,10 @@ struct ContentBlockingSettingsView: View {
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }
+}
+
+enum ContentBlockingSheetMetrics {
+    /// Chosen: the Settings window's width less its margins; the lists scroll inside.
+    static let width: CGFloat = 540
+    static let height: CGFloat = 480
 }

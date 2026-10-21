@@ -1662,6 +1662,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     /// ⌘W: the multi-selection or the selected entry, per spec §A.3.
     @objc func closeTab(_ sender: Any?) {
+        // Settings key: ⌘W closes it, as in every Mac app's settings window (5.7a, B-120).
+        if let settings = settingsWindow?.window, settings.isKeyWindow {
+            settings.performClose(sender)
+            return
+        }
         // A Peek over the page closes first (spec §I.6, shortcuts.md: Esc, ⌘W).
         if tabs?.closeShownPeek() == true { return }
         sidebar?.closeCommandTargets()
@@ -1932,7 +1937,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #selector(openLocation(_:)): { app, _ in app.tabs != nil },
         #selector(openFileInTab(_:)): { app, _ in app.tabs?.profile != nil },
         #selector(showCommands(_:)): { app, _ in app.palette != nil },
-        #selector(closeTab(_:)): { app, _ in app.tabs?.shownPeek != nil || app.sidebar?.canCloseCommandTargets == true },
+        #selector(closeTab(_:)): { app, _ in
+            app.settingsWindow?.window?.isKeyWindow == true || app.tabs?.shownPeek != nil || app.sidebar?.canCloseCommandTargets == true
+        },
         #selector(reopenClosedTab(_:)): { app, _ in app.sidebar?.canReopenClosedTab == true },
         #selector(showPageSetup(_:)): { app, _ in app.windowController?.window != nil },
         #selector(printPage(_:)): { app, _ in app.hasPage },

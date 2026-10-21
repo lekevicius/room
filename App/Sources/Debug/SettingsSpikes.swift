@@ -61,8 +61,93 @@ extension SpikeRunner.Context {
         switch UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "set" {
         case "verify": await settingsVerify(app: app, store: store)
         case "appicon": await settingsAppIcon(app: app, store: store)
+        case "fit": await settingsFit(app: app)
+        case "closekey": await settingsCloseKey(app: app, sidebar: sidebar)
         default: await settingsSet(app: app, store: store, sidebar: sidebar)
         }
+    }
+
+    // MARK: 5.7a: the window fits the display, every pane scrolls; ⌘W closes Settings
+
+    /// The deepest-first scroll view of a pane (a SwiftUI Form's, or the shortcuts table's).
+    private func paneScrollView(_ view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView, scroll.documentView != nil { return scroll }
+        for subview in view.subviews { if let found = paneScrollView(subview) { return found } }
+        return nil
+    }
+
+    /// Every pane at the smallest supported display's visible frame, then at this screen's: the window inside the
+    /// visible frame, the pane's scroll view scrolled to its end (its last row reachable). Captures at the smallest.
+    private func settingsFit(app: AppDelegate) async {
+        app.showSettings(nil)
+        guard let controller = app.debugSettingsWindow, let window = controller.window else {
+            return SpikeRunner.record("error", "settings fit: no Settings window")
+        }
+        let screen = window.screen?.visibleFrame ?? .zero
+        for (label, visible) in [("smallest", SettingsWindowFit.smallestVisibleFrame), ("screen", screen)] {
+            controller.visibleFrameOverride = label == "screen" ? nil : visible
+            var fits = 0, reachable = 0
+            for (index, section) in SettingsWindowController.Section.allCases.enumerated() {
+                controller.select(section)
+                window.orderFront(nil)
+                try? await Task.sleep(for: .milliseconds(500))
+                let pane = controller.panes[index].view
+                pane.layoutSubtreeIfNeeded()
+                let inside = visible.contains(window.frame)
+                var scrollLine = "no scroll view"
+                if let scroll = paneScrollView(pane), let document = scroll.documentView {
+                    let clip = scroll.contentView
+                    let documentHeight = document.frame.height
+                    let end = document.isFlipped ? max(0, documentHeight - clip.bounds.height) : 0
+                    clip.scroll(to: NSPoint(x: 0, y: end))
+                    scroll.reflectScrolledClipView(clip)
+                    let bottom = document.isFlipped ? clip.bounds.maxY : documentHeight - clip.bounds.minY
+                    let reached = abs(bottom - documentHeight) <= 1 || documentHeight <= clip.bounds.height
+                    if reached { reachable += 1 }
+                    scrollLine = String(format: "document %.0f (flipped %@) clip %.0f scrolls=%@ end reached=%@", documentHeight, document.isFlipped ? "yes" : "no", clip.bounds.height,
+                                        documentHeight > clip.bounds.height + 1 ? "true" : "false", reached ? "true" : "false")
+                    try? await Task.sleep(for: .milliseconds(300))
+                    if label == "smallest", let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory") {
+                        let url = URL(fileURLWithPath: directory).appending(path: "phase-5.7a-fit-\(section.rawValue)-end.png")
+                        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        window.displayIfNeeded()
+                        _ = try? WindowSnapshot.writePNG(window, to: url)
+                    }
+                    clip.scroll(to: NSPoint(x: 0, y: document.isFlipped ? 0 : max(0, documentHeight - clip.bounds.height)))
+                    scroll.reflectScrolledClipView(clip)
+                }
+                if inside { fits += 1 }
+                SpikeRunner.record("fit_\(label)_\(section.rawValue)", "window=\(NSStringFromRect(window.frame)) visible=\(NSStringFromRect(visible)) "
+                    + "inside=\(inside) pane=\(NSStringFromSize(pane.frame.size)) \(scrollLine)")
+            }
+            let count = SettingsWindowController.Section.allCases.count
+            SpikeRunner.record("fit_\(label)", "inside \(fits) of \(count), end reachable \(reachable) of \(count)")
+        }
+        controller.visibleFrameOverride = nil
+        window.orderOut(nil)
+    }
+
+    /// ⌘W with Settings key closes Settings and no tab; with the browser window key it is Close Tab again.
+    private func settingsCloseKey(app: AppDelegate, sidebar: SidebarController) async {
+        _ = await open(SpikeRunner.page("keys.html"))
+        _ = await open(SpikeRunner.page("scroll.html"))
+        try? await Task.sleep(for: .milliseconds(400))
+        let space = sidebar.activeSpaceID
+        let before = sidebar.store.sidebar.today(space: space).count
+        app.showSettings(nil)
+        guard let window = app.debugSettingsWindow?.window else { return SpikeRunner.record("error", "closekey: no Settings window") }
+        window.makeKeyAndOrderFront(nil)
+        let key = await waitUntil(3) { window.isKeyWindow }
+        let path = press("w", code: 13, .command, in: window)
+        let closed = await waitUntil(2) { !window.isVisible }
+        try? await Task.sleep(for: .milliseconds(300))
+        let after = sidebar.store.sidebar.today(space: space).count
+        SpikeRunner.record("closekey_settings", "key=\(key) via=\(path) closed=\(closed) today tabs \(before) → \(after)")
+        self.window.makeKeyAndOrderFront(nil)
+        let browserKey = await waitUntil(3) { self.window.isKeyWindow }
+        press("w", code: 13, .command, in: self.window)
+        let tabClosed = await waitUntil(2) { sidebar.store.sidebar.today(space: space).count == after - 1 }
+        SpikeRunner.record("closekey_browser", "key=\(browserKey) tab closed=\(tabClosed) today tabs \(after) → \(sidebar.store.sidebar.today(space: space).count)")
     }
 
     // MARK: Helpers
