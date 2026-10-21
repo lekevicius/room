@@ -103,3 +103,19 @@ Outcome: the card's drop layer (the page first, then Room), the drop matrix 27/2
 ### Build 22 (2026-10-21 22:10 → 22:24)
 
 The mini's first DMG, over the laptop's 155 engines (`ROOM_PACKAGE_STAGED=1 build/chapter-5-prompts/dmg.sh 22`): package 43 s, Debug over release 69 s, sign and notarize 166 s, Sparkle 372 s (the appcast over build/release, one entry). Two Release-only compile failures first, both 5.5b's (a DEBUG-only property set outside `#if DEBUG`, `76b8a44`; `openDropped` inside the DEBUG extension, `4ea5540`): the CI spec builds Debug only, so the shared session rules now require a Release compile before a push. `release-publish.sh`'s checks pass (dry run); held for the morning's publish.
+
+### 5.6b host side — accepted (worktree, 22:18 → 22:40)
+
+Outcome: B-32 (the double-click under the titlebar was AppKit's, not the band: routed to the page in `RoomWindow.sendEvent`), the hint in the state, the Dock menu, B-98's several incognito windows, ⇧⌘W and Zoom with the sidebar hidden, B-119 measured (15–16 ms per shown page, none off screen: not shipped); CI spec 719. New rows B-150 (⌘M with the sidebar hidden), B-151 (Services from a page). Merged as `83d1f3e`: 5.5a's and 5.6b's `sendEvent` combined; the two `isPageView` setters split into `isPageView` (5.5a, the engine's views) and `isCardPage` (5.6b, B-32).
+
+### 156 release engine installed (22:46 → 22:50)
+
+The laptop's official build of `30a60f7` (156.0.8078.48; three //room fixes for 156's API: `LocationBarModel::From`, FedCM's ambient-login kind, the autocomplete enum classes, the keybinding registry, history's hostname suffix): about 3 h 10 min there. The Debug app over it builds and runs; the baseline needs the dev engine's hooks and waits for 156 out/dev.
+
+### 5.8a host side — accepted (worktree, 22:55 → 23:20)
+
+Outcome: four `WebContentsUIDelegate` password members with `PasswordOffer`/`PasswordOfferResponse` (a host answering `true` suppresses Chrome's bubble), FakeEngine's simulations, the popover on the site button (Return saves; Never on save offers only; Manage), the saved toast; CI spec 738, Release compiles. Its "For the next session" lists the //room adapter's calls. Merge waits for 5.4b in main.
+
+### The laptop's request channel (23:03 → 00:10)
+
+5.4b's first engine request (`54b-1`, f05f3d6, dev and release) waited over an hour: the laptop's 156 out/dev clean build runs and its session showed idle; messages over Remote Control are not confirmed. Asked again at 00:10 (release first). Fallback for the publish: build 23 over the installed 156 release engine (`30a60f7`) without 5.4b's and B-58's //room changes (the host handles their absence).
