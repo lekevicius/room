@@ -422,8 +422,14 @@ public enum PermanentCloseBehavior: String, Hashable, Sendable, Codable, CaseIte
 /// to defaults so later phases can add settings without a migration.
 public struct Settings: Hashable, Sendable, Codable {
     public var permanentCloseBehavior: PermanentCloseBehavior = .resetUnloadSwitch
-    /// Today tabs untouched this long are archived (spec §A.7; 12, 24, 168, 720).
-    public var archiveAfterHours: Int = 12
+    /// Today tabs untouched this long are archived (spec §A.7; 12, 24, 168,
+    /// 720, or `ArchivePolicy.never`, the default since 5.7a: B-120).
+    public var archiveAfterHours: Int = ArchivePolicy.never
+    /// The settings document's revision (5.7a): a stored document older than
+    /// `Settings.currentRevision` is migrated as it is read.
+    public var revision: Int = Settings.currentRevision
+    /// 1 (5.7a): Archive tabs after's old default, 12 hours, became Never.
+    public static let currentRevision = 1
     /// Search suggestions from the engine while typing in the palette: on by
     /// default, the off switch in Settings (user decision 2026-10-03; CLAUDE.md).
     public var searchSuggestions: Bool = true
@@ -507,6 +513,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
         case extensionsInIncognito, readerTextSize, appIcon, contentBlocking, monoTrafficLights, sidebarTextSize
+        case revision
     }
 
     public init(from decoder: any Decoder) throws {
@@ -551,6 +558,13 @@ public struct Settings: Hashable, Sendable, Codable {
             ?? defaults.contentBlocking
         monoTrafficLights = (try? container.decodeIfPresent(Bool.self, forKey: .monoTrafficLights)).flatMap { $0 } ?? defaults.monoTrafficLights
         sidebarTextSize = (try? container.decodeIfPresent(SidebarTextSize.self, forKey: .sidebarTextSize)).flatMap { $0 } ?? defaults.sidebarTextSize
+        // Migrations, oldest first; a document without a revision is revision 0.
+        let stored = (try? container.decodeIfPresent(Int.self, forKey: .revision)).flatMap { $0 } ?? 0
+        if stored < 1, archiveAfterHours == 12 {
+            // 5.7a (B-120): Never is the default for new and existing states; 12 h was the old default.
+            archiveAfterHours = ArchivePolicy.never
+        }
+        revision = max(stored, Settings.currentRevision)
     }
 
     /// Whether `extensionID` of profile `profileID` may run in that profile's incognito window (4.5, for 4.8b).

@@ -209,7 +209,7 @@ private struct SettingsSectionView: View {
             }
             Picker(selection: binding(\.archiveAfterHours)) {
                 ForEach(ArchivePolicy.afterHoursOptions, id: \.self) { hours in
-                    Text(hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours").tag(hours)
+                    Text(hours == ArchivePolicy.never ? "Never" : hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours").tag(hours)
                 }
             } label: {
                 Text("Archive tabs after")

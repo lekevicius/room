@@ -175,7 +175,7 @@ public enum MainMenuTable {
     private static let view = MenuSpec("View", [
         item("Hide Sidebar", "hideOrShowSidebar:", key: k("s", .command), row: "Toggle sidebar"),
         item("Keep Sidebar Open", "keepSidebarOpen:", key: k("s", [.command, .option]), row: "Pin overlay sidebar open"),
-        item("Show Toolbar", "toggleToolbar:"),
+        // View ▸ Show Toolbar is hidden since 5.7a (B-120): `toggleToolbar:` and `Settings.showsToolbar` stay for a later developer mode.
         .separator,
         item("Reload Page", "reloadPage:", key: k("r", .command), row: "Reload / hard reload / stop"),
         item("Reload Ignoring Cache", "reloadIgnoringCache:", key: k("r", [.command, .shift]), row: "Reload / hard reload / stop"),

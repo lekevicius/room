@@ -609,6 +609,8 @@ struct ArchiveSweepTests {
     @Test("Old Today tabs go to the Archive with their pages unloaded; the selection and pages the engine keeps (sound, capture, a dirty form) stay")
     func sweep() throws {
         let f = try TabsFixture()
+        // Never is the default since 5.7a (B-120): the sweep runs on a chosen 12 h.
+        f.store.settings.update { $0.archiveAfterHours = 12 }
         let old = try f.today("https://old.example"), form = try f.today("https://form.example")
         let capture = try f.today("https://call.example"), audible = try f.today("https://music.example")
         let selected = try f.today("https://s.example")
@@ -624,6 +626,17 @@ struct ArchiveSweepTests {
         // The form is submitted: the next sweep takes it.
         f.page(form.id)?.simulatedDiscardBlockers = []
         #expect(f.tabs.sweepArchive(now: later) == [form.id])
+    }
+
+    @Test("Archive tabs after Never (the default, B-120): the sweep archives nothing")
+    func never() throws {
+        let f = try TabsFixture()
+        #expect(f.store.settings.settings.archiveAfterHours == ArchivePolicy.never)
+        let old = try f.today("https://old.example")
+        _ = try f.today("https://s.example")
+        let years = Timestamp(Date().addingTimeInterval(3 * 365 * 24 * 3_600))
+        #expect(f.tabs.sweepArchive(now: years).isEmpty)
+        #expect(f.sidebarStore.entry(old.id) != nil && f.sidebarStore.archive[old.id] == nil)
     }
 }
 

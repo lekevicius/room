@@ -391,10 +391,35 @@ struct ArchivePolicyTests {
         #expect(ids == [other.id])
     }
 
-    @Test("Settings ▸ General offers 12 h, 24 h, 7 d, 30 d")
+    @Test("Settings ▸ General offers 12 h, 24 h, 7 d, 30 d and Never, the default (B-120)")
     func options() {
-        #expect(ArchivePolicy.afterHoursOptions == [12, 24, 168, 720])
-        #expect(Settings().archiveAfterHours == 12)
+        #expect(ArchivePolicy.afterHoursOptions == [12, 24, 168, 720, ArchivePolicy.never])
+        #expect(Settings().archiveAfterHours == ArchivePolicy.never)
+    }
+
+    @Test("Never archives nothing, however old the tab (B-120)")
+    func never() {
+        let now = Timestamp(milliseconds: 100_000 * hour)
+        let ancient = today(90_000, now: now)
+        let ids = ArchivePolicy.toArchive(today: [ancient], now: now, afterHours: ArchivePolicy.never, selected: [], exemptions: [:],
+                                          splitGroups: [:], entries: [ancient.id: ancient])
+        #expect(ids.isEmpty)
+    }
+
+    @Test("Existing states move from the old default (12 h) to Never once; a chosen value and a migrated 12 h stay (B-120)")
+    func migration() throws {
+        func decode(_ json: String) throws -> Settings { try JSONDecoder().decode(Settings.self, from: Data(json.utf8)) }
+        // A 4.x state stored every key, the default 12 h among them, and no revision.
+        #expect(try decode(#"{"archiveAfterHours":12,"searchSuggestions":false}"#).archiveAfterHours == ArchivePolicy.never)
+        #expect(try decode(#"{"archiveAfterHours":24}"#).archiveAfterHours == 24)
+        #expect(try decode(#"{"archiveAfterHours":720}"#).archiveAfterHours == 720)
+        #expect(try decode("{}").archiveAfterHours == ArchivePolicy.never)
+        // After the migration the document carries its revision: 12 h chosen again is kept.
+        var chosen = try decode(#"{"archiveAfterHours":12}"#)
+        #expect(chosen.revision == Settings.currentRevision)
+        chosen.archiveAfterHours = 12
+        let stored = try JSONEncoder().encode(chosen)
+        #expect(try JSONDecoder().decode(Settings.self, from: stored).archiveAfterHours == 12)
     }
 
     @Test("Retention (B-80): rows older than 30 days are pruned; rows older than 7 days lose their navigation state")
