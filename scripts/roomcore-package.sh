@@ -16,7 +16,8 @@
 # //room, "-dirty" with local changes; a crash key), and the host is compiled
 # with ROOM_SPIKES when the GN args set room_enable_spikes = true.
 # Usage: scripts/roomcore-package.sh [--release] [--stage-only] [--launch] [--app-only|--host-only]
-# Env: OUT (out/dev), CONFIGURATION (Debug); checkout location from
+# Env: OUT (out/dev), CONFIGURATION (Debug), ROOM_PACKAGE_STAGED=1 (the apps
+# over the framework already in the stage, no out/); checkout location from
 # scripts/lib/chromium-env.sh (local.env).
 # Developer ID signing of the result: scripts/sign-and-notarize.sh <app>.
 #
@@ -68,7 +69,18 @@ done
 now() { perl -MTime::HiRes=time -e 'printf "%.1f\n", time'; }
 t0=$(now)
 
+if [[ "${ROOM_PACKAGE_STAGED:-0}" == 1 ]]; then
+  # ROOM_PACKAGE_STAGED=1: build the apps over the framework already staged in
+  # $STAGE (one copied from another Mac's build), without an out/ directory.
+  [[ -d "$FW" ]] || { echo "ROOM_PACKAGE_STAGED=1 but no $FW" >&2; exit 1; }
+  V="$FW/Versions/$(readlink "$FW/Versions/Current")"
+  component=0
+  otool -L "$V/RoomCore" | grep -q '@rpath/libchrome_dll.dylib' && component=1
+  t1=$(now)
+  echo "staged as is: $FW (component=$component; RoomCoreCommit $(plutil -extract RoomCoreCommit raw "$V/Resources/Info.plist"))"
+fi
 GN_FW="$OUT_DIR/Room.app/Contents/Frameworks/RoomCore.framework"
+if [[ "${ROOM_PACKAGE_STAGED:-0}" != 1 ]]; then
 [[ -d "$GN_FW" ]] || { echo "no $GN_FW; build with scripts/roomcore-build.sh" >&2; exit 1; }
 VERSION="$(readlink "$GN_FW/Versions/Current")"
 
@@ -132,12 +144,17 @@ if [[ $RELEASE -eq 1 ]]; then
   echo "dSYMs: $(ls "$STAGE/dSYMs" | wc -l | tr -d ' ') in $STAGE/dSYMs ($(du -sh "$STAGE/dSYMs" | cut -f1))"
 fi
 echo "staged $FW (component=$component, $dylibs dylibs, $(du -sh "$FW" | cut -f1); $(ls -d "$V"/Resources/*.lproj | wc -l | tr -d ' ') locales $((locales_kb / 1024)) MB, without them $(((fw_kb - locales_kb) / 1024)) MB; RoomCoreCommit $commit) in $(perl -e "print $t1 - $t0") s"
+fi
 [[ $STAGE_ONLY -eq 1 ]] && exit 0
 
 # 2. The Swift apps.
 cd "$ROOT"
 spikes=""
-grep -Eq '^[[:space:]]*room_enable_spikes[[:space:]]*=[[:space:]]*true' "$OUT_DIR/args.gn" && spikes=ROOM_SPIKES
+if [[ -f "$OUT_DIR/args.gn" ]]; then
+  grep -Eq '^[[:space:]]*room_enable_spikes[[:space:]]*=[[:space:]]*true' "$OUT_DIR/args.gn" && spikes=ROOM_SPIKES
+elif [[ $component -eq 1 ]]; then
+  spikes=ROOM_SPIKES  # a staged dev framework (args/dev.gn enables the hooks)
+fi
 # The stage this build links, and for a static framework no libchrome_dll.
 link_settings=(ROOMCORE_STAGE="$STAGE")
 [[ $component -eq 1 ]] || link_settings+=(ROOMCORE_COMPONENT_LDFLAGS= ROOMCORE_LIBRARY_PATH=)

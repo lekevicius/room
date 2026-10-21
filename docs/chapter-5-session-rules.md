@@ -151,3 +151,87 @@ user's list (chapter-5-by-hand.md "For the user") and why it needs them;
 (6) click checks you could not run yourself, if any, in the form above;
 (7) "For the next session": what changed the ground for it.
 ```
+
+## The Mac mini's machine section (2026-10-21 evening)
+
+The loop moved to the Mac mini; this replaces "The machine" above (the rest is unchanged, with the series at 27 patches). The planner writes it to `build/chapter-5-prompts/common.md`.
+
+```
+== The machine ==
+- This is the Mac mini (Apple M4, 10 cores, 24 GB, user `eve`), repository
+  /Users/eve/Code/room. `build/` is a symlink to /Volumes/JL4/room-build
+  (the 4 TB APFS SSD; the internal disk keeps its space for the system).
+  The Chromium checkout is /Volumes/JL4/chromium/src (local.env), fetched
+  fresh on 2026-10-21 and moving to Stable 156.0.8078.48 (the planner's
+  rebase; the 27-patch series, 0026 and 0027 the blocker's). Until its
+  out/ directories are built, the staged engines in build/roomcore (dev,
+  component, spike hooks) and build/roomcore-release (official) are
+  copies of the laptop's builds of the current //room: build the apps over
+  them with `ROOM_PACKAGE_STAGED=1 scripts/roomcore-package.sh --app-only`
+  (dev) and `ROOM_PACKAGE_STAGED=1 CONFIGURATION=Debug
+  scripts/roomcore-package.sh --release --app-only` (the Debug app over
+  the release engine). Do not edit //room or Packages/EngineRoomCore
+  unless your prompt names an engine step and says out/ is built.
+  Chromium builds use ROOM_BUILD_JOBS=6, start from bash with nohup,
+  never zsh `&`; one at a time; never edit //room while a compiler runs
+  on it. Waiting on a build: a background `while kill -0 <pid>; do sleep
+  60; done` (run_in_background), never a foreground sleep.
+- Your prompt says which checkout you work in: the main one, or a git
+  worktree with its own build/ (then use only that worktree's build/ and
+  DerivedData, never /Users/eve/Code/room/build, and commit on the
+  worktree's branch; the planner merges it).
+- The user's Room is not installed on this Mac and no Room runs on the
+  real state: still never launch anything on ~/Library/Application
+  Support/Room or the real engine root; always a throwaway
+  -RoomStateDirectory and -RoomEngineDirectory under /tmp or build/.
+  The dev app is build/roomcore/DerivedData/Build/Products/Debug/Room.app;
+  judge numbers on the Debug app over the release framework
+  (ROOM_TOUR_APP=build/roomcore-release/DerivedData/Build/Products/Debug/Room.app).
+- Display: the only display is the Screen Sharing virtual display (1920 x
+  1080 points at 60 Hz, main). No 120 Hz panel here: 120 Hz runs are the
+  user's step (B-16, B-20, B-21), never something to wait on. If the
+  session locks or the display goes away (Screen Sharing disconnected),
+  captures fail: say so in the report and continue with what needs no
+  window.
+- GitHub Actions is off (B-93): before your push run the CI spec locally
+  (`xcodegen --spec xcodegen/ci.yml --project-root . --project .`, then the
+  `Room` scheme's `build test` with `CI=1` and its own -derivedDataPath
+  under build/; regenerate the normal project with `xcodegen` afterwards)
+  and say so in the log entry.
+- The test servers are scripts/test-servers.sh (ports 8765–8771; they may
+  already be running: reuse them); the grand tour scripts/grand-tour.sh
+  (`--only <steps>`); the engine drives scripts/roomcore-features.sh; the
+  net-log scripts/netlog-check.sh; the spike runner scripts/run-spike.sh;
+  the live-site check scripts/live-check.sh. Captures are in-process.
+- No prompts for the user: never call mcp__computer-use__request_access,
+  request_full_control or any tool that shows the user a dialog or asks
+  for approval; never AskUserQuestion; never sudo; never run a command you
+  expect the permission system to stop (re-signing outside the scripts,
+  TCC or System Settings changes, anything outside the repo, build/,
+  /tmp, /Volumes/JL4/room-* and the Chromium checkout). If a step needs
+  one, it goes on the user's list.
+- Never capture the screen from the shell or a helper process
+  (`screencapture`, CGDisplayCreateImage, CGWindowListCreateImage of other
+  windows, ScreenCaptureKit): it raises macOS's screen-capture dialog.
+  Captures are in-process, of Room's own windows (WindowSnapshot,
+  captureViewport).
+- Printers: this Mac lists none today (`lpstat -p` empty); still never
+  press Return or Print in Chrome's print preview or a print panel unless
+  NSPrinter.printerNames is empty or Save as PDF is selected first (B-126).
+- No request to a real site from a spike unless the task is a live-site
+  check: never press Return on a palette row that searches the web or
+  opens a remote URL; use the test servers. Search suggestions off
+  (`-RoomSuggestionsOff` or the setting) in every spike that types into
+  the palette.
+- Computer use: the planner session holds the grants (`app.room.desktop.dev`
+  at full tier, Finder, clipboard read and write; granted 2026-10-21 on
+  this Mac; the Claude app has Screen Recording and Accessibility). Only
+  ever drive your own Debug process (`app.room.desktop.dev`) on a throwaway
+  state. Prefer a spike hook for every check. If you cannot reach the
+  mcp__computer-use__* tools, list each click check in your report (the
+  app path, the launch arguments, the exact clicks and what to read back)
+  and the planner runs it after you return. An ad-hoc Debug build may
+  lose macOS's camera, microphone or Bluetooth answers after a rebuild: a
+  re-asked prompt is a user-list item, never something to wait on.
+
+```
