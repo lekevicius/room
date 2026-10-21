@@ -575,3 +575,67 @@ enum DragImage {
         }
     }
 }
+
+#if DEBUG
+/// A drag over the outline as AppKit would describe it, for spikes that cannot
+/// move the real pointer (5.6a: a folder dropped onto a folder, B-117).
+final class DebugDraggingInfo: NSObject, NSDraggingInfo {
+    let draggingPasteboard: NSPasteboard
+    let draggingLocation: NSPoint
+    weak var window: NSWindow?
+
+    init(pasteboard: NSPasteboard, location: NSPoint, window: NSWindow?) {
+        draggingPasteboard = pasteboard
+        draggingLocation = location
+        self.window = window
+    }
+
+    var draggingDestinationWindow: NSWindow? { window }
+    var draggingSourceOperationMask: NSDragOperation { [.move, .copy] }
+    var draggedImageLocation: NSPoint { draggingLocation }
+    var draggedImage: NSImage? { nil }
+    var draggingSource: Any? { nil }
+    var draggingSequenceNumber: Int { 1 }
+    func slideDraggedImage(to screenPoint: NSPoint) {}
+    var draggingFormation: NSDraggingFormation = .none
+    var animatesToDestination = false
+    var numberOfValidItemsForDrop = 1
+    func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions = [], for view: NSView?,
+                                classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any] = [:],
+                                using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
+    var springLoadingHighlight: NSSpringLoadingHighlight { .none }
+    func resetSpringLoading() {}
+}
+
+extension SidebarController {
+    /// Drags `ids` over the outline to `point` (window coordinates), rests there `rest` seconds
+    /// (the hold is measured as a real drag's is), then drops: the outline's own validate and accept.
+    public func debugDrop(_ ids: [UUID], at point: NSPoint, rest: TimeInterval) async -> (accepted: Bool, target: String) {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("room.debug.drag.\(UUID().uuidString)"))
+        pasteboard.clearContents()
+        pasteboard.writeObjects(ids.compactMap(sidebar.entry).map { pasteboardItem(for: $0) })
+        let info = DebugDraggingInfo(pasteboard: pasteboard, location: point, window: outline.window)
+        drag = DragState(ids: ids)
+        _ = outlineDragUpdated(info)
+        try? await Task.sleep(for: .seconds(rest))
+        _ = outlineDragUpdated(info)
+        let target = drag?.target.map { "\($0)" } ?? "none"
+        let accepted = outlineAcceptDrop(info)
+        drag = nil
+        hideDropFeedback()
+        pasteboard.releaseGlobally()
+        return (accepted, target)
+    }
+
+    /// A row's middle and lower-quarter points in window coordinates.
+    public func debugRowPoints(_ id: UUID) -> (middle: NSPoint, lower: NSPoint)? {
+        guard let node = tree.displayedNode(for: id) else { return nil }
+        let row = outline.row(forItem: node)
+        guard row >= 0 else { return nil }
+        let rect = outline.rect(ofRow: row)
+        let middle = outline.convert(NSPoint(x: rect.midX, y: rect.minY + rect.height * 0.5), to: nil)
+        let lower = outline.convert(NSPoint(x: rect.midX, y: rect.minY + rect.height * 0.9), to: nil)
+        return (middle, lower)
+    }
+}
+#endif

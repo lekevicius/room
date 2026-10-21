@@ -172,9 +172,6 @@ extension SidebarController {
         menu.addItem(addToEssentialsItem(entry))
         menu.addItem(moveToSpaceItem(entry))
         menu.addItem(moveToFolderItem(entry))
-        // B-117: a new folder where the entry is, so inside its folder a subfolder (up to `FolderRules.maxDepth`).
-        let canNest = (try? FolderRules.validateNewFolder(in: entry.folderID, in: sidebar.entries)) != nil
-        menu.addItem(action(CommandName.newFolderWithTab, symbol: .newFolder, enabled: canNest) { [weak self] in self?.newFolderWithTab(id) })
         menu.addItem(pinnedURLItem(entry))
         menu.addItem(splitWithItem(entry))
         menu.addItem(.separator())
@@ -230,6 +227,8 @@ extension SidebarController {
         })
         menu.addItem(.separator())
         menu.addItem(later(CommandName.convertToSpace, symbol: .newSpace, phase: "2.5"))
+        // B-117: a folder nests into another from its menu too (itself and its subfolders left out).
+        menu.addItem(moveToFolderItem(folder))
         menu.addItem(moveToSpaceItem(folder, title: CommandName.moveToSpace))
         menu.addItem(action(CommandName.unpack, symbol: .folderOpen, enabled: !sidebar.pinned(space: tree.spaceID, folder: id).isEmpty) {
             [weak self] in self?.removeEntry(id, undoable: false)
@@ -329,8 +328,10 @@ extension SidebarController {
             submenu.addItem(.separator())
         }
         func add(_ folder: UUID?, level: Int) {
-            for child in sidebar.pinned(space: tree.spaceID, folder: folder) where child.kind == .folder {
-                let target = action(EntryLabel.title(child), symbol: .folder, enabled: child.id != entry.folderID) { [weak self] in
+            // A folder never lists itself or what is inside it; a target too deep for its subtree is disabled (B-117).
+            for child in sidebar.pinned(space: tree.spaceID, folder: folder) where child.kind == .folder && child.id != entry.id {
+                let fits = (try? FolderRules.validatePlacement(of: entry.id, into: child.id, in: sidebar.entries)) != nil
+                let target = action(EntryLabel.title(child), symbol: .folder, enabled: child.id != entry.folderID && fits) { [weak self] in
                     self?.moveToFolder(entry.id, folder: child.id)
                 }
                 target.indentationLevel = level
@@ -465,10 +466,21 @@ extension SidebarController {
     /// "New Folder with Tab": the entry becomes pinned inside a new folder.
     func newFolderWithTab(_ id: UUID) {
         guard let entry = sidebar.entry(id) else { return }
-        let parent = entry.kind == .pinned ? entry.folderID : nil
-        let index = entry.kind == .pinned ? entry.position : nil
+        // A pinned entry or a folder: the new folder takes its place (a folder's "Move to Folder ▸ New Folder…").
+        let inPinned = entry.kind == .pinned || entry.kind == .folder
+        let parent = inPinned ? entry.folderID : nil
+        let index = inPinned ? entry.position : nil
         guard let folder = try? sidebar.addFolder(name: CommandName.newFolder, space: tree.spaceID, parent: parent, at: index) else { return }
-        try? sidebar.move(id, to: .pinned(space: tree.spaceID, folder: folder.id), at: 0)
+        do throws(SidebarError) {
+            try sidebar.move(id, to: .pinned(space: tree.spaceID, folder: folder.id), at: 0)
+        } catch {
+            // A folder whose subtree would nest too deep: no empty folder is left behind.
+            _ = try? sidebar.remove(folder.id)
+            if case .folder(.tooDeep(let max)) = error {
+                toasts?.show(Toast(id: "folder-depth", symbol: .info, message: "Folders nest at most \(max) deep"))
+            }
+            return
+        }
         if tree.space?.pinnedCollapsed == true { togglePinnedCollapsed() }
         beginRename(folder.id)
     }

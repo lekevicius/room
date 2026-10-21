@@ -260,18 +260,35 @@ extension SpikeRunner.Context {
               let child = try? store.addEntry(.pinned, url: Self.detailsBase + "find.html?child", title: "Child page", space: space, folder: outer.id),
               let other = try? store.addFolder(name: "Other", space: space) else { return SpikeRunner.record("error", "folders: fixture") }
         try? await Task.sleep(for: .milliseconds(400))
-        // New Folder with Tab on a pinned entry inside a folder: a subfolder there.
+        // Move to Folder ▸ New Folder… on a pinned entry inside a folder: a subfolder there.
         guard let menu = sidebar.debugContextMenu(for: child.id),
-              let index = menu.items.firstIndex(where: { $0.title == "New Folder with Tab" }) else {
-            return SpikeRunner.record("folders_menu", "no New Folder with Tab on a pinned entry")
+              let moveTo = menu.items.first(where: { $0.title == "Move to Folder" })?.submenu,
+              let index = moveTo.items.firstIndex(where: { $0.title == "New Folder…" }) else {
+            return SpikeRunner.record("folders_menu", "no Move to Folder ▸ New Folder… on a pinned entry")
         }
-        let enabled = menu.items[index].isEnabled
-        menu.performActionForItem(at: index)
+        let enabled = moveTo.items[index].isEnabled
+        moveTo.performActionForItem(at: index)
         try? await Task.sleep(for: .milliseconds(400))
-        guard let sub = store.entry(child.id)?.folderID else { return SpikeRunner.record("folders_menu", "no folder made") }
-        sidebar.debugRenameEnded(sub, label: "Sub")
+        guard let sub = store.entry(child.id)?.folderID, sub != outer.id else { return SpikeRunner.record("folders_menu", "no folder made") }
+        window.makeFirstResponder(nil)
+        try? await Task.sleep(for: .milliseconds(200))
         let depth = FolderRules.depth(of: sub, in: store.entries) ?? -1
-        SpikeRunner.record("folders_new_with_tab", "enabled=\(enabled) label=\(store.entry(sub)?.customLabel ?? "?") parent=\(store.entry(sub)?.folderID == outer.id ? "Outer" : "?") depth=\(depth)")
+        SpikeRunner.record("folders_new_folder_from_entry", "enabled=\(enabled) parent=\(store.entry(sub)?.folderID == outer.id ? "Outer" : "?") depth=\(depth)")
+        // A folder's own menu: Move to Folder lists the other folders, never itself or what is inside it.
+        if let folderMenu = sidebar.debugContextMenu(for: other.id),
+           let folderMoveTo = folderMenu.items.first(where: { $0.title == "Move to Folder" })?.submenu,
+           let outerIndex = folderMoveTo.items.firstIndex(where: { $0.title == "Outer" }) {
+            let titles = folderMoveTo.items.filter { !$0.isSeparatorItem }.map { "\($0.title)\($0.isEnabled ? "" : "(off)")" }
+            let outerMenu = sidebar.debugContextMenu(for: outer.id)?.items.first(where: { $0.title == "Move to Folder" })?.submenu
+            let outerTitles = (outerMenu?.items ?? []).filter { !$0.isSeparatorItem }.map(\.title)
+            folderMoveTo.performActionForItem(at: outerIndex)
+            try? await Task.sleep(for: .milliseconds(300))
+            SpikeRunner.record("folders_move_to_folder", "Other's targets=\(titles) Outer's own targets=\(outerTitles) "
+                               + "other_parent=\(store.entry(other.id)?.folderID == outer.id ? "Outer" : "root")")
+            try? store.move(other.id, to: .pinned(space: space, folder: nil), at: 0)
+        } else {
+            SpikeRunner.record("folders_move_to_folder", "no Move to Folder on a folder")
+        }
         // New Subfolder down to depth 5, then disabled.
         var deepest = sub
         var subfolderStates: [String] = []
@@ -299,6 +316,37 @@ extension SpikeRunner.Context {
         sidebar.debugShowDrag(nil)
         let canDrop = (try? store.canMove([other.id], to: .pinned(space: space, folder: outer.id)).get()) != nil
         SpikeRunner.record("folders_drop_rule", "folder onto folder: allowed=\(canDrop)")
+        // The drop itself through the outline's validate and accept (a drag AppKit would describe):
+        // a quick pass over the middle reorders; resting there 0.8 s drops the folder into the other.
+        guard let empty = try? store.addFolder(name: "Empty", space: space) else { return }
+        try? store.setFolderCollapsed(outer.id, true)
+        try? await Task.sleep(for: .milliseconds(400))
+        if let points = sidebar.debugRowPoints(empty.id) {
+            let quick = await sidebar.debugDrop([other.id], at: points.middle, rest: 0.1)
+            SpikeRunner.record("folders_drop_quick", "accepted=\(quick.accepted) other_parent=\(store.entry(other.id)?.folderID == empty.id ? "Empty" : "root")")
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        if let points = sidebar.debugRowPoints(empty.id) {
+            let held = await sidebar.debugDrop([other.id], at: points.middle, rest: 0.8)
+            SpikeRunner.record("folders_drop_held", "accepted=\(held.accepted) target=\(held.target) other_parent=\(store.entry(other.id)?.folderID == empty.id ? "Empty" : "root")")
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        // A folder with its subfolder (two levels) onto the fifth level: refused (FolderRules.maxDepth), nothing moves.
+        try? store.setFolderCollapsed(outer.id, false)
+        try? await Task.sleep(for: .milliseconds(400))
+        if let points = sidebar.debugRowPoints(deepest) {
+            let deep = await sidebar.debugDrop([empty.id], at: points.middle, rest: 0.8)
+            SpikeRunner.record("folders_drop_too_deep", "onto depth \(FolderRules.depth(of: deepest, in: store.entries) ?? -1): accepted=\(deep.accepted) "
+                               + "target=\(deep.target.prefix(12)) empty_parent=\(store.entry(empty.id)?.folderID.map { $0 == deepest ? "deepest" : "elsewhere" } ?? "root")")
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        // The same subtree onto Outer (depth 1): three levels, allowed.
+        if let points = sidebar.debugRowPoints(outer.id) {
+            let subtree = await sidebar.debugDrop([empty.id], at: points.middle, rest: 0.8)
+            SpikeRunner.record("folders_drop_subtree", "accepted=\(subtree.accepted) empty_parent=\(store.entry(empty.id)?.folderID == outer.id ? "Outer" : "root") "
+                               + "other_parent=\(store.entry(other.id)?.folderID == empty.id ? "Empty" : "?")")
+        }
+        detailsCapture("folders-dropped")
     }
 
     /// Two top-level folders, Target (expanded, with a child) and Mover, for a computer-use drag;
@@ -312,8 +360,8 @@ extension SpikeRunner.Context {
         func point(_ id: UUID) -> String {
             guard let row = sidebar.debugRowView(for: id) else { return "none" }
             let frame = row.convert(row.bounds, to: contentView)
-            let height = contentView.bounds.height
-            return "x=\(Int(frame.midX)) y=\(Int(height - frame.maxY)) h=\(Int(frame.height))"
+            let top = contentView.isFlipped ? frame.minY : contentView.bounds.height - frame.maxY
+            return "x=\(Int(frame.midX)) top=\(Int(top)) h=\(Int(frame.height))"
         }
         SpikeRunner.record("folderdrag_rows", "target=\(target.id.uuidString) \(point(target.id)); mover=\(mover.id.uuidString) \(point(mover.id)); "
                            + "window=\(Int(window.frame.width))x\(Int(window.frame.height))")
