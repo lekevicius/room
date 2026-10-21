@@ -4241,6 +4241,30 @@ Debug app over the dev engine (staged 155 builds of `c5a4032`) and over the offi
 
 Tour checks (the tour's steps run one by one with the running test servers; `tour_checks.evaluate`): dev keys 23/23, palette 19/19, palette2 26/26, palettemeasure 14/14; release keys 23/23, palette 19/19, palette2 24/26 (the chip's two `LocationBarModel` reads are spike hooks, absent from the official framework, B-82), palettemeasure 14/14. `palettemeasure` (500 entries, 50,000 history rows, suggestions off, dev): later keys median 5.73 / p95 9.26 ms, first keys median 22.75 ms; **72 of 120 keystrokes complete inline** (B-65's row: 72 off; a first guard that also checked Chrome's default match dropped it to 55, fixed in `c00e926`).
 
+## Phase 5.5 — 5.5b (drops, drags out, haptics, the overflow, the pill, sublabels; 2026-10-21, Mac mini M4)
+
+Debug app over the dev engine (staged 155 builds of `c5a4032`) and over the official framework (`ROOM_TOUR_APP`); the Screen Sharing display (1920 × 1080, 60 Hz); throwaway states; searches on a local engine (`:8770/search?q=`); load 5–25 (5.6a's and 5.7b's sessions beside it). `scripts/drop-check.sh` (`-RoomSpike drops`): each source a pasteboard of its own handed to Room's drop code through an in-process `NSDraggingInfo`; the card's page path goes on into the engine's own `WebContentsViewCocoa` (Blink answers and drops).
+
+| Source → target | Dev | Release framework |
+|---|---|---|
+| link → list / card / space icon | 1 tab above the row under the line, selected / Blink's new tab (`by=page`) / into the other space | same |
+| two links → list / card / icon | 2 / 2 (`by=room`: Blink would open one) / 2 | same |
+| text → list / card / icon | 1 search tab (the profile's engine) / 1 (`by=room`: the page refused) / 1 | same |
+| two URLs as text → list / card / icon | 2 / 2 (`by=room`; the first run gave the page one mangled URL `…drop=a%0Ahttp://…`: fixed by counting URL lines as links) / 2 | same |
+| image data (PNG, no file) → list / card / icon | 1 `file://…/Dropped Image ….png` / 1 (`by=room`) / 1 | same |
+| file → list / card / icon | 1 `file://` / Blink's new tab (`by=page`) / 1 | same |
+| link, two links → Essentials | 1 (empty grid: the slot, no line); 2 with the line moving 1 → 283 pt, 1 tick | same |
+| text → a page's textarea | the page took it (`"dropped words"`), no tab | same |
+| AppKit's lookup (`_hitTest:dragTypes:`) | card: URL and text → `CardDropView`, Chromium's own type → `WebContentsViewCocoa`, a sidebar entry while this window's drag is on → `SplitDropOverlayView`; a row → `SidebarOutlineView` | same |
+| Insertion line and ticks (list) | line at y 60 → 96, 1 tick per move, every source | same |
+| Hover over 6 rows | 0 ticks | 0 |
+| Split divider 0.30 → 0.497 → 0.503 → 0.62 → 0.501 | ratios 0.303, **0.500**, 0.500, 0.626, **0.500**; ticks 0, 1, 1, 1, 2 | same |
+| Overflow | top line with the selected row above; click → row visible, no line; bottom line with it below | same |
+| Sublabels (changed pinned row) | live title; "Back to pinned URL"; ⌘ selected "Separate from pinned tab"; ⌘ unselected "Back to pinned URL" (was Separate) | same |
+| Status pill (`chromesurfaces2 -RoomSpikeOnly status`, dev) | hover → status 23.4 ms, → pill 604.6 ms median (600 configured), full width, `leading → trailing` with the pointer on it, hides | — |
+
+Totals: `drops` **27/27 on dev, 27/27 on the release framework**. A standalone probe of AppKit (a registered view under an overlay whose `hitTest:` returns nil) showed the same: `_hitTest:dragTypes:` returns the overlay for its types and the view below for others, so the card's drop view takes no click. Not measured: real drags (no full-control computer use: background control refuses a drag that starts on a Room control), the trackpad's ticks (no Force Touch trackpad here).
+
 ## Phase 5.7 — 5.7a: Settings (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's Debug Room running beside it; load 2–20)
 
 | Check | Result |
