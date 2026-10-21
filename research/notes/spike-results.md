@@ -4252,6 +4252,34 @@ Motion recheck (`scripts/motion-check.sh -RoomSpikeOnly sidebar`, dev, 60 Hz, lo
 
 No window: the last window closed, 0 Room windows after 2 s, the app still running (`-RoomSpikeOnly nowindow`, dev).
 
+## Phase 5.6 — 5.6b: details, the host side (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, `AppleActionOnDoubleClick` Fill, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5b's Debug Room running beside it; load 3–11)
+
+`scripts/details2-check.sh` (new; `-RoomSpike details2`), each run on a fresh `/tmp/room-5/details2/run-*` state and engine directory, the pages on :8765 and :8766, window 1200 × 780 pt:
+
+| Check | dev light | dev dark | release light |
+|---|---|---|---|
+| B-32, before the change: a double-click 10 pt under the card's top, sidebar hidden | hit `RenderWidgetHostViewCocoa`; page `dblclick` 1, but the window **filled** {{392, 202}, {1200, 780}} → {{62, 0}, {1858, 1050}} (AppKit's titlebar action over the page, not the band: the band only took single presses) | — | — |
+| B-32 after: the same double-click | page `dblclick` 1, downs 2; frame kept | same | same |
+| B-32 after: a press at the top dragged 40 pt | page downs 1, mousemove while pressed 1, ups 1; frame kept | same | moves 2; frame kept |
+| ⌘S, page focused (B-11) | an editor page that saves: saves 1, sidebar stays; a plain page: page saw it, sidebar hidden; again: docked | same | same |
+| The hint, two snaps | first: "Sidebar hidden — press ⌘S to bring it back"; second: none; stored `sidebarHiddenHintShown` false → true | same | same |
+| The hint's key | remapped ⌥⌘B: "press ⌥⌘B"; no key: "View ▸ Show Sidebar brings it back"; ⌘S (the menu) hides without it | same | same |
+| Hidden sidebar's toasts | background tab "New background tab opened"; new space "Created “Hidden Toast”"; download "Downloaded “room-test.bin”" · Show | same | same |
+| Dock menu (`applicationDockMenu` through NSApp's delegate) | New Window → windows 1 → 2; New Incognito Window → 3, incognito; every window in the Window menu, none excluded (the Dock lists them from there) | same | same |
+| Window menu opened in-process (a timer in the tracking loop reads it) | Minimize, Minimize All, Zoom, Zoom All, Fill, Center, Move & Resize ▸ (19 items), Full Screen Tile ▸ Left/Right of Screen, Move to JL iPad, Downloads, Bring All to Front, Arrange in Front, the windows: AppKit adds the tiling items as the menu opens | same | same |
+| Zoom, docked | {{392, 202}, {1200, 780}} → {{62, 0}, {1858, 1050}} → back | same | same |
+| Sidebar hidden (traffic lights hidden): Zoom, Close Window, Minimize | before: `performClose` left a hidden-sidebar window open (found by the dock check's cleanup); after: Zoom acts, Close Window acts, **Minimize does not** (docked: acts) → B-150 | same | same |
+| Services | the app's Services menu set; the page's view with 28 characters selected, key, active: `validRequestor(forSendType: .string)` nil → B-151 | same | same |
+| B-98: two ⇧⌘N | 2 incognito windows, one twin, one store with 2 rows, cascaded 22 pt; main store rows unchanged | same | same |
+| B-98: cookie set in A, read in B | `room_b98=shared` | same | same |
+| B-98: A closed / B closed / ⇧⌘N again | B's page answers, twin alive, A's tabs gone, 1 row / twin gone, reader folder removed / new twin, cookie "" | same | same |
+| B-119: `captureViewport` of the shown page (5 pages × 3) | median 16.4 ms, p95 19.8, max 20.8 (912 × 764 px) | 16.1 / 18.4 / 19.5 | 15.1 / 19.1 / 19.8 |
+| B-119: a loaded page not on screen | 0 of 4 within 3 s | 0 of 4 | 0 of 4 |
+| B-119: downscale to 240 pt | 1.5 ms median (one 21 ms first draw) | 1.0 ms | 1.7 ms |
+| Minidumps | 0 | 0 | 0 |
+
+**B-119 decision:** not shipped. A thumbnail of a tab that is not on screen does not exist (hidden renderers draw no frames); the switcher could only show each tab as it was when left, which costs a 15–16 ms GPU readback at every selection change and keeps one image per tab. Row kept on the iteration list with these numbers.
+
 ## Phase 5.7 — 5.7b: the space window and onboarding (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's and 5.6a's Debug Rooms running beside it; load 4.5–8.9)
 
 | Check | Result |
