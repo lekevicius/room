@@ -4213,3 +4213,17 @@ Both reports (`ExcUserFault_Room-2026-10-21-045904.ips`, dev, the tour's `routin
 ### Unit tier and checks
 
 `CI=1 swift test`: Model 111, Sidebar 48, Tabs 87, Palette 25 + 4 (the window tier, without `CI`), all passed. `grand-tour.sh --no-build --only routing light`: 25/25 on dev (test servers stopped for it and restarted).
+
+## Phase 5.7 — 5.7a: Settings (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's Debug Room running beside it; load 2–20)
+
+| Check | Result |
+|---|---|
+| `fit`, smallest supported visible frame 1024 × 543 (1024 × 640 less a 33 pt menu bar and a 64 pt Dock) | window 560 × 527, every pane 439 pt; 8 of 8 inside; content General 534, Appearance 593, Search 586, Downloads 223, Shortcuts 3,842 (table), Spaces 586, Extensions 271, Privacy 1,074 pt; 8 of 8 scrolled to their end |
+| `fit`, this display's visible frame 1860 × 1050 | window 560 × 728, panes 640 pt; 8 of 8 inside; Shortcuts and Privacy scroll |
+| `closekey` | Settings key: ⌘W closed it, Today tabs 2 → 2; browser key: ⌘W closed a tab, 2 → 1 |
+| `settings` tour checks | 32 / 32 dev, 32 / 32 release framework (load 20.5); key press → stored and in the menu 81.3 / 73.6 ms, menu apply 0.43 / 0.40 ms |
+| `settings2`, `routing` (dev) | 26 / 26, 25 / 25 |
+| `app28a` (dev, light, no captures) | 17 / 26 (window not key), then 21 / 26: fullscreen rounds 2–3 and ⌘←'s palette validation fail; Settings sections, menus, reveal pass; menu update median 0.36 ms |
+| First launch of the new dev build | `launch_to_spike_s` 829 s once, then 2.1–7.0 s |
+| `rg -i 'right.*sidebar|sidebar.*right|trailing' \| wc -l` | 265 → 225 |
+| CI spec locally | BUILD and TEST SUCCEEDED, 706 tests, 0 failed, 2 min 8 s |

@@ -550,3 +550,15 @@ Review sheets: `research/screenshots/phase-5.3/phase-5.3-{rows,header,palette,to
 | `AudioGlyph.symbol(muted:_:)`, `Symbol.audibleShape` / `mutedShape` | Differentiate Without Colour: `speaker.wave.2.circle.fill` / `speaker.slash.circle.fill` in place of `speaker.wave.2.fill` / `speaker.slash.fill` (rows and the Essentials' badge) | ROADMAP 5.3 task 5 |
 
 What the in-process options do not reach: AppKit's own colours (`labelColor`, `secondaryLabelColor`, `separatorColor` outside `Palette.hairline`) and `NSPopover`'s material (downloads, the site panel, permissions) change only with the real switches, which the system applies itself (Phase 5.3 step 3 for the user).
+
+## Added in Phase 5.7a (Settings, B-120)
+
+| Token / surface | Value | Source |
+|---|---|---|
+| `SettingsWindowFit.contentWidth` / `preferredContentHeight` / `margin` / `minimumContentHeight` | 560 / 640 / 8 / 240 pt: every pane one height, `min(640, visible frame − title bar and toolbar − 2 × 8)`, its content scrolling; the window moved inside the visible frame | B-120 (panes did not scroll; the window grew past the display); values chosen |
+| `SettingsWindowFit.smallestVisibleFrame` | 1024 × 543 pt (a 1024 × 640 display less a 33 pt menu bar and a 64 pt Dock) | the smallest macOS 26 display scale |
+| `SearchSettingsMetrics.listHeight` / `editorWidth` | 200 pt (about five engines, then it scrolls) / 460 pt sheet | B-120; chosen |
+| `ContentBlockingSheetMetrics` | 540 × 480 pt: Filter Lists, Custom Rules, Allowed Sites sheets | B-120; chosen |
+| `SitePermissionsMetrics` | 640 × 420 pt, the types column 200 pt (Safari's Websites layout) | B-120; chosen |
+| `ShortcutsSettingsMetrics.margin` | 20 pt around the table, 12 pt between the lines; a bordered full-width table; no ◆ (a reserved action's tooltip) | B-120 |
+| Archive tabs after | 12 h, 24 h, 7 d, 30 d, — , Never (the default) | B-120 |
