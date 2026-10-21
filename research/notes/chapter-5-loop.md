@@ -99,3 +99,7 @@ Outcome: the card's drop layer (the page first, then Room), the drop matrix 27/2
 ### Next
 
 5.6b's host side runs in a worktree on the merged branch; its engine member (B-58's toast) joins 5.4b's engine session on 156. The laptop builds 156 (official started 19:35) and is asked to watch a request directory (`/Volumes/JL4/laptop-engines/requests/`) for the engine sessions' incrementals. Build 22 (Phases 5.5 and 5.7, 5.6a) follows on the 155 engines.
+
+### Build 22 (2026-10-21 22:10 → 22:24)
+
+The mini's first DMG, over the laptop's 155 engines (`ROOM_PACKAGE_STAGED=1 build/chapter-5-prompts/dmg.sh 22`): package 43 s, Debug over release 69 s, sign and notarize 166 s, Sparkle 372 s (the appcast over build/release, one entry). Two Release-only compile failures first, both 5.5b's (a DEBUG-only property set outside `#if DEBUG`, `76b8a44`; `openDropped` inside the DEBUG extension, `4ea5540`): the CI spec builds Debug only, so the shared session rules now require a Release compile before a push. `release-publish.sh`'s checks pass (dry run); held for the morning's publish.

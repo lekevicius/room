@@ -4,6 +4,7 @@ Since 2026-10-21 sessions verify their own work (AGENTS.md "Testing"). This file
 
 ## The current DMG
 
+- Build 22: `build/release/Room-0.1.0-22.dmg` on the Mac mini (/Volumes/JL4/room-build/release; 2026-10-21 22:24, notarized and stapled, real feed; the 155 engine of `c5a4032`): Phase 5.5 (input, drops, the drag out), Phase 5.7 (Settings rebuilt, Archive's Never, the right sidebar gone, the space window, onboarding), 5.6a (titles and unread dots, Change Icon…, dialog suppression, nested folders, Clear on hover). Not yet published.
 - Build 19: `build/sparkle-19/Room-0.1.0-19.dmg` (2026-10-21 13:25, notarized and stapled; after 5.4a: faster switching and launch, the import's long stall, the Archive's write; Phase 5.4 is half done). Build 18: `build/sparkle-18/Room-0.1.0-18.dmg` (2026-10-21 11:57, Phase 5.3: accessibility, sidebar text sizes, the display options).
 - Build 17: `build/sparkle-17/Room-0.1.0-17.dmg` (2026-10-21 09:41, Phase 5.2: the visual audit, split as cards, one control metric, grey window buttons, B-37, Chromium's name and icons replaced by Room's (B-103); notarized and stapled). Build 16: `build/sparkle-16/Room-0.1.0-16.dmg` (2026-10-21 07:30, Phase 5.1: motion, B-111 hover and press, B-114 the faster reveal without the pill; notarized and stapled). Build 15: `build/sparkle-15/Room-0.1.0-15.dmg` (2026-10-21 05:48, Phase 5.0: the dev bundle id, B-107/B-108/B-109; notarized and stapled). Build 14: `build/sparkle-14/Room-0.1.0-14.dmg` (2026-10-19).
 
