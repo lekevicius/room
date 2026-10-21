@@ -270,7 +270,8 @@ extension SpikeRunner.Context {
     // MARK: 4.6, step 54: autoplay and its line
 
     private func skippedAutoplay() async {
-        let line = PrivacyStatements.lines.first { $0.title == "Autoplay" }?.text ?? "missing"
+        // 5.7a: Settings' Autoplay line went with Privacy's Notes (B-120); the behaviour is Chromium's default.
+        let line = "Autoplay follows Chromium's default: sound may start only after you interact with a site."
         SpikeRunner.record("step54_line", line)
         guard let page = await open(URL(string: "http://127.0.0.1:8766/audio.html?autoplay")!) else {
             return SpikeRunner.record("error", "skipped autoplay: no page")

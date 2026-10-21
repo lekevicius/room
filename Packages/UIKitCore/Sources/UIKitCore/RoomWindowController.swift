@@ -268,12 +268,12 @@ public final class BrowserWindowView: NSView {
 
     /// The traffic lights hide with the sidebar (B-114): the sidebar hidden on the left without its
     /// overlay, no toolbar (whose leading end holds them), no fullscreen page (they are in the menu
-    /// bar's window then). With the sidebar docked on the right they stay over the card.
+    /// bar's window then).
     public var hidesTrafficLights: Bool {
-        sidebarEdge == .left && !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
+        !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
     }
 
-    /// The top of the card drags the window: the sidebar hidden (or on the right) without its
+    /// The top of the card drags the window: the sidebar hidden without its
     /// overlay, no toolbar, no fullscreen page (spec §E).
     public var dragsFromContent: Bool {
         buttonsOverCard && !isPageFullscreen && !showsToolbar
@@ -281,19 +281,7 @@ public final class BrowserWindowView: NSView {
 
     /// Nothing of the sidebar is under the traffic lights: they sit over the card's top-left corner.
     var buttonsOverCard: Bool {
-        sidebarEdge == .right || (!isSidebarOpen && !isOverlayShown && !isOverlayAnimating)
-    }
-
-    /// The side the sidebar docks on (Settings ▸ Appearance); the traffic lights stay where AppKit puts them.
-    public var sidebarEdge = SidebarEdge.left {
-        didSet {
-            guard sidebarEdge != oldValue else { return }
-            if isOverlayShown || isOverlayAnimating { finishOverlay(shown: false) }
-            splitterView.edge = sidebarEdge
-            needsLayout = true
-            layoutSubtreeIfNeeded()
-            onAvailabilityChange?()
-        }
+        !isSidebarOpen && !isOverlayShown && !isOverlayAnimating
     }
 
     public var sidebarWidth: CGFloat = SidebarMetrics.defaultWidth {
@@ -358,17 +346,15 @@ public final class BrowserWindowView: NSView {
     public override var isFlipped: Bool { true }
 
     public var currentLayout: WindowLayout {
-        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen,
-                             edge: sidebarEdge)
+        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen)
     }
 
     /// Where the overlay sits while shown.
-    public var overlayFrame: CGRect { WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: sidebarWidth, edge: sidebarEdge) }
+    public var overlayFrame: CGRect { WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: sidebarWidth) }
 
-    /// The traffic lights as the sidebar view at `origin` sees them; none when the sidebar is on
-    /// the right (its header then starts at the edge inset, as in fullscreen).
+    /// The traffic lights as the sidebar view at `origin` sees them.
     private func sidebarTrafficLights(_ geometry: TrafficLightGeometry, origin: CGPoint) -> TrafficLightGeometry {
-        sidebarEdge == .left ? geometry.relative(to: origin) : .none
+        geometry.relative(to: origin)
     }
 
     /// The sidebar view lives in the overlay whenever the sidebar is hidden, the overlay shown or
@@ -455,9 +441,7 @@ public final class BrowserWindowView: NSView {
         let generation = overlayGeneration
         let frame = overlayFrame
         // Fully off its edge of the window, its shadow included.
-        let away = sidebarEdge == .left
-            ? frame.offsetBy(dx: -(frame.maxX + Spacing.l), dy: 0)
-            : frame.offsetBy(dx: bounds.maxX - frame.minX + Spacing.l, dy: 0)
+        let away = frame.offsetBy(dx: -(frame.maxX + Spacing.l), dy: 0)
         let variant = WindowMotion.reveal.variant
         guard animated, variant != .instant else { return finishOverlay(shown: shown) }
         let reduceMotion = variant == .crossfade

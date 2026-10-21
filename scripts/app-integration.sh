@@ -2,7 +2,7 @@
 # Phase 2.8a: serves research/spikes/phase-2.7/ (HTTP :8770), runs
 # `-RoomSpike appintegration` (App/Sources/Debug/AppIntegrationSpikes.swift:
 # every menu item with its key, validation and target, the menu bar's
-# validation time, Settings on each section, the sidebar on the right,
+# validation time, Settings on each section,
 # fullscreen on a real Space) once per appearance (light, dark), and answers
 # its `capture: <name>` requests with a window-server capture of Room's
 # window, or of the window numbered in `capture: <name>@<number>` (an open

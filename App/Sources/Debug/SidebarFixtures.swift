@@ -240,6 +240,8 @@ extension SidebarFixtures {
     /// Pages are the 2.7 test server's (`:8770`), so restored tabs load.
     static func populateArchive(_ store: RoomStore, first space: Space, window: UUID) throws {
         let sidebar = store.sidebar
+        // Never is the default since 5.7a (B-120): the fixture's ages are measured against 4.1's 12 h.
+        store.settings.update { $0.archiveAfterHours = 12 }
         let now = sidebar.clock()
         func page(_ name: String) -> String { "http://127.0.0.1:8770/site.html?archive=\(name)" }
         func aged(_ title: String, hours: Int64, in spaceID: UUID) throws -> Entry {

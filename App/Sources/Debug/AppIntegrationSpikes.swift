@@ -13,7 +13,6 @@ import UIKitCore
 /// - `menus`: every item of the menu bar with its key, validation state and
 ///   target; `NSMenu.update()` of the whole bar timed; each menu captured open.
 /// - `settings`: the Settings window on each section; a change reaching the window.
-/// - `sidebarright`: the sidebar docked on the right and its overlay revealed from the right edge.
 /// - `fullscreen`: ⌃⌘F into a real Space and out, timed to the header laid out; the
 ///   header's 16 pt fallback, the toolbar hidden, the hover reveal in fullscreen.
 /// Captures are named `phase-2.8a-<name>-<appearance>`; a request for another
@@ -37,9 +36,7 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(500))
         if runs("menus") { await menusCheck() }
         if runs("settings") { await settingsCheck() }
-        if runs("sidebarright") { await sidebarRightCheck() }
         if runs("fullscreen") { await windowFullscreenCheck() }
-        app28?.store?.settings.update { $0.sidebarSide = .left }
         controller.isSidebarOpen = true
     }
 
@@ -178,7 +175,7 @@ extension SpikeRunner.Context {
     }
 }
 
-// MARK: Settings, the sidebar on the right, fullscreen (ROADMAP 2.8 tasks 2 and 6)
+// MARK: Settings, fullscreen (ROADMAP 2.8 tasks 2 and 6)
 
 extension SpikeRunner.Context {
     private var app28b: AppDelegate? { AppDelegate.current }
@@ -200,44 +197,8 @@ extension SpikeRunner.Context {
             SpikeRunner.record("settings_\(section.rawValue)", "title=\(settingsWindow.title) size=\(NSStringFromSize(settingsWindow.frame.size))")
             await capture28("settings-\(section.rawValue)", windowNumber: settingsWindow.windowNumber)
         }
-        // A change in Settings reaches the open window on the next turn, and is in the store.
-        let start = ContinuousClock.now
-        store.settings.update { $0.sidebarSide = .right }
-        let moved = await waitUntil(2) { controller.rootView.sidebarEdge == .right }
-        SpikeRunner.record("settings_sidebar_side", "right applied=\(moved) in \(String(format: "%.1f", ms(since: start))) ms; stored=\(store.settings.settings.sidebarSide)")
-        store.settings.update { $0.sidebarSide = .left }
-        _ = await waitUntil(2) { controller.rootView.sidebarEdge == .left }
         settingsWindow.close()
         await activate()
-    }
-
-    func sidebarRightCheck() async {
-        guard let store = app28b?.store else { return }
-        let root = controller.rootView
-        store.settings.update { $0.sidebarSide = .right }
-        _ = await waitUntil(2) { root.sidebarEdge == .right }
-        controller.isSidebarOpen = true
-        try? await Task.sleep(for: .milliseconds(400))
-        let layout = root.currentLayout
-        let buttons = controller.trafficLights.geometry.buttonsRect ?? .zero
-        SpikeRunner.record("right_docked", "sidebar=\(NSStringFromRect(layout.sidebar)) card=\(NSStringFromRect(layout.card)) splitter=\(layout.splitter.map(NSStringFromRect) ?? "nil")")
-        SpikeRunner.record("right_docked_chrome", "buttons=\(NSStringFromRect(buttons)) over the card=\(layout.card.contains(CGPoint(x: buttons.midX, y: buttons.midY))) buttons shown=\(self.window.standardWindowButton(.closeButton)?.isHidden == false) header x in sidebar=\(headerX)")
-        await capture28("sidebar-right")
-        // Hidden: the overlay comes from the right edge.
-        controller.isSidebarOpen = false
-        try? await Task.sleep(for: .milliseconds(400))
-        post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 300))
-        try? await Task.sleep(for: .milliseconds(300))
-        post(.mouseMoved, at: CGPoint(x: root.bounds.width - 1, y: 300))
-        let shown = await waitUntil(2) { controller.reveal.isShown && !root.isOverlayAnimating }
-        SpikeRunner.record("right_overlay", "shown=\(shown) frame=\(NSStringFromRect(root.overlayView.frame)) buttons shown=\(self.window.standardWindowButton(.closeButton)?.isHidden == false)")
-        await capture28("sidebar-right-overlay")
-        post(.mouseMoved, at: CGPoint(x: root.bounds.midX, y: 300))
-        _ = await waitUntil(2) { !controller.reveal.isShown && !root.isOverlayAnimating }
-        controller.isSidebarOpen = true
-        store.settings.update { $0.sidebarSide = .left }
-        _ = await waitUntil(2) { root.sidebarEdge == .left }
-        try? await Task.sleep(for: .milliseconds(300))
     }
 
     /// ⌃⌘F as the menu receives it (AppKit hides the item and shows its own 🌐F one; the key still answers).

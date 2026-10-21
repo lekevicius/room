@@ -37,21 +37,9 @@ struct WindowLayoutTests {
         #expect(tiny.sidebar.width == SidebarMetrics.minWidth)
     }
 
-    @Test("Sidebar on the right (Settings v0): mirrored, the card inset on the left where the traffic lights sit over it")
-    func rightSide() throws {
-        let layout = WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: true, edge: .right)
-        let inset = CardMetrics.inset
-        #expect(layout.sidebar == CGRect(x: 1280 - 240, y: 0, width: 240, height: 800))
-        #expect(layout.card == CGRect(x: inset, y: inset, width: 1280 - 240 - inset - CardMetrics.sidebarSideInset, height: 800 - 2 * inset))
-        let splitter = try #require(layout.splitter)
-        #expect(splitter.minX < 1040 && splitter.maxX > 1040 && splitter.width == SidebarMetrics.splitterHitWidth)
-        // Hidden, it is the same card as on the left.
-        #expect(WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: false, edge: .right).card
-            == bounds.insetBy(dx: inset, dy: inset))
-        // The overlay floats at the right edge; the splitter's drag measures from the right.
-        #expect(WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: 280, edge: .right) == CGRect(x: 1280 - 10 - 280, y: 10, width: 280, height: 780))
-        #expect(WindowLayout.proposedWidth(pointerX: 1000, bounds: bounds, grabOffset: 2, edge: .right) == 282)
-        #expect(WindowLayout.proposedWidth(pointerX: 300, bounds: bounds, grabOffset: 2, edge: .left) == 302)
+    @Test("The splitter's drag proposes the pointer's distance from the window's left edge plus the grab offset")
+    func proposedWidth() {
+        #expect(WindowLayout.proposedWidth(pointerX: 300, bounds: bounds, grabOffset: 2) == 302)
     }
 
     @Test("The revealed overlay floats 10 pt from the top, leading and bottom edges at the sidebar's width (spec §E)")

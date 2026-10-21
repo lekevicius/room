@@ -45,7 +45,6 @@ extension SpikeRunner.Context {
         settings.peekOffSiteLinks = false
         settings.routeLinksBetweenSpaces = true
         settings.showsToolbar = true
-        settings.sidebarSide = .right
         settings.appearance = .dark
         settings.searchSuggestions = false
         settings.searchEngines = SearchEngines.list(settings).filter { $0.id != spikeEngine.id } + [spikeEngine]
@@ -62,8 +61,93 @@ extension SpikeRunner.Context {
         switch UserDefaults.standard.string(forKey: "RoomSpikeOnly") ?? "set" {
         case "verify": await settingsVerify(app: app, store: store)
         case "appicon": await settingsAppIcon(app: app, store: store)
+        case "fit": await settingsFit(app: app)
+        case "closekey": await settingsCloseKey(app: app, sidebar: sidebar)
         default: await settingsSet(app: app, store: store, sidebar: sidebar)
         }
+    }
+
+    // MARK: 5.7a: the window fits the display, every pane scrolls; ⌘W closes Settings
+
+    /// The deepest-first scroll view of a pane (a SwiftUI Form's, or the shortcuts table's).
+    private func paneScrollView(_ view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView, scroll.documentView != nil { return scroll }
+        for subview in view.subviews { if let found = paneScrollView(subview) { return found } }
+        return nil
+    }
+
+    /// Every pane at the smallest supported display's visible frame, then at this screen's: the window inside the
+    /// visible frame, the pane's scroll view scrolled to its end (its last row reachable). Captures at the smallest.
+    private func settingsFit(app: AppDelegate) async {
+        app.showSettings(nil)
+        guard let controller = app.debugSettingsWindow, let window = controller.window else {
+            return SpikeRunner.record("error", "settings fit: no Settings window")
+        }
+        let screen = window.screen?.visibleFrame ?? .zero
+        for (label, visible) in [("smallest", SettingsWindowFit.smallestVisibleFrame), ("screen", screen)] {
+            controller.visibleFrameOverride = label == "screen" ? nil : visible
+            var fits = 0, reachable = 0
+            for (index, section) in SettingsWindowController.Section.allCases.enumerated() {
+                controller.select(section)
+                window.orderFront(nil)
+                try? await Task.sleep(for: .milliseconds(500))
+                let pane = controller.panes[index].view
+                pane.layoutSubtreeIfNeeded()
+                let inside = visible.contains(window.frame)
+                var scrollLine = "no scroll view"
+                if let scroll = paneScrollView(pane), let document = scroll.documentView {
+                    let clip = scroll.contentView
+                    let documentHeight = document.frame.height
+                    let end = document.isFlipped ? max(0, documentHeight - clip.bounds.height) : 0
+                    clip.scroll(to: NSPoint(x: 0, y: end))
+                    scroll.reflectScrolledClipView(clip)
+                    let bottom = document.isFlipped ? clip.bounds.maxY : documentHeight - clip.bounds.minY
+                    let reached = abs(bottom - documentHeight) <= 1 || documentHeight <= clip.bounds.height
+                    if reached { reachable += 1 }
+                    scrollLine = String(format: "document %.0f (flipped %@) clip %.0f scrolls=%@ end reached=%@", documentHeight, document.isFlipped ? "yes" : "no", clip.bounds.height,
+                                        documentHeight > clip.bounds.height + 1 ? "true" : "false", reached ? "true" : "false")
+                    try? await Task.sleep(for: .milliseconds(300))
+                    if label == "smallest", let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory") {
+                        let url = URL(fileURLWithPath: directory).appending(path: "phase-5.7a-fit-\(section.rawValue)-end.png")
+                        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        window.displayIfNeeded()
+                        _ = try? WindowSnapshot.writePNG(window, to: url)
+                    }
+                    clip.scroll(to: NSPoint(x: 0, y: document.isFlipped ? 0 : max(0, documentHeight - clip.bounds.height)))
+                    scroll.reflectScrolledClipView(clip)
+                }
+                if inside { fits += 1 }
+                SpikeRunner.record("fit_\(label)_\(section.rawValue)", "window=\(NSStringFromRect(window.frame)) visible=\(NSStringFromRect(visible)) "
+                    + "inside=\(inside) pane=\(NSStringFromSize(pane.frame.size)) \(scrollLine)")
+            }
+            let count = SettingsWindowController.Section.allCases.count
+            SpikeRunner.record("fit_\(label)", "inside \(fits) of \(count), end reachable \(reachable) of \(count)")
+        }
+        controller.visibleFrameOverride = nil
+        window.orderOut(nil)
+    }
+
+    /// ⌘W with Settings key closes Settings and no tab; with the browser window key it is Close Tab again.
+    private func settingsCloseKey(app: AppDelegate, sidebar: SidebarController) async {
+        _ = await open(SpikeRunner.page("keys.html"))
+        _ = await open(SpikeRunner.page("scroll.html"))
+        try? await Task.sleep(for: .milliseconds(400))
+        let space = sidebar.activeSpaceID
+        let before = sidebar.store.sidebar.today(space: space).count
+        app.showSettings(nil)
+        guard let window = app.debugSettingsWindow?.window else { return SpikeRunner.record("error", "closekey: no Settings window") }
+        window.makeKeyAndOrderFront(nil)
+        let key = await waitUntil(3) { window.isKeyWindow }
+        let path = press("w", code: 13, .command, in: window)
+        let closed = await waitUntil(2) { !window.isVisible }
+        try? await Task.sleep(for: .milliseconds(300))
+        let after = sidebar.store.sidebar.today(space: space).count
+        SpikeRunner.record("closekey_settings", "key=\(key) via=\(path) closed=\(closed) today tabs \(before) → \(after)")
+        self.window.makeKeyAndOrderFront(nil)
+        let browserKey = await waitUntil(3) { self.window.isKeyWindow }
+        press("w", code: 13, .command, in: self.window)
+        let tabClosed = await waitUntil(2) { sidebar.store.sidebar.today(space: space).count == after - 1 }
+        SpikeRunner.record("closekey_browser", "key=\(browserKey) tab closed=\(tabClosed) today tabs \(after) → \(sidebar.store.sidebar.today(space: space).count)")
     }
 
     // MARK: Helpers
@@ -295,7 +379,7 @@ extension SpikeRunner.Context {
         }
         app.debugSettingsWindow?.window?.orderOut(nil)
         self.window.makeKeyAndOrderFront(nil)
-        SpikeRunner.record("applied", "toolbar=\(app.windowController?.showsToolbar ?? false) sidebar=\(app.windowController?.rootView.sidebarEdge == .right ? "right" : "left") "
+        SpikeRunner.record("applied", "toolbar=\(app.windowController?.showsToolbar ?? false) "
             + "palette engine=\(engine?.name ?? "nil") keyword row=\(keyword) suggestions=\(store.settings.settings.searchSuggestions)")
 
         // 7. The save panel per download (the 2.6 server).
@@ -393,7 +477,6 @@ extension SpikeRunner.Context {
             ("peekOffSiteLinks", current.peekOffSiteLinks == expected.peekOffSiteLinks, "\(current.peekOffSiteLinks)"),
             ("routeLinksBetweenSpaces", current.routeLinksBetweenSpaces == expected.routeLinksBetweenSpaces, "\(current.routeLinksBetweenSpaces)"),
             ("showsToolbar", current.showsToolbar == expected.showsToolbar, "\(current.showsToolbar)"),
-            ("sidebarSide", current.sidebarSide == expected.sidebarSide, current.sidebarSide.rawValue),
             ("appearance", current.appearance == expected.appearance, current.appearance.rawValue),
             ("searchSuggestions", current.searchSuggestions == expected.searchSuggestions, "\(current.searchSuggestions)"),
             ("searchEngines", current.searchEngines == expected.searchEngines, "\(SearchEngines.list(current).count) engines, last \(SearchEngines.list(current).last?.keyword ?? "-")"),
@@ -404,7 +487,7 @@ extension SpikeRunner.Context {
         ]
         SpikeRunner.record("relaunch", fields.map { "\($0.0)=\($0.2)\($0.1 ? "" : " (MISMATCH)")" }.joined(separator: " "))
         SpikeRunner.record("relaunch_equal", "\(fields.allSatisfy(\.1)) (\(fields.filter(\.1).count) of \(fields.count))")
-        SpikeRunner.record("relaunch_applied", "toolbar=\(app.windowController?.showsToolbar ?? false) sidebar=\(app.windowController?.rootView.sidebarEdge == .right ? "right" : "left") "
+        SpikeRunner.record("relaunch_applied", "toolbar=\(app.windowController?.showsToolbar ?? false) "
             + "palette engine=\(app.palette?.searchEngine().name ?? "nil")")
         let optionT = ReservedShortcuts.Shortcut(.character("t"), [.command, .option])
         let shiftT = ReservedShortcuts.Shortcut(.character("t"), [.command, .shift])
@@ -432,7 +515,6 @@ extension SpikeRunner.Context {
             $0.peekOffSiteLinks = defaults.peekOffSiteLinks
             $0.routeLinksBetweenSpaces = defaults.routeLinksBetweenSpaces
             $0.showsToolbar = defaults.showsToolbar
-            $0.sidebarSide = defaults.sidebarSide
             $0.appearance = defaults.appearance
             $0.searchSuggestions = defaults.searchSuggestions
             $0.searchEngines = defaults.searchEngines

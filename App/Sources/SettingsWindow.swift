@@ -6,14 +6,14 @@ import Model
 import Omnibox
 import Store
 import SwiftUI
+import UIKitCore
 
 /// Settings (⌘,), v0 (ROADMAP 2.8 task 2): a toolbar-tabbed window as in
 /// every Mac app, one SwiftUI leaf per section (PLAN §4 UI framework). The
-/// values live in Model's `Settings`, written through `SettingsStore`; the
-/// rest of the window (shortcuts, profiles) lands in 4.4. 2.8b adds the
-/// default browser and the welcome card to General, and Privacy for the two
-/// opt-ins.
-final class SettingsWindowController: NSWindowController {
+/// values live in Model's `Settings`, written through `SettingsStore`.
+/// 5.7a (B-120): every pane is one height that fits the display's visible
+/// frame (`SettingsWindowFit`) and scrolls inside it; ⌘W closes the window.
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     enum Section: String, CaseIterable {
         case general, appearance, search, downloads, shortcuts, spaces, extensions, privacy
 
@@ -49,6 +49,12 @@ final class SettingsWindowController: NSWindowController {
     let services: SettingsServices
     /// Settings ▸ Shortcuts, the AppKit table (4.4a; the settings spike drives it).
     let shortcuts: ShortcutsSettingsViewController
+    /// Each section's controller, in `Section.allCases` order.
+    private(set) var panes: [NSViewController] = []
+    /// The visible frame the window fits in instead of its screen's (the fit spike's smallest display).
+    var visibleFrameOverride: CGRect? {
+        didSet { fit() }
+    }
 
     init(settings: SettingsStore, services: SettingsServices) {
         self.services = services
@@ -61,10 +67,11 @@ final class SettingsWindowController: NSWindowController {
                 controller = shortcuts
             } else {
                 let hosting = NSHostingController(rootView: SettingsSectionView(section: section, settings: settings, services: services))
-                // The window takes each section's height as it is chosen.
-                hosting.sizingOptions = [.preferredContentSize]
+                // The pane takes the window's size (`fit`); its Form scrolls inside it.
+                hosting.sizingOptions = []
                 controller = hosting
             }
+            panes.append(controller)
             let item = NSTabViewItem(viewController: controller)
             item.label = section.title
             item.image = NSImage(systemSymbolName: section.symbol, accessibilityDescription: section.title)
@@ -77,7 +84,10 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.title = Section.general.title
         super.init(window: window)
+        window.delegate = self
+        fit()
         window.center()
+        fit()
     }
 
     @available(*, unavailable)
@@ -87,7 +97,35 @@ final class SettingsWindowController: NSWindowController {
     func select(_ section: Section) {
         tabs.selectedTabViewItemIndex = Section.allCases.firstIndex(of: section) ?? 0
         window?.title = section.title
+        fit()
     }
+
+    /// The visible frame the window has to fit in.
+    var visibleFrame: CGRect {
+        visibleFrameOverride ?? window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? SettingsWindowFit.smallestVisibleFrame
+    }
+
+    /// Every pane at the height the display allows, the window moved inside the visible frame.
+    func fit() {
+        guard let window else { return }
+        let contentHeight = window.contentView?.frame.height ?? 0
+        let chrome = contentHeight > 0 ? window.frame.height - contentHeight : SettingsWindowMetrics.fallbackChrome
+        let size = NSSize(width: SettingsWindowFit.contentWidth, height: SettingsWindowFit.contentHeight(visible: visibleFrame, chrome: chrome))
+        for pane in panes where pane.preferredContentSize != size { pane.preferredContentSize = size }
+        var frame = window.frame
+        let height = size.height + chrome
+        frame.origin.y = frame.maxY - height
+        frame.size = NSSize(width: window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).width, height: height)
+        frame = SettingsWindowFit.placed(frame, in: visibleFrame)
+        if frame != window.frame { window.setFrame(frame, display: window.isVisible) }
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) { fit() }
+}
+
+enum SettingsWindowMetrics {
+    /// The title bar and preference toolbar before the window is laid out (measured 78 pt on macOS 26).
+    static let fallbackChrome: CGFloat = 78
 }
 
 /// Pages Settings opens as tabs.
@@ -134,6 +172,7 @@ private struct SettingsSectionView: View {
     let settings: SettingsStore
     let services: SettingsServices
     @State private var clearingData = false
+    @State private var sitePermissions = false
 
     var body: some View {
         Form {
@@ -149,9 +188,8 @@ private struct SettingsSectionView: View {
             }
         }
         .formStyle(.grouped)
-        // 560 pt (480 until 4.4a): eight sections fit the toolbar without its overflow menu.
-        .frame(width: ShortcutsSettingsMetrics.width)
-        .fixedSize(horizontal: false, vertical: true)
+        // The window's size (`SettingsWindowController.fit`): the Form scrolls inside it (5.7a, B-120).
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<Model.Settings, Value>) -> Binding<Value> {
@@ -161,42 +199,17 @@ private struct SettingsSectionView: View {
     // MARK: General
 
     @ViewBuilder private var general: some View {
-        Section("Default browser") {
-            LabeledContent {
+        Section {
+            // 5.7a (B-120): one row.
+            LabeledContent("Default browser") {
                 if services.defaultBrowser.isDefault {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.secondary)
+                    Label("Room", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("default-browser-room")
                 } else {
                     Button("Set as Default…") { services.defaultBrowser.setAsDefault() }
                         .disabled(services.defaultBrowser.isAsking)
                 }
-            } label: {
-                Text(services.defaultBrowser.isDefault ? "Room is your default browser" : "Room is not your default browser")
-                Text("Links you open in other apps open in Room's window as Today tabs, in the space your routing rules choose (Links, below).")
-            }
-        }
-        Section("Links") {
-            Toggle(isOn: binding(\.peekOffSiteLinks)) {
-                Text("Open links to other sites from pinned tabs in Peek")
-                Text("Sign-in pages, form posts and redirects still open in the tab. ⇧-click any link to Peek it.")
-            }
-            // Spec §B (4.2): the default for external links no rule matches, and routing between spaces.
-            Picker(selection: externalTarget) {
-                Text("Most Recent Space").tag(UUID?.none)
-                Divider()
-                ForEach(services.sidebar.spaces, id: \.id) { space in Text(space.name).tag(UUID?.some(space.id)) }
-            } label: {
-                Text("Open external links in")
-                Text("Links from other apps that no routing rule matches. The most recent space is the one you used last.")
-            }
-            Toggle(isOn: binding(\.routeLinksBetweenSpaces)) {
-                Text("Route links between spaces")
-                Text("A link you open as a new tab from a page goes to the space a routing rule names. Peek and links that open in place stay.")
-            }
-            LabeledContent {
-                Button("Routing Rules…") { services.showRoutingRules() }
-            } label: {
-                Text("Space routing")
-                Text(rulesSummary)
             }
         }
         Section("Tabs") {
@@ -208,36 +221,29 @@ private struct SettingsSectionView: View {
                 Text(settings.settings.permanentCloseBehavior.settingsExplanation)
             }
             Picker(selection: binding(\.archiveAfterHours)) {
-                ForEach(ArchivePolicy.afterHoursOptions, id: \.self) { hours in
-                    Text(hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours").tag(hours)
+                ForEach(ArchivePolicy.afterHoursOptions.filter { $0 != ArchivePolicy.never }, id: \.self) { hours in
+                    Text(Self.archiveTitle(hours)).tag(hours)
                 }
+                Divider()
+                Text(Self.archiveTitle(ArchivePolicy.never)).tag(ArchivePolicy.never)
             } label: {
                 Text("Archive tabs after")
-                Text("Today tabs you have not used for this long move to the Archive (⇧⌘L); the selected one and tabs playing sound, "
-                     + "using the camera or holding unsaved form input stay.")
+                Text(settings.settings.archiveAfterHours == ArchivePolicy.never
+                     ? "Today tabs stay until you close or archive them."
+                     : "Today tabs you have not used for this long move to the Archive (⇧⌘L); the selected one and tabs playing sound, "
+                        + "using the camera or holding unsaved form input stay.")
             }
-        }
-        Section("Window") {
-            Toggle(isOn: binding(\.showsToolbar)) {
-                Text("Show the toolbar")
-                Text("Back, Forward, Reload and the full URL above the page (View ▸ Show Toolbar).")
+            Toggle(isOn: binding(\.peekOffSiteLinks)) {
+                Text("Open links to other sites from pinned tabs in Peek")
+                Text("Sign-in pages, form posts and redirects still open in the tab. ⇧-click any link to Peek it.")
             }
-            Picker(selection: binding(\.sidebarSide)) {
-                Text("Left").tag(SidebarSide.left)
-                Text("Right").tag(SidebarSide.right)
-            } label: {
-                Text("Sidebar")
-                Text("The window's buttons stay where macOS puts them; with the sidebar on the right they float over the page.")
-            }
-            .pickerStyle(.segmented)
         }
         Section("Import") {
             LabeledContent {
                 Button("Import…") { services.showImportSheet() }
             } label: {
                 Text("Import from another browser")
-                Text("Bookmarks, history, Arc's sidebar, passwords from an exported CSV and extensions from the Chrome Web Store. "
-                     + "Cookies and site data are not imported.")
+                Text("Bookmarks, history, Arc's sidebar, passwords from an exported CSV and extensions from the Chrome Web Store.")
             }
         }
         Section {
@@ -245,39 +251,37 @@ private struct SettingsSectionView: View {
                 Button("Show Welcome Card") { services.showWelcomeCard() }
             } label: {
                 Text("Welcome card")
-                Text("Shows the first-run card in the sidebar now: search engine, default browser, import, crash reports and updates.")
+                Text("The first-run card in the sidebar: search engine, default browser, import, crash reports and updates.")
             }
         }
     }
 
-    /// The chosen space while it exists; a deleted one reads as Most Recent Space.
-    private var externalTarget: Binding<UUID?> {
-        Binding(get: {
-            settings.settings.externalLinksSpaceID.flatMap { id in services.sidebar.space(id) != nil ? id : nil }
-        }, set: { value in settings.update { $0.externalLinksSpaceID = value } })
+    static func archiveTitle(_ hours: Int) -> String {
+        if hours == ArchivePolicy.never { return "Never" }
+        return hours % 24 == 0 && hours >= 168 ? "\(hours / 24) days" : "\(hours) hours"
     }
 
-    private var rulesSummary: String {
-        let rules = services.sidebar.routingRules
-        let enabled = rules.count { $0.enabled }
-        return rules.isEmpty ? "No routing rules." : "\(rules.count) rule\(rules.count == 1 ? "" : "s"), \(enabled) enabled."
-    }
-
-    // MARK: Spaces (4.2: routing; 4.4b: order, profiles)
+    // MARK: Spaces (4.2: routing; 4.4b: order, profiles; 5.7a: every routing setting here)
 
     @ViewBuilder private var spaces: some View {
-        SpacesSettingsView(sidebar: services.sidebar, profiles: services.profiles, rulesSummary: rulesSummary,
+        SpacesSettingsView(sidebar: services.sidebar, profiles: services.profiles, settings: settings,
                            showAllRules: services.showRoutingRules)
     }
 
-    // MARK: Privacy (2.8b; 4.4b: permissions per site, Clear browsing data, site data, the statements)
+    // MARK: Privacy (2.8b; 4.4b; 5.7a: a short pane, its lists in sheets)
 
     @ViewBuilder private var privacy: some View {
         if let blocking = services.contentBlocking() {
             ContentBlockingSettingsView(controller: blocking)
         }
-        SitePermissionsView(sidebar: services.sidebar, profiles: services.profiles)
         Section {
+            LabeledContent {
+                Button("Site Permissions…") { sitePermissions = true }
+                    .accessibilityIdentifier("privacy-site-permissions")
+            } label: {
+                Text("Site permissions")
+                Text("Camera, microphone, location, notifications and the rest, as each site was answered.")
+            }
             LabeledContent {
                 Button("Clear Browsing Data…") { clearingData = true }
             } label: {
@@ -288,11 +292,19 @@ private struct SettingsSectionView: View {
                 Button("All Site Data…") { services.profiles.openPage(SettingsPages.allSiteData) }
             } label: {
                 Text("Site data")
-                Text("Chromium's list of every site storing data, in a tab. For one site: the site button in the sidebar's header ▸ Clear Site Data.")
+                Text("Every site storing data, in a tab (Chromium's page). For one site: the site button ▸ Clear Site Data.")
             }
+        } header: {
+            Text("Websites")
+        } footer: {
+            Text("Passwords, addresses and cards Room saves stay on this Mac, in Room's profile: no account, no sync, no upload.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
         .sheet(isPresented: $clearingData) {
             ClearBrowsingDataSheet(sidebar: services.sidebar, profiles: services.profiles) { clearingData = false }
+        }
+        .sheet(isPresented: $sitePermissions) {
+            SitePermissionsSheet(sidebar: services.sidebar, profiles: services.profiles) { sitePermissions = false }
         }
         Section {
             Toggle(isOn: binding(\.crashReports)) {
@@ -301,10 +313,6 @@ private struct SettingsSectionView: View {
                      ? "This build has no crash-report project yet: nothing can be sent, whatever this says."
                      : "When Room crashes, a report of the crash goes to Room's developer (Sentry). Off: the reporter is not started.")
             }
-        } header: {
-            Text("Room sends crash reports and checks for updates only if you turn them on here.")
-        }
-        Section {
             Toggle(isOn: binding(\.automaticUpdateChecks)) {
                 Text("Check for updates automatically")
                 Text("Asks Room's update server once a day (Sparkle). Off: Room asks only when you choose Check for Updates or Check Now.")
@@ -315,20 +323,18 @@ private struct SettingsSectionView: View {
             } label: {
                 Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
             }
+        } header: {
+            Text("Room's own requests")
+        } footer: {
+            Text("Room sends crash reports and checks for updates only if you turn them on here.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
         Section {
-            Text("Passwords, addresses and cards Room saves stay on this Mac, in Room's profile: no account, no sync, no upload.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        Section("Notes") {
-            ForEach(PrivacyStatements.lines, id: \.title) { line in
-                LabeledContent {
-                    EmptyView()
-                } label: {
-                    Text(line.title)
-                    Text(line.text)
-                }
+            LabeledContent {
+                Text("Not used").foregroundStyle(.secondary)
+            } label: {
+                Text("Google services")
+                Text(PrivacyStatements.googleServices)
             }
         }
     }
@@ -348,16 +354,6 @@ private struct SettingsSectionView: View {
             AppIconPicker(selection: binding(\.appIcon))
             // Only while running: with Room quit, the Dock and Finder show the bundle's icon.
             Text("The Dock shows this icon while Room is open.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        Section {
-            Picker("Sidebar", selection: binding(\.sidebarSide)) {
-                Text("Left").tag(SidebarSide.left)
-                Text("Right").tag(SidebarSide.right)
-            }
-            .pickerStyle(.segmented)
-            Text("With the sidebar on the right, the window's buttons float over the page's top-left corner.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -460,44 +456,52 @@ struct ExtensionsSettingsView: View {
     /// Each extension's directory size on disk (bytes), computed off the main thread.
     @State private var sizes: [String: Int64] = [:]
 
+    /// The profile whose extensions show (5.7a, B-120: a switcher, not every profile at once); `nil` is the shown space's.
+    @State private var profileID: UUID?
+
+    private func shownSection(_ center: ExtensionsCenter) -> ExtensionsCenter.ProfileSection? {
+        let id = profileID ?? shownPage?.profile
+        return center.sections.first { $0.id == id } ?? center.sections.first
+    }
+
     var body: some View {
-        if let center, !center.sections.isEmpty {
-            ForEach(center.sections) { section in
+        if let center, let section = shownSection(center) {
+            if center.sections.count > 1 {
                 Section {
-                    if section.installed.isEmpty {
-                        Text("No extensions. Install from the Chrome Web Store in a tab, or load an unpacked one.")
-                            .foregroundStyle(.secondary)
+                    Picker("Profile", selection: Binding(get: { section.id }, set: { profileID = $0 })) {
+                        ForEach(center.sections) { section in Text(section.name).tag(section.id) }
                     }
-                    ForEach(section.installed) { item in row(item, section: section, center: center) }
-                    HStack {
-                        Button("Load Unpacked…") { loadUnpacked(section: section, center: center) }
-                        Button("Keyboard Shortcuts…") { center.openShortcutsPage(in: section) }
-                            .help("Chrome's page for the extensions' keys, as a tab of this profile")
-                        Button("Open chrome://extensions") { center.openManagementPage(in: section) }
-                        Spacer()
-                    }
-                    if let loadError { Text(loadError).font(.callout).foregroundStyle(.red) }
-                } header: {
-                    Text(center.sections.count > 1 ? section.name : "Installed")
-                } footer: {
-                    if let check = center.lastCheck {
-                        Text("Last update check: \(check.extensions) extensions, \(check.updatesFound) updates.")
-                            .font(.callout).foregroundStyle(.secondary)
-                    } else {
-                        Text("Room checks installed extensions for updates once a day, and never while none is installed.")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    Text("Pinned extensions show in the sidebar's header in this order; the others are in its puzzle-piece menu.")
-                        .font(.callout).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("extensions-profile")
                 }
             }
-            Section("Notes") {
-                ForEach(ExtensionStatements.lines, id: \.title) { line in
-                    LabeledContent { EmptyView() } label: {
-                        Text(line.title)
-                        Text(line.text)
-                    }
+            Section {
+                if section.installed.isEmpty {
+                    Text("No extensions. Install from the Chrome Web Store in a tab, or load an unpacked one.")
+                        .foregroundStyle(.secondary)
                 }
+                ForEach(section.installed) { item in row(item, section: section, center: center) }
+                HStack {
+                    Button("Load Unpacked…") { loadUnpacked(section: section, center: center) }
+                    Button("Keyboard Shortcuts…") { center.openShortcutsPage(in: section) }
+                        .help("Chrome's page for the extensions' keys, as a tab of this profile")
+                    Button("Open chrome://extensions") { center.openManagementPage(in: section) }
+                    Spacer()
+                }
+                if let loadError { Text(loadError).font(.callout).foregroundStyle(.red) }
+            } header: {
+                Text("Installed")
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let check = center.lastCheck {
+                        Text("Last update check: \(check.extensions) extensions, \(check.updatesFound) updates.")
+                    } else {
+                        Text("Room checks installed extensions for updates once a day, and never while none is installed.")
+                    }
+                    Text("Pinned extensions show in the sidebar's header in this order; the others are in its puzzle-piece menu.")
+                    // 5.7a (B-120): 4.5's Notes, beside the list they are about.
+                    Text(ExtensionStatements.footer)
+                }
+                .font(.callout).foregroundStyle(.secondary)
             }
         } else {
             Section {
@@ -633,13 +637,10 @@ struct ExtensionsSettingsView: View {
     }
 }
 
-/// Settings ▸ Extensions' one-line statements (4.5; `PrivacyStatements.lines`' shape).
+/// Settings ▸ Extensions' line under the list (4.5's statements; one line since 5.7a).
 enum ExtensionStatements {
-    static let lines: [(title: String, text: String)] = [
-        ("Their own requests", "Extensions you install make their own requests (their updates and their own servers): those are the extension's, not Room's."),
-        ("Desktop apps", "Extensions that talk to a desktop app through native messaging cannot reach it from Room."),
-        ("Side panels", "Side panels are not supported: an extension's side panel does not open."),
-    ]
+    static let footer = "Extensions make their own requests (their updates, their own servers). "
+        + "Native messaging to desktop apps and side panels do not work in Room."
 
     /// The bytes of every file under `directory` (nonisolated: Settings runs it off the main thread).
     nonisolated static func directorySize(_ directory: URL) -> Int64 {
@@ -679,6 +680,13 @@ extension PermanentCloseBehavior {
     }
 }
 
+enum SearchSettingsMetrics {
+    /// The engines list's height (5.7a: about five rows, then it scrolls; chosen).
+    static let listHeight: CGFloat = 200
+    static let rowPadding: CGFloat = 6
+    static let editorWidth: CGFloat = 460
+}
+
 /// Settings ▸ Search (ROADMAP 4.4a task 3): each profile's default engine,
 /// the engines list (add, edit, remove; URLs shown with %s), the suggestions
 /// switch with Chrome's request cadence (B-64). A SwiftUI leaf: nothing here
@@ -706,11 +714,23 @@ struct SearchSettingsView: View {
                 .font(.callout).foregroundStyle(.secondary)
         }
         Section {
-            ForEach(engines) { engine in row(engine) }
-            if let draft { editor(draft) } else {
+            // 5.7a (B-120): a list of fixed height that scrolls; Add and Edit open a sheet.
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(engines) { engine in
+                        row(engine)
+                            .padding(.vertical, SearchSettingsMetrics.rowPadding)
+                        if engine.id != engines.last?.id { Divider() }
+                    }
+                }
+            }
+            .frame(height: SearchSettingsMetrics.listHeight)
+            .accessibilityIdentifier("search-engines-list")
+            HStack {
+                Spacer()
                 Button("Add Search Engine…") {
                     problem = nil
-                    self.draft = SearchEngineSetting(id: SearchEngines.newID(), name: "", keyword: "", searchURL: "https://", suggestURL: nil)
+                    draft = SearchEngineSetting(id: SearchEngines.newID(), name: "", keyword: "", searchURL: "https://", suggestURL: nil)
                 }
             }
         } header: {
@@ -718,6 +738,9 @@ struct SearchSettingsView: View {
         } footer: {
             Text("Type an engine's keyword and press Tab in the palette to search it (yt, Tab, then what you look for).")
                 .font(.callout).foregroundStyle(.secondary)
+        }
+        .sheet(item: $draft) { engine in
+            editor(engine)
         }
         Section {
             Toggle(isOn: Binding(get: { settings.settings.searchSuggestions }, set: { value in settings.update { $0.searchSuggestions = value } })) {
@@ -758,22 +781,34 @@ struct SearchSettingsView: View {
         .buttonStyle(.link)
     }
 
-    @ViewBuilder private func editor(_ engine: SearchEngineSetting) -> some View {
+    private func editor(_ engine: SearchEngineSetting) -> some View {
         let binding = Binding(get: { draft ?? engine }, set: { draft = $0 })
-        TextField("Name", text: binding.name)
-        TextField("Keyword", text: binding.keyword)
-        TextField("Search URL (%s for the search terms)", text: binding.searchURL)
-        TextField("Suggestions URL (optional)", text: Binding(get: { binding.wrappedValue.suggestURL ?? "" },
-                                                             set: { binding.wrappedValue.suggestURL = $0 }))
-        if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
-        HStack {
-            Spacer()
-            Button("Cancel") {
-                draft = nil
-                problem = nil
+        let isNew = !SearchEngines.list(settings.settings).contains { $0.id == engine.id }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(isNew ? "Add Search Engine" : "Edit \(engine.name)").font(.headline)
+            Form {
+                TextField("Name", text: binding.name)
+                TextField("Keyword", text: binding.keyword)
+                TextField("Search URL", text: binding.searchURL, prompt: Text("https://example.com/search?q=%s"))
+                TextField("Suggestions URL", text: Binding(get: { binding.wrappedValue.suggestURL ?? "" },
+                                                           set: { binding.wrappedValue.suggestURL = $0 }),
+                          prompt: Text("Optional"))
             }
-            Button("Save") { save(binding.wrappedValue) }.keyboardShortcut(.defaultAction)
+            .formStyle(.grouped)
+            Text("%s stands for the search terms.").font(.callout).foregroundStyle(.secondary)
+            if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) {
+                    draft = nil
+                    problem = nil
+                }
+                .keyboardShortcut(.cancelAction)
+                Button("Save") { save(binding.wrappedValue) }.keyboardShortcut(.defaultAction)
+            }
         }
+        .padding(20)
+        .frame(width: SearchSettingsMetrics.editorWidth)
     }
 
     /// Stores the draft (%s back to {searchTerms}) or shows why not.

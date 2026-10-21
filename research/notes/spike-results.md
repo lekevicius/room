@@ -4240,3 +4240,17 @@ Debug app over the dev engine (staged 155 builds of `c5a4032`) and over the offi
 `keys` spike (6 layouts, events from each layout's data): ABC, Colemak, Lithuanian as before (⌘T/⌘L reserved 2, ⌘C/⌘V/⌘Z page-first then the menu, `o` typed); **Russian and Greek: ⌘T and ⌘L classified reserved on the US keys (2 calls), never seen by the page**; their `o` key types щ / ο; menu dispatch only on the active layout (as 3.2b). Remap (New Tab → ⌥⌘T): on Colemak ⌥⌘T opened New Tab (1), ⌘T went to the page (0 to the app); on Russian ⌥⌘T never reached the page (no dispatch: not the active layout). `ime_source_keys`: none enabled. Two runs on dev with 5.7a's window up were noisy (⌘C pasteboard nil, ⌘V lost): the window lost key status; the third and the minitour runs passed.
 
 Tour checks (the tour's steps run one by one with the running test servers; `tour_checks.evaluate`): dev keys 23/23, palette 19/19, palette2 26/26, palettemeasure 14/14; release keys 23/23, palette 19/19, palette2 24/26 (the chip's two `LocationBarModel` reads are spike hooks, absent from the official framework, B-82), palettemeasure 14/14. `palettemeasure` (500 entries, 50,000 history rows, suggestions off, dev): later keys median 5.73 / p95 9.26 ms, first keys median 22.75 ms; **72 of 120 keystrokes complete inline** (B-65's row: 72 off; a first guard that also checked Chrome's default match dropped it to 55, fixed in `c00e926`).
+
+## Phase 5.7 — 5.7a: Settings (2026-10-21, Mac mini M4, Screen Sharing virtual display 1920 × 1080 at 60 Hz, the apps over the staged engines `RoomCoreCommit c5a4032`; no engine change; 5.5a's Debug Room running beside it; load 2–20)
+
+| Check | Result |
+|---|---|
+| `fit`, smallest supported visible frame 1024 × 543 (1024 × 640 less a 33 pt menu bar and a 64 pt Dock) | window 560 × 527, every pane 439 pt; 8 of 8 inside; content General 534, Appearance 593, Search 586, Downloads 223, Shortcuts 3,842 (table), Spaces 586, Extensions 271, Privacy 1,074 pt; 8 of 8 scrolled to their end |
+| `fit`, this display's visible frame 1860 × 1050 | window 560 × 728, panes 640 pt; 8 of 8 inside; Shortcuts and Privacy scroll |
+| `closekey` | Settings key: ⌘W closed it, Today tabs 2 → 2; browser key: ⌘W closed a tab, 2 → 1 |
+| `settings` tour checks | 32 / 32 dev, 32 / 32 release framework (load 20.5); key press → stored and in the menu 81.3 / 73.6 ms, menu apply 0.43 / 0.40 ms |
+| `settings2`, `routing` (dev) | 26 / 26, 25 / 25 |
+| `app28a` (dev, light, no captures) | 17 / 26 (window not key), then 21 / 26: fullscreen rounds 2–3 and ⌘←'s palette validation fail; Settings sections, menus, reveal pass; menu update median 0.36 ms |
+| First launch of the new dev build | `launch_to_spike_s` 829 s once, then 2.1–7.0 s |
+| `rg -i 'right.*sidebar|sidebar.*right|trailing' \| wc -l` | 265 → 225 |
+| CI spec locally | BUILD and TEST SUCCEEDED, 706 tests, 0 failed, 2 min 8 s |

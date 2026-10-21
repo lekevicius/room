@@ -498,7 +498,7 @@ struct StateWriterTests {
         #expect(loaded.state.settings.permanentCloseBehavior == .unloadSwitch)
         // Settings v0 (ROADMAP 2.8 task 2).
         #expect(loaded.state.settings == state.settings)
-        #expect(loaded.state.settings.sidebarSide == .right && loaded.state.settings.appearance == .dark)
+        #expect(loaded.state.settings.appearance == .dark)
     }
 
     @Test("The archive is written with the state: rows inserted, updated and deleted in the same transaction as the entries")

@@ -17,7 +17,7 @@ import UIKitCore
 /// - `optins`: at launch neither Sparkle nor Sentry exists; then each opt-in on
 ///   and off against the local endpoints, a check the user asks for (Sparkle's
 ///   window captured), and the feed server's log read by the script.
-/// - `firstrun`: the card docked left and right and in the hidden sidebar's
+/// - `firstrun`: the card docked and in the hidden sidebar's
 ///   overlay; the engine choice reaching the palette; Done; Show Welcome Card.
 /// - `settings`: Settings ▸ General (the default browser) and ▸ Privacy, the App menu open.
 /// - `runningurl`: a link from `open`, from AppleScript's `open location`, and from
@@ -146,13 +146,6 @@ extension SpikeRunner.Context {
         controller.isSidebarOpen = true
         try? await Task.sleep(for: .milliseconds(400))
         await capture2("firstrun-left")
-        store.settings.update { $0.sidebarSide = .right }
-        _ = await waitUntil(2) { root.sidebarEdge == .right }
-        try? await Task.sleep(for: .milliseconds(400))
-        SpikeRunner.record("first_run_right", cardState())
-        await capture2("firstrun-right")
-        store.settings.update { $0.sidebarSide = .left }
-        _ = await waitUntil(2) { root.sidebarEdge == .left }
         // Hidden sidebar: the card is in the overlay (pinned open, as Show Welcome Card does).
         controller.isSidebarOpen = false
         try? await Task.sleep(for: .milliseconds(400))

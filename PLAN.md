@@ -135,7 +135,7 @@ The authoritative spec is `research/notes/feature-spec.md`. Headline behaviors:
 - **Split view**: ≤4 panes, one group row in the sidebar, drag-to-split, ⌘⌥G/V/H/U, focus follows click.
 - **Sidebar hide/reveal**: ⌘S; 4px left-edge hover band with 150ms dwell reveals a floating overlay; ⌘⌥S pins it.
 - **Footer**: downloads button (progress ring, fly-in animation) · space icons · "+" menu. Toasts rise from the sidebar bottom (Copy URL ⌘⇧C, Markdown ⌘⇧⌥C, Tabs closed · Undo, etc.).
-- **Lifecycle**: unloaded-on-launch except the selected tab; auto-archive Today tabs after 12h (configurable); discard on idle/memory pressure; Archive view; crash-safe session restore.
+- **Lifecycle**: unloaded-on-launch except the selected tab; auto-archive Today tabs after a chosen time (12h until 5.7a; Never is the default since 5.7a, B-120); discard on idle/memory pressure; Archive view; crash-safe session restore.
 - **Peek**: off-site links from permanent entries open in an overlay card; ⌘O expands.
 - Full shortcut table: spec §G.
 

@@ -896,14 +896,14 @@ def _settings(c):
     c.contains("reserved_set", "has ⌥⌘T=true", "has ⇧⌘T=false", "count=17", "menu=⌥⌘T", label="Reopen Closed Tab under ⌥⌘T: the reserved set follows")
     c.contains("reserved_remap", '⇧⌘T page saw=["⌘⇧T/KeyT"]', "reopened by ⇧⌘T=false", "⌥⌘T page saw=[]", "reopened by ⌥⌘T=true", "tabs reopened=1",
                label="the old ⇧⌘T reaches the page; ⌥⌘T never does and reopens once")
-    c.contains("applied", "toolbar=true", "sidebar=right", "palette engine=Spike Search", "keyword row=Press Tab", "suggestions=false",
-               label="the settings applied: toolbar, sidebar side, the profile's engine, the keyword, suggestions off")
+    c.contains("applied", "toolbar=true", "palette engine=Spike Search", "keyword row=Press Tab", "suggestions=false",
+               label="the settings applied: toolbar, the profile's engine, the keyword, suggestions off")
     c.contains("save_panel", "shown=true", "sheet=true", "proposed=spike-ask.bin", label="Ask where to save: a save panel over the window")
     c.contains("save_panel_ok", "complete=true", "file=true", label="the panel's file is the download's")
     c.contains("save_panel_cancel", "rows 1 → 1", "listed=false", label="a cancelled panel cancels the download, nothing listed")
     c.contains("stored", "reopenClosedTab:=⌥⌘T", "togglePin:=⌥⌘P", label="the overrides in Settings")
-    c.contains("relaunch_equal", "true (13 of 13)", label="every setting read back after the relaunch")
-    c.contains("relaunch_applied", "toolbar=true", "sidebar=right", "palette engine=Spike Search", label="applied again at launch")
+    c.contains("relaunch_equal", "true (12 of 12)", label="every setting read back after the relaunch")
+    c.contains("relaunch_applied", "toolbar=true", "palette engine=Spike Search", label="applied again at launch")
     c.contains("relaunch_keys", "pin=⌥⌘P", "reopen=⌥⌘T", "print=⌘P", "reserved has ⌥⌘T=true", "has ⇧⌘T=false", label="the remapped keys after the relaunch")
     c.contains("reset_all", "overrides=0", "pin=⌘D", "reopen=⇧⌘T", "has ⇧⌘T=true", "has ⌥⌘T=false", "equals the defaults=true",
                label="Reset All: the frozen table and reserved set again")
@@ -1427,16 +1427,13 @@ def _app28a(c):
     c.contains("menu_command_left", "enabled with the page focused=true", "with the palette's field editing=false", label="⌘← is Back on a page, the field's key while editing")
     for section in ("general", "appearance", "search", "downloads", "privacy"):
         c.check(f"Settings ▸ {section.title()} shows", (c.first(f"settings_{section}") or "").startswith(f"title={section.title()}"), c.first(f"settings_{section}") or "missing")
-    c.contains("settings_sidebar_side", "right applied=true", label="Settings ▸ Sidebar Right applies at once")
-    c.contains("right_docked_chrome", "over the card=true", "buttons shown=true", label="sidebar right: the traffic lights over the card (no cluster since B-114)")
-    c.contains("right_overlay", "shown=true", label="sidebar right: the overlay from the right edge")
     for i in range(3):
         c.contains(f"fullscreen_enter_{i}", "entered=true", "laid out=true", label=f"⌃⌘F round {i + 1}: in, header laid out")
         c.contains(f"fullscreen_exit_{i}", "exited=true", "toolbar visible=true", label=f"⌃⌘F round {i + 1}: out, toolbar back")
     c.contains("fullscreen_state", "header x=8.0", "toolbar visible=false", label="fullscreen: the 8 pt top-bar fallback, toolbar hidden")
     c.contains("fullscreen_reveal", "shown=true", label="hover reveal in fullscreen")
     c.check("header back after the buttons when windowed", c.first("fullscreen_header_windowed") == "x=94.0 (before: 94.0)", c.first("fullscreen_header_windowed") or "")
-    for key in ("menu_update_all", "settings_sidebar_side", "fullscreen_enter_0", "fullscreen_exit_0", "fullscreen_reveal"):
+    for key in ("menu_update_all", "fullscreen_enter_0", "fullscreen_exit_0", "fullscreen_reveal"):
         c.number(key)
 
 
@@ -1447,7 +1444,6 @@ def _app28b(c):
     c.contains("cold_url_entry", "kind=today", "selected=http://127.0.0.1:8770/site.html?cold-", label="the cold link opens as the selected Today tab")
     c.contains("opt_ins_launch", "updater created=false", "crash reporter created=false", label="at launch with both opt-ins off, neither Sparkle nor Sentry exists")
     c.contains("first_run_launch", "card=shown", "above footer=true", label="the first-run card shows (docked left)")
-    c.contains("first_run_right", "shown", label="the card docked right")
     c.contains("first_run_overlay", "in overlay=true", label="the card in the hidden sidebar's overlay")
     c.contains("first_run_engine", "after choice=duckduckgo", label="the card's engine choice reaches the palette")
     c.contains("first_run_done", "card gone=true", "stored done=true", label="Done stores the first run")

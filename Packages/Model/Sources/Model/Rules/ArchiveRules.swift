@@ -6,8 +6,11 @@ import Foundation
 /// or capturing, one with unsaved form input (the engine's discard blockers)
 /// and one in a split with a permanent member.
 public enum ArchivePolicy {
-    /// The options Settings ▸ General offers (hours): 12 h (the default), 24 h, 7 d, 30 d.
-    public static let afterHoursOptions = [12, 24, 168, 720]
+    /// "Never" (5.7a, B-120: the default): the sweep archives nothing.
+    public static let never = 0
+
+    /// The options Settings ▸ General offers (hours): 12 h, 24 h, 7 d, 30 d and Never (the default).
+    public static let afterHoursOptions = [12, 24, 168, 720, never]
 
     /// What keeps a loaded page from being archived, from the engine
     /// (`WebContents.discardBlockers` and `isAudible`).
@@ -32,6 +35,7 @@ public enum ArchivePolicy {
     public static func toArchive(today: [Entry], now: Timestamp, afterHours: Int, selected: Set<UUID>,
                                  exemptions: [UUID: Exemption], splitGroups: [UUID: SplitGroup],
                                  entries: [UUID: Entry]) -> [UUID] {
+        guard afterHours > never else { return [] }
         let threshold = Int64(max(afterHours, 1)) * 3_600_000
         var onScreen = selected
         for id in selected {

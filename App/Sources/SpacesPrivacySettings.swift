@@ -27,13 +27,27 @@ struct ProfileServices {
 
 /// Settings ▸ Spaces (4.4b, spec §B): the spaces in their order (up and
 /// down move them; the footer follows) with each one's routing rules, then
+/// routing (5.7a, B-120: every routing setting is here, nowhere else), then
 /// the profiles: renamed in place, deleted with a confirmation, created.
 struct SpacesSettingsView: View {
     let sidebar: SidebarStore
     let profiles: ProfileServices
-    let rulesSummary: String
+    let settings: SettingsStore
     let showAllRules: () -> Void
     @State private var newProfileName = ""
+
+    private var rulesSummary: String {
+        let rules = sidebar.routingRules
+        let enabled = rules.count { $0.enabled }
+        return rules.isEmpty ? "No routing rules." : "\(rules.count) rule\(rules.count == 1 ? "" : "s"), \(enabled) enabled."
+    }
+
+    /// The chosen space while it exists; a deleted one reads as Most Recent Space.
+    private var externalTarget: Binding<UUID?> {
+        Binding(get: {
+            settings.settings.externalLinksSpaceID.flatMap { id in sidebar.space(id) != nil ? id : nil }
+        }, set: { value in settings.update { $0.externalLinksSpaceID = value } })
+    }
 
     var body: some View {
         Section {
@@ -61,12 +75,28 @@ struct SpacesSettingsView: View {
             Text("The order is the footer's order and ⌃1…⌃9's.").font(.callout).foregroundStyle(.secondary)
         }
         Section {
+            // Spec §B (4.2): the default for external links no rule matches, and routing between spaces.
+            Picker(selection: externalTarget) {
+                Text("Most Recent Space").tag(UUID?.none)
+                Divider()
+                ForEach(sidebar.spaces, id: \.id) { space in Text(space.name).tag(UUID?.some(space.id)) }
+            } label: {
+                Text("Open external links in")
+                Text("Links from other apps that no routing rule matches. The most recent space is the one you used last.")
+            }
+            Toggle(isOn: Binding(get: { settings.settings.routeLinksBetweenSpaces },
+                                 set: { value in settings.update { $0.routeLinksBetweenSpaces = value } })) {
+                Text("Route links between spaces")
+                Text("A link you open as a new tab from a page goes to the space a routing rule names. Peek and links that open in place stay.")
+            }
             LabeledContent {
                 Button("Routing Rules…") { showAllRules() }
             } label: {
-                Text("Space routing")
-                Text("Rules send links from other apps, and links between spaces when that is on (General ▸ Links), to a space. \(rulesSummary)")
+                Text("Routing rules")
+                Text("Rules send a link to a space by its address. \(rulesSummary)")
             }
+        } header: {
+            Text("Routing")
         }
         Section {
             ForEach(Array(sidebar.profiles.enumerated()), id: \.element.id) { index, profile in
@@ -137,60 +167,81 @@ private struct ProfileRow: View {
 
 // MARK: - Privacy
 
-/// Settings ▸ Privacy's site permissions (4.4b): a permission type, then
-/// every site with its own setting for it in the chosen profile, each changed
-/// or reset (the site panel's types and choices).
-struct SitePermissionsView: View {
+/// Settings ▸ Privacy ▸ Site Permissions… (4.4b; a sheet since 5.7a, B-120,
+/// laid out as Safari's Websites pane): the permission types on the left,
+/// every site with its own setting for the chosen one on the right, each
+/// changed or reset (the site panel's types and choices), in one profile.
+struct SitePermissionsSheet: View {
     let sidebar: SidebarStore
     let profiles: ProfileServices
+    let dismiss: () -> Void
     @State private var profileID: UUID?
-    @State private var permission: SitePermission = .notifications
+    @State private var permission: SitePermission? = .notifications
     @State private var entries: [ContentSettingEntry] = []
     @State private var engineProfile: (any Engine.Profile)?
 
+    private var shown: SitePermission { permission ?? .notifications }
+
     var body: some View {
-        Section {
-            if sidebar.profiles.count > 1 {
-                Picker("Profile", selection: Binding(get: { profileID ?? sidebar.profiles.first?.id }, set: { profileID = $0 })) {
-                    ForEach(sidebar.profiles, id: \.id) { profile in Text(profile.name).tag(UUID?.some(profile.id)) }
-                }
-            }
-            Picker("Permission", selection: $permission) {
-                ForEach(SitePermission.allCases, id: \.self) { permission in
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                List(SitePermission.allCases, id: \.self, selection: $permission) { permission in
                     Label(SitePanelRules.title(for: permission), systemImage: SitePanelRules.symbol(for: permission)).tag(permission)
                 }
-            }
-            if entries.isEmpty {
-                Text("No site has its own setting. Sites use the default: \(SitePanelRules.optionTitle(SitePanelRules.defaultSetting(for: permission), for: permission)).")
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(entries, id: \.pattern) { entry in
-                LabeledContent {
-                    HStack(spacing: 6) {
-                        Picker("", selection: Binding(get: { entry.setting }, set: { set($0, entry) })) {
-                            ForEach(SitePanelRules.options(for: permission), id: \.self) { option in
-                                Text(SitePanelRules.optionTitle(option, for: permission)).tag(option)
-                            }
+                .listStyle(.sidebar)
+                .frame(width: SitePermissionsMetrics.typesWidth)
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(SitePanelRules.title(for: shown)) for the websites below:").font(.callout)
+                    List {
+                        if entries.isEmpty {
+                            Text("No site has its own setting.").foregroundStyle(.secondary)
                         }
-                        .labelsHidden()
-                        .fixedSize()
-                        Button("Reset") { set(nil, entry) }
-                            .disabled(entry.origin == nil)
+                        ForEach(entries, id: \.pattern) { entry in row(entry) }
                     }
-                } label: {
-                    Text(entry.pattern)
-                    if entry.isEmbedded { Text("Where it is embedded in another site").foregroundStyle(.secondary) }
+                    .listStyle(.bordered)
+                    .accessibilityIdentifier("site-permissions-list")
+                    Text("Other websites: \(SitePanelRules.optionTitle(SitePanelRules.defaultSetting(for: shown), for: shown)) (Chromium's default).")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                .padding(16)
+            }
+            Divider()
+            HStack {
+                if sidebar.profiles.count > 1 {
+                    Picker("Profile", selection: Binding(get: { profileID ?? sidebar.profiles.first?.id }, set: { profileID = $0 })) {
+                        ForEach(sidebar.profiles, id: \.id) { profile in Text(profile.name).tag(UUID?.some(profile.id)) }
+                    }
+                    .fixedSize()
+                }
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+        }
+        .frame(width: SitePermissionsMetrics.width, height: SitePermissionsMetrics.height)
+        .task(id: TaskKey(profile: profileID ?? sidebar.profiles.first?.id, permission: shown)) { await reload() }
+    }
+
+    @ViewBuilder private func row(_ entry: ContentSettingEntry) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.pattern).lineLimit(1).truncationMode(.middle)
+                if entry.isEmbedded { Text("Where it is embedded in another site").font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Picker("", selection: Binding(get: { entry.setting }, set: { set($0, entry) })) {
+                ForEach(SitePanelRules.options(for: shown), id: \.self) { option in
+                    Text(SitePanelRules.optionTitle(option, for: shown)).tag(option)
                 }
             }
-        } header: {
-            Text("Site permissions")
-        } footer: {
-            Text("What sites asked for and what you chose, here or from the site button in the sidebar's header. Reset returns a site to the default.")
-                .font(.callout).foregroundStyle(.secondary)
+            .labelsHidden()
+            .fixedSize()
+            Button("Reset") { set(nil, entry) }
+                .buttonStyle(.link)
+                .disabled(entry.origin == nil)
+                .help("Back to the default for other websites")
         }
-        .task(id: TaskKey(profile: profileID ?? sidebar.profiles.first?.id, permission: permission)) { await reload() }
-        // A prompt answered or the site panel used while Settings was away: the list is read again when it shows.
-        .onAppear { Task { await reload() } }
     }
 
     private struct TaskKey: Hashable {
@@ -201,14 +252,21 @@ struct SitePermissionsView: View {
     private func reload() async {
         guard let id = profileID ?? sidebar.profiles.first?.id else { return }
         engineProfile = await profiles.engineProfile(id)
-        entries = engineProfile?.contentSettings(ofType: permission) ?? []
+        entries = engineProfile?.contentSettings(ofType: shown) ?? []
     }
 
     private func set(_ setting: PermissionSetting?, _ entry: ContentSettingEntry) {
         guard let origin = entry.origin, let engineProfile else { return }
-        engineProfile.setPermissionSetting(setting, for: permission, origin: origin)
-        entries = engineProfile.contentSettings(ofType: permission)
+        engineProfile.setPermissionSetting(setting, for: shown, origin: origin)
+        entries = engineProfile.contentSettings(ofType: shown)
     }
+}
+
+enum SitePermissionsMetrics {
+    /// Chosen: Safari's Websites pane proportions inside the 560 pt Settings window's sheet.
+    static let width: CGFloat = 640
+    static let height: CGFloat = 420
+    static let typesWidth: CGFloat = 200
 }
 
 /// Clear browsing data… (4.4b): the kinds, the period, the profile.
@@ -286,16 +344,11 @@ enum ClearBrowsingDataMetrics {
     static let width: CGFloat = 420
 }
 
-/// The one-line statements of Settings ▸ Privacy (4.4b; the user's
-/// decisions of 2026-10-06: B-63, B-68, B-72, B-74, B-27, Safe Browsing).
+/// Settings ▸ Privacy's Google services line (4.4b's statements, the user's
+/// decisions of 2026-10-06: B-63, B-68, B-72, B-74, Safe Browsing). 5.7a
+/// (B-120): one summary row; the Notes section and its Zoom and Autoplay
+/// lines (behaviours, not settings) went.
 enum PrivacyStatements {
-    static let lines: [(title: String, text: String)] = [
-        ("Translation", "Room does not offer page translation: it needs a Google API key, which Room does not ship."),
-        ("Password suggestions", "Room does not suggest strong passwords: Chromium offers them only with Google's password sync, which Room does not have. Passwords you type are saved."),
-        ("Spelling", "Spelling is checked on this Mac by macOS. Enhanced Spell Check, which sends what you type to Google, is not offered."),
-        ("Safe Browsing", "Off: Room does not check the pages you open against Google's list of dangerous sites."),
-        ("Zoom", "Zoom applies per site, as in Chrome: zooming one page zooms the site's other pages, and the level is remembered."),
-        ("Autoplay", "Autoplay follows Chromium's default: sound may start only after you interact with a site."),
-        ("Extensions", "Extensions you install make their own requests (their updates and their own servers): those are the extension's, not Room's."),
-    ]
+    static let googleServices = "Translation, Safe Browsing, Enhanced Spell Check and suggested strong passwords each need Google's servers: "
+        + "Room does not offer them. Spelling is checked on this Mac by macOS; passwords you type are saved."
 }
