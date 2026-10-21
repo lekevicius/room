@@ -34,6 +34,16 @@ settings:
     # default state is ~/Library/Application Support/Room Dev (Infra's AppPaths).
     Debug:
       ROOM_BUNDLE_ID_SUFFIX: .dev
+      # A stable signature for the Debug apps (2026-10-21): ad-hoc builds get a
+      # new code identity per build, so macOS forgot every grant (removable
+      # volumes, camera, microphone, Bluetooth) at each rebuild. The Developer ID
+      # identity keeps app.room.desktop.dev's TCC grants across builds; no
+      # timestamp (offline, fast); the Debug app still uses the mock keychain
+      # (App/Sources/main.swift). CI builds with CODE_SIGNING_ALLOWED=NO.
+      CODE_SIGN_STYLE: Manual
+      CODE_SIGN_IDENTITY: "Developer ID Application"
+      DEVELOPMENT_TEAM: N56PMJ99UT
+      OTHER_CODE_SIGN_FLAGS: "--timestamp=none"
 packages:
   Engine:
     path: Packages/Engine

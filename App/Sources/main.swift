@@ -56,10 +56,16 @@ do {
     // RoomCore logs to RoomCore.log in its data root and decides the keychain
     // by the build's code signature: a team-signed build uses "Room Safe
     // Storage" in the login keychain, an ad-hoc build the mock keychain
-    // (PLAN §4 Keychain).
+    // (PLAN §4 Keychain). Debug builds are team-signed since 2026-10-21 (for
+    // stable TCC grants) and keep the mock keychain.
+    #if DEBUG
+    let usesSystemKeychain = false
+    #else
+    let usesSystemKeychain = true
+    #endif
     let configuration = EngineConfiguration(
         userDataDirectory: try AppPaths.ensureDirectory(engineDirectory),
-        usesSystemKeychain: true,
+        usesSystemKeychain: usesSystemKeychain,
         features: LaunchSettings.engineFeatures(stateDirectory: AppDelegate.stateDirectory)
     )
     try engine.initialize(configuration)
