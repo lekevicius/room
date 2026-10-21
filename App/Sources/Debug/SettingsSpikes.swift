@@ -45,7 +45,6 @@ extension SpikeRunner.Context {
         settings.peekOffSiteLinks = false
         settings.routeLinksBetweenSpaces = true
         settings.showsToolbar = true
-        settings.sidebarSide = .right
         settings.appearance = .dark
         settings.searchSuggestions = false
         settings.searchEngines = SearchEngines.list(settings).filter { $0.id != spikeEngine.id } + [spikeEngine]
@@ -295,7 +294,7 @@ extension SpikeRunner.Context {
         }
         app.debugSettingsWindow?.window?.orderOut(nil)
         self.window.makeKeyAndOrderFront(nil)
-        SpikeRunner.record("applied", "toolbar=\(app.windowController?.showsToolbar ?? false) sidebar=\(app.windowController?.rootView.sidebarEdge == .right ? "right" : "left") "
+        SpikeRunner.record("applied", "toolbar=\(app.windowController?.showsToolbar ?? false) "
             + "palette engine=\(engine?.name ?? "nil") keyword row=\(keyword) suggestions=\(store.settings.settings.searchSuggestions)")
 
         // 7. The save panel per download (the 2.6 server).
@@ -393,7 +392,6 @@ extension SpikeRunner.Context {
             ("peekOffSiteLinks", current.peekOffSiteLinks == expected.peekOffSiteLinks, "\(current.peekOffSiteLinks)"),
             ("routeLinksBetweenSpaces", current.routeLinksBetweenSpaces == expected.routeLinksBetweenSpaces, "\(current.routeLinksBetweenSpaces)"),
             ("showsToolbar", current.showsToolbar == expected.showsToolbar, "\(current.showsToolbar)"),
-            ("sidebarSide", current.sidebarSide == expected.sidebarSide, current.sidebarSide.rawValue),
             ("appearance", current.appearance == expected.appearance, current.appearance.rawValue),
             ("searchSuggestions", current.searchSuggestions == expected.searchSuggestions, "\(current.searchSuggestions)"),
             ("searchEngines", current.searchEngines == expected.searchEngines, "\(SearchEngines.list(current).count) engines, last \(SearchEngines.list(current).last?.keyword ?? "-")"),
@@ -404,7 +402,7 @@ extension SpikeRunner.Context {
         ]
         SpikeRunner.record("relaunch", fields.map { "\($0.0)=\($0.2)\($0.1 ? "" : " (MISMATCH)")" }.joined(separator: " "))
         SpikeRunner.record("relaunch_equal", "\(fields.allSatisfy(\.1)) (\(fields.filter(\.1).count) of \(fields.count))")
-        SpikeRunner.record("relaunch_applied", "toolbar=\(app.windowController?.showsToolbar ?? false) sidebar=\(app.windowController?.rootView.sidebarEdge == .right ? "right" : "left") "
+        SpikeRunner.record("relaunch_applied", "toolbar=\(app.windowController?.showsToolbar ?? false) "
             + "palette engine=\(app.palette?.searchEngine().name ?? "nil")")
         let optionT = ReservedShortcuts.Shortcut(.character("t"), [.command, .option])
         let shiftT = ReservedShortcuts.Shortcut(.character("t"), [.command, .shift])
@@ -432,7 +430,6 @@ extension SpikeRunner.Context {
             $0.peekOffSiteLinks = defaults.peekOffSiteLinks
             $0.routeLinksBetweenSpaces = defaults.routeLinksBetweenSpaces
             $0.showsToolbar = defaults.showsToolbar
-            $0.sidebarSide = defaults.sidebarSide
             $0.appearance = defaults.appearance
             $0.searchSuggestions = defaults.searchSuggestions
             $0.searchEngines = defaults.searchEngines

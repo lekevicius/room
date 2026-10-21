@@ -217,20 +217,6 @@ private struct SettingsSectionView: View {
                      + "using the camera or holding unsaved form input stay.")
             }
         }
-        Section("Window") {
-            Toggle(isOn: binding(\.showsToolbar)) {
-                Text("Show the toolbar")
-                Text("Back, Forward, Reload and the full URL above the page (View ▸ Show Toolbar).")
-            }
-            Picker(selection: binding(\.sidebarSide)) {
-                Text("Left").tag(SidebarSide.left)
-                Text("Right").tag(SidebarSide.right)
-            } label: {
-                Text("Sidebar")
-                Text("The window's buttons stay where macOS puts them; with the sidebar on the right they float over the page.")
-            }
-            .pickerStyle(.segmented)
-        }
         Section("Import") {
             LabeledContent {
                 Button("Import…") { services.showImportSheet() }
@@ -348,16 +334,6 @@ private struct SettingsSectionView: View {
             AppIconPicker(selection: binding(\.appIcon))
             // Only while running: with Room quit, the Dock and Finder show the bundle's icon.
             Text("The Dock shows this icon while Room is open.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        Section {
-            Picker("Sidebar", selection: binding(\.sidebarSide)) {
-                Text("Left").tag(SidebarSide.left)
-                Text("Right").tag(SidebarSide.right)
-            }
-            .pickerStyle(.segmented)
-            Text("With the sidebar on the right, the window's buttons float over the page's top-left corner.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

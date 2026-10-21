@@ -296,10 +296,11 @@ struct ValueTests {
         #expect(partial.archiveAfterHours == 24 && partial.permanentCloseBehavior == .resetUnloadSwitch)
         // Suggestions are on and the engine is Google unless the user chose otherwise (2026-10-03).
         #expect(partial.searchSuggestions && partial.searchEngine == "google")
-        // Settings v0 (2.8a): a database written before them reads the left sidebar and the system appearance.
-        #expect(partial.sidebarSide == .left && partial.appearance == .system)
-        let unknown = try JSONDecoder().decode(Settings.self, from: Data(#"{"sidebarSide":"top","appearance":"sepia"}"#.utf8))
-        #expect(unknown.sidebarSide == .left && unknown.appearance == .system)
+        // Settings v0 (2.8a): a database written before them reads the system appearance.
+        #expect(partial.appearance == .system)
+        // 5.7a: a state that stored the removed sidebar side ("right") still reads, the key ignored.
+        let unknown = try JSONDecoder().decode(Settings.self, from: Data(#"{"sidebarSide":"right","appearance":"sepia"}"#.utf8))
+        #expect(unknown == Settings())
         // 2.8b: a database written before the first run shows the card once; both opt-ins read off.
         #expect(!partial.firstRunDone && !partial.crashReports && !partial.automaticUpdateChecks)
         let wrong = try JSONDecoder().decode(Settings.self, from: Data(#"{"crashReports":"yes","automaticUpdateChecks":1}"#.utf8))

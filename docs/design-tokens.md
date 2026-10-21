@@ -305,13 +305,13 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `Timing.splitJoinDwell` (= `DropRules.holdDelay`) | a single entry resting 500 ms on a tab row's middle 60% joins it into a split (a pinned entry onto a pinned entry still makes a folder, §A.6) | spec §D, §A.6 |
 | `SplitMetrics.segmentTitleMinWidth` / `focusedSegmentAlpha` | the group row's segments show a title when at least 64 pt wide (else the favicon alone); the focused pane's segment is tinted with the accent at 16% | spec §D ("tinted"); values chosen |
 
-## Added in Phase 2.8a (menus, Settings v0, the sidebar on the right)
+## Added in Phase 2.8a (menus, Settings v0; the sidebar on the right until 5.7a)
 
 | Token | Value | Provenance |
 |---|---|---|
 | Settings window | toolbar tabs (`NSTabViewController.tabStyle = .toolbar`, `toolbarStyle = .preference`), sections General, Appearance, Search, Downloads; each a grouped SwiftUI `Form` 480 pt wide at its own height; the title follows the section | the Mac's settings windows; width chosen (460 in 2.4b, wider for the segmented pickers) |
 | Settings section symbols | `gearshape` / `paintpalette` / `magnifyingglass` / `arrow.down.circle` | chosen (system settings conventions) |
-| Sidebar on the right | the docked layout mirrored with the same tokens (`CardMetrics.inset` on the card's outer sides, `sidebarSideInset` against the sidebar, the splitter's hit area mostly inside the sidebar), the reveal band (`RevealMetrics.edgeBand`) and the overlay (`overlayInset`) at the right edge; the traffic lights stay where AppKit puts them, over the card, with the card-top drag band (the floating cluster went with B-114, 5.1b); the header starts at `SidebarMetrics.edgeInset` | Settings v0 (ROADMAP 2.8 task 2); Chapter 1 traffic-light rule |
+| ~~Sidebar on the right~~ | removed in 5.7a (B-120: Room will never offer it): the setting, the mirrored layout, the right-edge reveal band and overlay, and their tests | the user, 2026-10-21 |
 | Planned menu items | present, disabled, tooltip "Comes in Chapter N"; keys the menu cannot carry (Esc, Return) named in the tooltip | ROADMAP 2.8 task 1 |
 
 ## Added in Phase 2.8b (the first-run card, Settings ▸ Privacy)
@@ -372,7 +372,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | Settings window width | 560 pt for every section (`ShortcutsSettingsMetrics.width`; 480 since 2.8a): the eight sections (General, Appearance, Search, Downloads, Shortcuts, Spaces, Extensions, Privacy) fit the toolbar without its overflow menu | chosen (measured: at 480 pt Extensions and Privacy went behind ») |
 | Settings ▸ Shortcuts | symbol `keyboard`; an AppKit `NSTableView` (`.inset`, alternating rows, no selection): Action (title, ◆ before a reserved one, the menu path under it in `Typography.secondary`), Shortcut (a small push button showing the key, "Type shortcut…" while recording, "—" for none), a reset arrow (`arrow.uturn.backward`) while overridden; the rows of a conflict in `systemOrange`; a line under the table with the prompt ("⌘P is Print…'s shortcut. Use it for Pin Tab instead?", Use for …, Cancel) or the refusal in `systemRed`; Reset All bottom right | PLAN §4 UI framework (rows that change per keystroke are AppKit); looks are Chapter 5's |
 | `ShortcutsSettingsMetrics.tableHeight` / `keyColumnWidth` / `resetColumnWidth` / `rowHeight` | 380 / 120 / 28 / 34 pt; the section is 510 pt tall and sizes the window to itself | chosen |
-| Settings ▸ General | Tabs gains "⌘W on a pinned tab or Essential" (spec §A.3's six, the chosen one's line under it); a Window section (Show the toolbar, Sidebar Left/Right) | ROADMAP 4.4a task 2 |
+| Settings ▸ General | Tabs gains "⌘W on a pinned tab or Essential" (spec §A.3's six, the chosen one's line under it); a Window section (Show the toolbar, Sidebar Left/Right; both gone from Settings in 5.7a) | ROADMAP 4.4a task 2 |
 | Settings ▸ Search | Default (an engine popup per profile), Search engines (name, keyword in monospaced secondary, the URL with %s in caption; Edit, Remove as link buttons, Remove disabled with its reason as help; an inline editor with Name, Keyword, Search URL, Suggestions URL, the refusal in red, Cancel, Save), the suggestions switch with B-64's line | ROADMAP 4.4a task 3 |
 | Settings ▸ Downloads | "Ask where to save each download" (a save panel as a sheet on the browser window, the folder's name proposed), "PDFs: Open in Room / Download" with "Applies from Phase 4.7" | ROADMAP 4.4a task 4 |
 
@@ -426,7 +426,7 @@ Measured by `-RoomSpike motion -RoomSpikeOnly overlays` (`scripts/motion-check.s
 | Download ring | grows to the new progress over `Motion.medium`, ease-out (was Core Animation's implicit 0.25 s); the spinner stops under Reduce Motion | 5.1b |
 | ⌃Tab switcher | fades in over `Motion.fast`, ease-out (an explicit animation; it goes at once) | chosen: the spec gives the switcher none; as the palette's fade |
 | `ChromeMotion`, `PaletteMotion`, `TabsMotion`, `CardMotion`, `WindowMotion` | each package's animations and their Reduce Motion variants (the pattern of `SidebarMotion`): toasts in and out fade, the pop, the fly-in, the ring and the popovers' animation end at once, the bounce fades; the palette's open loses its scale, its close stays a fade (was instant); Peek opens and closes by fades; the pane header stays a fade, the drop preview jumps; the split's layout never animates; the reveal fades; the traffic lights, the tint and the inactive fade stay fades | spec §I.1 |
-| Traffic lights with the hidden sidebar | hidden with it; fade in over `Motion.revealIn` ease-in as the overlay slides in under them, out over `revealOut` with it, over `Motion.fast` on ⌘S; never moved; over the card with the sidebar on the right | B-114 (amends spec §E) |
+| Traffic lights with the hidden sidebar | hidden with it; fade in over `Motion.revealIn` ease-in as the overlay slides in under them, out over `revealOut` with it, over `Motion.fast` on ⌘S; never moved | B-114 (amends spec §E) |
 
 ## Added in Phase 5.2a (the visual audit: the matrix, token drift, hairlines, icon weights, B-110, B-112, B-113, B-115, B-125)
 

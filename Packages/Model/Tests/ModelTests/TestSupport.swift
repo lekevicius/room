@@ -40,7 +40,6 @@ func sampleState() -> RoomState {
     settings.searchSuggestions = false
     settings.downloadDirectory = "/tmp/Room Downloads"
     settings.peekOffSiteLinks = false
-    settings.sidebarSide = .right
     settings.appearance = .dark
     // 2.8b: the first run and the two opt-ins.
     settings.firstRunDone = true

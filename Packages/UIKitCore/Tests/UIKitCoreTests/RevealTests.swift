@@ -94,13 +94,6 @@ struct SidebarRevealTests {
         #expect(RevealZone.of(CGPoint(x: -200, y: 300), contentSize: size, overlay: overlay) == .elsewhere)
         #expect(RevealZone.of(CGPoint(x: 100, y: 780), contentSize: size, overlay: overlay) == .tolerance)
         #expect(RevealZone.of(CGPoint(x: 100, y: 800), contentSize: size, overlay: overlay) == .elsewhere)
-        // Sidebar on the right (Settings v0): the band and the overlay at the right edge.
-        let right = CGRect(x: size.width - 260, y: 10, width: 250, height: 780)
-        #expect(RevealZone.of(CGPoint(x: size.width - 2, y: 300), contentSize: size, overlay: nil, edge: .right) == .band)
-        #expect(RevealZone.of(CGPoint(x: 2, y: 300), contentSize: size, overlay: nil, edge: .right) == .elsewhere)
-        #expect(RevealZone.of(CGPoint(x: size.width - 100, y: 300), contentSize: size, overlay: right, edge: .right) == .overlay)
-        #expect(RevealZone.of(CGPoint(x: size.width - 300, y: 300), contentSize: size, overlay: right, edge: .right) == .elsewhere)
-        #expect(RevealZone.of(CGPoint(x: size.width + 150, y: 300), contentSize: size, overlay: right, edge: .right) == .tolerance)
     }
 
     private func shown() -> SidebarReveal {

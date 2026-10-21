@@ -1089,13 +1089,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         controller.showsToolbar = settings.settings.showsToolbar
     }
 
-    /// Settings ▸ Appearance (v0, ROADMAP 2.8 task 2): the app's appearance and the sidebar's side,
-    /// applied now and again whenever either changes.
+    /// Settings ▸ Appearance (v0, ROADMAP 2.8 task 2): the app's appearance and the window's look,
+    /// applied now and again whenever one changes.
     private func applyLookSettings() {
         guard let settings = store?.settings else { return }
-        let (appearance, side, toolbar, _, textSize) = withObservationTracking {
-            (settings.settings.appearance, settings.settings.sidebarSide, settings.settings.showsToolbar, settings.settings.monoTrafficLights,
-             settings.settings.sidebarTextSize)
+        let (appearance, toolbar, _, textSize) = withObservationTracking {
+            (settings.settings.appearance, settings.settings.showsToolbar, settings.settings.monoTrafficLights, settings.settings.sidebarTextSize)
         } onChange: { [weakSelf = MainActorWeak(self)] in
             Task { @MainActor in weakSelf.value?.applyLookSettings() }
         }
@@ -1112,7 +1111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             case .dark: NSAppearance(named: .darkAqua)
             }
         }
-        for session in windows.all { applyLook(to: session, side: side, toolbar: toolbar) }
+        for session in windows.all { applyLook(to: session, toolbar: toolbar) }
         // Settings ▸ Appearance ▸ Sidebar text (5.3b): the sidebars and palettes lay out again on the change.
         TextScale.size = TextScale.Size(rawValue: textSize.rawValue) ?? .medium
     }
@@ -1149,13 +1148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         NSApp.applicationIconImage = image
     }
 
-    /// The sidebar's side and the toolbar in one window (every window follows Settings ▸ Appearance).
-    private func applyLook(to session: WindowSession, side: SidebarSide? = nil, toolbar: Bool? = nil) {
+    /// The toolbar and the window buttons in one window (every window follows Settings).
+    private func applyLook(to session: WindowSession, toolbar: Bool? = nil) {
         guard let settings = store?.settings.settings else { return }
-        let side = side ?? settings.sidebarSide
         let toolbar = toolbar ?? settings.showsToolbar
-        session.controller.rootView.sidebarEdge = side == .right ? .right : .left
-        // Settings ▸ General ▸ Show the toolbar (4.4a) as View ▸ Show Toolbar.
+        // `Settings.showsToolbar` (4.4a; hidden from Settings and the menu since 5.7a, kept for a developer mode).
         if session.controller.showsToolbar != toolbar { session.controller.showsToolbar = toolbar }
         // Settings ▸ Appearance ▸ Grey window buttons (5.2b, spec §I.12).
         session.controller.monoTrafficLights = settings.monoTrafficLights
