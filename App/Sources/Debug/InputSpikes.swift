@@ -109,9 +109,13 @@ extension SpikeRunner.Context {
 
         // 4. A page's textarea, and ⌘T (reserved) while it composes.
         guard let page = await open(Self.imePage, timeout: 10) else { return SpikeRunner.record("ime_page", "ime.html did not open") }
+        await activate()
         try? await Task.sleep(for: .milliseconds(400))
         await click(page, "#t")
         focusPage(page)
+        _ = await js(page, "document.getElementById('t').focus(); 0")
+        try? await Task.sleep(for: .milliseconds(300))
+        SpikeRunner.record("ime_page_focus", "key=\(window.isKeyWindow) active=\(await js(page, "document.activeElement && document.activeElement.id"))")
         guard let client = window.firstResponder as? NSTextInputClient else {
             return SpikeRunner.record("ime_page", "the page's view is not an NSTextInputClient (\(String(describing: window.firstResponder)))")
         }
@@ -136,10 +140,13 @@ extension SpikeRunner.Context {
             + "committed value=\(value) events=\(events)")
     }
 
+    /// One source for a sequence, so a dead key's state carries to the next key.
+    nonisolated(unsafe) private static let keySource = CGEventSource(stateID: .privateState)
+
     /// A key down and up as Quartz events made into `NSEvent`s (their characters from the current layout).
     private func sendQuartzKey(_ keyCode: UInt16, option: Bool) {
         for down in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: keyCode, keyDown: down) else { continue }
+            guard let event = CGEvent(keyboardEventSource: Self.keySource, virtualKey: keyCode, keyDown: down) else { continue }
             event.flags = option ? .maskAlternate : []
             guard let ns = NSEvent(cgEvent: event) else { continue }
             // Down events straight to the field editor's input context (the event keeps its Quartz data, which
