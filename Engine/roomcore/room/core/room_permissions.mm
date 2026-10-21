@@ -135,6 +135,10 @@ RoomPermissionKind ToRoomKind(permissions::RequestType type) {
       return RoomPermissionKindHandTracking;
     case RequestType::kIdentityProvider:
       return RoomPermissionKindIdentityProvider;
+    // 156: FedCM's ambient (passkey-style) sign-in; reported as an identity
+    // provider request until the host has a kind of its own for it.
+    case RequestType::kAmbientLogin:
+      return RoomPermissionKindIdentityProvider;
     case RequestType::kIdleDetection:
       return RoomPermissionKindIdleDetection;
     case RequestType::kLocalFonts:
