@@ -16,10 +16,13 @@
 # localhost). After the runs the profile's stores are read with sqlite3: the
 # saved logins (`Login Data`), addresses and cards (`Web Data`); password and
 # card number columns are encrypted and only their lengths are printed.
-# Answers `capture_screen: <name> x,y,w,h` lines with `screencapture -R` into
-# research/screenshots/phase-3.7a/ (needs the screen unlocked and Screen
-# Recording for the shell that runs it).
+# Captures are the spike's own, in-process (WindowSnapshot of Room's window
+# with Chrome's bubble or popup or the host's popover; since 5.8e, no shell
+# screencapture), into research/screenshots/phase-3.7a/ or ROOM_CAPTURE_DIR.
+# 5.8a's engine half: the save phase accepts the host's popover where Chrome's
+# bubble was, and answers Not Now and Never on the HTTPS site.
 # Usage: scripts/passwords-autofill.sh [output directory] [-- extra app args]
+# ROOM_PA_APPEARANCE=dark captures in the dark appearance (names end -light/-dark).
 # ROOM_PA_ONLY=passwords|autofill runs one spike (passwords runs both phases).
 # ROOM_PA_ONLY=import (4.3b): `-RoomPasswordsPhase import` (Profile.importPasswords
 # on research/spikes/phase-4.3's CSVs: the saved one, then passwords.csv kept,
@@ -33,6 +36,7 @@ mkdir -p "$OUTDIR"
 OUTDIR="$(cd "$OUTDIR" && pwd)"
 SHOTS="${ROOM_CAPTURE_DIR:-research/screenshots/phase-3.7a}"
 mkdir -p "$SHOTS"
+SHOTS="$(cd "$SHOTS" && pwd)"  # absolute: the app's working directory is /
 source scripts/lib/chromium-env.sh 2>/dev/null || true
 annotations="${CHROMIUM_SRC:-}/tools/traffic_annotation/summary/annotations.xml"
 
@@ -49,29 +53,14 @@ done
 spki=$(cat "$OUTDIR/spki.txt")
 state="$OUTDIR/state"; engine="$OUTDIR/engine"
 
-# One launch: the spike, its captures, its net-log.
+# One launch: the spike and its net-log.
 run() {
   local name="$1"; shift
   local out="$OUTDIR/spike-$name.txt"
   ROOM_APP="$APP" ROOM_SPIKE_OUT="$out" scripts/run-spike.sh "$@" -ApplePersistenceIgnoreState YES \
-    -RoomStateDirectory "$state" -RoomEngineDirectory "$engine" -RoomSpikeAppearance light \
-    "--ignore-certificate-errors-spki-list=$spki" "--log-net-log=$OUTDIR/netlog-$name.json" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} >/dev/null &
-  local runner=$! done_names=""
-  while kill -0 "$runner" 2>/dev/null; do
-    if [[ -f "$out" ]]; then
-      while IFS= read -r line; do
-        local rest=${line#*: }
-        local shot=${rest%% *}
-        [[ " $done_names " == *" $shot "* ]] && continue
-        screencapture -x -R "${rest#* }" "$SHOTS/$shot.png" || echo "capture of $shot failed" >&2
-        touch "$out.ack-$shot"
-        done_names="$done_names $shot"
-        echo "captured $SHOTS/$shot.png" >&2
-      done < <(grep -E '^capture_screen: ' "$out" || true)
-    fi
-    sleep 0.2
-  done
-  wait "$runner" || true
+    -RoomStateDirectory "$state" -RoomEngineDirectory "$engine" -RoomSpikeAppearance "${ROOM_PA_APPEARANCE:-light}" -RoomSuggestionsOff YES \
+    -RoomSpikeCaptureDirectory "$SHOTS" \
+    "--ignore-certificate-errors-spki-list=$spki" "--log-net-log=$OUTDIR/netlog-$name.json" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} >/dev/null || true
   echo "== $name"
   cat "$out"
   echo
@@ -97,7 +86,7 @@ profile=$(find "$engine" -maxdepth 1 -type d -name 'Room Profile *' | head -1)
 echo "profile: ${profile#"$OUTDIR/"}"
 cp "$profile/Login Data" "$OUTDIR/LoginData.sqlite" 2>/dev/null && \
   sqlite3 -header "$OUTDIR/LoginData.sqlite" \
-    "SELECT origin_url, username_value, length(password_value) AS password_bytes, times_used FROM logins ORDER BY origin_url;" \
+    "SELECT origin_url, username_value, length(password_value) AS password_bytes, times_used, blacklisted_by_user FROM logins ORDER BY origin_url, username_value;" \
   || echo "no Login Data"
 cp "$profile/Web Data" "$OUTDIR/WebData.sqlite" 2>/dev/null || echo "no Web Data"
 if [[ -f "$OUTDIR/WebData.sqlite" ]]; then

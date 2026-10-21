@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import Engine
+import UIKitCore
 
 /// Phase 3.7a: `passwords` and `autofill` (`scripts/passwords-autofill.sh`)
 /// drive Chrome's password manager and autofill on Room.app over RoomCore
@@ -24,10 +25,16 @@ import Engine
 /// field (fill with Down + Return, Esc, a window move), the card save bubble
 /// and the card suggestion.
 ///
-/// `capture_screen: <name> x,y,w,h` lines ask the script for a screen
-/// capture (Chrome's bubbles are windows of their own whose pixels a window
-/// capture of Room's does not hold); captures go to
-/// `research/screenshots/phase-3.7a/`.
+/// Captures are in-process (`WindowSnapshot` of Room's window with Chrome's
+/// bubble or popup window, or the host's popover, composited over it; since
+/// 5.8e: no shell `screencapture`) into `research/screenshots/phase-3.7a/` or
+/// `-RoomSpikeCaptureDirectory`.
+///
+/// 5.8a's engine half: the save and update offers reach the host's popover
+/// (`willOfferPasswordSave`/`Update`) instead of Chrome's bubble; the save
+/// phase accepts whichever surface shows (`surface=host` or `surface=chrome`)
+/// and, on the HTTPS site, answers one offer Not Now (Esc) and one Never for
+/// This Site, after which a third submit gets no offer.
 extension SpikeRunner.Context {
     // MARK: Fixtures
 
@@ -105,17 +112,57 @@ extension SpikeRunner.Context {
         return "site_button=\(describe(button)) bubble=\(describe(bubble.frame)) gap_below_button=\(Int(gap))pt spans_button=\(spans)"
     }
 
-    /// A screen capture of Room's window and `extra` (a bubble that reaches
-    /// past it), answered by the script.
+    /// An in-process capture of Room's window with `extra` (Chrome's bubble
+    /// or popup, the host's popover) composited where the window server shows it.
     private func captureScreen37(_ name: String, including extra: NSWindow? = nil) async {
-        var rect = window.frame
-        if let extra { rect = rect.union(extra.frame) }
-        let r = topLeft(rect)
-        let full = "phase-3.7a-\(name)"
-        SpikeRunner.record("capture_screen", "\(full) \(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height))")
-        let output = URL(fileURLWithPath: UserDefaults.standard.string(forKey: "RoomSpikeOutput") ?? "")
-        let ack = output.deletingLastPathComponent().appending(path: output.lastPathComponent + ".ack-" + full)
-        if !(await waitUntil(20) { FileManager.default.fileExists(atPath: ack.path) }) { SpikeRunner.record("capture_timeout", full) }
+        let appearance = UserDefaults.standard.string(forKey: "RoomSpikeAppearance") ?? "light"
+        let full = "phase-3.7a-\(name)-\(appearance)"
+        window.displayIfNeeded()
+        let others = [extra].compactMap { $0 } + (window.childWindows ?? []).filter { $0.isVisible && $0 !== extra }
+        let url = shots37.appending(path: full + ".png")
+        guard let image = others.isEmpty ? WindowSnapshot.capture(window) : WindowSnapshot.capture(window, with: others),
+              let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]),
+              (try? data.write(to: url)) != nil else { return SpikeRunner.record("capture_failed", full) }
+        SpikeRunner.record("capture", "\(url.lastPathComponent) \(image.width)x\(image.height) px")
+    }
+
+    // MARK: The host's popover (5.8a)
+
+    /// The host's password popover's window while it shows.
+    private var hostOfferWindow: NSWindow? {
+        guard let window = presenter?.passwordOfferView?.window, window.isVisible else { return nil }
+        return window
+    }
+
+    /// Return (or Esc) to the host's popover: its default button (Save,
+    /// Update) or Not Now. Which window had the key is part of the result.
+    private func answerHostOffer(_ popover: NSWindow, keyCode: UInt16, _ characters: String) async -> String {
+        let key = popover.isKeyWindow
+        if key {
+            PageDriver.key(popover, characters: characters, keyCode: keyCode)
+        } else {
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                windowNumber: popover.windowNumber, context: nil, characters: characters,
+                                                charactersIgnoringModifiers: characters, isARepeat: false, keyCode: keyCode) {
+                    popover.sendEvent(event)
+                }
+            }
+        }
+        let closed = await waitUntil(3) { self.hostOfferWindow == nil }
+        return "\(keyCode == 36 ? "return" : "esc")(host, \(key ? "key window" : "not key")) closed=\(closed)"
+    }
+
+    private func clickHostOfferButton(_ identifier: String) async -> String {
+        let found = button(identifier: identifier, in: presenter?.passwordOfferView)
+        found?.performClick(nil)
+        let closed = await waitUntil(3) { self.hostOfferWindow == nil }
+        return "\(identifier)(host) button=\(found != nil) closed=\(closed)"
+    }
+
+    /// Accepts whichever surface showed the offer.
+    private func accept(_ surface: NSWindow) async -> String {
+        surface === hostOfferWindow ? await answerHostOffer(surface, keyCode: 36, "\r") : await acceptBubble(surface)
     }
 
     /// Return to Chrome's bubble (its default button: Save, Update), the
@@ -224,21 +271,40 @@ extension SpikeRunner.Context {
         return page
     }
 
-    /// The bubble Chrome shows after `action` (a submit), with how long it took.
-    private func bubbleAfter(_ name: String, _ action: () async -> Void) async -> NSWindow? {
+    /// The offer shown after `action` (a submit), with how long it took: the
+    /// host's popover (5.8a's engine half) or Chrome's Views bubble.
+    private func bubbleAfter(_ name: String, seconds: Double = 12, _ action: () async -> Void) async -> NSWindow? {
         let before = chromeWindowIDs
         let queries = session.pageDelegate.bubbleAnchorQueries
         let start = ContinuousClock.now
         await action()
-        guard let bubble = await waitForChromeWindow(excluding: before, 12) else {
-            SpikeRunner.record("\(name)_bubble", "none within 12 s")
+        var shown: NSWindow?
+        _ = await waitUntil(seconds) {
+            shown = self.hostOfferWindow ?? self.chromeWindows().first { !before.contains(ObjectIdentifier($0)) && $0.frame.width > 20 }
+            return shown != nil
+        }
+        guard let bubble = shown else {
+            SpikeRunner.record("\(name)_bubble", "none within \(Int(seconds)) s chrome_windows_new=\(chromeWindowIDs.subtracting(before).count)")
             return nil
         }
         let shownMs = ms(since: start)
-        try? await Task.sleep(for: .milliseconds(500))  // Views' fade-in
-        SpikeRunner.record("\(name)_bubble", String(format: "shown %.0f ms after the submit; ", shownMs) + anchorRelation(bubble)
-            + " anchor_queries=\(session.pageDelegate.bubbleAnchorQueries - queries) key_window=\(keyWindowName)")
+        let host = bubble === hostOfferWindow
+        try? await Task.sleep(for: .milliseconds(host ? 350 : 500))  // the popover's / Views' fade-in
+        let title = presenter?.passwordOfferView.flatMap { Self.offerLabel("password-offer-title", in: $0) }
+        SpikeRunner.record("\(name)_bubble", String(format: "surface=%@ shown %.0f ms after the submit; ", host ? "host" : "chrome", shownMs)
+            + anchorRelation(bubble) + " anchor_queries=\(session.pageDelegate.bubbleAnchorQueries - queries) key_window=\(keyWindowName)"
+            + (host ? " title=\"\(title ?? "nil")\" chrome_windows_new=\(chromeWindowIDs.subtracting(before).count)" : ""))
         return bubble
+    }
+
+    private static func offerLabel(_ identifier: String, in root: NSView) -> String? {
+        var queue = [root]
+        while !queue.isEmpty {
+            let view = queue.removeFirst()
+            if view.accessibilityIdentifier() == identifier, let field = view as? NSTextField { return field.stringValue }
+            queue += view.subviews
+        }
+        return nil
     }
 
     /// ⌘T as a typed key: the palette opens (within 2 s), Esc closes it.
@@ -316,14 +382,21 @@ extension SpikeRunner.Context {
             SpikeRunner.record("save_\(name)_page", "title=\(page.title ?? "nil") url=\(page.url?.absoluteString ?? "nil")")
             guard let bubble else { continue }
             await captureScreen37("save-bubble-\(name)", including: bubble)
-            SpikeRunner.record("save_\(name)_accept", await acceptBubble(bubble))
+            SpikeRunner.record("save_\(name)_accept", await accept(bubble))
             window.makeKeyAndOrderFront(nil)
         }
         // A changed password on site A: Chrome offers to update the saved one.
         if let page = await openPage37("\(Self.siteA)/login.html") {
             let bubble = await bubbleAfter("update_a") { await self.signIn(page, "alice", "secret-a2") }
             await waitLoaded(page)
-            if let bubble {
+            if let bubble, bubble === hostOfferWindow {
+                await captureScreen37("update-bubble-a", including: bubble)
+                // The popover is the host's own (a click elsewhere answers Not Now): Return updates.
+                SpikeRunner.record("update_a_accept", await accept(bubble))
+                window.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .milliseconds(300))
+                SpikeRunner.record("update_a_host_after_bubble", await paletteCheck())
+            } else if let bubble {
                 await captureScreen37("update-bubble-a", including: bubble)
                 // The host keeps working while the bubble is up: the palette opens and closes.
                 window.makeKeyAndOrderFront(nil)
@@ -365,8 +438,36 @@ extension SpikeRunner.Context {
         SpikeRunner.record("save_signup_page", "title=\(page.title ?? "nil")")
         if let bubble {
             await captureScreen37("save-bubble-signup", including: bubble)
-            SpikeRunner.record("save_signup_accept", await acceptBubble(bubble))
+            SpikeRunner.record("save_signup_accept", await accept(bubble))
             window.makeKeyAndOrderFront(nil)
+        }
+        await notNowAndNeverCheck()
+    }
+
+    /// 5.8a's engine half: on the HTTPS site (carol saved above), a new
+    /// username's save offer answered Not Now (Esc: not saved, offered
+    /// again), then Never for This Site (the origin's blocklist entry), then
+    /// a third username gets no offer at all.
+    private func notNowAndNeverCheck() async {
+        let login = "\(Self.secureSite)/login.html"
+        for (step, user) in [("notnow", "dave"), ("never", "dave"), ("after_never", "erin")] {
+            guard let page = await openPage37(login) else { return }
+            let bubble = await bubbleAfter("\(step)_secure", seconds: step == "after_never" ? 6 : 12) {
+                await self.signIn(page, user, "secret-\(user)")
+            }
+            await waitLoaded(page)
+            guard let bubble else { continue }
+            guard bubble === hostOfferWindow else {
+                SpikeRunner.record("\(step)_secure_answer", "chrome's bubble, not answered (surface=chrome)")
+                window.makeKeyAndOrderFront(nil)
+                continue
+            }
+            if step == "never" { await captureScreen37("never-offer-secure", including: bubble) }
+            let answer = step == "notnow" ? await answerHostOffer(bubble, keyCode: 53, "\u{1b}")
+                : await clickHostOfferButton("password-offer-never")
+            SpikeRunner.record("\(step)_secure_answer", answer)
+            window.makeKeyAndOrderFront(nil)
+            try? await Task.sleep(for: .milliseconds(300))
         }
     }
 
@@ -401,7 +502,7 @@ extension SpikeRunner.Context {
             let done = await js(page, "document.getElementById('done') ? document.getElementById('done').textContent : ''")
             SpikeRunner.record("fill_\(name)_signin", "title=\(page.title ?? "nil") text=\(done)")
             // A sign-in with a saved password: Chrome must not offer to save it again.
-            if let again = chromeWindows().first(where: { !before.contains(ObjectIdentifier($0)) && $0.isVisible }) {
+            if let again = hostOfferWindow ?? chromeWindows().first(where: { !before.contains(ObjectIdentifier($0)) && $0.isVisible }) {
                 SpikeRunner.record("fill_\(name)_bubble_after_signin", "unexpected: \(describe(again.frame))")
             }
         }
