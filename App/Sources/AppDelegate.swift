@@ -237,10 +237,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// loads the selected entry once its profile exists. Then the DEBUG runners.
     private func startSession() async {
         guard let controller = windowController, let pageHost, let tabs, let pageDelegate else { return }
-        // Before any page: a page's requests are matched by the factories its document gets at commit.
         LaunchMarks.mark("session started")
-        await startContentBlocking()
-        LaunchMarks.mark("content blocking ready")
+        // The blocker reads its lists off the main thread while the engine makes the profiles on it: side by
+        // side, not one after the other (5.4a: the profile's ~25 ms now hides in a first launch's ~77 ms list build).
+        let blocking = Task { await startContentBlocking() }
         do {
             let profiles = store?.sidebar.profiles ?? []
             for model in profiles where engineProfiles[model.id] == nil {
@@ -254,6 +254,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     deliver(profile, for: model.id)
                 }
             }
+            // Before any page the session opens (the start URL, links, spikes): a page's requests are
+            // matched by the factories its document gets at commit.
+            await blocking.value
+            LaunchMarks.mark("content blocking ready")
             // Before the spikes and the user's first query: the Chapter 2 history into the engine's (once per profile).
             await migrateHistory()
             #if DEBUG
@@ -275,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             NSLog("Room: no engine profile (\(error)); the window stays empty")
         }
         // The store and the engine are up: links that came with the launch open now, later ones as they come.
+        await blocking.value
         inbox.open { [weak self] urls in self?.openIncoming(urls) }
         #if DEBUG
         guard let sidebar, let profile = tabs.profile else { return }
