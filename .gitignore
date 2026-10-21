@@ -15,7 +15,7 @@ Engine/roomcore/out/
 .DS_Store
 
 # Local xcodebuild output
-/build/
+/build
 
 # Per-machine script settings (see local.env.example)
 local.env
