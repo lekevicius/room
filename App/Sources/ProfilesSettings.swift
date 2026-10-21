@@ -145,11 +145,7 @@ extension AppDelegate {
             create: { [weak self] name in self?.newProfile(named: name) },
             delete: { [weak self] id in self?.confirmDeleteProfile(id, over: self?.settingsWindow?.window) },
             counts: { [weak self] id in self?.profileDeletionCounts(id) ?? ProfileDeletionCounts(spaces: 0, entries: 0) },
-            routingRules: { [weak self] space in
-                guard let self else { return }
-                let hasRules = store?.sidebar.routingRules.contains { $0.targetSpaceID == space } ?? false
-                showRoutingRules(newRule: hasRules ? nil : (host: "", space: space), over: settingsWindow?.window)
-            },
+            editSpace: { [weak self] space in self?.showSpaceWindow(space) },
             engineProfile: { [weak self] id in
                 guard let self, let model = store?.sidebar.profiles.first(where: { $0.id == id }) else { return nil }
                 return await engineProfile(for: model)

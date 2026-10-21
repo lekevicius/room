@@ -23,8 +23,6 @@ struct SpaceSwipe {
     var travel: CGFloat = 0
     /// Recent deltas with their times, for the release velocity.
     var samples: [(time: TimeInterval, delta: CGFloat)] = []
-    /// The new-space form revealed past the last space.
-    var formView: SpaceFormHostingView?
     /// The momentum events after a handled release are swallowed.
     var swallowsMomentum = false
 }
@@ -37,8 +35,8 @@ struct SpaceWheel {
 
 /// Switching by gesture (spec §B): a two-finger horizontal swipe over the
 /// sidebar moves the lists with the fingers (`SwipeRules`: 25% of the width
-/// or a fling switches, the first space rubber-bands, past the last one the
-/// new-space form slides in), and ⌃ + the scroll wheel steps one space per
+/// or a fling switches, both ends rubber-band, and a release past the last
+/// space opens the space window for a new space, 5.7b), and ⌃ + the scroll wheel steps one space per
 /// notch with Zen's 200 ms cooldown.
 extension SidebarController {
     /// Zen's `scroll-modifier-key` cooldown.
@@ -54,7 +52,7 @@ extension SidebarController {
     /// Handles a scroll event over the sidebar; `false` lets the list scroll it.
     func handleSpaceScroll(_ event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.control) { return handleControlWheel(event) }
-        guard event.hasPreciseScrollingDeltas, spaceForm == nil || swipe.formView != nil else { return false }
+        guard event.hasPreciseScrollingDeltas else { return false }
         if event.momentumPhase != [] {
             if event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
                 let swallowed = swipe.swallowsMomentum
@@ -103,13 +101,11 @@ extension SidebarController {
                             progress: CGFloat(displayed))
     }
 
-    /// The list that slides in: the next or previous space's, the new-space
-    /// form past the last one, nothing before the first (rubber band).
+    /// The list that slides in: the next or previous space's, nothing past
+    /// either end (rubber band).
     private func swipeNeighbour(_ progress: Double, index: Int, spaces: [Space]) -> NSView? {
         if progress > 0 {
-            if index + 1 < spaces.count { return preparedPane(spaces[index + 1].id)?.scrollView }
-            if swipe.formView == nil { swipe.formView = makeSpaceFormView() }
-            return swipe.formView
+            return index + 1 < spaces.count ? preparedPane(spaces[index + 1].id)?.scrollView : nil
         }
         if progress < 0, index > 0 { return preparedPane(spaces[index - 1].id)?.scrollView }
         return nil
@@ -121,9 +117,9 @@ extension SidebarController {
         let width = max(1, bodyView.listContainer.bounds.width)
         let span = (swipe.samples.last?.time ?? 0) - (swipe.samples.first?.time ?? 0)
         let velocity = span > 0 ? Double(-swipe.samples.reduce(0) { $0 + $1.delta } / width) / span : 0
-        let displayed = SwipeRules.displayedProgress(swipeProgress, index: index, count: spaces.count)
-        let outcome = cancelled ? .stay : SwipeRules.outcome(progress: displayed, velocity: velocity, index: index, count: spaces.count)
-        let form = swipe.formView
+        // The fingers' travel, not the damped display: past the last space the lists rubber-band (5.7b).
+        let travelled = min(max(swipeProgress, -1), 1)
+        let outcome = cancelled ? .stay : SwipeRules.outcome(progress: travelled, velocity: velocity, index: index, count: spaces.count)
         switch outcome {
         case .switchTo(let offset):
             let space = spaces[index + offset]
@@ -131,16 +127,11 @@ extension SidebarController {
             bodyView.endSwipe(toNeighbour: true)
             switchPane(to: target, space: space, direction: offset > 0 ? .forward : .backward, animated: true, slides: false)
         case .newSpace:
-            guard let form else { return bodyView.endSwipe(toNeighbour: false) }
-            bodyView.endSwipe(toNeighbour: true)
-            swipe.formView = nil
-            newSpace(revealed: form)
+            // The list springs back and the space window opens for a new space (5.7b, B-122).
+            bodyView.endSwipe(toNeighbour: false)
+            newSpace()
         case .stay:
-            bodyView.endSwipe(toNeighbour: false) { [weak self] in
-                guard let self, let form, spaceForm?.view !== form else { return }
-                bodyView.removeList(form)
-            }
-            swipe.formView = nil
+            bodyView.endSwipe(toNeighbour: false)
         }
     }
 

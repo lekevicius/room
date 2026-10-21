@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Space routing (spec §B, 4.2): external links and links between spaces; the rules sheet.
     private(set) var spaceRouter: SpaceRouter?
     var routingSheet: NSWindow?
+    /// The space window while it shows (`SpaceWindow.swift`, 5.7b).
+    var spaceWindow: SpaceWindowController?
     var routingModel: RoutingRulesModel?
     /// The import sheet while it shows (`ImportUI.swift`, 4.3a).
     var importSheet: NSWindow?
@@ -827,6 +829,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             router?.announce(space, in: weakSession.value)
         }
         sidebar.onRoutingSettings = { [weak self] newRule in self?.showRoutingRules(newRule: newRule) }
+        // The space window (5.7b, B-122): New Space and the space's settings, previewing in this window.
+        sidebar.onShowSpaceWindow = { [weak self, weak sidebar] space, focus in self?.showSpaceWindow(space, focus: focus, from: sidebar) }
         // The footer's media row (4.6): its buttons call the page's media session controls.
         sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
         // "Open Link in Incognito Window" (4.8b, B-50): into the profile's incognito window.
@@ -1737,9 +1741,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar?.showAdjacentSpace(item.tag)
     }
 
-    /// File ▸ New Space (the form in the sidebar; with the sidebar hidden, in its pinned overlay).
+    /// File ▸ New Space: the space window, creating (5.7b, B-122).
     @objc func newSpace(_ sender: Any?) {
-        hiddenSidebar?.revealForSpaceForm()
         sidebar?.newSpace()
     }
 

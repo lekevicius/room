@@ -13,8 +13,8 @@ struct ProfileServices {
     /// The confirmation sheet over the Settings window, then the deletion.
     let delete: (UUID) -> Void
     let counts: (UUID) -> AppDelegate.ProfileDeletionCounts
-    /// The routing sheet, a new rule for the space started in it when it has none.
-    let routingRules: (UUID) -> Void
+    /// The space window (5.7b, B-122): name, icon, theme, profile and routes.
+    let editSpace: (UUID) -> Void
     /// The profile's engine profile, made when it has none yet (its data is on disk).
     let engineProfile: (UUID) async -> (any Engine.Profile)?
     /// Clears `kinds` in `period` for one profile or (`nil`) all; the toast's line.
@@ -56,7 +56,8 @@ struct SpacesSettingsView: View {
                 let profile = sidebar.profiles.first { $0.id == space.profileID }?.name ?? "?"
                 LabeledContent {
                     HStack(spacing: 6) {
-                        Button("Routing…") { profiles.routingRules(space.id) }
+                        Button("Edit…") { profiles.editSpace(space.id) }
+                            .help("Name, icon, theme, profile and routes")
                         Button { move(space.id, to: index - 1) } label: { Image(systemName: "chevron.up") }
                             .disabled(index == 0)
                             .help("Move up")

@@ -918,7 +918,7 @@ def _settings2(c):
     c.contains("renamed", "refusal=none", "empty refused=A profile needs a name.", "name=Office Profile", "space profile kept=true",
                label="renamed through Settings' path; an empty name refused")
     c.contains("directories_set", "Room Profile <work id>", label="the directory is the id's, nothing moved by the rename")
-    c.contains("space_routing", "shown=true", "on settings=true", "editing=true", "target=Office", label="a space's Routing… opens the sheet with a rule for it")
+    c.contains("space_routing", "space window shown=true", "space=Office", label="a space's Edit… opens the space window on it (5.7b)")
     c.contains("moved_at_launch", "Room Profile Office Profile → Room Profile <work id>", "local state updated=true",
                label="the one-time move of a pre-4.4b directory at launch, Local State with it")
     c.contains("directories_verify", "id=true", "legacy=false", label="no directory left or made under the old name")

@@ -181,16 +181,7 @@ extension SpikeRunner.Context {
         await requestCapture("phase-2.5-themed-space-reading-dark")
         NSApp.appearance = NSAppearance(named: .aqua)
 
-        sidebar.debugShowSpaceForm(edit: reading.id)
-        try? await Task.sleep(for: .milliseconds(500))
-        await requestCapture("phase-2.5-space-form-edit-light")
-        sidebar.debugDismissSpaceForm()
-        sidebar.debugShowSpaceForm(edit: nil)
-        try? await Task.sleep(for: .milliseconds(500))
-        NSApp.appearance = NSAppearance(named: .darkAqua)
-        await requestCapture("phase-2.5-space-form-new-dark")
-        sidebar.debugDismissSpaceForm()
-        NSApp.appearance = NSAppearance(named: .aqua)
+        // 5.7b (B-122): the form is the space window's; the review sheet's matrix captures it (`spaceform`).
 
         // A slide slowed 24× (6 s): captured near its middle, both lists and the new page in the card.
         sidebar.showSpace(home.id, animated: false)

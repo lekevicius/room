@@ -32,7 +32,6 @@ final class HiddenSidebar {
         let sidebarView = controller.sidebarView
         controller.reveal.keepOpen = [
             { [weak palette] in palette?.isOpen == true },
-            { [weak sidebar] in sidebar?.isSpaceFormOpen == true },
             // An inline rename (or any field) in the sidebar.
             { [weak sidebarView] in
                 guard let sidebarView, let editor = sidebarView.window?.firstResponder as? NSTextView, editor.isFieldEditor,

@@ -222,6 +222,29 @@ public enum SpaceFormMetrics {
     public static let previewFadeAlpha: CGFloat = 0.4
 }
 
+/// The space window (5.7b, B-122): its size, fitted inside the display's visible frame.
+public enum SpaceWindowMetrics {
+    public static let width: CGFloat = 420
+    public static let height: CGFloat = 640
+    /// The least height it shrinks to on a small display (the sections scroll).
+    public static let minHeight: CGFloat = 360
+    /// The gap kept to the visible frame's edges.
+    public static let screenMargin: CGFloat = Spacing.s
+}
+
+/// Onboarding (5.7b, B-121): the window and its steps.
+public enum OnboardingMetrics {
+    public static let width: CGFloat = 560
+    public static let height: CGFloat = 440
+    public static let padding: CGFloat = 24
+    /// The step's symbol above its title.
+    public static let symbolSize: CGFloat = 40
+    /// The step dots under the content.
+    public static let dotSize: CGFloat = 6
+    /// The theme step's colour swatches.
+    public static let swatchSize: CGFloat = 28
+}
+
 /// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at
 /// the rows' width (chosen sizes; Chapter 5 revisits).
 public enum MediaRowMetrics {

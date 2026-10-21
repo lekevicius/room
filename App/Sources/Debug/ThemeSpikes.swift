@@ -101,32 +101,55 @@ extension SpikeRunner.Context {
         return context.makeImage()
     }
 
-    // MARK: Matrix: the space form (B-23)
+    // MARK: Matrix: the space window (B-23; 5.7b, B-122)
 
     var spaceFormNotes: [String] {
-        [String(format: "The space form (SwiftUI in the sidebar): name, icon, colour wells and algorithm, the tint's opacity (B-23: TintOpacityControl, "
-                + "0–100%% → Materials.tintOpacityRange %.2f–%.2f), the preview, profile. SpaceFormMetrics.padding %.0f.",
+        [String(format: "The space window (5.7b, B-122: SwiftUI in a window of its own, %.0f × %.0f pt fitted to the visible frame, "
+                + "at least %.0f): name, icon, colour wells and algorithm, the tint's opacity (B-23: TintOpacityControl, "
+                + "0–100%% → Materials.tintOpacityRange %.2f–%.2f), the preview, profile, routes. SpaceFormMetrics.padding %.0f.",
+                SpaceWindowMetrics.width, SpaceWindowMetrics.height, SpaceWindowMetrics.minHeight,
                 Materials.tintOpacityRange.lowerBound, Materials.tintOpacityRange.upperBound, SpaceFormMetrics.padding)]
     }
 
+    /// The space window in each of its openings: Space Settings… (name), Edit Theme… on a Triadic space,
+    /// Space Routing Settings… with two routes, New Space.
     func spaceFormStates() -> [MatrixState] {
-        let rect = { self.sidebarRect(top: 0) }
-        return [MatrixState(label: "Edit Theme… on a Triadic space", setup: {
-            guard let space = self.sidebar.activeSpace else { return }
-            try? self.store.updateSpace(space.id) {
-                $0.themeColors = ["#1E88E5"]
-                $0.themeAlgorithm = .triadic
-                $0.themeOpacity = 0.5
-            }
-            self.sidebar.editSpace(space.id, focus: .theme)
-            try? await Task.sleep(for: .milliseconds(700))
-        }, shoot: { await self.matrixShot(rect(), scale: 0.5) }, teardown: {
-            self.sidebar.debugDismissSpaceForm()
-            if let space = self.sidebar.activeSpace {
-                try? self.store.updateSpace(space.id) { $0.themeColors = [] }
-            }
-            try? await Task.sleep(for: .milliseconds(400))
-        })]
+        guard let app = AppDelegate.current else { return [] }
+        let openings: [(String, SpaceFormFocus, Bool)] = [
+            ("Space Settings… (name)", .name, false), ("Edit Theme… on a Triadic space", .theme, false),
+            ("Space Routing Settings… (two routes)", .routes, false), ("New Space", .name, true),
+        ]
+        var added: [UUID] = []
+        return openings.map { label, focus, creates in
+            MatrixState(label: label, setup: {
+                guard let space = self.sidebar.activeSpace else { return }
+                try? self.store.updateSpace(space.id) {
+                    $0.themeColors = ["#1E88E5"]
+                    $0.themeAlgorithm = .triadic
+                    $0.themeOpacity = 0.5
+                }
+                if focus == .routes {
+                    added = [try? self.store.addRoutingRule(.contains, pattern: "github.com/room", target: space.id).id,
+                             try? self.store.addRoutingRule(.equals, pattern: "example.com", target: space.id).id].compactMap { $0 }
+                }
+                app.showSpaceWindow(creates ? nil : space.id, focus: focus, from: self.sidebar)
+                try? await Task.sleep(for: .milliseconds(800))
+            }, shoot: {
+                guard let target = app.spaceWindow?.window else { return nil }
+                if self.matrixActive { target.makeKeyAndOrderFront(nil) } else { self.window.makeKeyAndOrderFront(nil) }
+                try? await Task.sleep(for: .milliseconds(400))
+                return await self.matrixShot(in: target, scale: 0.5)
+            }, teardown: {
+                app.spaceWindow?.cancel()
+                for id in added { self.store.removeRoutingRule(id) }
+                added = []
+                if let space = self.sidebar.activeSpace {
+                    try? self.store.updateSpace(space.id) { $0.themeColors = [] }
+                }
+                self.window.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(for: .milliseconds(400))
+            })
+        }
     }
 
     // MARK: The contrast table (task 4)
