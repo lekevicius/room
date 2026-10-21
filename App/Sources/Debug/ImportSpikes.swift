@@ -18,7 +18,8 @@ import UIKitCore
 ///    sidebar are imported in turn through the sheet's model: each preview
 ///    against the store's rows after it, the duplicates, the depth clip,
 ///    the Essentials cap, Arc's spaces and profiles;
-/// 4. the imported history found through `ProfileHistory.search` in the same launch;
+/// 4. the imported history in the engine in the same launch (`ProfileHistory.search` by title, else the
+///    URL's own row when the tour's shared history buries it: B-100);
 /// 5. the rows in the database after a flush; the sheet closes.
 extension SpikeRunner.Context {
     func importChecks() async {
@@ -202,11 +203,20 @@ extension SpikeRunner.Context {
         // 4. History through the engine in the same launch.
         if let engine = await app.engineProfile(for: defaultProfile), let history = engine.history {
             var found: [String] = []
-            for query in ["Typed three times", "Import fixture Gamma", "Swift.org", "Old and new"] {
-                // The full tour's shared state has other history matching the words (palettemeasure's 50k rows):
-                // the imported page is the one with the fixture's title.
-                let results = await history.search(query, limit: 1000)
-                found.append("\(query)=\((results.first { $0.title == query } ?? results.first).map { "\($0.url.absoluteString) visits=\($0.visitCount) typed=\($0.typedCount)" } ?? "none")")
+            // B-100: the full tour's shared history has other rows matching the titles' words (palettemeasure's 50k,
+            // more recent than the fixtures' visits), so the imported row can fall past any limit of a title search.
+            // Each fixture row is looked for by its title and taken only when its URL is the fixture's; when the
+            // search does not reach it, the URL's own row (`visits(for:)`) answers, named `via=row`.
+            let fixtures = [("Typed three times", "https://example.org/typed"), ("Import fixture Gamma", "http://127.0.0.1:8780/gamma.html"),
+                            ("Swift.org", "https://swift.org/"), ("Old and new", "https://www.example.com/old")]
+            for (query, expected) in fixtures {
+                var hit = await history.search(query, limit: 1000).first { $0.url.absoluteString == expected }
+                var via = ""
+                if hit == nil, let url = URL(string: expected), let row = await history.visits(for: url)?.entry {
+                    hit = row
+                    via = " via=row"
+                }
+                found.append("\(query)=\(hit.map { "\($0.url.absoluteString) visits=\($0.visitCount) typed=\($0.typedCount)\(via)" } ?? "none")")
             }
             SpikeRunner.record("history_search", found.joined(separator: " | "))
         } else {

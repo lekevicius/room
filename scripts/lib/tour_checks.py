@@ -974,7 +974,7 @@ def _import(c):
                label="Arc's spaces with their icons, colours and profiles")
     c.contains("arc_profiles", "work profiles=1", "work essentials=Chat", label="one Work profile (made or reused) with its essential")
     c.contains("history_search", "Typed three times=https://example.org/typed visits=3 typed=3", "Swift.org=https://swift.org/",
-               label="imported history is found through ProfileHistory.search in the same launch")
+               label="imported history is in the engine in the same launch (search by title, else the URL's row: B-100)")
     c.check("the toast names the import", (v("toast") or "").startswith('"Imported from '), v("toast") or "missing")
     db = v("database") or ""
     m = re.findall(r"(\d+) of (\d+)", db)
