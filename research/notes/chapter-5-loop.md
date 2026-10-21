@@ -65,3 +65,21 @@ Outcome: B-53's fix (p95 under 16 ms in two of three runs), the launch breakdown
 The user asked at 13:20 for the loop to wrap up within 30 minutes. Done: step 0, 5.0a, 5.0b, 5.1a, 5.1b, 5.2a, 5.2b, 5.3a, 5.3b, 5.4a; DMGs 15–19. **Resume at the rebase night** (the loop prompt's "Chromium builds: the rule": `scripts/roomcore-rebase.sh <current Stable for Mac>`, `--verify`, the official build, with no session attached; it needs the user's network request to chromiumdash for the tag), then 5.4b, 5.5a … 5.9. The session prompts' shared part is `build/chapter-5-prompts/common.md` (it now also forbids prompts, shell screen capture, Return in print previews, and requests to real sites outside live checks); the DMG chain is `build/chapter-5-prompts/dmg.sh <build>`. 5.4b's prompt should name B-56 (with 5.4a's data), the renderer count, memory pressure, B-87, B-99, B-127, B-139, B-140, B-141, and the numbers table v3.
 
 The user's list (`chapter-5-by-hand.md` "For the user"): Phase 5.0 four steps (the `app.room.desktop.dev` grant was declined, so every click check waits there), 5.1 three (the 120 Hz runs, now with switching and the overlay scroll), 5.2 five (including the macOS screen-capture dialog 5.2b raised at 08:37), 5.3 five, 5.4 one (an optional `powermetrics`). Incidents tonight: three real print jobs to the HP LaserJet (5.0b, B-126), one Google suggest request (5.0b), one Google search (5.3a), the screen-capture dialog (5.2b).
+
+## Resumed on the Mac mini (2026-10-21 evening)
+
+### Setup (19:00 → 19:40)
+
+The user reformatted the external SSD JL4 as APFS themselves (the 180 GB sparse bundle deleted), so B-10 needs no image: Chromium is fetched natively to /Volumes/JL4/chromium (full history, ~83 GB at ~30 MB/s) and `build/` (58 GB) moved to /Volumes/JL4/room-build behind a symlink (ditto 180 s; the internal disk 105 → 164 GB free). Granted: computer use for `app.room.desktop.dev` and Finder with the clipboard; Screen Recording and Accessibility were on; Developer ID signing, notarytool, the Sparkle key (keychain) and wrangler (logged in by the user) need no prompt. The mini's only display is the Screen Sharing virtual one (1920 × 1080 at 60 Hz). The laptop copied its staged engines of `c5a4032` (155) in 42 s; the apps are built over them with `ROOM_PACKAGE_STAGED=1`; the laptop does the 156 rebase and its builds headless (the user's offer), the mini runs the sessions. Phases run out of order while 156 builds: app-only sessions in parallel worktrees on JL4.
+
+### Incident (19:45 → 20:40)
+
+The Claude process restarted about 19:45; both implementers and every watcher stopped without a notice; found at 20:40 when the user asked. Resumed from their transcripts; sessions now commit per task. Also: ad-hoc Debug builds made macOS ask for removable-volume access 50+ times (a new code identity per build, the builds now on JL4): Debug apps are Developer ID-signed since `ceffade` (no timestamp, mock keychain kept), the user granted once.
+
+### 5.7a — accepted (worktree, 2026-10-21 19:41 → 21:20 with the restart)
+
+Outcome: Archive's Never (with the migration), the right-hand sidebar removed (265 → 225 `rg` lines, the rest unrelated), `SettingsWindowFit`, Settings rebuilt (each setting once, Privacy's lists in sheets, Search and Shortcuts), the review sheet; CI spec 706 tests. Gaps: site data stays Chromium's page (an engine change); the tour steps scored outside the tour (ports shared); the first launch's 829 s was macOS's removable-volume dialog waiting. Merged into main as `6c4d1bd`.
+
+### 5.5a — accepted with gaps (main, 19:41 → 21:25 with the restart)
+
+Outcome: B-65, B-102, the stale-completion bug its IME run found, mouse buttons 4/5 in the whole window, the `input` spike, the keys spike with layouts and a remap; CI spec 706. Gaps (the user's list): a real IME source (B-142) and a trackpad swipe (B-143); the HistorySwiper overlay reaches Room's window, so no host-drawn arrow.
