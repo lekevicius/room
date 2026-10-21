@@ -160,6 +160,34 @@ extension PageUIDelegate: WebContentsUIDelegate {
         chrome.webContents(webContents, runFileChooser: request, completion: completion)
     }
 
+    // The password save and update offers (5.8a): the popover on the site button, in `chrome`.
+
+    func webContents(_ webContents: any WebContents, willOfferPasswordSave offer: PasswordOffer,
+                     completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        NSLog("Room: password save offered for %@", offer.origin.absoluteString)
+        return chrome.webContents(webContents, willOfferPasswordSave: offer) { response in
+            NSLog("Room: password save for %@ answered %@", offer.origin.absoluteString, "\(response)")
+            completion(response)
+        }
+    }
+
+    func webContents(_ webContents: any WebContents, willOfferPasswordUpdate offer: PasswordOffer,
+                     completion: @escaping (PasswordOfferResponse) -> Void) -> Bool {
+        NSLog("Room: password update offered for %@", offer.origin.absoluteString)
+        return chrome.webContents(webContents, willOfferPasswordUpdate: offer) { response in
+            NSLog("Room: password update for %@ answered %@", offer.origin.absoluteString, "\(response)")
+            completion(response)
+        }
+    }
+
+    func webContents(_ webContents: any WebContents, didSavePassword offer: PasswordOffer) -> Bool {
+        chrome.webContents(webContents, didSavePassword: offer)
+    }
+
+    func webContentsDidWithdrawPasswordOffer(_ webContents: any WebContents) {
+        chrome.webContentsDidWithdrawPasswordOffer(webContents)
+    }
+
     func webContentsDidClose(_ webContents: any WebContents) {
         chrome.webContentsDidClose(webContents)
         fullscreen?.exit(webContents)

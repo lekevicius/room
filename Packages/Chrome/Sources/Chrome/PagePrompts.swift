@@ -124,6 +124,14 @@ public final class PagePrompts {
         fileprivate let answer: (PermissionResponse) -> Void
     }
 
+    /// A password save or update offer waiting for an answer (5.8a).
+    public struct PendingPasswordOffer {
+        public let id: Int
+        public let offer: PasswordOffer
+        public let page: ObjectIdentifier
+        fileprivate let answer: (PasswordOfferResponse) -> Void
+    }
+
     /// The page in the card (`nil`: the empty state).
     public private(set) var currentPage: ObjectIdentifier?
     /// Called after anything that changes what is shown.
@@ -133,6 +141,8 @@ public final class PagePrompts {
 
     private var dialogs: [Pending] = []
     private var permissions: [PendingPermission] = []
+    /// One per page: a later submit replaces the earlier offer (Chrome keeps one form manager per tab).
+    private var passwordOffers: [PendingPasswordOffer] = []
     /// Alerts, confirms and prompts each page asked since it last started loading (B-116).
     private var dialogCounts: [ObjectIdentifier: Int] = [:]
     /// Pages whose further alerts, confirms and prompts are answered at once
@@ -155,6 +165,13 @@ public final class PagePrompts {
     public var visiblePermission: PendingPermission? {
         guard visibleDialog == nil else { return nil }
         return permissions.first { $0.page == currentPage }
+    }
+
+    /// The password offer the popover shows now: the page in the card's,
+    /// while no dialog or permission prompt is up (it waits behind them).
+    public var visiblePasswordOffer: PendingPasswordOffer? {
+        guard visibleDialog == nil, visiblePermission == nil else { return nil }
+        return passwordOffers.first { $0.page == currentPage }
     }
 
     /// Whether `page` has a prompt waiting (the sidebar may mark it).
@@ -205,6 +222,23 @@ public final class PagePrompts {
         let pageID = ObjectIdentifier(page)
         permissions.append(PendingPermission(id: id, requests: requests, page: pageID, answer: answer))
         if pageID != currentPage { onPageNeedsAttention?(pageID) }
+        onChange?()
+        return id
+    }
+
+    /// Queues the engine's password offer for `page` (5.8a). It shows when
+    /// the page is in the card; a background page's offer waits there
+    /// unmarked (Chrome's bubble waits for its tab the same way). An earlier
+    /// offer of the same page is answered `.notNow` and replaced.
+    @discardableResult
+    public func offerPassword(_ offer: PasswordOffer, for page: any WebContents,
+                              answer: @escaping (PasswordOfferResponse) -> Void) -> Int {
+        let id = takeID()
+        let pageID = ObjectIdentifier(page)
+        let replaced = passwordOffers.filter { $0.page == pageID }
+        passwordOffers.removeAll { $0.page == pageID }
+        passwordOffers.append(PendingPasswordOffer(id: id, offer: offer, page: pageID, answer: answer))
+        replaced.forEach { $0.answer(.notNow) }
         onChange?()
         return id
     }
@@ -279,6 +313,16 @@ public final class PagePrompts {
         onChange?()
     }
 
+    /// Answers the visible password offer (or the one with `id`). An update
+    /// offers no Never: answered so, it counts as Not Now.
+    public func respondToPasswordOffer(_ response: PasswordOfferResponse, to id: Int? = nil) {
+        guard let pending = id.flatMap({ id in passwordOffers.first { $0.id == id } }) ?? visiblePasswordOffer else { return }
+        passwordOffers.removeAll { $0.id == pending.id }
+        let allowed = response == .never && !PasswordOfferRules.offersNever(pending.offer.kind) ? .notNow : response
+        pending.answer(allowed)
+        onChange?()
+    }
+
     // MARK: The engine withdrawing prompts
 
     /// The engine closed the page's JavaScript dialogs (navigation, reset):
@@ -298,8 +342,16 @@ public final class PagePrompts {
         onChange?()
     }
 
+    /// The engine withdrew the page's password offer: it goes unanswered.
+    public func engineWithdrewPasswordOffer(for page: any WebContents) {
+        let id = ObjectIdentifier(page)
+        let before = passwordOffers.count
+        passwordOffers.removeAll { $0.page == id }
+        if passwordOffers.count != before { onChange?() }
+    }
+
     /// The page closed: everything it still waits for is answered with its
-    /// escape answer (dismissed for permissions), once.
+    /// escape answer (dismissed for permissions, not now for a password), once.
     public func pageClosed(_ page: any WebContents) {
         let id = ObjectIdentifier(page)
         // A later page at the same address starts with no count or suppression.
@@ -307,11 +359,14 @@ public final class PagePrompts {
         watchedPages.remove(id)
         let closedDialogs = dialogs.filter { $0.page == id }
         let closedPermissions = permissions.filter { $0.page == id }
-        guard !closedDialogs.isEmpty || !closedPermissions.isEmpty else { return }
+        let closedOffers = passwordOffers.filter { $0.page == id }
+        guard !closedDialogs.isEmpty || !closedPermissions.isEmpty || !closedOffers.isEmpty else { return }
         dialogs.removeAll { $0.page == id }
         permissions.removeAll { $0.page == id }
+        passwordOffers.removeAll { $0.page == id }
         closedDialogs.forEach { $0.answer(PromptRules.escapeResponse(for: $0.dialog)) }
         closedPermissions.forEach { $0.answer(.dismissed) }
+        closedOffers.forEach { $0.answer(.notNow) }
         if currentPage == id { currentPage = nil }
         onChange?()
     }
