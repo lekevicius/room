@@ -47,3 +47,7 @@ Phase 5.2's DMG with the official incremental (227 s) for B-103. The release fra
 ### 5.3a — accepted (2026-10-21 09:40 → 10:52, 72 min)
 
 Outcome: the self-audit (14 → 0 on both builds), labels and roles, the keyboard order and rings, the key path by keyboard alone, the VoiceOver script. Decisions: row states in the label (the outline drops values); Full Keyboard Access simulated in-process, the real switch the user's. One stray Google search from a spike: prompts now forbid Return on web-search rows. DMG: build 17.
+
+### 5.3b — accepted; Phase 5.3 closed (2026-10-21 10:53 → 11:53, 60 min)
+
+Outcome: sidebar text sizes, the three display options, the review sheets; two bugs found by its own read-backs fixed. Decisions: B-137 (which surfaces follow the sidebar's size) and B-138 (Increase Contrast's dark cap) are the user's taste. DMG: build 18 from 11:55.
