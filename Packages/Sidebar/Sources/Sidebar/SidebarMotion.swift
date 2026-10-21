@@ -38,6 +38,8 @@ public enum SidebarMotion: String, CaseIterable, Sendable {
     case renamePulse
     /// Clear: the Today rows slide out one after another (`Motion.standard`, `clearStagger`).
     case clearSlide
+    /// Clear fades in and out as the pointer enters and leaves the sidebar (`Motion.fast`, B-118).
+    case clearReveal
     /// The overflow line's click scrolls to the selected row (`Motion.medium`).
     case scrollToSelected
     /// The favicon's loading ring spins.
@@ -54,7 +56,7 @@ public enum SidebarMotion: String, CaseIterable, Sendable {
              .loadingRing, .audioIndicator, .folderPreview:
             .instant
         case .spaceSlide, .spaceName, .essentialFade, .refusedDrop, .changedDot, .resetIconSwap, .resetCrossfade,
-             .clearSlide:
+             .clearSlide, .clearReveal:
             .crossfade
         }
     }

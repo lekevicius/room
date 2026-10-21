@@ -11,7 +11,7 @@ struct ReduceMotionTests {
         .pillFollow: .instant, .rows: .instant, .spaceSlide: .crossfade, .spaceIndicator: .instant, .spaceIconReorder: .instant,
         .spaceName: .crossfade, .essentialsReflow: .instant, .essentialFade: .crossfade, .refusedDrop: .crossfade,
         .changedDot: .crossfade, .resetIconSwap: .crossfade, .resetCrossfade: .crossfade, .renamePulse: .instant,
-        .clearSlide: .crossfade, .scrollToSelected: .instant, .loadingRing: .instant, .audioIndicator: .instant, .folderPreview: .instant,
+        .clearSlide: .crossfade, .clearReveal: .crossfade, .scrollToSelected: .instant, .loadingRing: .instant, .audioIndicator: .instant, .folderPreview: .instant,
     ]
 
     @Test("Toggling the injected preference switches every sidebar animation to its crossfade or instant variant")

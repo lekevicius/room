@@ -137,6 +137,7 @@ public final class SidebarController: NSObject {
             footer.plusButton.isHidden = true
         }
         attach(pane)
+        bodyView.onPointerInside = { [weak self] inside in self?.pointerInsideChanged(inside) }
         outline.events = self
         bodyView.show(pane.scrollView, direction: .forward, animated: false)
         grid.events = self
@@ -534,7 +535,8 @@ public final class SidebarController: NSObject {
                 cell.configure(space)
             }
         case (.separator, let cell as SeparatorCellView):
-            cell.configure(todayCount: sidebar.today(space: target.spaceID, window: windowID).count)
+            cell.configure(todayCount: sidebar.today(space: target.spaceID, window: windowID).count,
+                           pointerInside: bodyView.isPointerInside)
         default:
             break
         }
@@ -796,6 +798,16 @@ public final class SidebarController: NSObject {
         guard row >= 0 else { return }
         outline.scrollRowToVisible(row)
         (outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? EntryCellView)?.beginRename()
+    }
+
+    /// Clear shows only while the pointer is over the sidebar (B-118): every list's separator follows.
+    private func pointerInsideChanged(_ inside: Bool) {
+        for pane in panes.values {
+            let outline = pane.outline
+            for row in 0..<outline.numberOfRows {
+                (outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? SeparatorCellView)?.setPointerInside(inside, animated: true)
+            }
+        }
     }
 
     private func pulse(_ id: UUID) {
@@ -1180,6 +1192,56 @@ public final class SidebarBodyView: NSView {
 
     public override var isFlipped: Bool { true }
     public override var mouseDownCanMoveWindow: Bool { true }
+
+    // MARK: The pointer over the sidebar (B-118)
+
+    /// The pointer is over the sidebar (this view's container: the header, the lists, the footer).
+    public private(set) var isPointerInside = false
+    /// The pointer entered (`true`) or left the sidebar.
+    var onPointerInside: ((Bool) -> Void)?
+    private var pointerArea: (area: NSTrackingArea, view: NSView)?
+
+    public override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        installPointerArea()
+    }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        installPointerArea()
+        refreshPointerInside()
+    }
+
+    /// On the container, so the header counts as the sidebar too; the area follows its visible rect.
+    private func installPointerArea() {
+        if let pointerArea { pointerArea.view.removeTrackingArea(pointerArea.area) }
+        pointerArea = nil
+        guard let host = superview ?? Optional(self) else { return }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        host.addTrackingArea(area)
+        pointerArea = (area, host)
+    }
+
+    /// Where the pointer is now (a window shown under a resting pointer gets no entered event).
+    func refreshPointerInside() {
+        guard let window, let host = pointerArea?.view else { return setPointerInside(false) }
+        let point = host.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setPointerInside(host.visibleRect.contains(point))
+    }
+
+    func setPointerInside(_ inside: Bool) {
+        guard inside != isPointerInside else { return }
+        isPointerInside = inside
+        onPointerInside?(inside)
+    }
+
+    public override func mouseEntered(with event: NSEvent) {
+        if event.trackingArea === pointerArea?.area { setPointerInside(true) } else { super.mouseEntered(with: event) }
+    }
+
+    public override func mouseExited(with event: NSEvent) {
+        if event.trackingArea === pointerArea?.area { setPointerInside(false) } else { super.mouseExited(with: event) }
+    }
 
     func install(grid: EssentialsGridView, footer: SidebarFooterView) {
         self.grid = grid
@@ -1680,6 +1742,33 @@ extension SidebarController {
 
     /// The Essentials grid's width (its column count follows it).
     public var debugEssentialsWidth: CGFloat { grid.bounds.width }
+
+    /// The pointer entering (`true`) or leaving the sidebar, as its tracking area reports it (B-118);
+    /// `nil` reads where the pointer really is.
+    public func debugPointerInside(_ inside: Bool?) {
+        if let inside { bodyView.setPointerInside(inside) } else { bodyView.refreshPointerInside() }
+    }
+
+    /// The active list's Clear: whether there is one (Today tabs) and whether it shows (B-118).
+    public var debugClear: (present: Bool, shown: Bool, alpha: CGFloat, pointerInside: Bool) {
+        for row in 0..<outline.numberOfRows {
+            if let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) as? SeparatorCellView {
+                return (!cell.clearButton.isHidden, cell.isClearShown, cell.clearButton.alphaValue, bodyView.isPointerInside)
+            }
+        }
+        return (false, false, 0, bodyView.isPointerInside)
+    }
+
+    /// Change Icon…'s picker for `id`, as the menu item opens it; the choice as a click in it makes.
+    public func debugChangeIcon(_ id: UUID) { changeIcon(id) }
+    public var debugIconPopoverWindow: NSWindow? { iconPopover?.contentViewController?.view.window }
+
+    /// Whether the row (or tile) of `id` shows the unread dot and its custom icon.
+    public func debugRowBadges(_ id: UUID) -> String {
+        guard let entry = sidebar.entry(id) else { return "none" }
+        return "unread=\(EntryLabel.hasUnread(entry, isLoaded: pageState(id).isLoaded)) icon=\(entry.customIcon ?? "nil") "
+            + "title=\"\(EntryLabel.title(entry))\" sublabel=\(EntryLabel.currentTitle(entry).map { "\"\($0)\"" } ?? "nil")"
+    }
 
     /// The empty grid's drop slot, as during a drag.
     public func debugShowDropSlot(_ show: Bool) {

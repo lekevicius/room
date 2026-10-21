@@ -690,12 +690,18 @@ final class SpaceTitleCellView: NSTableCellView, NSTextFieldDelegate {
 }
 
 /// The 1 px line between Pinned and Today with "Clear" on the right (spec §A.7).
+/// Clear shows only while the pointer is over the sidebar (B-118) or the
+/// button has the keyboard; otherwise it is transparent but stays in place
+/// (VoiceOver and Full Keyboard Access still reach it, ⇧⌘K works anywhere).
 final class SeparatorCellView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("separator")
 
     private let line = HairlineView()
-    let clearButton = NSButton(title: "Clear", target: nil, action: nil)
+    let clearButton = ClearButton(title: "Clear", target: nil, action: nil)
     private var textScale = TextScaleApplied()
+    private var pointerInside = false
+    /// Whether Clear shows now (spikes read it).
+    var isClearShown: Bool { !clearButton.isHidden && clearButton.alphaValue > 0 }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -705,6 +711,8 @@ final class SeparatorCellView: NSTableCellView {
         clearButton.contentTintColor = Palette.sidebarSecondaryLabel
         clearButton.setAccessibilityIdentifier("clear-today")
         clearButton.toolTip = "Clear Today Tabs (⇧⌘K)"
+        clearButton.alphaValue = 0
+        clearButton.onFocusChange = { [weak self] in self?.updateClearAlpha(animated: true) }
         addSubview(line)
         addSubview(clearButton)
     }
@@ -714,10 +722,31 @@ final class SeparatorCellView: NSTableCellView {
 
     override var isFlipped: Bool { true }
 
-    func configure(todayCount: Int) {
+    func configure(todayCount: Int, pointerInside: Bool) {
         if textScale.needsUpdate() { clearButton.font = Typography.sidebarSecondary }
         clearButton.isHidden = todayCount == 0
+        self.pointerInside = pointerInside
+        updateClearAlpha(animated: false)
         needsLayout = true
+    }
+
+    func setPointerInside(_ inside: Bool, animated: Bool) {
+        guard inside != pointerInside else { return }
+        pointerInside = inside
+        updateClearAlpha(animated: animated)
+    }
+
+    private func updateClearAlpha(animated: Bool) {
+        let alpha: CGFloat = pointerInside || clearButton.hasKeyboardFocus ? 1 : 0
+        guard clearButton.alphaValue != alpha else { return }
+        if animated, SidebarMotion.clearReveal.animates, window != nil {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.fast
+                clearButton.animator().alphaValue = alpha
+            }
+        } else {
+            clearButton.alphaValue = alpha
+        }
     }
 
     override func layout() {
@@ -796,5 +825,29 @@ final class UnreadDotView: NSView {
     override func layout() {
         super.layout()
         needsDisplay = true
+    }
+}
+
+/// Clear's button: it says when it takes or gives up the keyboard (it shows while it has it, B-118).
+final class ClearButton: NSButton {
+    var onFocusChange: (() -> Void)?
+    private(set) var hasKeyboardFocus = false
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became {
+            hasKeyboardFocus = true
+            onFocusChange?()
+        }
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned {
+            hasKeyboardFocus = false
+            onFocusChange?()
+        }
+        return resigned
     }
 }
