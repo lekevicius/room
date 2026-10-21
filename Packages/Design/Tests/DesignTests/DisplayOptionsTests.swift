@@ -32,7 +32,7 @@ struct DisplayOptionsTests {
         // Stronger than the standard tokens, and secondary text still under the primary label (85%).
         #expect(Palette.hairlineHighContrastAlpha.light > max(separator, border))
         #expect(Palette.sidebarSecondaryHighContrastAlpha.light > Palette.sidebarSecondaryAlpha.light)
-        #expect(Palette.sidebarSecondaryHighContrastAlpha.light < 0.85)
+        #expect(Palette.sidebarSecondaryHighContrastAlpha.light <= 0.85 && Palette.sidebarSecondaryHighContrastAlpha.dark <= 0.85)
         // The other options leave them alone.
         DisplayOptions.source = .fixed(DisplayOptions(reduceTransparency: true, differentiateWithoutColor: true))
         #expect(alpha(Palette.sidebarSecondaryLabel, dark: false) == Palette.sidebarSecondaryAlpha.light)

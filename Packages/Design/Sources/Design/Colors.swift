@@ -48,9 +48,11 @@ public enum Palette {
     /// The alphas of `sidebarSecondaryLabel` (the primary label is AppKit's, 85%): the dark tint
     /// lightens the material more than the light tint darkens it, so dark needs more.
     nonisolated public static let sidebarSecondaryAlpha: (light: CGFloat, dark: CGFloat) = (0.64, 0.82)
-    /// Increase Contrast's secondary text (5.3b): 7:1 (WCAG AAA) over the 5.2b samples' worst
-    /// backgrounds, still below the primary label so the two read apart.
-    nonisolated public static let sidebarSecondaryHighContrastAlpha: (light: CGFloat, dark: CGFloat) = (0.80, 0.92)
+    /// Increase Contrast's secondary text (5.3b): up to the primary label's 85% in dark and 80% in
+    /// light, never above the primary (measured by `scripts/theme-contrast.sh -RoomIncreaseContrast YES`
+    /// over 5.2b's 800 samples: worst light 8.1:1, dark 4.7:1 under the darkest tint at its highest
+    /// opacity, where the tint, not the alpha, limits it; `spike-results.md` "Phase 5.3" 5.3b).
+    nonisolated public static let sidebarSecondaryHighContrastAlpha: (light: CGFloat, dark: CGFloat) = (0.80, 0.85)
 
     /// The secondary text's alphas under `options`.
     public nonisolated static func sidebarSecondaryAlpha(for options: DisplayOptions) -> (light: CGFloat, dark: CGFloat) {
