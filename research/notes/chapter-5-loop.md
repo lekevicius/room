@@ -127,3 +127,11 @@ Outcome on the laptop's 156 release build of `f05f3d6` (request `54b-1`, answere
 ### B-152 — fixed (worktree `fix-b152`, 01:02 → 01:23)
 
 A real product bug, not the harness: since B-37 (`03fc57c`, 2026-10-21) the Tab menu's Focus Pane 1–4 items draw as ⌃⇧1–4, AppKit matched them to ⌃1–4, and outside a split they were disabled, so ⌃1–⌃4 never switched spaces. `KeyMatchingMenu` (UIKitCore) drops a shifted item's key while AppKit searches when the event has no Shift; a unit test sends ⌃2 and ⌃⇧2 through the menu bar. The `spaces` spike: 59 → 0 of 60 missed on 155 dev and 156 release; key → slide frame p95 31–32 ms at 60 Hz. CI 740, Release compiles. Merge waits for 5.8's uncommitted edits in main.
+
+### 5.8 engine half and 5.8b — accepted; Phase 5.8 closed (main, 01:05 → 02:07)
+
+Outcome: the //room adapter through `RoomTabDialogs` (Room's wrapper of Chrome's per-page dialog object; no patch): Chrome's save and update offers open Room's popover, Chrome's own `SaveUpdateBubbleController` answers them (Never list and dismissal counts intact); the 3.7a fixtures through the popover on both engines (save, update, Not Now, Never, fill after relaunch), 0 crash dumps; the popover semi-transient; CI 738; translate absent (B-63), B-60/B-71 and print preview stay Views, the autofill popup is B-155 (needs a patch). The laptop's builds: `54b-2` 312 s, `58-1` 62 s, `58-2` 71 s. Engines `b1a9445` installed.
+
+### Build 23 (02:11 → 02:22) and Glic (02:10 → 02:24)
+
+Build 23 over `b1a9445` (notarized; not published). 5.9's tour found an `NSStatusBarWindow` in Room's process on every 156 build: 156's field-trial testing config enables `Glic` (Gemini in Chrome) and its status icon (`GlicChromeStatusIcon`, on by default). Disabled in `room_network_policy.cc` (`80b2b9e`; `59-1`: release 273 s, dev 52 s on the laptop); the helpers' `--disable-features` carry both, no Glic in `--enable-features`. Build 24 ships on `80b2b9e`.
