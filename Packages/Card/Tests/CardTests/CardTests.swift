@@ -100,4 +100,12 @@ struct DevToolsSplitTests {
         #expect(DevToolsSplit.paneHeight(fraction: 0.95, height: 1000) == 880)
         #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 200) == 100)
     }
+
+    @Test("The empty card names New Tab's current key, or the button when New Tab has none (5.6a)")
+    func emptyStateCopy() {
+        #expect(CardEmptyStateView.message(newTabKey: "⌘T") == "Press ⌘T to search or type a URL")
+        #expect(CardEmptyStateView.message(newTabKey: "⌥⌘N") == "Press ⌥⌘N to search or type a URL")
+        #expect(CardEmptyStateView.message(newTabKey: nil) == "Click New Tab in the sidebar to search or type a URL")
+        #expect(CardEmptyStateView.message(newTabKey: "") == CardEmptyStateView.message(newTabKey: nil))
+    }
 }

@@ -346,6 +346,25 @@ struct SidebarStoreTests {
         #expect(sidebar.essentials(profile: profile.id).first?.id == last.id)
     }
 
+    @Test("A folder moves into a folder with its subtree, up to depth 5 (B-117)")
+    func folderIntoFolder() throws {
+        let outer = try sidebar.addFolder(name: "Outer", space: space.id, parent: nil)
+        let moving = try sidebar.addFolder(name: "Moving", space: space.id, parent: nil)
+        let child = try sidebar.addFolder(name: "Child", space: space.id, parent: moving.id)
+        let target = Container.pinned(space: space.id, folder: outer.id)
+        #expect((try? sidebar.canMove([moving.id], to: target).get()) != nil)
+        try sidebar.move(moving.id, to: target, at: 0)
+        #expect(sidebar.entry(moving.id)?.folderID == outer.id && sidebar.entry(child.id)?.folderID == moving.id)
+        // Outer → Moving → Child is three deep: a two-deep subtree fits under Child's level 3, a three-deep one does not.
+        let deep = try sidebar.addFolder(name: "D1", space: space.id, parent: nil)
+        let deep2 = try sidebar.addFolder(name: "D2", space: space.id, parent: deep.id)
+        #expect((try? sidebar.canMove([deep.id], to: .pinned(space: space.id, folder: child.id)).get()) != nil)
+        _ = try sidebar.addFolder(name: "D3", space: space.id, parent: deep2.id)
+        #expect(throws: SidebarError.folder(.tooDeep(maxDepth: FolderRules.maxDepth))) {
+            try sidebar.move(deep.id, to: .pinned(space: space.id, folder: child.id), at: 0)
+        }
+    }
+
     @Test("Folders nest to depth 5; a sixth level and cycles are refused")
     func folderDepth() throws {
         var parent: UUID?

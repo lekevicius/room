@@ -172,6 +172,9 @@ extension SidebarController {
         menu.addItem(addToEssentialsItem(entry))
         menu.addItem(moveToSpaceItem(entry))
         menu.addItem(moveToFolderItem(entry))
+        // B-117: a new folder where the entry is, so inside its folder a subfolder (up to `FolderRules.maxDepth`).
+        let canNest = (try? FolderRules.validateNewFolder(in: entry.folderID, in: sidebar.entries)) != nil
+        menu.addItem(action(CommandName.newFolderWithTab, symbol: .newFolder, enabled: canNest) { [weak self] in self?.newFolderWithTab(id) })
         menu.addItem(pinnedURLItem(entry))
         menu.addItem(splitWithItem(entry))
         menu.addItem(.separator())
