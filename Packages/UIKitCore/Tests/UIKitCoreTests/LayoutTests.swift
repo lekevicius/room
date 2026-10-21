@@ -103,7 +103,8 @@ struct RoomWindowControllerTests {
         #expect(controller.sidebarWidth == SidebarMetrics.minWidth)
         splitter.onDrag?(60)
         #expect(!controller.isSidebarOpen)
-        #expect(controller.sidebarView.isHidden)
+        // Hidden, the sidebar view waits in the hidden overlay (5.1b: a reveal no longer moves it there).
+        #expect(controller.sidebarView.isHiddenOrHasHiddenAncestor)
         #expect(controller.rootView.splitterView.isHidden)
         splitter.onEnd?()
         #expect(posts == 1)
