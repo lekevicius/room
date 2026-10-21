@@ -261,12 +261,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         closeButton.isHidden = !(isHovered && entry.kind == .today) || isRenaming
         // Sublabel: over the reset icon, what clicking it does (⌘ swaps it);
         // elsewhere on a changed entry, the live page's title (spec §I.3, §I.4).
-        var text: String?
-        if showReset && isHoveringIcon {
-            text = isCommandHeld ? "Separate from pinned tab" : "Back to pinned URL"
-        } else if isHovered && model.isChanged {
-            text = EntryLabel.currentTitle(entry)
-        }
+        let text = HoverSublabel.text(hovered: isHovered, changed: model.isChanged, onIcon: isHoveringIcon, command: isCommandHeld,
+                                      selected: model.isSelected, currentTitle: EntryLabel.currentTitle(entry))
         sublabel.stringValue = text ?? ""
         sublabel.isHidden = text == nil || isRenaming
         needsLayout = true
@@ -746,5 +742,21 @@ final class NewTabCellView: NSTableCellView {
         let height = ceil(label.cell?.cellSize.height ?? 16)
         let titleX = x + size + SidebarMetrics.faviconTitleGap
         label.frame = NSRect(x: titleX, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - titleX - x), height: height)
+    }
+}
+
+/// A changed permanent row's hover sublabel (spec §I.3, §I.4): over the
+/// reset icon, what a click on it does; elsewhere on the row, the live page's
+/// title. ⌘ separates only the selected entry's page (`resetButtonClicked`),
+/// so on another row the ⌘ label stays "Back to pinned URL" (5.5b: it said
+/// "Separate" while the click reset).
+enum HoverSublabel {
+    static let reset = "Back to pinned URL"
+    static let separate = "Separate from pinned tab"
+
+    static func text(hovered: Bool, changed: Bool, onIcon: Bool, command: Bool, selected: Bool, currentTitle: String?) -> String? {
+        guard hovered, changed else { return nil }
+        if onIcon { return command && selected ? separate : reset }
+        return currentTitle
     }
 }
