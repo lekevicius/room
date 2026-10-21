@@ -311,6 +311,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return true
     }
 
+    /// The Dock menu (5.6b): New Window and New Incognito Window; the Dock
+    /// lists the open windows itself, from the Window menu, above them.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu(title: "Dock")
+        for (title, action) in [("New Window", #selector(newRoomWindow(_:))), ("New Incognito Window", #selector(newIncognitoWindow(_:)))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        return menu
+    }
+
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
     }
