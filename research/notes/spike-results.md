@@ -4213,3 +4213,30 @@ Both reports (`ExcUserFault_Room-2026-10-21-045904.ips`, dev, the tour's `routin
 ### Unit tier and checks
 
 `CI=1 swift test`: Model 111, Sidebar 48, Tabs 87, Palette 25 + 4 (the window tier, without `CI`), all passed. `grand-tour.sh --no-build --only routing light`: 25/25 on dev (test servers stopped for it and restarted).
+
+## Phase 5.5 — 5.5a (keyboards, mice, the history swipe, B-102, B-65; 2026-10-21, Mac mini M4)
+
+Debug app over the dev engine (staged 155 builds of `c5a4032`) and over the official framework (`ROOM_TOUR_APP`); the Screen Sharing display (1920 × 1080, 60 Hz); input source Colemak, no Japanese or Chinese source enabled; test servers up (:8770, :8776); suggestions off; session 5.7a ran its own Debug Room at the same time (its window took key status in some runs, noted). `scripts/input-check.sh` (`-RoomSpike input`, `App/Sources/Debug/InputSpikes.swift`): marked text as an input method sends it (`setMarkedText`, then `insertText`, to the first responder); mouse and scroll events made as Quartz events (button numbers, scroll phases) and sent to Room's own window.
+
+| Check | Dev | Release framework |
+|---|---|---|
+| Palette, "127" composing | field "127", no inline completion; committed: "127" + ".0.0.1:8770/site.html" selected | same |
+| Palette, にほん → 日本 | marked {0, 3}; committed "日本" (first run: "日本.0.0.1:8770", a completion carried over from the previous keystroke: fixed, `3ffaf84`, `c00e926`) | "日本" |
+| Palette, pin → 拼音 | "日本拼音" | same |
+| Dead keys, ⌥E E, ⌥O (Quartz key events on one source, into the field editor) | "´" marked, then "é", then "éø" | "éø" (one of two runs "é": the window lost key status) |
+| Rename, へや → 部屋, Return | marked during, title unchanged; "部屋" after | same |
+| Page textarea (:8776 `ime.html`) | compositionstart, update にほ, にほん, end 日本; value "日本" | same (with the window key) |
+| ⌘T while the page composes | goes to the page (`keydown:t` inside the composition), palette not opened — 3 of 3 runs with the window key (B-142) | same |
+| Mouse button 4 / 5 over the card | other.html → site.html → other.html (the engine's) | same |
+| Button 4 over the sidebar | before: no navigation; after `75484d8`: other.html → site.html | site.html |
+| Middle-click / ⌘-click a link | a background Today tab (3 → 4), the selection kept, the page in place | same |
+| ⇧-click a link | Peek of other.html | same |
+| Wheel's horizontal scroll over the sidebar (line units, ±6, and ⇧-wheel) | space kept, clip origin {0, 0} → {0, 0} | same |
+| `NSEvent.isSwipeTrackingFromScrollEventsEnabled` | true | true |
+| Two-finger swipe right over the card (40 × 12 pt, phases may-begin … ended) | Chrome's `HistoryOverlayView` appears (0 → 40 views); page not navigated (no touches in synthetic events, B-143); space kept | same |
+| Swipe over the sidebar | space switched; page URL unchanged; no new overlay (the card's leftovers removed, 40 → 0) | same |
+| B-102 ("127", ↓, ↓, ⎋, ⎋) | field: "127.0.0.1:8770/other.html" (inline) → ime.html's URL → site.html's URL, rows unchanged; ⎋: row 0, field back to typed + completion, open; ⎋: closed | same |
+
+`keys` spike (6 layouts, events from each layout's data): ABC, Colemak, Lithuanian as before (⌘T/⌘L reserved 2, ⌘C/⌘V/⌘Z page-first then the menu, `o` typed); **Russian and Greek: ⌘T and ⌘L classified reserved on the US keys (2 calls), never seen by the page**; their `o` key types щ / ο; menu dispatch only on the active layout (as 3.2b). Remap (New Tab → ⌥⌘T): on Colemak ⌥⌘T opened New Tab (1), ⌘T went to the page (0 to the app); on Russian ⌥⌘T never reached the page (no dispatch: not the active layout). `ime_source_keys`: none enabled. Two runs on dev with 5.7a's window up were noisy (⌘C pasteboard nil, ⌘V lost): the window lost key status; the third and the minitour runs passed.
+
+Tour checks (the tour's steps run one by one with the running test servers; `tour_checks.evaluate`): dev keys 23/23, palette 19/19, palette2 26/26, palettemeasure 14/14; release keys 23/23, palette 19/19, palette2 24/26 (the chip's two `LocationBarModel` reads are spike hooks, absent from the official framework, B-82), palettemeasure 14/14. `palettemeasure` (500 entries, 50,000 history rows, suggestions off, dev): later keys median 5.73 / p95 9.26 ms, first keys median 22.75 ms; **72 of 120 keystrokes complete inline** (B-65's row: 72 off; a first guard that also checked Chrome's default match dropped it to 55, fixed in `c00e926`).
