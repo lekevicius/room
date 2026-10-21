@@ -66,6 +66,21 @@ final class SidebarOutlineView: NSOutlineView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// B-108: a sidebar resize changes every row's width; the pill (a view
+    /// of its own, placed per selection) follows at once.
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldWidth = frame.width
+        super.setFrameSize(newSize)
+        guard newSize.width != oldWidth, !pill.isHidden else { return }
+        let rows = SidebarRowView.pillRect(in: NSRect(x: 0, y: 0, width: newSize.width, height: 1))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        pill.layer?.removeAllAnimations()
+        pill.frame.origin.x = rows.minX
+        pill.frame.size.width = rows.width
+        CATransaction.commit()
+    }
+
     // Rows draw their own disclosure (folder icon, space-title chevron).
     override func frameOfOutlineCell(atRow row: Int) -> NSRect { .zero }
 
@@ -159,12 +174,25 @@ final class SidebarOutlineView: NSOutlineView {
         hoveredRow = nil
     }
 
-    /// Re-evaluates hover after rows moved under a still pointer.
+    /// Where the pointer is, in the outline's coordinates (tests replace it).
+    lazy var pointerLocation: () -> NSPoint? = { [weak self] in
+        guard let self, let window else { return nil }
+        return convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    }
+
+    /// Re-evaluates hover after rows moved under a still pointer. B-109:
+    /// the row index under the pointer often stays the same (a closed row's
+    /// neighbour slides into its place), so the controller hears the row
+    /// every time and compares the node, and the cell hears the pointer for
+    /// its buttons.
     func refreshHover() {
-        guard let window else { return }
-        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        guard let point = pointerLocation() else { return }
         let row = visibleRect.contains(point) ? row(at: point) : -1
         hoveredRow = row >= 0 ? row : nil
+        events?.outlineHoverChanged(row: hoveredRow)
+        if row >= 0, let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? EntryCellView {
+            cell.pointerMoved(to: cell.convert(point, from: self))
+        }
     }
 
     /// The one tracking area also tells the hovered row's cell whether the

@@ -473,7 +473,13 @@ public final class SidebarController: NSObject {
         }
         for node in update.reconfigure { reconfigure(node, in: target) }
         updatePill(in: target, animated: animated)
-        if update.changesRows, target === pane { outline.refreshHover() }
+        if update.changesRows, target === pane {
+            outline.refreshHover()
+            // Again once the rows' slide has settled (B-109): row(at:) then answers the final layout.
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.standard + 0.05) { [weak outline = target.outline] in
+                outline?.refreshHover()
+            }
+        }
     }
 
     func reconfigure(_ node: OutlineNode) { reconfigure(node, in: pane) }
@@ -820,6 +826,8 @@ public final class SidebarController: NSObject {
     }
 
     func setHoveredForDebug(_ node: OutlineNode?) { setHovered(node) }
+    /// The hovered row's entry (tests).
+    var hoveredEntryForTesting: UUID? { hoveredNode?.entryID }
 
     func setHovered(_ node: OutlineNode?) {
         guard node !== hoveredNode else { return }
