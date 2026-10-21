@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +17,11 @@
 #include "base/process/kill.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
+#include "content/public/browser/service_worker_context.h"
+#include "content/public/browser/service_worker_running_info.h"
+#include "content/public/browser/storage_partition.h"
+#include "room/core/room_application_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -304,6 +310,71 @@ class KeyAckObserver : public content::RenderWidgetHost::InputEventObserver,
   raw_ptr<content::RenderWidgetHost> widget_ = nullptr;
 };
 
+// B-56: a closed or discarded page's renderer lingered on 155 (5.4a: 12
+// renderers with no page after 50 Today tabs opened and closed; nine
+// discards' renderers exited between 10 s and 10 min later). Chrome ends a
+// renderer when its last listener and ref count go. 2 s after a page went,
+// each process that held its frames and now hosts no view is logged with
+// what Chrome still counts on it, and ended when Chrome's own
+// FastShutdownIfPossible allows it (it refuses for unload handlers, workers,
+// keep-alive requests and a pending reuse).
+constexpr base::TimeDelta kRendererCheckDelay = base::Seconds(2);
+
+void EndRendererIfIdle(int process_id, const char* what) {
+  if (browser_shutdown::HasShutdownStarted()) {
+    return;
+  }
+  content::RenderProcessHost* host =
+      content::RenderProcessHost::FromID(process_id);
+  if (!host || !host->IsInitializedAndNotDead() ||
+      host->FastShutdownStarted()) {
+    return;  // Chrome ended it.
+  }
+  if (host->IsSpare() || host->GetActiveViewCount() > 0) {
+    return;  // Another page's (process reuse) or the spare.
+  }
+  size_t service_workers = 0;
+  if (auto* partition = host->GetStoragePartition()) {
+    if (auto* context = partition->GetServiceWorkerContext()) {
+      for (const auto& [version, info] :
+           context->GetRunningServiceWorkerInfos()) {
+        if (info.render_process_id == host->GetID()) {
+          ++service_workers;
+        }
+      }
+    }
+  }
+  const int frames = host->GetRenderFrameHostCount();
+  const size_t shutdown_delays = host->GetShutdownDelayRefCount();
+  const int pending_reuse = host->GetPendingReuseRefCountForTesting();
+  const std::string keep_alive = host->GetKeepAliveDurations();
+  const base::ProcessId pid = host->GetProcess().Pid();
+  const bool ended = host->FastShutdownIfPossible();
+  LOG(WARNING) << "RoomCore: a " << what << " page's renderer (pid " << pid
+               << ") hosts no view " << kRendererCheckDelay.InSeconds()
+               << " s later: frames=" << frames
+               << " service_workers=" << service_workers
+               << " shutdown_delays=" << shutdown_delays
+               << " pending_reuse=" << pending_reuse << " keep_alive=["
+               << keep_alive << "]; fast shutdown "
+               << (ended ? "started" : "refused") << " (B-56)";
+}
+
+void CheckRenderersAfter(content::WebContents* contents, const char* what) {
+  if (browser_shutdown::HasShutdownStarted()) {
+    return;
+  }
+  std::set<int> ids;
+  contents->ForEachRenderFrameHost([&ids](content::RenderFrameHost* frame) {
+    ids.insert(frame->GetProcess()->GetDeprecatedID());
+  });
+  for (int id : ids) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&EndRendererIfIdle, id, what),
+        kRendererCheckDelay);
+  }
+}
+
 // Turns WebContentsObserver events (and, once Chrome attached its tab
 // helpers, favicon and zoom events) into KVO changes on the wrapper.
 class Observer : public content::WebContentsObserver,
@@ -359,7 +430,12 @@ class Observer : public content::WebContentsObserver,
   }
 
   void DidStartLoading() override { [wrapper_ room_refresh]; }
-  void DidStopLoading() override { [wrapper_ room_refresh]; }
+  void DidStopLoading() override {
+    [wrapper_ room_refresh];
+    if (wrapper_) {
+      room::NoteRoomPageStoppedLoading(web_contents());
+    }
+  }
   void DidStartNavigation(content::NavigationHandle*) override {
     [wrapper_ room_refresh];
   }
@@ -431,6 +507,7 @@ class Observer : public content::WebContentsObserver,
                    << ", hosting " << (process ? process->GetActiveViewCount() : 0)
                    << " views)";
     }
+    CheckRenderersAfter(web_contents(), retired_ ? "discarded" : "closed");
     [wrapper_ room_webContentsDestroyed];
   }
 

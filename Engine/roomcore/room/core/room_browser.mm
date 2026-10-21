@@ -3,6 +3,8 @@
 #import "room/core/room_browser_internal.h"
 
 #include <memory>
+#include <set>
+#include <string>
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
@@ -10,6 +12,10 @@
 #include "base/feature_list.h"
 #include "content/public/browser/permission_controller.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
+#include "content/public/browser/service_worker_context.h"
+#include "content/public/browser/service_worker_running_info.h"
+#include "content/public/browser/storage_partition.h"
 #include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "chrome/browser/extensions/extension_view_host_factory.h"
@@ -621,6 +627,56 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   if (!_browser ||
       ![[NSProcessInfo processInfo].arguments containsObject:@"-RoomSpike"]) {
     return @(-1);
+  }
+  if ([action isEqualToString:@"renderer-census"]) {
+    // 5.4b: what each renderer is for (the spare, a site's pages, cross-site
+    // subframes under site isolation, an extension, workers), one log line
+    // per process; returns the count.
+    int count = 0;
+    for (auto it = content::RenderProcessHost::AllHostsIterator();
+         !it.IsAtEnd(); it.Advance()) {
+      content::RenderProcessHost* host = it.GetCurrentValue();
+      if (!host->IsInitializedAndNotDead()) {
+        continue;
+      }
+      ++count;
+      int main_frames = 0;
+      int subframes = 0;
+      std::set<std::string> origins;
+      host->ForEachRenderFrameHost([&](content::RenderFrameHost* frame) {
+        if (frame->GetParent()) {
+          ++subframes;
+        } else {
+          ++main_frames;
+        }
+        origins.insert(frame->GetLastCommittedOrigin().Serialize());
+      });
+      std::string sites;
+      for (const std::string& origin : origins) {
+        sites += (sites.empty() ? "" : ",") + origin;
+      }
+      size_t service_workers = 0;
+      if (auto* partition = host->GetStoragePartition()) {
+        if (auto* context = partition->GetServiceWorkerContext()) {
+          for (const auto& [version, info] :
+               context->GetRunningServiceWorkerInfos()) {
+            if (info.render_process_id == host->GetID()) {
+              ++service_workers;
+            }
+          }
+        }
+      }
+      LOG(WARNING) << "RoomCore census: pid=" << host->GetProcess().Pid()
+                   << " spare=" << host->IsSpare()
+                   << " views=" << host->GetActiveViewCount()
+                   << " main_frames=" << main_frames
+                   << " subframes=" << subframes
+                   << " service_workers=" << service_workers
+                   << " unused=" << host->IsUnused()
+                   << " origins=" << sites;
+    }
+    LOG(WARNING) << "RoomCore census: " << count << " renderers";
+    return @(count);
   }
   if ([action isEqualToString:@"location-bar-security"]) {
     // What Chrome code reads from the LocationBar for the active page

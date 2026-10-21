@@ -24,6 +24,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/apps/platform_apps/shortcut_manager.h"
+#include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/extensions/commands/command_service.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
@@ -1433,6 +1434,14 @@ void InstallExtensionHooks() {
   // has no Chrome Apps; the switch (named for tests upstream, no test
   // behaviour) turns the shortcut manager's file work off.
   AppShortcutManager::SuppressShortcutsForTesting();
+  // Web apps' OS integration (B-127): something in a long session asked
+  // for Chrome's apps folder, and apps_folder_support.mm set the icon of
+  // the user's real ~/Applications/Chromium Apps.localized (an IconServices
+  // os_log_fault, reported as a simulated EXC_GUARD). Room installs no web
+  // apps; the scope (named for tests upstream, no test behaviour: a count
+  // the OS-integration sub-managers read) is held for the process's life.
+  static base::NoDestructor<web_app::OsIntegrationManager::ScopedSuppressForTesting>
+      no_os_integration;
 }
 
 }  // namespace room

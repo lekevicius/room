@@ -19,9 +19,14 @@
 #include "base/memory/memory_pressure_listener.h"
 #include "base/path_service.h"
 #include "base/functional/bind.h"
+#include "base/time/time.h"
 #include "base/callback_list.h"
 #include "base/strings/sys_string_conversions.h"
+#include "chrome/browser/after_startup_task_utils.h"
 #include "chrome/browser/browser_process.h"
+#include "content/public/browser/browser_thread.h"
+#include "content/public/browser/visibility.h"
+#include "content/public/browser/web_contents.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
@@ -178,6 +183,65 @@ class RoomMemoryPressureListener : public base::MemoryPressureListener {
 };
 
 }  // namespace
+
+namespace room {
+
+namespace {
+// B-87: Chrome holds its best-effort and after-startup tasks (history
+// expiry, caches' cleanup, the extension updater's first run) until it marks
+// its startup complete; on 155 a Room window never gave it the signal and
+// Chrome's 3-minute failsafe released them.
+base::TimeTicks g_did_finish_launching;
+bool g_noted_first_page = false;
+bool g_startup_profile_remembered = false;
+}  // namespace
+
+void NoteRoomPageStoppedLoading(content::WebContents* contents) {
+  if (g_noted_first_page || !contents ||
+      contents->GetVisibility() != content::Visibility::VISIBLE) {
+    return;
+  }
+  g_noted_first_page = true;
+  // Chrome's own references (156: the first visible tab's load, the first
+  // idle) get 5 s; then Room gives the signal Chrome's first browser window
+  // would have.
+  content::GetUIThreadTaskRunner({})->PostDelayedTask(
+      FROM_HERE, base::BindOnce([] {
+        if (AfterStartupTaskUtils::IsBrowserStartupComplete()) {
+          LOG(INFO) << "RoomCore: Chrome's startup was complete by itself "
+                       "5 s after the first visible page loaded (B-87)";
+          return;
+        }
+        LOG(WARNING) << "RoomCore: Chrome's startup is not complete 5 s "
+                        "after the first visible page loaded: Room marks it "
+                        "(B-87)";
+        // Named for tests upstream; it only sets the completion Chrome's
+        // own path would (no test behaviour).
+        AfterStartupTaskUtils::SetBrowserStartupIsCompleteForTesting(
+            StartupIsCompleteReason::kVisiblePageLoadingFinished);
+      }),
+      base::Seconds(5));
+}
+
+// B-140: Chrome makes its startup profile (prefs::kProfileLastUsed, else
+// `Default`) before the message loop, and Room never used `Default`: 37 % of
+// the engine's start on 155. The first profile the host makes in a process
+// becomes the last used one, so the next launch starts in a profile the
+// host asks for (the deletion path moves it on, -deleteProfile:).
+void RememberStartupProfile(Profile* profile) {
+  if (g_startup_profile_remembered || profile->IsOffTheRecord()) {
+    return;
+  }
+  g_startup_profile_remembered = true;
+  const std::string base_name = profile->GetPath().BaseName().AsUTF8Unsafe();
+  PrefService* local_state = g_browser_process->local_state();
+  if (local_state->GetString(prefs::kProfileLastUsed) != base_name) {
+    local_state->SetString(prefs::kProfileLastUsed, base_name);
+    LOG(INFO) << "RoomCore: the next launch starts in profile " << base_name;
+  }
+}
+
+}  // namespace room
 
 @implementation RoomApplication {
   std::vector<std::string> _arguments;
@@ -443,6 +507,9 @@ class RoomMemoryPressureListener : public base::MemoryPressureListener {
   base::FilePath path =
       manager->user_data_dir().Append(base::SysNSStringToUTF8(name));
   manager->CreateProfileAsync(path, base::BindOnce(^(Profile* profile) {
+                                if (profile) {
+                                  room::RememberStartupProfile(profile);
+                                }
                                 completion(profile ? [RoomProfile
                                                          room_profileFor:profile]
                                                    : nil);
@@ -546,6 +613,14 @@ class RoomMemoryPressureListener : public base::MemoryPressureListener {
 
 - (void)room_didFinishLaunching {
   SetCrashKeys();
+  room::g_did_finish_launching = base::TimeTicks::Now();
+  AfterStartupTaskUtils::PostTask(
+      FROM_HERE, content::GetUIThreadTaskRunner({}), base::BindOnce([] {
+        LOG(WARNING) << "RoomCore: Chrome's startup complete "
+                     << (base::TimeTicks::Now() - room::g_did_finish_launching)
+                            .InMilliseconds()
+                     << " ms after didFinishLaunching (B-87)";
+      }));
   // Chromium's memory-pressure monitor and listener registry exist now.
   _memoryPressureListener = std::make_unique<RoomMemoryPressureListener>(self);
   // Chrome installed its Cocoa alert factory in PreProfileInit.

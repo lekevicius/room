@@ -366,7 +366,8 @@ BrowserWindow* CreateRoomBrowserWindow(BrowserWindowInterface* browser) {
                  << " Browser //room did not create; it stays headless";
     return new RoomBrowserWindow(browser, nil, nullptr);
   }
-  PendingHostWindow* pending = g_pending_host_window;
+  // Taken here, so deleted here (B-139: it leaked one per RoomBrowser).
+  std::unique_ptr<PendingHostWindow> pending(g_pending_host_window);
   // One Browser per pending window: anything Browser's constructor creates in
   // turn (it does not today) is headless.
   g_pending_host_window = nullptr;

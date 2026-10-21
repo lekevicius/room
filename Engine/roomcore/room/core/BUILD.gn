@@ -119,6 +119,7 @@ source_set("core") {
     "//chrome/browser/devtools",
     "//chrome/browser/apps/platform_apps",
     "//chrome/browser/extensions",
+    "//chrome/browser/web_applications",
     "//chrome/browser/tab_list",
     "//chrome/browser/ui/extensions",
     "//chrome/browser/ui/extensions:extension_popup_types",
