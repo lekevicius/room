@@ -439,6 +439,10 @@ public struct Settings: Hashable, Sendable, Codable {
     /// The one-time "Logins and cookies won't carry over" warning was
     /// confirmed (moving a tab to a space of another profile, spec §B).
     public var crossProfileMoveWarned: Bool = false
+    /// The one-time "Sidebar hidden" toast was shown (spec §E: the first time
+    /// a splitter drag snaps the sidebar closed; 5.6b moved it here from the
+    /// app's defaults, which every Debug build and state shared).
+    public var sidebarHiddenHintShown: Bool = false
     /// Where downloads are saved, a folder path; `nil` is the user's
     /// Downloads folder (spec §F, ROADMAP 2.6 task 1).
     public var downloadDirectory: String?
@@ -511,7 +515,7 @@ public struct Settings: Hashable, Sendable, Codable {
         case historyImportedProfiles, extensionsLastUpdateCheck, routeLinksBetweenSpaces, externalLinksSpaceID
         case shortcutOverrides, searchEngines, searchEngineByProfile, askWhereToSave, pdfsOpenInRoom
         case extensionsInIncognito, readerTextSize, appIcon, contentBlocking, monoTrafficLights, sidebarTextSize
-        case revision
+        case revision, sidebarHiddenHintShown
     }
 
     public init(from decoder: any Decoder) throws {
@@ -526,6 +530,8 @@ public struct Settings: Hashable, Sendable, Codable {
         searchEngine = (try? container.decodeIfPresent(String.self, forKey: .searchEngine)).flatMap { $0 } ?? defaults.searchEngine
         crossProfileMoveWarned = (try? container.decodeIfPresent(Bool.self, forKey: .crossProfileMoveWarned)).flatMap { $0 }
             ?? defaults.crossProfileMoveWarned
+        sidebarHiddenHintShown = (try? container.decodeIfPresent(Bool.self, forKey: .sidebarHiddenHintShown)).flatMap { $0 }
+            ?? defaults.sidebarHiddenHintShown
         downloadDirectory = (try? container.decodeIfPresent(String.self, forKey: .downloadDirectory)).flatMap { $0 }
         showsToolbar = (try? container.decodeIfPresent(Bool.self, forKey: .showsToolbar)).flatMap { $0 } ?? defaults.showsToolbar
         peekOffSiteLinks = (try? container.decodeIfPresent(Bool.self, forKey: .peekOffSiteLinks)).flatMap { $0 } ?? defaults.peekOffSiteLinks

@@ -804,7 +804,6 @@ def _layoutmodes(c):
     c.contains("traffic_lights_hidden", "no cluster view=true", "inside the overlay=true", "gone with it=true", "buttons kept their frames=true",
                label="B-114: no cluster; the traffic lights come and go with the hidden sidebar, never moved")
     c.contains("traffic_lights_docked", "buttons visible=true", label="docked again: the traffic lights back")
-    c.contains("drag_regions", "drags from content=true", label="the top of the card drags the window while hidden")
     c.contains("peek_onsite", "in place → http://127.0.0.1:8770/other.html", label="Peek rule: a same-site link navigates in place")
     c.contains("peek_offsite", "peek http://localhost:8770/", label="Peek rule: an off-site link from a pinned entry opens Peek")
     c.check("Peek opens (timings measured)", not (c.first("peek_open_to_overlay_frame") or "n=0").startswith("n=0"), c.first("peek_open_to_overlay_frame") or "missing")

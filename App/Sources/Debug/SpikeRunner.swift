@@ -123,6 +123,7 @@ enum SpikeRunner {
         case "input": await context.inputChecks()
         case "drops": await context.dropChecks()
         case "details": await context.detailsChecks()
+        case "details2": await context.details2Checks()
         default: record("error", "unknown spike")
         }
         record("end", name)

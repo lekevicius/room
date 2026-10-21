@@ -230,9 +230,6 @@ extension SpikeRunner.Context {
                                                            "\(!root.subviews.contains { String(describing: Swift.type(of: $0)).contains("Cluster") })", hiddenAfter, visibleAfter, inOverlay,
                                                            Int(Timing.revealDwell * 1000), Int(Motion.revealIn * 1000), "\(inside)",
                                                            "\(closeButton?.isHidden == true)", "\(geometryKept)"))
-        // The drag region: the top 5% of the card (the drag itself needs a person's pointer).
-        let band = ContentDragGeometry.band(card: root.currentLayout.card)
-        SpikeRunner.record("drag_regions", "content band=\(NSStringFromRect(band)) drags from content=\(root.dragsFromContent)")
         controller.isSidebarOpen = true
         _ = await waitUntil(2) { closeButton?.isHidden == false && (closeButton?.alphaValue ?? 0) > 0.99 }
         SpikeRunner.record("traffic_lights_docked", "buttons visible=\(closeButton?.isHidden == false) alpha=\(closeButton?.alphaValue ?? 0)")

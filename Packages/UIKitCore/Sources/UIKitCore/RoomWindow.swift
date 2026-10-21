@@ -38,14 +38,41 @@ public final class RoomWindow: NSWindow {
         appearance = nil
     }
 
-    // MARK: Mouse back and forward (5.5a)
+    // MARK: Close and Zoom without their buttons (5.6b)
+
+    /// The traffic lights hide with the sidebar (B-114), and AppKit's
+    /// `perform…` methods refuse (a beep) while their button is hidden: ⇧⌘W
+    /// and Window ▸ Zoom did nothing with the sidebar hidden (found by 5.6b's
+    /// Window-menu check). With the button hidden they do what the button
+    /// would. ⌘M still refuses (B-150: `miniaturize` too, even with the button
+    /// shown transparent around the call).
+    public override func performClose(_ sender: Any?) {
+        guard standardWindowButton(.closeButton)?.isHidden == true else { return super.performClose(sender) }
+        if let delegate, delegate.windowShouldClose?(self) == false { return }
+        close()
+    }
+
+    public override func performZoom(_ sender: Any?) {
+        guard standardWindowButton(.zoomButton)?.isHidden == true else { return super.performZoom(sender) }
+        zoom(sender)
+    }
+
+    // MARK: Mouse back and forward (5.5a); the page under the titlebar (B-32, 5.6b)
 
     /// The mouse's back and forward buttons over the window outside a page (the sidebar, the
     /// header, the card's edges): `nil` lets the event through. Over a page the engine navigates.
     public var onMouseNavigation: ((MouseNavigation) -> Void)?
-    /// Whether a view is (inside) a page, where the engine handles the buttons itself.
+    /// Whether a view is (inside) a page, where the engine handles the buttons itself (the app sets it).
     public var isPageView: ((NSView) -> Bool)?
+    /// Whether a view under the titlebar is the card's page rather than Room's chrome (B-32; set by the controller).
+    public var isCardPage: ((NSView) -> Bool)?
 
+    /// The full-size content puts the page under the 52 pt titlebar while the
+    /// sidebar is hidden, and the engine's view lets AppKit treat a
+    /// double-click there as the titlebar's (it zoomed or filled the window
+    /// from a search field at the page's top, B-32). A double-click on the
+    /// page goes to the page alone; the rest, and every press on Room's own
+    /// views, take AppKit's path.
     public override func sendEvent(_ event: NSEvent) {
         if event.type == .otherMouseUp || event.type == .otherMouseDown, let navigation = MouseNavigation(buttonNumber: event.buttonNumber),
            let onMouseNavigation, let frame = contentView?.superview ?? contentView {
@@ -55,7 +82,18 @@ public final class RoomWindow: NSWindow {
                 return
             }
         }
+        if event.type == .leftMouseDown || event.type == .leftMouseUp, event.clickCount >= 2,
+           let target = pageViewUnderTitlebar(event) {
+            if event.type == .leftMouseDown { target.mouseDown(with: event) } else { target.mouseUp(with: event) }
+            return
+        }
         super.sendEvent(event)
+    }
+
+    private func pageViewUnderTitlebar(_ event: NSEvent) -> NSView? {
+        guard let isCardPage, !contentLayoutRect.contains(event.locationInWindow), let frameView = contentView?.superview,
+              let hit = frameView.hitTest(frameView.convert(event.locationInWindow, from: nil)), isCardPage(hit) else { return nil }
+        return hit
     }
 
     // MARK: Tab order (5.3a)
