@@ -39,6 +39,7 @@ enum SpikeRunner {
         record("spike", name)
         record("date", ISO8601DateFormatter().string(from: Date()))
         record("loadavg", loadAverage())
+        StatusBarWatch.startIfRequested()
         // Before the activation attempts below (up to 5 s when macOS refuses them).
         record("launch_to_spike_s", String(format: "%.2f", Date().timeIntervalSince(Context.processStartDate())))
         // The grand tour (Phase 2.9) runs every spike in one appearance; spikes that capture both still switch themselves.
@@ -127,6 +128,7 @@ enum SpikeRunner {
         case "passwordpopover": await context.passwordPopoverChecks()
         default: record("error", "unknown spike")
         }
+        if UserDefaults.standard.bool(forKey: "RoomSpikeStatusBarWatch") { record("statusbar_end", StatusBarWatch.snapshotLine()) }
         record("end", name)
         if !UserDefaults.standard.bool(forKey: "RoomSpikeKeepRunning") { NSApp.terminate(nil) }
     }
@@ -135,6 +137,7 @@ enum SpikeRunner {
     static var reportedNoScript = false
 
     static func record(_ key: String, _ value: Any) {
+        if !key.hasPrefix("statusbar") { StatusBarWatch.lastKey = key }
         let line = "\(key): \(value)\n"
         if let handle = try? FileHandle(forWritingTo: output) {
             handle.seekToEndOfFile()
