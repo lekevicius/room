@@ -135,3 +135,15 @@ Outcome: the //room adapter through `RoomTabDialogs` (Room's wrapper of Chrome's
 ### Build 23 (02:11 → 02:22) and Glic (02:10 → 02:24)
 
 Build 23 over `b1a9445` (notarized; not published). 5.9's tour found an `NSStatusBarWindow` in Room's process on every 156 build: 156's field-trial testing config enables `Glic` (Gemini in Chrome) and its status icon (`GlicChromeStatusIcon`, on by default). Disabled in `room_network_policy.cc` (`80b2b9e`; `59-1`: release 273 s, dev 52 s on the laptop); the helpers' `--disable-features` carry both, no Glic in `--enable-features`. Build 24 ships on `80b2b9e`.
+
+### 5.9 — accepted; Chapter 5's sessions done (worktree, 01:42 → 03:51)
+
+The full tour on 156 (release `f05f3d6`: 893/20 light, 900/13 dark, 47.6 min; dev 156 `f05f3d6`: 901/16 both, 54.5 min), every failure attributed (harness faults fixed: `diaframe`, `spacecaptures`, `media`'s PiP pick, `incognito`'s save offer; run conditions rerun; known rows B-53, B-56, B-76, B-82, B-153), the failed steps rerun on `80b2b9e`; the rebase's verify (baseline on 156 dev); `chapter-5-review.md`; the iteration list at 70 rows. Found B-156 (a status item's window on 156) and reopened B-127 (the IconServices fault; the real `~/Applications/Chromium Apps.localized` rewritten).
+
+### B-156 — Omnibox Everywhere (worktree `fix-statusicon`, 03:33 → 04:02)
+
+The window was Chrome's new system-wide search, Omnibox Everywhere ("Search with Room" status item, from launch), switched on by 156's field-trial testing config; Glic was not it. `OmniboxEverywhere` disabled in `room_network_policy.cc` (`b5f394a`, request `59-2`: release 256 s, dev 54 s); the watcher (`-RoomSpikeStatusBarWatch YES`) shows no status-bar window after. CGWindowList never listed it; only `NSApp.windows` did.
+
+### Build 24 and the publish (04:00 → 04:08)
+
+Build 24 over `b5f394a` (package, sign and notarize 205 s, Sparkle); the appcast regenerated over build 24 alone (22 and 23 moved to `build/release-unpublished/`). Published at 04:07 with `scripts/release-publish.sh build/release 24` (the user's standing instruction of 2026-10-21: the newest accepted DMG, once, before 07:00, after its CI spec): https://updates.room.app/appcast.xml lists build 24; Room-0.1.0-24.dmg and Room.dmg answer 200 at 217,017,445 bytes. Nothing else published.
