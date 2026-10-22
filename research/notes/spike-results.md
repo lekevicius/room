@@ -4497,3 +4497,17 @@ Surfaces the 3.7a runs counted as Chrome's are the host's now: `chrome_windows_n
 **5.8a's host check again** (`scripts/password-popover-check.sh`, dev engine `b1a9445`, light, the semi-transient popover): every line as in 5.8a: Return saves with the toast, Esc Not Now, Never, Update without Never, Manage opens the manager tab, the hidden sidebar's corner (minX 398 vs the card's 399), a withdrawn offer unanswered, the confirmation toast; answers `save,notNow,never,save,notNow,notNow`; 0 dumps.
 
 **Baseline** (`scripts/roomcore-baseline.sh build/baseline/5.8e-dev`, RoomCore Host over the dev engine `b1a9445`): nav assertions passed (16.7 s); quits **0.296 / 0.252 / 0.259 s** (load 5.1–18.7), 0 helpers left, 0 new crash reports.
+
+## Phase 5.9 — the menu-bar status item on 156 (2026-10-22, Mac mini M4, the Screen Sharing virtual display 1920 × 1080 at 60 Hz, worktree `fix-statusicon`; the Debug app over the release engine, `scripts/media-check.sh` with `-RoomSpikeStatusBarWatch YES`, each run on a fresh state and engine under /tmp/room-4; load 8.3 / 5.0 / 4.4 at the first run)
+
+**Owner.** Chrome's OmniboxEverywhere (the system-wide search popup), not Glic. The watcher's line at spike start (2.42 s after launch) on `80b2b9e`: `NSStatusBarWindow #4294967296 {{1405, 1050}, {38, 30}} level=25 tree=[NSStatusBarContentView{NSView{NSStatusBarButton tip="Search with Room"}}] … target=StatusItemController action=handleClick: menu=nil item: autosave="Item-0" length=-2.0`. "Search with Chromium" is `IDS_OMNIBOX_EVERYWHERE_STATUS_ICON_TOOLTIP` (156's `chromium_strings.grd`), set by `omnibox_everywhere_background_mode_manager.cc`. 156's `fieldtrial_testing_config.json` enables `OmniboxEverywhere` (with `IPH_OmniboxEverywhereLensPromo`) on mac and windows; 155's has no such entry.
+
+**When.** From launch, not after a media action: present at the watcher's start, `statusbar_appeared` after the first recorded key (`window_main`), gone only after `end`. The x origin moves (1367, 1373, 1405) with the menu bar's other items. `CGWindowListCopyWindowInfo` (on-screen, layer 25, any owner whose bounds meet the window's frame) lists nothing in any run: on macOS 26 the item is not a window-server window of Room's pid, so only `NSApp.windows` (the media spike's `videopip_windows`) shows it — why a CG-list check after 10 s at launch saw none.
+
+| run | engine | status-bar windows (start / end) | `videopip_windows` before |
+|---|---|---|---|
+| before | `80b2b9e` | 1 / 1, tip "Search with Room" | `NSStatusBarWindow {{1373, 1050}, {38, 30}}; UIKitCore.RoomWindow {{352, 187}, {1280, 800}}; NativeWidgetMacNSWindow …` |
+| `--disable-features=OmniboxEverywhere` on the command line | `80b2b9e` | 0 / 0 | `UIKitCore.RoomWindow …; NativeWidgetMacNSWindow …` |
+| after | `b5f394a` (59-2, `,OmniboxEverywhere` in the policy) | 0 / 0, no `statusbar_appeared` | `UIKitCore.RoomWindow {{352, 187}, {1280, 800}}; NativeWidgetMacNSWindow {{352, 187}, {1280, 800}}` |
+
+0 minidumps in each run. The other surfaces (156 source): `OmniboxEverywhereController` (global hotkey, the background-mode manager's icon and keep-alive, the UI manager, the FRE and promo) is made in `GlobalFeatures` only when the feature is on; `OmniboxEverywhereServiceFactory` returns null without it; the `--omnibox-everywhere` startup path also checks it. The hotkey's absence is read from the source, not exercised.
