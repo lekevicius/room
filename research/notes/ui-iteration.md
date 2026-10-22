@@ -21,7 +21,7 @@ Sources: `research/notes/chapter-5-by-hand.md` "For the user" (each phase's Tast
 | 5.6b | `phase-5.6/phase-5.6b-details-{light,dark}.png` (5 captures) |
 | 5.7a | `phase-5.7/phase-5.7-settings.png` (every pane), `phase-5.7/phase-5.7-settingssheets.png` (Privacy's four sheets); light and dark, active and inactive |
 | 5.7b | `phase-5.7/phase-5.7-spaceform.png`, `phase-5.7/phase-5.7-onboarding.png`; before them `phase-5.2/phase-5.2-spaceform.png` and `phase-2.8b/phase-2.8b-firstrun-*.png` |
-| 5.8a | `phase-5.8/phase-5.8a-passwords-{light,dark}.png` and five single captures per appearance (`phase-5.8a-password-{save,update,saved-toast,save-sidebar-hidden,manager-tab}-*.png`); on branch `phase-5.8a`, not yet merged into main |
+| 5.8a | `phase-5.8/phase-5.8a-passwords-{light,dark}.png` and five single captures per appearance (`phase-5.8a-password-{save,update,saved-toast,save-sidebar-hidden,manager-tab}-*.png`); merged into main (`e13fd73`) |
 
 ## Sidebar
 
@@ -82,6 +82,7 @@ Sources: `research/notes/chapter-5-by-hand.md` "For the user" (each phase's Tast
 | O8 | Page dialogs | `phase-5.2/phase-5.2-prompts.png` | `PromptMetrics.dialogWidth` 420, `dialogTopInset` 32, `dialogPadding` 20, `dialogSpacing` 12; dim `dimAlphaLight` 0.18 / `dimAlphaDark` 0.35 | Unchanged | |
 | O9 | The dialog checkbox's words (B-116) | `phase-5.6/phase-5.6a-details-*.png` ("Second alert") | `Typography.secondary` 11 | "Prevent additional dialogs from this site", from a page's second dialog until it reloads | |
 | O10 | Peek | `phase-5.2/phase-5.2-peek.png` | `PeekMetrics.sizeFraction` 0.86, `cornerRadius` 24, `dimAlpha` 0.30; shadow 24 pt at 0.25 / 0.5 | Unchanged | |
+| O11 | Chrome's copy toasts in Room's words (B-58, 5.4b) | none (`chrome26a`'s check reads the toast: `toast=Copied Link`) | `Toast` in `PageUIDelegate`: "Copied Link" and "Copied Link to Highlight" with `Symbol.copyURL` (`link`), "Copied Image" and "Copied Video Frame" with `Symbol.copied` (`doc.on.clipboard`); `Timing.toast` 2 s | Room's own Copy Link says "Copied Link" too, so the two paths read the same | |
 
 ## Settings
 
@@ -139,6 +140,8 @@ Sources: `research/notes/chapter-5-by-hand.md` "For the user" (each phase's Tast
 | PW2 | The update offer | `phase-5.8/phase-5.8a-password-update-*.png` | As PW1 | Update the default button, no Never | |
 | PW3 | The saved toast | `phase-5.8/phase-5.8a-password-saved-toast-*.png` | `Timing.toastWithAction` 5 s | "Password saved for host" · Manage | |
 | PW4 | The popover with the sidebar hidden | `phase-5.8/phase-5.8a-password-save-sidebar-hidden-*.png` | none | At the card's top-left corner, inside the card | |
+| PW5 | The password and address suggestion lists under a field stay Chrome's (5.8) | none (Chrome's Views popup on the 3.7a fixtures, `scripts/passwords-autofill.sh`) | none (Chrome's `PopupViewViews`) | Views: the only seam is `AutofillPopupView::Create`, a free factory in Chrome's Views code, so Room's own list needs a new patch (Chapter 5 allows none; B-155). **build** means a patch decision for Chapter 6 | |
+| PW6 | Address and card save bubbles stay Chrome's | none | none | Views: the week named the password bubble alone (2026-10-18). **build** moves them behind the same `TabDialogs` seam as passwords | |
 
 Real sign-ins reach PW1–PW4 only after the engine half (the `//room` adapter); until then real pages show Chrome's Views bubble.
 
@@ -147,4 +150,4 @@ Real sign-ins reach PW1–PW4 only after the engine half (the `//room` adapter);
 - B-150 (⌘M with the sidebar hidden, "5.8 (iteration)") is a bug, not taste.
 - The click checks and hardware runs of `chapter-5-by-hand.md` (the 120 Hz runs, VoiceOver, input methods, the gesture script's drags) check behaviour; their marks belong there.
 
-5.4b, 5.8 (5.8b's bubbles and its review sheet) and 5.9 (the tour and the release) may add items.
+Added by 5.9 (2026-10-22): O11 (5.4b's copy toasts), PW5 and PW6 (5.8's bubbles that stay Views; B-155). The full tour on both builds found nothing that is taste: its failures were harness faults, run conditions and known rows (`chapter-5-review.md` §2); B-156 (a menu-bar status item's window on 156) is a bug, not taste. 5.8e's review sheet of the popover on Chrome's real offers (merged with 5.8) belongs to PW1–PW4.
