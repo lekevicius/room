@@ -131,7 +131,7 @@ the freeze); `DesignTests` checks each exists and renders as a template. Adding 
 | `SidebarMetrics.folderIndent` | 14 | chosen |
 | `SidebarMetrics.closeButtonSize` | 28 | spec §I.4 |
 | `SidebarMetrics.changedDotSize` | 6 | spec §I.8 |
-| `SidebarMetrics.unreadDotSize` | 6, `Palette.accent`, at the row's trailing edge (a tile's top-right corner); hidden while the close button shows | spec §I.3 (5.6a) |
+| `SidebarMetrics.unreadDotSize` | 6, `Palette.accent`, at the row's trailing edge (a tile's top-left corner: the top-right holds the audio badge, the bottom-right the changed dot); hidden while the close button shows | spec §I.3 (5.6a) |
 | `SidebarMetrics.customIconEmojiScale` | 0.82 of the favicon square (an SF Symbol: `IconStyle.rowGlyph`, `labelColor`) | chosen (5.6a) |
 | `SidebarMetrics.unloadedIconAlpha` | 0.6 | spec §A.1 |
 | `SidebarMetrics.separatorRowHeight` / `spaceTitleRowHeight` | 24 / 36 | chosen |

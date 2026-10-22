@@ -263,7 +263,9 @@ def _open10(c):
 
 @step_check("diaframe")
 def _diaframe(c):
-    dia_framing(c, c.first("card") == "{{280, 6}, {958, 806}}", "card at Dia's framing", c.first("card") or "missing")
+    # The card is `CardMetrics.inset` 8 pt in since the Room Browser design (`beea283`, 2026-10-07; Dia measured 6):
+    # in Dia's 1244 × 818 window beside the 280 pt sidebar that is {{280, 8}, {956, 802}} (5.9: the check still had 6).
+    dia_framing(c, c.first("card") == "{{280, 8}, {956, 802}}", "card at Dia's framing (8 pt inset)", c.first("card") or "missing")
 
 
 @step_check("keys")
@@ -481,7 +483,8 @@ def _spaces(c):
 @step_check("spacecaptures")
 def _spacecaptures(c):
     caps = c.values.get("capture", [])
-    c.check("seven captures (footer, themed light/dark, Reading, form edit/new, mid-slide)", len(caps) == 7, f"{len(caps)}")
+    # 5.7b moved the space form out of the sidebar into the space window (B-122): the spike's two form captures went with it.
+    c.check("five captures (footer, themed light/dark, Reading, mid-slide)", len(caps) == 5, f"{len(caps)}")
     shot = [l for l in c.out if l.startswith("captured ")]
     c.check("every capture written", len(shot) == len(caps), f"{len(shot)}/{len(caps)}")
 
