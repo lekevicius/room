@@ -93,10 +93,15 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   // those two stay off.
   disabled += ",ReadingListToast,TranslateToast";
   // Gemini in Chrome (Glic): 156's field-trial testing config enables it
-  // (Glic<GlicDogfood), and its menu-bar status icon (GlicChromeStatusIcon,
-  // on by default) then put an NSStatusBarWindow in Room's process (5.9's
-  // tour, 2026-10-22). Room has no Gemini surface.
+  // (Glic<GlicDogfood), with its menu-bar status icon (GlicChromeStatusIcon,
+  // on by default). Room has no Gemini surface.
   disabled += ",Glic,GlicChromeStatusIcon";
+  // Chrome's system-wide search popup (OmniboxEverywhere): 156's field-trial
+  // testing config enables it on mac, and its background-mode manager put a
+  // "Search with Room" status item in the menu bar (the NSStatusBarWindow of
+  // 5.9's tour; the status button's tooltip, 2026-10-22). Room's palette is
+  // its own; no menu-bar item, no keep-alive.
+  disabled += ",OmniboxEverywhere";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with
