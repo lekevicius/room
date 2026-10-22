@@ -70,8 +70,12 @@ extension SpikeRunner.Context {
 
     /// Chrome's Views bubbles and popups on screen (the password save bubble is one).
     func chromeBubbles() -> Set<ObjectIdentifier> {
-        Set(NSApp.windows.filter { $0.isVisible && NSStringFromClass(Swift.type(of: $0)).contains("NativeWidget") && !$0.ignoresMouseEvents
-            && $0.frame.width > 20 }.map(ObjectIdentifier.init))
+        // Chrome's Views bubble, or (since 5.8's engine half, b1a9445) the host's password popover that replaces it.
+        Set(NSApp.windows.filter { window in
+            let name = NSStringFromClass(Swift.type(of: window))
+            return window.isVisible && (name.contains("NativeWidget") || name.contains("Popover")) && !window.ignoresMouseEvents
+                && window.frame.width > 20
+        }.map(ObjectIdentifier.init))
     }
 
     /// Signs in on `url` in `page`'s window and reports whether a bubble appeared within `seconds`.
