@@ -4468,3 +4468,62 @@ Not built in this session: the laptop picked up `54b-1` at 00:11 (68 min after t
 Unit tier (`ChromeTests` "The password save and update popover (5.8a, FakeEngine)", 7 tests; `EngineTests` 1): the keys' answers (Return and Enter save, Esc Not Now, other keys nothing; a click elsewhere and Manage Not Now), Save stored and confirmed with Manage, Never recorded per origin (that origin offers nothing more, `localhost:8772` still asks), Not Now records nothing, the update (Update replaces; Never not offered and counted as Not Now; an unchanged password offers nothing), a background page's offer waits for the card, a withdrawn offer goes unanswered, a closed page's is Not Now, the automatic save's confirmation; a delegate without the members keeps the engine's bubble.
 
 Review sheet: `research/screenshots/phase-5.8/phase-5.8a-passwords-light.png` and `-dark.png` (the five captures each; the page itself is blank in window captures, the GPU layer, 1.4's deviation 6).
+
+## Phase 5.9 — the full tour on both builds (2026-10-22, Mac mini M4, 24 GB, the Screen Sharing virtual display 1920 × 1080 at 60 Hz, RoomCore 156.0.8078.48, series 25; worktree `phase-5.9`)
+
+**Builds.** The Debug app over the release framework `f05f3d6` (5.4b's `54b-1`, official) and the dev app over the laptop's 156 `out/dev` of `f05f3d6` (`54b-1/roomcore`, landed 01:40; installed at the planner's request, so both tours ran on 156, not on the 155 dev engine of `c5a4032`); both at `626a493` + this session's docs. After the tours both engines were replaced by the planner's `59-1` (`80b2b9e`: 5.8's `b1a9445` with Glic off) for the reruns. **Conditions:** load1 10.2 (release) and 3.2 (dev) at the start; 5.8's and the planner's Debug Rooms ran beside the release tour (`other_room_processes` 1; a passwords spike and a switch census on screen), none beside the dev tour; no Chromium build on this Mac. **No shell captures:** the tour's wrappers that call `screencapture` (B-157) ran with a no-op first on `PATH`, so their `captured …` lines are not images; in-process captures (window snapshots, the spikes' own) are real. Before the no-op, the first `chrome26b` attempt took 16 real window captures from the shell (01:38–01:40; no prompt window on screen afterwards by `CGWindowListCopyWindowInfo`'s owner list) and was stopped.
+
+**B-154 first** (`--only chrome26b light`, release `f05f3d6`, `build/grand-tour/20261022-014720-roomcore`): **54 / 55**: `didChangeStatusText` recorded, the badge 2 for two completions, the pill dodges (B-154's three pass); the one failure is the notification prompt outside the popover (`popover=false answered=true`), which passed in all four full-tour runs: a run condition (5.8's Room on screen).
+
+### The full tour (47 steps per appearance)
+
+| Run | Wall | Light | Dark | Minidumps per appearance |
+|---|---|---|---|---|
+| Release framework `f05f3d6` (`20261022-014907-roomcore`) | 47.6 min (25.1 + 22.5) | **893 / 20** of 913 | **900 / 13** of 913 | `chrome26b`'s intended crash; `media`'s host crash (the harness, below) |
+| Dev `f05f3d6` (`20261022-023645` light, `20261022-030410` dark) | 54.5 min (27.4 + 27.1) | **901 / 16** of 917 | **901 / 16** of 917 | 11 Blink DCHECKs (B-76: `layout_object.h:518` ×10, `inline_node.cc:2297` ×1 in `memory`, `open10`, `quittiming`, `palette`, `windows`) + the two above |
+| Chapter 4's exit (4.9, release on 155) | 45.9 min | 899 / 5 of 904 | 897 / 7 of 904 | 0 + the intended |
+
+Counts are with this session's two harness fixes applied to the checks (`diaframe`, `spacecaptures`; the summaries were made after them).
+
+| Step | Build, appearance | Cause | Attribution | Rerun |
+|---|---|---|---|---|
+| `diaframe` | all four | the check expected Dia's 6 pt card inset; the card is 8 pt in since the Room Browser design (`beea283`) | **harness**, fixed (`a1055b2`) | 8 / 8 on the same output |
+| `spacecaptures` | all four | the check expected seven captures; the space form's two left the sidebar with B-122 | **harness**, fixed (`3e06182`) | 7 / 7 on the same output |
+| `media` (spike's end, minidump, video PiP ×2) and the next step's "no crash report" | all four | the spike took a menu-bar status item's window (`NSStatusBarWindow {{1373, 1050}, {38, 30}}`, level 25, present before any PiP on 156) for Chrome's PiP overlay and its in-process capture hit `WindowSnapshot`'s assertion (`Room-2026-10-22-020836.ips`, `WindowSnapshot.capture` ← `captureMedia` ← `mediaPictureInPicture`) | **harness**, fixed (`623b708`); the window itself is **B-156** (open: not Glic) | **32 / 32** on `80b2b9e` release light and dev light |
+| `incognito` (a sign-in offers to save) | reruns on `80b2b9e` | 5.8's engine half sends Chrome's offer to the host's popover; the spike watched for a Views bubble only | **harness**, fixed (`530611e`) | **20 / 20** release dark; dev light 19 / 20 (below) |
+| `incognito` (Open Link in Incognito Window) | release dark, dev light | the menu item not found, key window another app's (`key=other`) | **run condition** (as in 4.9) | passed in the reruns (release dark, dev light) |
+| `palette2` (the chip vs Chrome's `LocationBarModel`) | release, both | the check needs a spike hook the official framework does not have | **known (B-82, by design)** | — |
+| `suggeston` ×2 | all four | the tour's shared state has suggestions off (5.5a's spikes store it) | **known (B-153)** | — |
+| `tabs` (renderers released) | all four | renderers 15 → 16 after seven discards (`f05f3d6`); 16 → 16 on `80b2b9e` in the rerun; alone 11 → 12 after four discards on `80b2b9e` release and dev | **known (B-56)**; B-56's holders line (`… s later: widgets=…`, `e96c4ba`) did not appear in the engine log on `80b2b9e` (dev or release) | — |
+| `tabsmeasure` (switching) | all four | p95 18.29 / 19.89 ms release, 21.17 / 22.32 ms dev (median 15.47 / 16.33 release, 18.29 / 18.49 dev) | **known (B-53)** | — |
+| `memory`, `open10`, `quittiming`, `palette`, `windows` (minidumps) | dev, both | the dev build's Blink DCHECKs on live sites | **known condition (B-76)** | — |
+| `sidebar500` (one late frame at 9000 pt/s: 2) | release light | another Room on screen | **run condition** | 11 / 11 on `80b2b9e` |
+| `documents` (the screenshot drag and its eight dependants) | release light | the drag's selection never formed (`selection=nil`) while 5.8's Room was on screen; dark and dev passed | **run condition** | 42 / 42 on `80b2b9e` |
+| `extpopup` (focus loss closes it) | dev dark; rerun release dark | the popover stayed open when the window lost focus to another window | **run condition** (passes in three of the four tour runs and in dev light's rerun) | dev light 18 / 18; release dark 17 / 18 |
+| `incognito` (an extension's action in incognito while allowed) | dev light rerun only | after "disallowed again" the regular window's action was gone (`regular=false`) | **unattributed** (passed in all four full-tour runs; one rerun) | — |
+
+**Product:** no product line failed that a one-liner fixes. **Simulated faults** (`faults.tsv`, never counted): IconServices' `os_log_fault` under `-[NSWorkspace setIcon:forFile:options:]` from `ChromeMain`, in `layoutmodes` in all four runs, with `~/Applications/Chromium Apps.localized` modified at the dark run's minute: **B-127 is not fixed** by `f05f3d6` (reopened); none in the `80b2b9e` rerun of `layoutmodes` (one run).
+
+### Numbers from the tour (release framework, light / dark; dev light)
+
+| Measure | Release `f05f3d6` light / dark | Dev `f05f3d6` light |
+|---|---|---|
+| Memory baseline (summed RSS) | 785 / 798 MB, 4 renderers | 1,278 MB |
+| 10 hidden; 30 hidden | 4,846 / 4,253 MB (20 renderers); 8,780 / 9,638 MB (40–41) | 5,763 MB; 12,130 MB |
+| 10 loaded of 50 (tabsmeasure); 50 loaded | 4,613 / 4,668 MB, 16 renderers; 4,967 / 4,969 MB, 52 | 6,204 MB; 10,441 MB |
+| Ten pages in one window → two windows | 4,725 → 4,825 / 4,827 → 4,910 MB, 19 renderers | — |
+| Switching, median / p95 | 15.47 / 18.29; 16.33 / 19.89 ms | 18.29 / 21.17 ms |
+| ⌃digit → first slide frame, median / p95 (0 missed of 60) | 26.81 / 32.74; 15.32 / 32.21 ms | 17.73 / 32.17 ms |
+| Palette later keys p95; open to next frame median | 9.80 / 11.73 ms; 4.95 / 6.35 ms | 12.36; 5.95 ms |
+| Find, keystroke → match median | 7.01 / 8.47 ms | 28.68 ms |
+| Peek → first contentful paint median | 88.6 / 110.1 ms | 581.9 ms |
+| DevTools → front-end loaded | 328.4 ms (light) | — |
+| Quit with ten pages | 0.27 / 0.13 s | 0.31 s |
+| Kill test, 100 kills | 0 failures (commit median 13.25 ms, p95 24.60) | — |
+| Engine requests (net-log) | 0 / 0 | 0 |
+
+### The reruns on `80b2b9e` (`59-1`: `b1a9445`'s password adapter and B-56's second half, Glic off)
+
+`--only sidebar500,media,documents,tabs,chrome26a,chrome26b,layoutmodes light` on the release framework (`20261022-033202-roomcore`): **sidebar500 11 / 11, media 32 / 32, documents 42 / 42, chrome26a 26 / 26, chrome26b 55 / 55, layoutmodes 35 / 35, tabs 18 / 19** (B-56: 16 → 16); no simulated fault. `tabs` alone (release `20261022-034235`, dev `20261022-034310`): 11 → 12 after four discards on both, no holders line in either engine log. `incognito,extpopup` with the popover-aware spike: release dark incognito 20 / 20, extpopup 17 / 18; dev light extpopup 18 / 18, incognito 19 / 20. `media` on dev light 32 / 32. The engine's `ChromeFeatureState` lists `Glic` and `GlicChromeStatusIcon` under disable-features, **and the `NSStatusBarWindow` is still in `NSApp.windows`** in `media` and `chrome26a` (B-156: not Glic; not present 10 s after a plain launch of the embryo host or the dev app on a throwaway state, by `CGWindowListCopyWindowInfo`; never in 4.x's `media` window lists on this Mac).
+
+**The rebase's dev baseline** (5.9, `build-log.md`): passed on its rerun on 156's `out/dev` of `f05f3d6` (nav, three quits 0.30–0.35 s, 0 helpers, 0 crash reports).
