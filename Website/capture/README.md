@@ -6,7 +6,7 @@ Every image and clip on the site comes from the real app, staged the same way ea
 
 | Part | What it does |
 |---|---|
-| `-RoomSidebarFixture showcase` | Seeds four themed spaces (Studio, Reading, Work in its own profile, Travel), six Essentials, folders and real, good-looking pages (`App/Sources/Debug/ShowcaseSpikes.swift`). |
+| `-RoomSidebarFixture showcase` | Seeds four themed spaces (General, Shopping, Reading, Travel), six Essentials and real, good-looking pages (`App/Sources/Debug/ShowcaseSpikes.swift`). |
 | `-RoomSpike showcase` | Warms every page once (favicons, caches), then stages each scene light and dark and asks for a capture. Every page gets `tidy`: consent banners hidden (captures are made from the EU), the scroll set. |
 | `capture.sh` | Runs the spike and answers each request with `screencapture -o -l <window>`: Room's window alone, no shadow, transparent corners. Encodes to `Website/assets/shots/<scene>-<light|dark>.webp` at 2400 px. |
 | `RoomRecorder/` (`room-record`) | Records Room's window alone with ScreenCaptureKit at 60 fps **without the system cursor**, and logs the pointer's path and clicks to `<clip>.cursor.json`. Plays a choreography (`scenes/<clip>.json`) with real events, so a clip can be redone. `--probe` prints the pointer's position in window points while you point at things. |
@@ -52,4 +52,4 @@ Points are Room's window points from its top-left corner at the staged size (144
 
 ## Seeds
 
-Pages were chosen for how they look in a window: galleries, a painting, well-set essays, Apple's documentation. A page that changes (a new banner, a redesign) is replaced in `ShowcaseSpikes.swift` by editing its URL; the scenes find pages by a fragment of their URL.
+Pages were chosen for how they look in a window: small brands' shops, a painting, well-set essays and magazines. A page that changes (a new banner, a redesign) is replaced in `ShowcaseSpikes.swift` by editing its URL; the scenes find pages by a fragment of their URL.

@@ -1,5 +1,5 @@
 {
-  "note": "Rest over the sidebar, then ⌃2, ⌃3, ⌃4 and back to ⌃1: each slide and its tint. Starts on Studio.",
+  "note": "Rest over the sidebar, then ⌃2, ⌃3, ⌃4 and back to ⌃1: each slide and its tint. Starts on General.",
   "start": [150, 520],
   "steps": [
     { "wait": 0.8 },

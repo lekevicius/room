@@ -44,51 +44,56 @@ extension SidebarFixtures {
         ("https://music.apple.com/us/new", "Apple Music"), ("https://www.are.na/", "Are.na"), ("https://www.notion.com/", "Notion"),
     ]
 
-    /// Space name → (SF Symbol, theme colour, algorithm, opacity, second profile, pages).
-    static let showcaseSpaces: [(name: String, icon: String, colour: String, algorithm: ThemeAlgorithm, opacity: Double, work: Bool,
+    /// Space name → (SF Symbol, theme colour, algorithm, opacity, pages). The user's picks (2026-10-31).
+    static let showcaseSpaces: [(name: String, icon: String, colour: String, algorithm: ThemeAlgorithm, opacity: Double,
                                  pages: [ShowcasePage])] = [
-        ("Studio", "paintpalette", "#E8836A", .analogous, 0.55, false, [
-            ShowcasePage(kind: .pinned, url: "https://www.artic.edu/collection", title: "Art Institute of Chicago"),
-            ShowcasePage(kind: .pinned, url: "https://www.cosmos.so/", title: "Cosmos", folder: "Inspiration"),
-            ShowcasePage(kind: .pinned, url: "https://www.siteinspire.com/", title: "siteInspire", folder: "Inspiration"),
-            ShowcasePage(kind: .pinned, url: "https://minimal.gallery/", title: "Minimal Gallery", folder: "Inspiration"),
-            ShowcasePage(kind: .pinned, url: "https://fontsinuse.com/", title: "Fonts In Use", folder: "Type"),
-            ShowcasePage(kind: .pinned, url: "https://www.typewolf.com/", title: "Typewolf", folder: "Type"),
+        ("General", "house", "#E8836A", .analogous, 0.55, [
+            ShowcasePage(kind: .pinned, url: "https://ccmagazine.es/en/", title: "CC/magazine"),
+            ShowcasePage(kind: .pinned, url: "https://andymatuschak.org/", title: "Andy Matuschak"),
+            ShowcasePage(kind: .today, url: "https://meowmeowtweet.com/blogs/blog/blue-tansy", title: "The Quiet Power of Blue Tansy"),
+            ShowcasePage(kind: .today, url: "https://lepuzz.com/pages/about", title: "About | Le Puzz"),
+            ShowcasePage(kind: .today, url: "https://omsom.com", title: "Omsom"),
+            ShowcasePage(kind: .today, url: "https://eatfishwife.com/products/the-starter-pack", title: "The Starter Pack | Fishwife"),
+            ShowcasePage(kind: .today, url: "https://drinkghia.com/", title: "Ghia | Non-Alcoholic Apéritifs"),
+        ]),
+        ("Shopping", "bag", "#B2577A", .triadic, 0.55, [
+            ShowcasePage(kind: .today, url: "https://www.mullervanseveren.be/collections/new-writing-desk-muller-van-severen/",
+                         title: "Writing Desk | Muller Van Severen"),
+            ShowcasePage(kind: .today, url: "https://pieceworkpuzzles.com/products/ive-got-a-few-notes-notepad-set",
+                         title: "I've Got a Few Notes Notepad Set | Piecework"),
+            ShowcasePage(kind: .today, url: "https://eraceramics.com/", title: "Era Ceramics"),
+            ShowcasePage(kind: .today, url: "https://teenage.engineering/products/ob-4/off-white", title: "OB–4 Off-White - teenage engineering"),
+            ShowcasePage(kind: .today, url: "https://www.areaware.com/collections/all-products/products/everybody-grinder-black",
+                         title: "Everybody Grinder | Areaware"),
+        ]),
+        ("Reading", "book", "#3E8E7E", .analogous, 0.5, [
+            ShowcasePage(kind: .pinned, url: "https://www.quantamagazine.org/how-voting-is-like-a-klein-bottle-20261026/",
+                         title: "How Voting Is Like a Klein Bottle"),
+            ShowcasePage(kind: .pinned, url: "https://maggieappleton.com/garden-history", title: "A Brief History of Digital Gardens"),
+            ShowcasePage(kind: .pinned, url: "https://www.macstories.net/stories/a-day-with-the-iphone-duo-first-impressions/",
+                         title: "A Day with the iPhone Duo - MacStories"),
+            ShowcasePage(kind: .pinned, url: "https://www.themarginalian.org/2026/10/31/richard-powers-music/",
+                         title: "Richard Powers on the Power of Song"),
+            ShowcasePage(kind: .today, url: "https://thegentlewoman.co.uk/library/yoko-ono", title: "Yoko Ono | The Gentlewoman"),
+            ShowcasePage(kind: .today, url: "https://www.kinfolk.com/stories/the-flow-state/", title: "The Flow State - Kinfolk"),
+        ]),
+        ("Travel", "airplane", "#E5B53A", .floating, 0.6, [
+            ShowcasePage(kind: .today, url: "https://calienna.com/en/blogs/projects", title: "Projects | Calienna"),
             ShowcasePage(kind: .today, url: "https://www.artic.edu/artworks/27992/a-sunday-on-la-grande-jatte-1884",
                          title: "A Sunday on La Grande Jatte"),
-            ShowcasePage(kind: .today, url: "https://en.wikipedia.org/wiki/Risograph", title: "Risograph - Wikipedia"),
-            ShowcasePage(kind: .today, url: "https://lospec.com/palette-list", title: "Palette List | Lospec"),
-            ShowcasePage(kind: .today, url: "https://www.apple.com/macbook-pro/", title: "MacBook Pro - Apple"),
-        ]),
-        ("Reading", "book", "#3E8E7E", .analogous, 0.5, false, [
-            ShowcasePage(kind: .pinned, url: "https://www.themarginalian.org/", title: "The Marginalian"),
-            ShowcasePage(kind: .pinned, url: "https://publicdomainreview.org/", title: "The Public Domain Review"),
-            ShowcasePage(kind: .pinned, url: "https://aeon.co/", title: "Aeon"),
-            ShowcasePage(kind: .today, url: "https://craigmod.com/essays/fast_software/", title: "Fast Software, the Best Software"),
-            ShowcasePage(kind: .today, url: "https://en.wikipedia.org/wiki/Hokusai", title: "Hokusai - Wikipedia"),
-            ShowcasePage(kind: .today, url: "https://maggieappleton.com/garden-history", title: "A Brief History of Digital Gardens"),
-        ]),
-        ("Work", "briefcase", "#2F5FAE", .triadic, 0.6, true, [
-            ShowcasePage(kind: .pinned, url: "https://developer.apple.com/design/human-interface-guidelines", title: "Human Interface Guidelines"),
-            ShowcasePage(kind: .pinned, url: "https://www.swift.org/documentation/", title: "Swift Documentation"),
-            ShowcasePage(kind: .today, url: "https://developer.apple.com/documentation/appkit", title: "AppKit | Apple Developer"),
-            ShowcasePage(kind: .today, url: "https://www.swift.org/blog/", title: "Swift.org Blog"),
-        ]),
-        ("Travel", "airplane", "#E5B53A", .floating, 0.6, false, [
-            ShowcasePage(kind: .pinned, url: "https://www.atlasobscura.com/", title: "Atlas Obscura"),
-            ShowcasePage(kind: .today, url: "https://en.wikipedia.org/wiki/Vilnius", title: "Vilnius - Wikipedia"),
-            ShowcasePage(kind: .today, url: "https://en.wikipedia.org/wiki/Curonian_Spit", title: "Curonian Spit - Wikipedia"),
+            ShowcasePage(kind: .today, url: "https://www.atlasobscura.com/places/bibliotheque-nationale-de-france",
+                         title: "Bibliothèque nationale de France - Atlas Obscura"),
+            ShowcasePage(kind: .today, url: "https://www.welltraveledclub.com/arielle/list/amsterdam", title: "Amsterdam | Well Traveled"),
         ]),
     ]
 
     /// Essentials for the profile, then the four spaces with their folders and pages.
-    /// The first space keeps its id (the window shows it) and becomes Studio.
+    /// The first space keeps its id (the window shows it) and becomes General.
     static func populateShowcase(_ store: RoomStore, first space: Space, window: UUID) throws {
         let sidebar = store.sidebar
         for (url, title) in showcaseEssentials {
             try sidebar.addEntry(.essential, url: url, title: title, space: space.id)
         }
-        let work = workProfile(sidebar)
         for (index, spec) in showcaseSpaces.enumerated() {
             let target: Space
             if index == 0 {
@@ -98,7 +103,7 @@ extension SidebarFixtures {
                 }
                 target = sidebar.space(space.id) ?? space
             } else {
-                target = try sidebar.createSpace(name: spec.name, profile: spec.work ? work.id : space.profileID, icon: spec.icon,
+                target = try sidebar.createSpace(name: spec.name, profile: space.profileID, icon: spec.icon,
                                                  themeColors: [spec.colour], themeAlgorithm: spec.algorithm, themeOpacity: spec.opacity)
             }
             var folders: [String: UUID] = [:]
@@ -210,11 +215,11 @@ extension SpikeRunner.Context {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let appearance = showcaseAppearances.first ?? "light"
         NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
-        guard let studio = showcaseSpace("Studio") else { return }
-        sidebar.showSpace(studio.id, animated: false)
-        await showcaseShow("la-grande-jatte")
+        guard let general = showcaseSpace("General") else { return }
+        sidebar.showSpace(general.id, animated: false)
+        await showcaseShow("omsom")
         // Every space's page chosen, loaded and tidied before the camera rolls.
-        for (name, fragment) in [("Reading", "themarginalian"), ("Work", "swift.org/blog"), ("Travel", "Curonian_Spit")] {
+        for (name, fragment) in [("Shopping", "teenage.engineering"), ("Reading", "themarginalian"), ("Travel", "la-grande-jatte")] {
             guard let space = showcaseSpace(name) else { continue }
             sidebar.showSpace(space.id, animated: false)
             await showcaseShow(fragment)
@@ -227,7 +232,7 @@ extension SpikeRunner.Context {
                 }
             }
         }
-        sidebar.showSpace(studio.id, animated: false)
+        sidebar.showSpace(general.id, animated: false)
         try? await Task.sleep(for: .seconds(1.5))
         if let page = tabs.current { _ = await viewport(of: page) }
         guard window.occlusionState.contains(.visible) else { return SpikeRunner.record("capture_failed", "\(clip): not on screen") }
@@ -255,7 +260,7 @@ extension SpikeRunner.Context {
         }
         func hold(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds * slowdown)) }
         switch clip {
-        default: // "hero", "spaces": a loop through every space and back to Studio.
+        default: // "hero", "spaces": a loop through every space and back to General.
             await hold(1.0)
             for digit in [2, 3, 4, 1] {
                 sidebar.showSpace(digit: digit)
@@ -577,18 +582,18 @@ extension SpikeRunner.Context {
         window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
         showBackdrop()
         _ = await waitUntil(15) { self.sidebar.debugPreparedSpaces == self.store.spaces.count }
-        guard let studio = showcaseSpace("Studio") else { return SpikeRunner.record("error", "needs -RoomSidebarFixture showcase") }
+        guard let general = showcaseSpace("General") else { return SpikeRunner.record("error", "needs -RoomSidebarFixture showcase") }
 
         // Warm-up: every page once, so favicons and caches are in place before the captures.
         for space in store.spaces {
             sidebar.showSpace(space.id, animated: false)
             let pages = store.entries.values.filter { $0.spaceID == space.id && ($0.storedURL ?? $0.liveURL) != nil }
-            for entry in pages + (space.id == studio.id ? store.essentials(profile: space.profileID) : []) {
+            for entry in pages + (space.id == general.id ? store.essentials(profile: space.profileID) : []) {
                 sidebar.select(entry.id)
                 if let page = tabs.current { await waitLoaded(page, timeout: 20) }
             }
         }
-        sidebar.showSpace(studio.id, animated: false)
+        sidebar.showSpace(general.id, animated: false)
         try? await Task.sleep(for: .seconds(2))
 
         if let clip = UserDefaults.standard.string(forKey: "RoomShowcaseRecord") {
@@ -602,10 +607,11 @@ extension SpikeRunner.Context {
             NSApp.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
             restorePaletteHooks()
             switch stage {
-            case "sidebar", "hero": await showcaseShow("la-grande-jatte")
+            case "hero": await showcaseShow("la-grande-jatte")
+            case "sidebar": await showcaseShow("ccmagazine")
             case "peek": await showcaseShow("garden-history", scrollY: 900)
-            case "split": await showcaseShow("human-interface-guidelines")
-            default: await showcaseShow("Risograph")
+            case "split": await showcaseShow("teenage.engineering")
+            default: await showcaseShow("drinkghia")
             }
             try? await Task.sleep(for: .seconds(1))
             SpikeRunner.record("ready", stage)
@@ -617,10 +623,10 @@ extension SpikeRunner.Context {
             case "hero":
                 await showcaseShow("la-grande-jatte", scrollY: 0)
             case "sidebar":
-                await showcaseShow("cosmos.so")
+                await showcaseShow("ccmagazine")
             case "spaces":
                 // A second space in its own colours, the footer's space icons hovered.
-                await showcaseShow("Curonian_Spit")
+                await showcaseShow("welltraveledclub")
                 if let reading = showcaseSpace("Reading") {
                     sidebar.debugHoverSpaceIcon(reading.id)
                     try? await Task.sleep(for: .milliseconds(600))
@@ -629,12 +635,12 @@ extension SpikeRunner.Context {
                 }
                 continue
             case "palette":
-                await showcaseShow("Risograph")
+                await showcaseShow("drinkghia")
                 restorePaletteHooks()
                 palette?.toggleNew()
                 try? await Task.sleep(for: .milliseconds(400))
                 SpikeRunner.record("palette_open", "\(palette?.isOpen ?? false) app active \(NSApp.isActive) key \(window.isKeyWindow)")
-                type("pal")
+                type("maga")
                 try? await Task.sleep(for: .milliseconds(1_200))
                 await showcaseCapture("palette")
                 palette?.dismiss()
@@ -652,8 +658,8 @@ extension SpikeRunner.Context {
                 }
                 continue
             case "split":
-                if let a = showcaseEntry("human-interface-guidelines"), let b = showcaseEntry("documentation/appkit") {
-                    await showcaseShow("human-interface-guidelines")
+                if let a = showcaseEntry("teenage.engineering"), let b = showcaseEntry("eraceramics") {
+                    await showcaseShow("teenage.engineering")
                     sidebar.joinIntoSplit(b.id, with: a.id)
                     if let other = tabs.contents(for: b.id) { await waitLoaded(other, timeout: 20); await tidy(other) }
                     try? await Task.sleep(for: .seconds(1))
@@ -662,7 +668,7 @@ extension SpikeRunner.Context {
                 }
                 continue
             case "reader":
-                if let page = await showcaseShow("fast_software"), let entry = tabs.currentEntryID {
+                if let page = await showcaseShow("richard-powers-music"), let entry = tabs.currentEntryID {
                     _ = page
                     pressReaderKey()
                     _ = await waitUntil(20) { self.tabs.readerContents(for: entry) != nil }
@@ -672,7 +678,7 @@ extension SpikeRunner.Context {
                 }
                 continue
             case "hidden":
-                await showcaseShow("macbook-pro")
+                await showcaseShow("mullervanseveren")
                 controller.isSidebarOpen = false
                 try? await Task.sleep(for: .milliseconds(800))
                 await showcaseCapture("hidden")
