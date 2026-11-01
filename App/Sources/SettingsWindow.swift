@@ -71,6 +71,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                 hosting.sizingOptions = []
                 controller = hosting
             }
+            // NSTabViewController titles the window with the pane's controller (5.12: "Untitled" after a click).
+            controller.title = section.title
             panes.append(controller)
             let item = NSTabViewItem(viewController: controller)
             item.label = section.title
