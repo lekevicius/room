@@ -79,6 +79,7 @@ extension TabController: WebContentsUIDelegate {
         guard let id = entryID(for: webContents) else { return }
         // Quitting: the entry stays as it is, unloaded (it restores at the next launch).
         if engine?.isTerminating == true {
+            dropThumbnail(id)
             pages.removeValue(forKey: id)?.generation += 1
             return
         }

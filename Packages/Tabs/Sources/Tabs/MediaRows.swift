@@ -71,6 +71,26 @@ extension TabController {
         setNeedsMediaRowUpdate()
     }
 
+    /// The sound stopped: the row keeps its audio glyph for `AudibleHold.duration`, then asks again
+    /// (a pause in speech or between tracks no longer blinks it off, 5.12).
+    func noteAudible(_ page: Page, entry: UUID) {
+        if page.contents.isAudible {
+            page.wasAudible = true
+            page.audibleHeldUntil = nil
+            return
+        }
+        guard page.wasAudible else { return }
+        page.wasAudible = false
+        let until = now().addingTimeInterval(AudibleHold.duration)
+        page.audibleHeldUntil = until
+        Task { @MainActor [weak self, weak page] in
+            try? await Task.sleep(for: .seconds(AudibleHold.duration))
+            guard let self, let page, page.audibleHeldUntil == until else { return }
+            page.audibleHeldUntil = nil
+            self.sidebar?.pageStateDidChange([entry])
+        }
+    }
+
     /// Chooses the row's page and hands its content to the sidebar.
     func updateMediaRow() {
         let candidates = pages.map { entry, page in
@@ -125,5 +145,15 @@ extension TabController {
         case .select:
             sidebar?.reveal(entry)
         }
+    }
+}
+
+/// The sidebar's audio glyph (5.12, the user on build 26: "too sensitive to small pauses"): shown
+/// while the page plays sound and for `duration` after it stops; sound again within it keeps it.
+public enum AudibleHold {
+    public static let duration: TimeInterval = 5
+
+    public static func isShown(audible: Bool, heldUntil: Date?, now: Date) -> Bool {
+        audible || heldUntil.map { now < $0 } ?? false
     }
 }

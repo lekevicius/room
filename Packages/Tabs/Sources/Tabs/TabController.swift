@@ -63,6 +63,9 @@ final class Page {
     var mediaWasPlaying = false
     var mediaHadSession = false
     var mediaStartedAt = 0
+    /// The row's audio glyph outlasts the sound until then (`AudibleHold`, 5.12).
+    var audibleHeldUntil: Date?
+    var wasAudible = false
 
     init(contents: any WebContents, profileID: UUID, lastVisible: Date) {
         self.contents = contents
@@ -133,6 +136,11 @@ public final class TabController: SidebarHost {
     @ObservationIgnored public weak var engine: (any EngineApplication)?
     /// The idle clock (tests inject one).
     @ObservationIgnored public var now: () -> Date = Date.init
+    /// The ⌃Tab switcher's pictures of the pages, each taken as its tab was left (`Thumbnails.swift`, 5.12).
+    @ObservationIgnored var thumbnails: [UUID: NSImage] = [:]
+    @ObservationIgnored var thumbnailOrder: [UUID] = []
+    /// A thumbnail arrived (the switcher, if it shows, redraws).
+    @ObservationIgnored public var onThumbnail: ((UUID) -> Void)?
 
     /// The engine profile (cookie jar) of each model profile, by
     /// `Model.Profile.id`: an entry's page is made in its profile's (ROADMAP
@@ -368,7 +376,8 @@ public final class TabController: SidebarHost {
         let capture = alive ? contents.captureState : []
         let indicator: EntryPageState.Capture? = capture.isSharingScreen ? .screen
             : capture.contains(.camera) ? .camera : capture.contains(.microphone) ? .microphone : nil
-        return EntryPageState(isLoaded: alive, isLoading: alive && contents.isLoading, isAudible: alive && contents.isAudible,
+        let audible = AudibleHold.isShown(audible: contents.isAudible, heldUntil: page.audibleHeldUntil, now: now())
+        return EntryPageState(isLoaded: alive, isLoading: alive && contents.isLoading, isAudible: alive && audible,
                               isMuted: contents.isMuted, favicon: page.favicon ?? storedFavicon(for: entry), capture: indicator,
                               isReader: readers[entry] != nil)
     }
@@ -377,7 +386,11 @@ public final class TabController: SidebarHost {
         if entry.id != currentEntryID {
             // Any tab switch ends the related-tab chain (Firefox).
             relatedChain = nil
-            if let previous = currentEntryID { pages[previous]?.lastVisible = now() }
+            if let previous = currentEntryID {
+                pages[previous]?.lastVisible = now()
+                // Asked while the page is still on screen: a hidden page draws no frames (B-119).
+                captureThumbnail(previous)
+            }
         }
         currentEntryID = entry.id
         if holdsSelectionUnloaded, engineProfiles[entry.profileID] != nil {
@@ -490,6 +503,7 @@ public final class TabController: SidebarHost {
 
     public func separate(_ entry: UUID, into newEntry: Entry) {
         if let reader = readers.removeValue(forKey: entry) { readers[newEntry.id] = reader }
+        dropThumbnail(entry)
         guard let page = pages.removeValue(forKey: entry) else { return }
         page.generation += 1
         pages[newEntry.id] = page
@@ -618,6 +632,7 @@ public final class TabController: SidebarHost {
     /// Takes `entry`'s page out of this window's pages and card (its
     /// observations stop); the page itself is not touched.
     private func removePage(_ entry: UUID) -> Page? {
+        dropThumbnail(entry)
         guard let page = pages.removeValue(forKey: entry) else { return nil }
         page.generation += 1
         if currentEntryID == entry {
@@ -852,6 +867,7 @@ public final class TabController: SidebarHost {
             }
         }
         noteMediaState(page)
+        noteAudible(page, entry: entry)
         if let url, let stored = store.sidebar.entry(entry) {
             let live = url.absoluteString
             // Keep the old title while a new load of the same page has none yet (no flicker).

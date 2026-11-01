@@ -63,6 +63,10 @@ public final class TabSwitcher {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(windowResignedKey(_:)),
                                                name: NSWindow.didResignKeyNotification, object: window)
+        tabs.onThumbnail = { [weak self] entry in
+            guard let self, self.panel != nil, self.state?.items.contains(entry) == true else { return }
+            self.update()
+        }
     }
 
     isolated deinit {
@@ -114,6 +118,8 @@ public final class TabSwitcher {
         let items = sidebar.recentEntries(limit: TabSwitcherMetrics.limit).map(\.id)
         guard items.count > 1 else { return }
         state = TabSwitcherState(items: items, backwards: backwards)
+        // The shown tab's picture, fresh (the others were taken as they were left).
+        if let current = sidebar.selectedEntryID { tabs?.captureThumbnail(current) }
         let work = DispatchWorkItem { [weak self] in self?.showPanel() }
         pendingShow = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Timing.tabSwitcherDelay, execute: work)
@@ -186,7 +192,7 @@ public final class TabSwitcher {
             guard let entry = sidebar.store.sidebar.entry(id) else { return nil }
             let page = tabs.pageState(for: id)
             return TabSwitcherPanel.Row(title: EntryLabel.title(entry), domain: EntryLabel.domain(entry.currentURL) ?? "",
-                                        favicon: page.favicon, isLoaded: page.isLoaded)
+                                        favicon: page.favicon, isLoaded: page.isLoaded, thumbnail: tabs.thumbnail(for: id))
         }
         panel.setRows(rows, highlighted: state.index)
         let size = panel.fittingSize
@@ -195,13 +201,15 @@ public final class TabSwitcher {
     }
 }
 
-/// The switcher's glass list.
+/// The switcher's glass panel: a card per tab, side by side (5.12, B-119): the page's picture
+/// (taken as its tab was left), its icon and title under it; the highlighted card in a pill.
 final class TabSwitcherPanel: NSView {
     struct Row {
         var title: String
         var domain: String
         var favicon: NSImage?
         var isLoaded: Bool
+        var thumbnail: NSImage? = nil
     }
 
     private let glass = NSGlassEffectView()
@@ -215,8 +223,9 @@ final class TabSwitcherPanel: NSView {
         glass.cornerRadius = Radius.large
         let content = NSView()
         content.addSubview(highlight)
-        stack.orientation = .vertical
-        stack.spacing = 0
+        stack.orientation = .horizontal
+        stack.spacing = TabSwitcherMetrics.cardGap
+        stack.alignment = .top
         stack.edgeInsets = NSEdgeInsets(top: TabSwitcherMetrics.padding, left: TabSwitcherMetrics.padding,
                                         bottom: TabSwitcherMetrics.padding, right: TabSwitcherMetrics.padding)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -226,9 +235,8 @@ final class TabSwitcherPanel: NSView {
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             stack.topAnchor.constraint(equalTo: content.topAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            stack.widthAnchor.constraint(equalToConstant: TabSwitcherMetrics.width),
         ])
-        // Reduce Transparency (5.3b): an opaque fill under the list.
+        // Reduce Transparency (5.3b): an opaque fill under the cards.
         SolidBackingView.install(in: content, cornerRadius: Radius.large)
         glass.contentView = content
         glass.translatesAutoresizingMaskIntoConstraints = false
@@ -249,7 +257,7 @@ final class TabSwitcherPanel: NSView {
     func setRows(_ rows: [Row], highlighted: Int) {
         self.highlighted = highlighted
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for row in rows { stack.addArrangedSubview(Self.rowView(row)) }
+        for row in rows { stack.addArrangedSubview(SwitcherCardView(row)) }
         needsLayout = true
     }
 
@@ -260,33 +268,70 @@ final class TabSwitcherPanel: NSView {
             highlight.isHidden = true
             return
         }
-        let row = stack.arrangedSubviews[highlighted]
-        highlight.frame = content.convert(row.bounds, from: row)
+        let card = stack.arrangedSubviews[highlighted]
+        highlight.frame = content.convert(card.bounds, from: card)
         highlight.isHidden = false
         highlight.needsDisplay = true
     }
+}
 
-    private static func rowView(_ row: Row) -> NSView {
-        let icon = FaviconView(frame: NSRect(x: 0, y: 0, width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize))
+/// One tab: its picture (or its icon, large, on a quiet fill when it has none yet), then icon and title.
+private final class SwitcherCardView: NSView {
+    init(_ row: TabSwitcherPanel.Row) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        let inset = TabSwitcherMetrics.cardPadding
+        let width = TabSwitcherMetrics.cardWidth
+        let picture = NSView()
+        picture.wantsLayer = true
+        picture.layer?.cornerRadius = TabSwitcherMetrics.thumbnailCorner
+        picture.layer?.cornerCurve = .continuous
+        picture.layer?.masksToBounds = true
+        picture.layer?.borderWidth = 1
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            picture.layer?.borderColor = Palette.hairline.cgColor
+            picture.layer?.backgroundColor = Palette.sidebarHover.cgColor
+        }
+        picture.frame = NSRect(x: inset, y: inset + TabSwitcherMetrics.titleHeight, width: width, height: TabSwitcherMetrics.thumbnailHeight)
+        if let thumbnail = row.thumbnail {
+            picture.layer?.contents = thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            picture.layer?.contentsGravity = .resizeAspectFill
+        } else {
+            let icon = FaviconView(frame: NSRect(x: (width - SidebarMetrics.faviconSize * 2) / 2,
+                                                 y: (TabSwitcherMetrics.thumbnailHeight - SidebarMetrics.faviconSize * 2) / 2,
+                                                 width: SidebarMetrics.faviconSize * 2, height: SidebarMetrics.faviconSize * 2))
+            icon.image = row.favicon
+            icon.letterSource = row.domain
+            icon.isUnloaded = !row.isLoaded
+            picture.addSubview(icon)
+        }
+        addSubview(picture)
+        let icon = FaviconView(frame: NSRect(x: inset, y: inset + (TabSwitcherMetrics.titleHeight - SidebarMetrics.faviconSize) / 2,
+                                             width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize))
         icon.image = row.favicon
         icon.letterSource = row.domain
         icon.isUnloaded = !row.isLoaded
+        addSubview(icon)
         let title = NSTextField(labelWithString: row.title)
         title.font = Typography.row
         title.lineBreakMode = .byTruncatingTail
-        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let line = NSStackView(views: [icon, title])
-        line.spacing = SidebarMetrics.faviconTitleGap
-        line.edgeInsets = NSEdgeInsets(top: 0, left: SidebarMetrics.rowContentInset, bottom: 0, right: SidebarMetrics.rowContentInset)
-        line.translatesAutoresizingMaskIntoConstraints = false
+        title.textColor = row.isLoaded ? .labelColor : .secondaryLabelColor
+        let titleHeight = ceil(title.cell?.cellSize.height ?? 16)
+        let x = icon.frame.maxX + SidebarMetrics.faviconTitleGap
+        title.frame = NSRect(x: x, y: inset + ((TabSwitcherMetrics.titleHeight - titleHeight) / 2).rounded(),
+                             width: inset + width - x, height: titleHeight)
+        addSubview(title)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(row.title)
         NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: SidebarMetrics.faviconSize),
-            icon.heightAnchor.constraint(equalToConstant: SidebarMetrics.faviconSize),
-            line.heightAnchor.constraint(equalToConstant: TabSwitcherMetrics.rowHeight),
-            line.widthAnchor.constraint(equalToConstant: TabSwitcherMetrics.width - 2 * TabSwitcherMetrics.padding),
+            widthAnchor.constraint(equalToConstant: width + 2 * inset),
+            heightAnchor.constraint(equalToConstant: TabSwitcherMetrics.thumbnailHeight + TabSwitcherMetrics.titleHeight + 2 * inset),
         ])
-        return line
     }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
 /// The highlighted row's pill (drawn, so captures show it too).

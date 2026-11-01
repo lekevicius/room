@@ -25,6 +25,30 @@ struct MediaRowTests {
                 "a silent page without a session")
     }
 
+    @Test("The audio glyph outlasts the sound by 5 s (5.12: it blinked off in pauses)")
+    func audibleHold() async throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        #expect(AudibleHold.isShown(audible: true, heldUntil: nil, now: start))
+        #expect(AudibleHold.isShown(audible: false, heldUntil: start.addingTimeInterval(5), now: start.addingTimeInterval(4.9)))
+        #expect(!AudibleHold.isShown(audible: false, heldUntil: start.addingTimeInterval(5), now: start.addingTimeInterval(5)))
+        #expect(!AudibleHold.isShown(audible: false, heldUntil: nil, now: start))
+
+        let f = try TabssFixture()
+        let music = try f.fixture.today("https://music.example/", title: "Music")
+        try f.fixture.select(music.id)
+        var clock = start
+        f.fixture.tabs.now = { clock }
+        let page = try #require(f.fixture.page(music.id))
+        page.simulateAudio(true)
+        await f.fixture.settle()
+        page.simulateAudio(false)
+        await f.fixture.settle()
+        clock = start.addingTimeInterval(4)
+        #expect(f.fixture.tabs.pageState(for: music.id).isAudible, "held through a pause")
+        clock = start.addingTimeInterval(5.5)
+        #expect(!f.fixture.tabs.pageState(for: music.id).isAudible, "gone after 5 s of silence")
+    }
+
     @Test("× hides the row until a session starts after it")
     func dismissal() {
         typealias C = MediaRowRule.Candidate
