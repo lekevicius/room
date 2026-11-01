@@ -45,13 +45,42 @@ final class FolderPreviewController: NSViewController, NSSearchFieldDelegate {
                      onOpen: @escaping (UUID) -> Void) -> NSPopover {
         let controller = FolderPreviewController(folderName: folderName, items: items, onOpen: onOpen)
         let popover = NSPopover()
-        popover.behavior = .transient
+        // Closed by Room, not AppKit (5.11, the user on build 25): a transient popover swallows the press
+        // that closes it, so the first click on the folder (to open or close it) only dismissed the preview.
+        popover.behavior = .applicationDefined
         popover.animates = SidebarMotion.folderPreview.animates
         popover.contentViewController = controller
         controller.popover = popover
         popover.show(relativeTo: rect, of: view, preferredEdge: .maxX)
         controller.view.window?.makeFirstResponder(controller.searchField)
+        controller.closeOnPressOutside()
         return popover
+    }
+
+    private var pressMonitor: Any?
+    private var observers: [NSObjectProtocol] = []
+
+    /// A press anywhere but the preview closes it and goes on to what it pressed; so does Room going
+    /// to the background.
+    private func closeOnPressOutside() {
+        pressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            if let self, let popover = self.popover, event.window !== self.view.window { popover.performClose(nil) }
+            return event
+        }
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.popover?.performClose(nil) }
+        })
+        observers.append(center.addObserver(forName: NSPopover.didCloseNotification, object: popover, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.stopWatching() }
+        })
+    }
+
+    private func stopWatching() {
+        if let pressMonitor { NSEvent.removeMonitor(pressMonitor) }
+        pressMonitor = nil
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
     }
 
     override func loadView() {
@@ -129,7 +158,7 @@ final class FolderPreviewController: NSViewController, NSSearchFieldDelegate {
     private func open(_ index: Int) {
         guard matches.indices.contains(index) else { return }
         let id = matches[index].id
-        popover?.close()
+        popover?.performClose(nil)
         onOpen(id)
     }
 
@@ -141,7 +170,7 @@ final class FolderPreviewController: NSViewController, NSSearchFieldDelegate {
             open(highlighted)
             return true
         case #selector(NSResponder.cancelOperation(_:)):
-            popover?.close()
+            popover?.performClose(nil)
             return true
         case #selector(NSResponder.moveDown(_:)):
             highlighted = min(highlighted + 1, max(0, matches.count - 1))

@@ -107,6 +107,14 @@ final class SidebarOutlineView: NSOutlineView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// A click while one of the window's own popovers has the keyboard (the folder preview's search
+    /// field) acts at once: AppKit otherwise spends it making the window key again (5.11, the user on
+    /// build 25: the first click on a folder only dismissed its preview). A window of the app that is
+    /// not this one's (Settings) or another app keeps AppKit's first click.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        window?.isMainWindow == true || super.acceptsFirstMouse(for: event)
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if row(at: point) < 0 {
