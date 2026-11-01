@@ -15,6 +15,7 @@ import UIKitCore
 /// - `extmenu`: the fixture extension's item in the extensions menu has its icon; the menu captured open;
 /// - `picker`: Change Icon…'s picker (every emoji, the symbols) captured; an emoji typed in its field sets it;
 /// - `folder`: the folder preview's rows have their pages' favicons;
+/// - `press`: a press on Reload held through AppKit's tracking: the button's pressed state and its scale animation;
 /// - `shots`: the selected split row (no divider), the palette's glass, the address field.
 /// `-RoomSpikeCaptureDirectory` keeps captures named `phase-5.12-<name>-<appearance>.png`.
 extension SpikeRunner.Context {
@@ -35,6 +36,7 @@ extension SpikeRunner.Context {
         if runs("extmenu") { await f512ExtensionMenu() }
         if runs("picker") { await f512Picker() }
         if runs("folder") { await f512Folder() }
+        if runs("press") { await f512Press() }
         if runs("shots") { await f512Shots() }
         controller.isSidebarOpen = true
     }
@@ -200,6 +202,29 @@ extension SpikeRunner.Context {
         SpikeRunner.record("folder_favicons", "rows_with_favicon=\(favicons)")
         if let preview = sidebar.debugFolderPreviewWindow { f512Capture("folder", of: preview) }
         sidebar.debugFolderPreviewWindow?.close()
+    }
+
+    // MARK: press
+
+    private func f512Press() async {
+        guard await open(URL(string: Self.f512Base + "find.html?press")!) != nil,
+              let reload = Self.f512View(in: controller.rootView, identifier: "nav-reload") as? HoverButton else {
+            return SpikeRunner.record("error", "press: no page or button")
+        }
+        let point = controller.rootView.convert(NSPoint(x: reload.bounds.midX, y: reload.bounds.midY), from: reload)
+        var highlighted = false
+        let original = reload.cell?.isHighlighted ?? false
+        post(.mouseMoved, at: point)
+        post(.leftMouseDown, at: point, clickCount: 1)
+        try? await Task.sleep(for: .milliseconds(120))
+        let pressed = reload.feedback.isPressed
+        highlighted = reload.cell?.isHighlighted ?? false
+        let keys = reload.layer?.animationKeys() ?? []
+        let scale = reload.layer?.presentation()?.transform.m11 ?? 1
+        post(.leftMouseUp, at: point, clickCount: 1)
+        try? await Task.sleep(for: .milliseconds(400))
+        SpikeRunner.record("press", "during: pressed=\(pressed) cell_highlighted=\(highlighted) (before \(original)) animations=\(keys) "
+            + String(format: "scale=%.3f", scale) + " | after: pressed=\(reload.feedback.isPressed) cell_highlighted=\(reload.cell?.isHighlighted ?? false)")
     }
 
     // MARK: shots

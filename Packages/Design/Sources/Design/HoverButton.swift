@@ -93,6 +93,13 @@ open class HoverButton: NSButton {
         feedback.setPressed(flag)
     }
 
+    /// macOS 27's tracking highlights the cell and never calls `highlight(_:)` (5.12: the press's
+    /// scale never ran, the user on build 26): the cell reports it.
+    open override class var cellClass: AnyClass? {
+        get { HoverButtonCell.self }
+        set {}
+    }
+
     open override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
@@ -111,5 +118,28 @@ open class HoverButton: NSButton {
     open override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         feedback.appearanceChanged()
+    }
+}
+
+/// `HoverButton`'s cell: its highlight is the press (`ControlFeedback`).
+final class HoverButtonCell: NSButtonCell {
+    override var isHighlighted: Bool {
+        didSet { report() }
+    }
+
+    override func highlight(_ flag: Bool, withFrame cellFrame: NSRect, in controlView: NSView) {
+        super.highlight(flag, withFrame: cellFrame, in: controlView)
+        report()
+    }
+
+    /// The tracking loop's end (mouse up) may leave the highlight without either setter.
+    override func stopTracking(last lastPoint: NSPoint, current stopPoint: NSPoint, in controlView: NSView, mouseIsUp flag: Bool) {
+        super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
+        MainActor.assumeIsolated { (controlView as? HoverButton)?.feedback.setPressed(false) }
+    }
+
+    private func report() {
+        let pressed = isHighlighted
+        MainActor.assumeIsolated { (controlView as? HoverButton)?.feedback.setPressed(pressed) }
     }
 }
