@@ -6,6 +6,10 @@ public enum WindowMotion: String, CaseIterable, Sendable {
     /// The hidden sidebar slides in over the page (`Motion.revealIn`, ease-out) and out
     /// (`Motion.revealOut`, ease-in) after `Timing.revealDwell` in the edge band (B-114).
     case reveal
+    /// ⌘S docks the sidebar or hides it (5.11, the user on build 25: "very fast animation, not just
+    /// appear"): it slides in from the window's edge as the card narrows beside it, or out as the card
+    /// widens (`Motion.dock`, ease-in-out); under Reduce Motion the card moves at once and the sidebar fades.
+    case dock
     /// The traffic lights fade in with the reveal's slide and out with it (B-114); quickly on ⌘S.
     case trafficLights
     /// A space's tint crossfades on a switch (`Motion.medium`, ease-in-out).
@@ -16,7 +20,7 @@ public enum WindowMotion: String, CaseIterable, Sendable {
     /// The variant under Reduce Motion: the slide becomes a fade; the fades stay fades.
     public var reduced: MotionVariant {
         switch self {
-        case .reveal, .trafficLights, .spaceTint, .windowActivity: .crossfade
+        case .reveal, .dock, .trafficLights, .spaceTint, .windowActivity: .crossfade
         }
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 
 /// Liquid Glass under a sidebar control (5.10, the Room Browser design's "Liquid Glass - Small",
 /// Figma 67:2115): the address field, the selected row's pill and the selected Essential.
@@ -10,6 +11,9 @@ public final class GlassPillView: NSView {
     private let solid = CALayer()
     /// Over the glass while the pointer is on the control (the rows' hover fill).
     private let highlight = CALayer()
+    /// The selected Essential's favicon, blurred, inside the pill (5.11: `FaviconGlow`).
+    private let glowClip = CALayer()
+    private let glowLayer = CALayer()
 
     /// The control under the pointer: the glass deepens by the rows' hover fill.
     public var isHighlighted = false {
@@ -23,12 +27,18 @@ public final class GlassPillView: NSView {
         }
     }
 
-    /// A colour the glass is tinted with (the selected Essential's favicon colour); `nil`: clear glass.
-    public var tint: NSColor? {
+    /// A blurred favicon over the glass (`FaviconGlow.image`), centred on `glowCenter` (the view's
+    /// coordinates); `nil`: clear glass.
+    public var glow: CGImage? {
         didSet {
-            glass.tintColor = tint?.withAlphaComponent(GlassMetrics.tintAlpha)
-            needsDisplay = true
+            glowLayer.contents = glow
+            glowClip.isHidden = glow == nil
+            needsLayout = true
         }
+    }
+
+    public var glowCenter: CGPoint? {
+        didSet { needsLayout = true }
     }
 
     public override init(frame: NSRect) {
@@ -42,6 +52,12 @@ public final class GlassPillView: NSView {
         glass.autoresizingMask = [.width, .height]
         addSubview(glass)
         layer?.addSublayer(solid)
+        for glowPart in [glowClip, glowLayer] { glowPart.actions = CALayer.noImplicitActions }
+        glowClip.masksToBounds = true
+        glowClip.isHidden = true
+        glowLayer.opacity = Float(GlassMetrics.glowAlpha)
+        glowClip.addSublayer(glowLayer)
+        layer?.addSublayer(glowClip)
         highlight.actions = CALayer.noImplicitActions
         layer?.addSublayer(highlight)
         setAccessibilityElement(false)
@@ -64,8 +80,8 @@ public final class GlassPillView: NSView {
     }
 
     public override func updateLayer() {
-        solid.backgroundColor = (tint.map { FaviconTint.fill($0, dark: effectiveAppearance.isDark) } ?? Palette.sidebarSelection).cgColor
-        for overlay in [solid, highlight] {
+        solid.backgroundColor = Palette.sidebarSelection.cgColor
+        for overlay in [solid, glowClip, highlight] {
             overlay.frame = bounds
             overlay.cornerRadius = cornerRadius
             overlay.cornerCurve = .continuous
@@ -77,6 +93,9 @@ public final class GlassPillView: NSView {
         super.layout()
         solid.frame = bounds
         highlight.frame = bounds
+        glowClip.frame = bounds
+        let center = glowCenter ?? CGPoint(x: bounds.midX, y: bounds.midY)
+        glowLayer.frame = FaviconGlow.frame(centeredOn: center)
     }
 }
 
@@ -84,57 +103,67 @@ public final class GlassPillView: NSView {
 public enum GlassMetrics {
     /// The design's Liquid Glass - Small at the rows' pill corner.
     public static let cornerRadius: CGFloat = SidebarMetrics.pillCornerRadius
-    /// The selected Essential's glass tinted with its favicon's colour at this alpha (the design's
-    /// tile reads #F8CECE over a #DE5A5A favicon: about a quarter of it over white).
-    public static let tintAlpha: CGFloat = 0.25
-    /// The selected row's glow: its favicon's colour, blurred behind the favicon (the design: a
-    /// 48 pt square blurred 32 pt at 40%, clipped to the pill's first 114 pt).
-    public static let glowAlpha: CGFloat = 0.4
-    public static let glowDiameter: CGFloat = 112
+    /// The selected row's and Essential's glow: the favicon itself, blurred behind it (the design: a
+    /// 48 pt square blurred 32 pt, clipped to the pill). 5.11 (the user on build 25: one flat colour,
+    /// "way too intense, a third of that is enough"): the favicon's own pixels, at 40 % / 3.
+    public static let glowAlpha: CGFloat = 0.4 / 3
+    public static let glowSourceSize: CGFloat = 48
+    /// Figma's layer blur is twice the Gaussian's deviation.
+    public static let glowBlurSigma: CGFloat = 16
+    /// The rendered glow's side: the source and three deviations of its fall-off on each side.
+    public static let glowDiameter: CGFloat = 144
 }
 
-/// A favicon's colour for the selected tab's glow and the selected Essential's tint (5.10): the
-/// average of its opaque, saturated pixels, so a white or black background does not wash it out.
-/// `nil` for an icon without colour (a monochrome glyph), which then shows clear glass.
-public enum FaviconTint {
-    private static let cache = NSMapTable<NSImage, NSColor>.weakToStrongObjects()
+/// A favicon blurred into a glow (5.11): the selected row's and the selected Essential's, the
+/// design's "48 pt square blurred 32 pt" drawn from the favicon's own pixels (or, for a page without
+/// one, its letter tile's colour). Rendered once per image at 2× and cached.
+public enum FaviconGlow {
+    private static let byImage = NSMapTable<NSImage, CGImage>.weakToStrongObjects()
+    private static var byColor: [String: CGImage] = [:]
+    nonisolated(unsafe) private static let context = CIContext(options: [.useSoftwareRenderer: false])
 
-    @MainActor public static func color(of image: NSImage?) -> NSColor? {
-        guard let image else { return nil }
-        if let cached = cache.object(forKey: image) { return cached == .clear ? nil : cached }
-        let color = image.cgImage(forProposedRect: nil, context: nil, hints: nil).flatMap(average)
-        cache.setObject(color ?? .clear, forKey: image)
-        return color
-    }
-
-    /// The saturation-weighted average of `image` drawn at 16 × 16 (pure, unit-tested).
-    public static func average(_ image: CGImage) -> NSColor? {
-        let side = 16
-        var pixels = [UInt8](repeating: 0, count: side * side * 4)
-        guard let context = CGContext(data: &pixels, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
-                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        context.interpolationQuality = .medium
-        context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-        var red = 0.0, green = 0.0, blue = 0.0, weight = 0.0
-        for index in stride(from: 0, to: pixels.count, by: 4) {
-            let alpha = Double(pixels[index + 3]) / 255
-            guard alpha > 0.5 else { continue }
-            let r = Double(pixels[index]) / 255 / alpha, g = Double(pixels[index + 1]) / 255 / alpha, b = Double(pixels[index + 2]) / 255 / alpha
-            let high = max(r, g, b), low = min(r, g, b)
-            let saturation = high > 0 ? (high - low) / high : 0
-            // Saturated pixels count; near-greys (white backgrounds, black outlines) barely do.
-            let w = alpha * saturation * saturation
-            red += r * w; green += g * w; blue += b * w; weight += w
+    /// The glow of `icon`, else of a square of `color`; `nil` with neither.
+    @MainActor public static func image(of icon: NSImage?, color: NSColor?) -> CGImage? {
+        if let icon {
+            if let cached = byImage.object(forKey: icon) { return cached }
+            let rendered = render { context, rect in
+                guard let image = icon.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+                context.interpolationQuality = .medium
+                context.draw(image, in: rect)
+            }
+            if let rendered { byImage.setObject(rendered, forKey: icon) }
+            return rendered
         }
-        guard weight > 0.5 else { return nil }
-        return NSColor(srgbRed: red / weight, green: green / weight, blue: blue / weight, alpha: 1)
+        guard let color = color?.usingColorSpace(.sRGB) else { return nil }
+        let key = String(format: "%.3f %.3f %.3f", color.redComponent, color.greenComponent, color.blueComponent)
+        if let cached = byColor[key] { return cached }
+        let rendered = render { context, rect in
+            context.setFillColor(color.cgColor)
+            context.fill(rect)
+        }
+        byColor[key] = rendered
+        return rendered
     }
 
-    /// The selected Essential's solid fill under Reduce Transparency: `tint` over the selection's white
-    /// (or dark grey) at `GlassMetrics.tintAlpha`.
-    public static func fill(_ tint: NSColor, dark: Bool) -> NSColor {
-        let base = dark ? NSColor(white: 0.25, alpha: 1) : NSColor.white  // design-audit: the selection's own white / dark grey under the tint
-        return base.blended(withFraction: GlassMetrics.tintAlpha, of: tint) ?? base
+    /// Where a glow centred on `center` goes (its side `GlassMetrics.glowDiameter`).
+    public static func frame(centeredOn center: CGPoint) -> CGRect {
+        let side = GlassMetrics.glowDiameter
+        return CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
+    }
+
+    /// `draw` fills the source square of a transparent canvas; the canvas comes back blurred (pure).
+    public static func render(_ draw: (CGContext, CGRect) -> Void) -> CGImage? {
+        let scale: CGFloat = 2
+        let side = Int(GlassMetrics.glowDiameter * scale)
+        guard let canvas = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let source = GlassMetrics.glowSourceSize * scale
+        let origin = (CGFloat(side) - source) / 2
+        draw(canvas, CGRect(x: origin, y: origin, width: source, height: source))
+        guard let sharp = canvas.makeImage() else { return nil }
+        let extent = CGRect(x: 0, y: 0, width: side, height: side)
+        let blurred = CIImage(cgImage: sharp).applyingGaussianBlur(sigma: GlassMetrics.glowBlurSigma * scale).cropped(to: extent)
+        return context.createCGImage(blurred, from: extent)
     }
 }

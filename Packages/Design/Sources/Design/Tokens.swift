@@ -109,6 +109,10 @@ public enum SidebarMetrics {
     public static let pillCornerRadius: CGFloat = Radius.large
     /// Width of the fade that ends a title too long for its row (the design: 12 pt, no ellipsis).
     public static let titleFadeWidth: CGFloat = 12
+    /// Today's Clear as a ghost pill (5.11): its height and the padding beside its title (chosen,
+    /// the address field's buttons' hover at a text's size).
+    public static let clearPillHeight: CGFloat = 20
+    public static let clearPillPadding: CGFloat = 6
     /// Gap between the sidebar edges and the selection pill / hover background.
     public static let rowHorizontalInset: CGFloat = Spacing.s
     /// Gap between the pill's leading edge and the favicon.
@@ -232,12 +236,19 @@ public enum SpaceFormMetrics {
     public static let previewFadeAlpha: CGFloat = 0.4
     /// Change Icon…'s popover for an entry or a folder (5.6a): the picker's six columns and its padding.
     public static let iconPopoverWidth: CGFloat = 6 * iconCell + 5 * 4 + 2 * padding + 24
+    /// The space window's header (5.11): the space's icon as a tile beside its name, as System
+    /// Settings' Focus and Contacts show theirs; the glyph's size in it, and the theme's wash.
+    public static let headerIcon: CGFloat = 52
+    public static let headerGlyph: CGFloat = 24
+    public static let headerTileCorner: CGFloat = Radius.large
+    public static let headerWashAlpha: CGFloat = 0.35
 }
 
 /// The space window (5.7b, B-122): its size, fitted inside the display's visible frame.
 public enum SpaceWindowMetrics {
-    public static let width: CGFloat = 420
-    public static let height: CGFloat = 640
+    /// 5.11: a grouped form (System Settings' layout) wants a wider column than 5.7b's 420.
+    public static let width: CGFloat = 480
+    public static let height: CGFloat = 600
     /// The least height it shrinks to on a small display (the sections scroll).
     public static let minHeight: CGFloat = 360
     /// The gap kept to the visible frame's edges.
@@ -498,6 +509,8 @@ public enum Motion {
     /// B-114: shortened with the dwell; 5.10: 180 → 140 ms, "more quickly"), and out over `revealOut`, ease-in.
     public static let revealIn: TimeInterval = 0.14
     public static let revealOut: TimeInterval = 0.15
+    /// ⌘S's slide of the docked sidebar, in and out (5.11: "very fast", chosen beside `revealIn`).
+    public static let dock: TimeInterval = 0.18
 
     /// A spring described like SwiftUI's `Spring(duration:bounce:)`.
     public struct Spring: Sendable, Equatable {
@@ -708,8 +721,10 @@ public enum PaletteMetrics {
     public static let deleteButtonSize: CGFloat = 18
     /// The panel's shadow (5.10, the user on build 24: "much stronger"; the glass's own read as
     /// none over a white page): a deep, soft drop, darker in dark mode (chosen, Spotlight's depth).
+    /// The panel's view is flipped, and so its layer: a positive height falls below it (5.11, the
+    /// user on build 25: -12 cast it upward).
     public static let shadowRadius: CGFloat = 24
-    public static let shadowOffset = CGSize(width: 0, height: -12)
+    public static let shadowOffset = CGSize(width: 0, height: 12)
     public static let shadowOpacityLight: Float = 0.3
     public static let shadowOpacityDark: Float = 0.6
 }
@@ -801,8 +816,9 @@ public enum SplitMetrics {
     /// border and shadow) with this gap between them: the card's inset from the window.
     public static let paneGap: CGFloat = CardMetrics.inset
     /// The resizer's hit area, centred in the gap (spec §D: 7 px around a 1 px line;
-    /// B-113: the gap and a point either side).
-    public static let resizerHitWidth: CGFloat = paneGap + 2
+    /// B-113: the gap and a point either side; 5.11: the gap alone, since a point inside a page
+    /// let the page's cursor take over the resizer's).
+    public static let resizerHitWidth: CGFloat = paneGap
     /// No pane gets smaller than this share of the split along the dragged
     /// axis (Zen `min-resize-width`: 7 percent) …
     public static let minimumPaneFraction: CGFloat = 0.07

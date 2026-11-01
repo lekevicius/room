@@ -303,7 +303,7 @@ final class EssentialTileView: PressableView {
     /// The page's title leads with an unread counter (spec §I.3): the tile's top-left corner.
     private let unreadDot = UnreadDotView()
     private let multiSelectionLayer = CALayer()
-    /// The selected tile's Liquid Glass, tinted with its favicon's colour (5.10, the Room Browser design).
+    /// The selected tile's Liquid Glass with its favicon's glow (5.10, the Room Browser design; 5.11 the blur).
     private let glass = GlassPillView()
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
@@ -367,9 +367,8 @@ final class EssentialTileView: PressableView {
         favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
         favicon.isUnloaded = !page.isLoaded
         glass.isHidden = !isSelected
-        if isSelected {
-            glass.tint = EntryCellView.iconColor(EntryRowModel(entry: entry, page: page, isSelected: true, isChanged: isChanged, depth: 0))
-        }
+        // 5.11: the favicon blurred inside the glass, in place of one averaged colour's tint.
+        glass.glow = isSelected ? EntryCellView.glowImage(EntryRowModel(entry: entry, page: page, isSelected: true, isChanged: isChanged, depth: 0)) : nil
         let unread = EntryLabel.hasUnread(entry, isLoaded: page.isLoaded)
         unreadDot.isHidden = !unread
         favicon.isLoading = page.isLoading
@@ -433,6 +432,7 @@ final class EssentialTileView: PressableView {
         let icon = NSRect(x: ((bounds.width - size) / 2).rounded(), y: ((bounds.height - size) / 2).rounded(), width: size, height: size)
         favicon.frame = icon
         glass.frame = bounds
+        glass.glowCenter = CGPoint(x: icon.midX, y: icon.midY)
         resetButton.frame = icon.insetBy(dx: -Spacing.xs, dy: -Spacing.xs)
         let dotSize = SidebarMetrics.changedDotSize, mark = ChangedMark.style().size
         let inset = SidebarMetrics.tileBadgeInset, badge = SidebarMetrics.tileBadgeSize

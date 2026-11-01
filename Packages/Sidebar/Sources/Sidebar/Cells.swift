@@ -105,10 +105,11 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let readerIndicator = NSImageView()
     /// The page's title leads with an unread counter ("(3) Inbox", spec §I.3).
     private let unreadDot = UnreadDotView()
-    /// The selected row's glow (5.10, the Room Browser design): its favicon's colour, soft, behind
-    /// the favicon, inside the pill's corner. The clip is the pill; the glow a radial gradient.
+    /// The selected row's glow (5.10, the Room Browser design): its favicon blurred behind the
+    /// favicon, inside the pill's corner (5.11: the favicon's own pixels, `FaviconGlow`, in place of
+    /// one averaged colour). The clip is the pill.
     private let glowClip = CALayer()
-    private let glow = CAGradientLayer()
+    private let glow = CALayer()
 
     /// A folder with a custom icon shows it in the favicon's place.
     private var showsCustomFolderIcon: Bool {
@@ -173,27 +174,25 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         glowClip.cornerCurve = .continuous
         glowClip.isHidden = true
         glow.actions = CALayer.noImplicitActions
-        glow.type = .radial
-        glow.startPoint = CGPoint(x: 0.5, y: 0.5)
-        glow.endPoint = CGPoint(x: 1, y: 1)
+        glow.opacity = Float(GlassMetrics.glowAlpha)
         glowClip.addSublayer(glow)
         layer?.insertSublayer(glowClip, at: 0)
     }
 
-    /// The colour of what the favicon square shows: the favicon's, else its letter tile's (no custom icon's).
-    static func iconColor(_ model: EntryRowModel) -> NSColor? {
-        if model.page.favicon != nil { return FaviconTint.color(of: model.page.favicon) }
+    /// The glow of what the favicon square shows: the favicon blurred, else its letter tile's colour
+    /// (no custom icon's).
+    static func glowImage(_ model: EntryRowModel) -> CGImage? {
+        if let favicon = model.page.favicon { return FaviconGlow.image(of: favicon, color: nil) }
         guard SpaceIcon(model.entry.customIcon) == .none else { return nil }
-        return Palette.letterTileColor(for: EntryLabel.domain(model.entry.currentURL) ?? EntryLabel.title(model.entry))
+        return FaviconGlow.image(of: nil, color: Palette.letterTileColor(for: EntryLabel.domain(model.entry.currentURL) ?? EntryLabel.title(model.entry)))
     }
 
-    /// The glow shows on the selected row whose favicon has a colour (`FaviconTint`).
+    /// The glow shows on the selected row (not a folder's).
     private func updateGlow() {
-        let color = model.flatMap { $0.isSelected && $0.entry.kind != .folder ? Self.iconColor($0) : nil }
-        glowClip.isHidden = color == nil
-        guard let color else { return }
-        glow.colors = [color.withAlphaComponent(GlassMetrics.glowAlpha).cgColor, color.withAlphaComponent(0).cgColor]
-        needsLayout = true
+        let image = model.flatMap { $0.isSelected && $0.entry.kind != .folder ? Self.glowImage($0) : nil }
+        glowClip.isHidden = image == nil
+        glow.contents = image
+        if image != nil { needsLayout = true }
     }
 
     @available(*, unavailable)
@@ -346,8 +345,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             // The favicon is centred vertically, so the glow's centre holds whichever way the layer is flipped.
             let pill = SidebarRowView.pillRect(in: bounds)
             glowClip.frame = pill
-            let diameter = GlassMetrics.glowDiameter
-            glow.frame = CGRect(x: icon.midX - pill.minX - diameter / 2, y: icon.midY - pill.minY - diameter / 2, width: diameter, height: diameter)
+            glow.frame = FaviconGlow.frame(centeredOn: CGPoint(x: icon.midX - pill.minX, y: icon.midY - pill.minY))
         }
         // The folder glyph is wider than a favicon (B-115), centred where the favicon's centre is.
         let glyph = SidebarMetrics.folderGlyphSize
@@ -741,7 +739,7 @@ final class SeparatorCellView: NSTableCellView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         identifier = Self.identifier
-        clearButton.isBordered = false
+        clearButton.imagePosition = .noImage
         clearButton.font = Typography.sidebarSecondary
         clearButton.contentTintColor = Palette.sidebarSecondaryLabel
         clearButton.setAccessibilityIdentifier("clear-today")
@@ -795,16 +793,19 @@ final class SeparatorCellView: NSTableCellView {
     private func lineFrame(clearShown: Bool) -> NSRect {
         let inset = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset
         let trailing = bounds.width - inset
-        let lineEnd = clearShown && !clearButton.isHidden ? clearButton.frame.minX - Spacing.s : trailing
+        let lineEnd = clearShown && !clearButton.isHidden ? clearButton.frame.minX - Spacing.xs : trailing
         return NSRect(x: inset, y: (bounds.height / 2).rounded(), width: max(0, lineEnd - inset), height: line.thickness)
     }
 
     override func layout() {
         super.layout()
         let inset = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset
-        let buttonWidth = clearButton.isHidden ? 0 : ceil(clearButton.fittingSize.width)
+        let titleWidth = clearButton.isHidden ? 0 : ceil(clearButton.attributedTitle.size().width)
         let trailing = bounds.width - inset
-        clearButton.frame = NSRect(x: trailing - buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
+        // The pill reaches its padding past the title, whose end stays at the row's content edge.
+        let pad = SidebarMetrics.clearPillPadding, height = min(bounds.height, SidebarMetrics.clearPillHeight)
+        clearButton.frame = NSRect(x: trailing - titleWidth - pad, y: ((bounds.height - height) / 2).rounded(), width: titleWidth + 2 * pad, height: height)
+        clearButton.layer?.cornerRadius = height / 2
         line.frame = lineFrame(clearShown: clearVisible)
     }
 }
@@ -894,7 +895,9 @@ final class UnreadDotView: NSView {
 }
 
 /// Clear's button: it says when it takes or gives up the keyboard (it shows while it has it, B-118).
-final class ClearButton: NSButton {
+/// Today's Clear: a ghost pill (5.11, the user on build 25): the controls' hover fill behind its
+/// title while the pointer is on it (`HoverButton`), nothing at rest.
+final class ClearButton: HoverButton {
     var onFocusChange: (() -> Void)?
     private(set) var hasKeyboardFocus = false
 
