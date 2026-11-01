@@ -242,6 +242,8 @@ public enum SpaceFormMetrics {
     public static let headerGlyph: CGFloat = 24
     public static let headerTileCorner: CGFloat = Radius.large
     public static let headerWashAlpha: CGFloat = 0.35
+    /// The pencil badge on the tile's corner (it says the tile opens the icon picker).
+    public static let headerBadge: CGFloat = 16
 }
 
 /// The space window (5.7b, B-122): its size, fitted inside the display's visible frame.

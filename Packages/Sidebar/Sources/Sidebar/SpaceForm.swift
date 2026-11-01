@@ -307,8 +307,8 @@ public struct SpaceFormView: View {
                 Image(systemName: "pencil.circle.fill")
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(.white, Color.accentColor)
-                    .font(.system(size: 16))
-                    .offset(x: 4, y: 4)
+                    .font(.system(size: SpaceFormMetrics.headerBadge))
+                    .offset(x: SpaceFormMetrics.headerBadge / 4, y: SpaceFormMetrics.headerBadge / 4)
             }
     }
 
