@@ -71,6 +71,15 @@ extension SpikeRunner.Context {
         let ids = { field.extensionActionIDs.map { $0 == id ? "fixture" : $0 == second ? "second" : $0 } }
         // What the bar shows (B-125): at the default width both pinned buttons, else the overflow takes them.
         let shownIDs = { field.shownActionIDs.map { $0 == id ? "fixture" : $0 == second ? "second" : $0 } }
+        // 5.10: installs land unpinned, in the overflow menu (156 had pinned them, ExtensionsPinnedByDefault);
+        // the user pins them (the overflow menu's Pin), in this order.
+        _ = await waitUntil(5) { field.overflowActionIDs.count == 2 }
+        SpikeRunner.record("header_installed", "buttons=\(ids()) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil)")
+        for pinned in [id, second] {
+            guard let item = center.sections.first?.installed.first(where: { $0.id == pinned }) else { continue }
+            center.setPinned(true, item, in: section)
+            _ = await waitUntil(5) { field.extensionActionIDs.contains(pinned) }
+        }
         _ = await waitUntil(5) { field.extensionActionIDs.count == 2 }
         SpikeRunner.record("header_initial", "buttons=\(ids()) shown=\(shownIDs()) bar_width=\(Int(field.bounds.width)) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil)")
         // Unpin the fixture (Settings ▸ Extensions' Unpin): the header keeps the second, the overflow menu lists the fixture with its badge.

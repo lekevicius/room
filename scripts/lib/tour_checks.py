@@ -1399,6 +1399,8 @@ def _extensions(c):
                label="⇧⌘U with the sidebar's list focused reaches commands.onCommand (B-70)")
     c.contains("command_sidebar_action", "popover=true", "routed=⇧⌘Y true", label="⇧⌘Y with the sidebar focused opens the popup")
     c.contains("command_sidebar_other_key", "routed=⇧⌘C false", label="a key no extension has goes on to the menu")
+    c.contains("header_installed", "buttons=[]", "overflow=2", "overflow_button=true",
+               label="new installs land unpinned, in the overflow menu (5.10: ExtensionsPinnedByDefault off)")
     c.contains("header_initial", 'buttons=["fixture", "second"]', 'shown=["fixture", "second"]', "overflow_button=false",
                label="two pinned actions in install order, both shown at the default width, no overflow button (B-125)")
     c.contains("header_unpinned", 'buttons=["second"]', 'shown=["second"]', 'overflow=["fixture"]', "overflow_button=true", "Room 3.6 fixture  T", "badge=T",

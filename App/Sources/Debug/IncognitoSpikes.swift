@@ -244,7 +244,7 @@ extension SpikeRunner.Context {
         return tabs.contents(for: entry)
     }
 
-    /// The fixture extension (3.6) loaded and pinned in the regular profile:
+    /// The fixture extension (3.6) loaded and pinned (by the spike since 5.10) in the regular profile:
     /// absent from the incognito header until "Allow in incognito", then
     /// present, then absent again.
     func incognitoExtensions(app: AppDelegate, store: RoomStore, regular: WindowSession, incognito: WindowSession, profileID: UUID) async {
@@ -255,6 +255,11 @@ extension SpikeRunner.Context {
         let fixture = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-3.6/extension", directoryHint: .isDirectory)
         guard let id = try? await section.extensions.loadUnpacked(at: fixture) else {
             return SpikeRunner.record("extensions_incognito", "failed: the fixture did not load")
+        }
+        // 5.10: installs land unpinned (ExtensionsPinnedByDefault off); pinned as the user would.
+        _ = await waitUntil(5) { center.section(profile: profileID)?.installed.contains { $0.id == id } == true }
+        if let item = center.section(profile: profileID)?.installed.first(where: { $0.id == id }), !item.isPinned {
+            center.setPinned(true, item, in: section)
         }
         _ = await waitUntil(5) { center.section(profile: profileID)?.installed.first { $0.id == id }?.isPinned == true }
         let regularField = regular.sidebar?.extensionBar, incognitoField = incognito.sidebar?.extensionBar
