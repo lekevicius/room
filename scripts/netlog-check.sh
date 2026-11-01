@@ -63,7 +63,7 @@ sleep 1
 
 ROOM_SPIKE_OUT="$OUTDIR/spike.txt" scripts/run-spike.sh netcheck -RoomFirstRun YES -ApplePersistenceIgnoreState YES \
   -RoomStateDirectory "$work/state" -RoomEngineDirectory "$work/engine" \
-  -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml -RoomSentryDSN http://public@127.0.0.1:8771/1 \
+  -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml -RoomCrashDSN http://public@127.0.0.1:8771/1 \
   -RoomSuggestProxy 127.0.0.1:8771 \
   ${ROOM_NETCHECK_IDLE:+-RoomNetcheckIdleSeconds "$ROOM_NETCHECK_IDLE"} \
   ${ROOM_NETCHECK_SUGGESTIONS_OFF:+-RoomSuggestionsOff YES} \

@@ -70,7 +70,7 @@ if [[ $session == 2.8b ]]; then
   : > "$endpoints"   # the readiness probe is not Room's
   swiftc -O scripts/lib/open-with-workspace.swift -o "$work/open-with-workspace" 2>>"$log"
   spike_args=(-RoomSpikeCaptures28b "$captures" -RoomFirstRun YES -RoomUpdateFeedURL http://127.0.0.1:8771/appcast.xml
-              -RoomSentryDSN http://public@127.0.0.1:8771/1)
+              -RoomCrashDSN http://public@127.0.0.1:8771/1)
 fi
 now() { perl -MTime::HiRes=time -e 'printf "%.6f\n", time'; }
 

@@ -88,8 +88,6 @@ targets:
         product: Integration
       - package: Integration
         product: Updates
-      - package: Integration
-        product: CrashReports
       - package: Engine
         product: FakeEngine
       - package: EngineRoomCore

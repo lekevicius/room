@@ -1,6 +1,5 @@
 import AppKit
 import Chrome
-import CrashReports
 import Design
 import Engine
 import FakeEngine
@@ -120,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let inbox = URLInbox()
     /// Whether Room is the default browser, and the request (2.8b).
     let defaultBrowser = DefaultBrowser()
-    /// Sparkle and Sentry behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
+    /// Sparkle and the crash reports behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
     private(set) var optIns: OptInServices?
     /// Room's built-in blocker (B-30): Settings ▸ Privacy and the site panel.
     private(set) var contentBlocking: ContentBlockingController?
@@ -366,17 +365,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: Opt-ins (ROADMAP 2.8 task 5)
 
+    /// The crash collector's DSN (the build's; in Debug `-RoomCrashDSN` points it at a local collector).
+    static var crashDSN: String {
+        #if DEBUG
+        if let override = UserDefaults.standard.string(forKey: "RoomCrashDSN") { return override }
+        #endif
+        return BuildConfiguration.crashDSN()
+    }
+
     private func makeOptIns() -> OptInServices? {
         guard store != nil else { return nil }
-        var dsn = BuildConfiguration.sentryDSN()
+        let dsn = AppDelegate.crashDSN
         var feed: String?
         #if DEBUG
         // The opt-in checks point both at local endpoints (`scripts/app-integration.sh --session 2.8b`).
-        if let override = UserDefaults.standard.string(forKey: "RoomSentryDSN") { dsn = override }
         feed = UserDefaults.standard.string(forKey: "RoomUpdateFeedURL")
         #endif
         return OptInServices(dsn: dsn, makeUpdater: { SparkleUpdater(feedOverride: feed) },
-                             makeCrashReporter: { SentryCrashReporter() })
+                             makeCrashReporter: { [engine] in CrashpadCrashReporter(engine: engine) })
     }
 
     /// Room's built-in blocker follows Settings ▸ Privacy from here on (B-30).

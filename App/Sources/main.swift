@@ -1,6 +1,7 @@
 import AppKit
 import Engine
 import Infra
+import Integration
 import Model
 #if ROOM_ENGINE_ROOMCORE
 import EngineRoomCore
@@ -66,7 +67,9 @@ do {
     let configuration = EngineConfiguration(
         userDataDirectory: try AppPaths.ensureDirectory(engineDirectory),
         usesSystemKeychain: usesSystemKeychain,
-        features: LaunchSettings.engineFeatures(stateDirectory: AppDelegate.stateDirectory)
+        features: LaunchSettings.engineFeatures(stateDirectory: AppDelegate.stateDirectory),
+        // Crashpad's handler starts with it; whether it sends is the user's opt-in (6.3).
+        crashUploadURL: CrashCollector.minidumpURL(dsn: AppDelegate.crashDSN)
     )
     try engine.initialize(configuration)
     LaunchMarks.mark("engine initialized")

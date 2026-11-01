@@ -153,6 +153,17 @@ struct OptInServicesTests {
         #expect(services.updater == nil && services.crashReporter == nil && !services.isReportingCrashes)
     }
 
+    @Test("The collector's minidump URL from its DSN (6.3, the Sentry shape); none from an empty or malformed one")
+    func minidumpURL() {
+        #expect(CrashCollector.minidumpURL(dsn: "https://k3y@crash.example.com/7")?.absoluteString
+                == "https://crash.example.com/api/7/minidump/?sentry_key=k3y")
+        #expect(CrashCollector.minidumpURL(dsn: "http://public@127.0.0.1:8771/1")?.absoluteString
+                == "http://127.0.0.1:8771/api/1/minidump/?sentry_key=public")
+        #expect(CrashCollector.minidumpURL(dsn: "") == nil)
+        #expect(CrashCollector.minidumpURL(dsn: "https://crash.example.com/7") == nil, "no key")
+        #expect(CrashCollector.minidumpURL(dsn: "https://k3y@crash.example.com/") == nil, "no project")
+    }
+
     @Test("Crash reports: started once when opted in, stopped when opted out, never without a DSN")
     func crashReports() {
         let (services, log) = services()

@@ -88,8 +88,9 @@ settingGroups:
     # The one place for the update feed and the crash-report DSN (2.8b report).
     # The feed and the DMGs live in the R2 bucket behind updates.room.app (2026-10-21, the first release).
     ROOM_UPDATE_FEED_URL: https://updates.room.app/appcast.xml
-    # Empty until a Sentry project exists; with it empty, crash reports stay off whatever the setting.
-    ROOM_SENTRY_DSN: ""
+    # The crash collector's DSN (6.3, B-105: https://<key>@<host>/<project>, the collector the user
+    # deploys, tools/crash-collector/); empty: crash reports stay on disk whatever the setting.
+    ROOM_CRASH_DSN: ""
     # EdDSA public key from Sparkle's generate_keys (2026-10-04, Mac mini; the private
     # key is in that Mac's login keychain, account "ed25519").
     SPARKLE_PUBLIC_ED_KEY: z1WE/kOA/sLq7Ou7T/lQ19moA5XdXnXOPkf1Gqxqh5Q=
@@ -176,8 +177,8 @@ targets:
         SUEnableAutomaticChecks: false
         SUAutomaticallyUpdate: false
         SUEnableSystemProfiling: false
-        # Sentry (ROADMAP 2.8 task 5): read by BuildConfiguration.sentryDSN; empty = crash reports unavailable.
-        RoomSentryDSN: $(ROOM_SENTRY_DSN)
+        # The crash collector (6.3): read by BuildConfiguration.crashDSN; empty = crash reports unavailable.
+        RoomCrashDSN: $(ROOM_CRASH_DSN)
     settings:
       groups: [RoomApp]
       base:
@@ -204,8 +205,6 @@ targets:
         product: Integration
       - package: Integration
         product: Updates
-      - package: Integration
-        product: CrashReports
       # DEBUG sidebar captures run the tab controller on FakeEngine pages.
       - package: Engine
         product: FakeEngine

@@ -147,7 +147,7 @@ private final class SettingsTabsController: NSTabViewController {
 /// What Settings reaches beyond the settings values (2.8b).
 struct SettingsServices {
     let defaultBrowser: DefaultBrowser
-    /// No Sentry project in this build: the switch is kept, nothing can be sent.
+    /// No crash collector in this build: the switch is kept, nothing can be sent.
     let crashReportsUnavailable: Bool
     let checkForUpdates: () -> Void
     let canCheckForUpdates: () -> Bool
@@ -303,8 +303,8 @@ private struct SettingsSectionView: View {
             Toggle(isOn: binding(\.crashReports)) {
                 Text("Send crash reports")
                 Text(services.crashReportsUnavailable
-                     ? "This build has no crash-report project yet: nothing can be sent, whatever this says."
-                     : "When Room crashes, a report of the crash goes to Room's developer (Sentry). Off: the reporter is not started.")
+                     ? "This build has no crash collector yet: reports stay on this Mac, whatever this says."
+                     : "When Room crashes, its report goes to Room's developer's own server. A report may hold fragments of what was on the page. Off: reports stay on this Mac.")
             }
             Toggle(isOn: binding(\.automaticUpdateChecks)) {
                 Text("Check for updates automatically")

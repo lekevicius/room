@@ -203,7 +203,7 @@ struct OnboardingView: View {
                 }
                 Toggle(isOn: Binding(get: { onboarding.crashReports }, set: { onboarding.crashReports = $0 })) {
                     Text("Send crash reports")
-                    Text(model.crashReportsUnavailable ? "Not set up in this build yet." : "A crash's report goes to Room's developer.")
+                    Text(model.crashReportsUnavailable ? "Not set up in this build yet." : "A crash's report goes to Room's developer's own server.")
                 }
                 Toggle(isOn: Binding(get: { onboarding.automaticUpdateChecks }, set: { onboarding.automaticUpdateChecks = $0 })) {
                     Text("Check for updates automatically")

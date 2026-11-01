@@ -11,7 +11,8 @@ public protocol UpdateChecking: AnyObject {
     func checkNow()
 }
 
-/// The crash reporter (Sentry): nothing runs until `start`.
+/// The crash reporter (6.3: the engine's Crashpad, uploading to the user's
+/// own collector): nothing is sent until `start`.
 public protocol CrashReporting: AnyObject {
     func start(dsn: String)
     func stop()
@@ -24,7 +25,7 @@ public protocol CrashReporting: AnyObject {
 /// quit. A check the user asks for (App ▸ Check for Updates…) creates and
 /// starts the updater with its schedule still following the setting.
 public final class OptInServices {
-    /// The crash reporter's DSN; empty until a Sentry project exists (then crash reports stay off).
+    /// The crash collector's DSN; empty until the user's collector exists (then crash reports stay off).
     public let dsn: String
     private let makeUpdater: () -> any UpdateChecking
     private let makeCrashReporter: () -> any CrashReporting
@@ -92,13 +93,34 @@ public final class OptInServices {
 
 /// Values the build carries in its Info.plist, set in one place (`xcodegen/base.yml`).
 public enum BuildConfiguration {
-    /// `RoomSentryDSN` (`ROOM_SENTRY_DSN`): empty until the user creates a Sentry project.
-    public static func sentryDSN(_ bundle: Bundle = .main) -> String {
-        (bundle.object(forInfoDictionaryKey: "RoomSentryDSN") as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+    /// `RoomCrashDSN` (`ROOM_CRASH_DSN`): empty until the user's crash collector exists.
+    public static func crashDSN(_ bundle: Bundle = .main) -> String {
+        (bundle.object(forInfoDictionaryKey: "RoomCrashDSN") as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
     }
 
     /// `SUFeedURL` (`ROOM_UPDATE_FEED_URL`): a placeholder until the product name is settled (B-6).
     public static func updateFeedURL(_ bundle: Bundle = .main) -> String {
         bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String ?? ""
+    }
+}
+
+/// The crash collector's addresses (6.3, B-105; `tools/crash-collector/`). Its DSN has Sentry's
+/// shape, `https://<key>@<host>/<project>`, so GlitchTip or Bugsink can take its place by a
+/// host name (research/notes/crash-reporting.md).
+public enum CrashCollector {
+    /// Where Crashpad posts a minidump: `https://<host>/api/<project>/minidump/?sentry_key=<key>`;
+    /// `nil` for an empty or malformed DSN.
+    public static func minidumpURL(dsn: String) -> URL? {
+        guard let components = URLComponents(string: dsn), let scheme = components.scheme, let host = components.host,
+              let key = components.user, !key.isEmpty else { return nil }
+        let project = components.path.split(separator: "/").last.map(String.init) ?? ""
+        guard !project.isEmpty else { return nil }
+        var url = URLComponents()
+        url.scheme = scheme
+        url.host = host
+        url.port = components.port
+        url.path = "/api/\(project)/minidump/"
+        url.queryItems = [URLQueryItem(name: "sentry_key", value: key)]
+        return url.url
     }
 }
