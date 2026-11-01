@@ -839,6 +839,12 @@ public enum DevToolsMetrics {
     public static let minPageHeight: CGFloat = 120
     /// The divider's drag area, centred on its 1 pt line (chosen, as the sidebar splitter).
     public static let dividerHitHeight: CGFloat = 8
+    /// Room's strip over the docked pane and the DevTools window (5.10): the placements and Close (chosen:
+    /// the split pane header's size, the buttons `IconStyle.rowButton` in the rows' small squares).
+    public static let headerHeight: CGFloat = SplitMetrics.paneHeaderHeight + Spacing.xs
+    public static let headerButtonSize: CGFloat = SidebarMetrics.closeButtonSize
+    /// The DevTools window's first size (chosen: Chrome's undocked window).
+    public static let windowSize = CGSize(width: 960, height: 640)
 }
 
 /// How long Room keeps what it keeps (spec §H; B-80). Numbers, not settings.

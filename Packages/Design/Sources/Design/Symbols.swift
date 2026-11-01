@@ -20,6 +20,11 @@ public enum Symbol: CaseIterable, Sendable {
     case siteInfo
     /// The address field's site button since 5.10: the page's settings (the Room Browser design's chevron).
     case pageSettings
+    /// DevTools' placements and Close in Room's strip over it (5.10).
+    case devToolsDockBottom
+    case devToolsDockRight
+    case devToolsDockLeft
+    case devToolsWindow
     case copyURL
     case copyMarkdown
     case paste
@@ -153,6 +158,10 @@ public enum Symbol: CaseIterable, Sendable {
         case .siteInsecure: "exclamationmark.triangle.fill"
         case .siteInfo: "slider.horizontal.2.square"
         case .pageSettings: "chevron.down"
+        case .devToolsDockBottom: "rectangle.bottomhalf.inset.filled"
+        case .devToolsDockRight: "rectangle.righthalf.inset.filled"
+        case .devToolsDockLeft: "rectangle.lefthalf.inset.filled"
+        case .devToolsWindow: "macwindow.on.rectangle"
         case .copyURL: "link"
         case .copyMarkdown: "text.quote"
         case .paste: "doc.on.clipboard"
