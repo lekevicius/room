@@ -540,6 +540,9 @@ public final class BrowserWindowView: NSView {
         overlayView.isHidden = false
         needsLayout = true
         layoutSubtreeIfNeeded()
+        // The overlay was hidden until now: its start frame must reach the render tree first, or the
+        // slide has nothing to animate from and the sidebar appears in place (5.12, the user on build 26).
+        CATransaction.flush()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = shown ? Motion.revealIn : Motion.revealOut
             context.timingFunction = CAMediaTimingFunction(name: shown ? .easeOut : .easeIn)
