@@ -598,6 +598,21 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 
 **Phase 5.11 done (2026-11-01), one item open.** Review: every note on build 25 but one is fixed and shown by `scripts/fixes-check.sh` on dev and release: the glow is the favicon blurred at a third of the strength (the Essential too), the palette's shadow falls down, ⌘S slides, Clear and the connection line are ghost pills, the site panel spans its width, opens from the overlay's chevron and shows the certificate (a new engine member), the extensions menu is the puzzle piece without Pin items, the split's shadows show (AppKit re-enabled clipping whenever a layer's corner radius was set), the resizer keeps its cursor (Chromium sets the arrow on a page's exit), the folder preview no longer eats the first click, and the space window is a grouped form. Open: tab drag with a real pointer (B-160): both halves pass in-process, the session between them only follows the hardware pointer and computer use was declined again; build 26 logs each drag for the user's one test.
 
+### Phase 5.12 — The user's notes on build 26 (added 2026-11-01)
+- [x] Tab drag (B-160): the outline's `super.draggingSession(_:movedTo:)` raised on macOS 27 and AppKit ended every drag at its first move (`6db85d1`; found with lldb by computer use, a real slow drag then moved the row)
+- [x] The hidden sidebar's reveal slides (`1426844`)
+- [x] Press and release on every HoverButton (`a7d3c55`…: the cell reports them; macOS 27 skips `highlight(_:)`)
+- [x] The extensions menu's icons (`abd9127`, `preferredImageVisibility`)
+- [x] The glow ×2; no changed dot or reset icon; the split row's divider; Forward on demand; the palette whiter, the address field quieter (`f08230e`, `9f8a1dd`, `a573b44`, `6bf2908`)
+- [x] The folder preview's favicons (`0eec8db`); Settings' title (the Extensions pane read Untitled)
+- [x] The audio glyph held 5 s (`ddaae5b`, `AudibleHold`, a test)
+- [x] The icon picker: every emoji, 200 symbols, search (`d254aab`)
+- [x] ⌃Tab cards with pictures (B-119, `ddaae5b`)
+- [x] The picture-in-picture window as Dia's (patch 0029, `14510e0`)
+- [x] CI spec: 741 tests, 0 failed (Xcode 27 locally)
+
+**Phase 5.12 done (2026-11-02).** Review: the user offered computer use while at the Mac, and the tab drag that two phases could not reproduce fell in minutes: a real drag ended 0.6 s after it began with no drop, the system log showed AppKit "ignoring exception raised by SidebarOutlineView during a dragging session", and lldb on `objc_exception_throw` named it: `-[SidebarOutlineView draggingSession:movedToPoint:]: unrecognized selector` from the override's `super` call (NSTableView dropped the method on macOS 27; the 5.5 code was right on 26). Two more macOS 27 changes surfaced the same way: buttons' tracking no longer calls `highlight(_:)` (the press's scale had not run on any HoverButton) and menus hide item images unless the item asks. The rest is the notes as asked; the PiP window is Chrome's with Room's controls through a two-call hook (patch 0029, series 27). Not shown: the hover scale's feel and the glass strengths are the user's eyes.
+
 ## Log
 
 - 2026-10-01 — Research completed (`research/notes/`), `PLAN.md` and `ROADMAP.md` written, repository initialized. Next: Phase 1.1.
@@ -1343,4 +1358,10 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
   - **Checks:** `scripts/fixes-check.sh` (new) on dev light and dark and the release framework light, identical; `spacewindow` spike; unit tests Design 21, UIKitCore 64, Sidebar 57, Chrome 85, Engine 81, Card 18 (one new: a split's container unclipped after a corner change); the tour's affected steps 165 / 3 under the release build's load, rerun 73 / 1 (B-56 only); **the CI spec locally** (`xcodegen --spec xcodegen/ci.yml`, `CI=1` `build test`, `build/ci-5.11`): TEST SUCCEEDED, 740 tests, 0 failed; the normal project regenerated; `design-audit.sh` 0 undeclared. Numbers: spike-results "Phase 5.11", build-log "Phase 5.11".
   - **Release:** 0.2.0 (26): `out/dev` 29 s, `out/release` 242 s, package, sign (notarized in 72 s, stapled), `build/sparkle-26/Room-0.2.0-26.dmg` (217,103,650 bytes), appcast entry verified. Build 25 superseded, neither published.
   - **Deviations:** (1) Computer use declined again: tab drag and the by-hand feel are the user's steps (by-hand "Phase 5.11"). (2) The tour ran a subset, light only, partly beside the release build (load 97); the failures that came from load passed on the rerun.
+- 2026-11-01/02 — Phase 5.12 (Claude Code session; the user's notes on build 26).
+  - Done: everything in the 5.12 checklist; B-160 and B-119 closed. Computer use on `app.room.desktop.dev` (granted by the user for the session, background and one full-screen slow drag): the real drag, the PiP window's controls (`-RoomSpikeHoldPip`), the palette and address field's glass on screen. New: `-RoomLoadUnpacked <folder>` (Debug), the `fixes512` spike (`ROOM_FIXES_SPIKE=fixes512 scripts/fixes-check.sh`), `research/spikes/phase-5.12/video.html` (a seekable clip), `pip-show-controls` spike action, `scripts/gen-emoji-catalog.py`.
+  - Incident: stopping the test copy with `pkill -9 -f "Room -RoomStateDirectory" -P 1` killed most of the user's processes (BSD `pkill` takes `-P` and `1` after the pattern as further patterns; `-f 1` matches nearly every command line): Electron apps' renderers, Arc's extensions and two of the test servers died. Nothing on disk was touched. A memory rule now forbids pattern kills; test instances are stopped by exact PID or the app's own Quit.
+  - CI spec run locally (`xcodegen --spec xcodegen/ci.yml`, `CI=1 xcodebuild … build test`): 741 tests, 0 failed. GitHub CI stays off (B-93).
+  - Decisions (the user, 2026-11-01): Chapter 6 starts now ("there are already people using Room"); the next build ships on Chromium 157 (rebase); crash reports go to a self-hosted collector the user deploys.
+  - Next: Chapter 6's spec, then 6.4's rebase to 157 and the release pipeline's pieces; the published build waits for all of it.
 

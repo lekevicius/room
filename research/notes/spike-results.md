@@ -4604,3 +4604,16 @@ The engine baseline (`roomcore-baseline.sh`, embryo host on dev): nav assertions
 | sitepanel_anchor (overlay pinned) | the panel under the chevron (not the card's corner); `certificateChain` 4 certificates on example.com |
 
 `spacewindow` spike on dev: all lines as 5.7b's (focus name/icon/theme/routes, saved values, cancel, new space), the window 480 × 632; captures in `research/screenshots/phase-5.11/`. Tour subset (`--only extensions,spaces,spacecaptures,tabs,chrome26b,palette,window,diaframe light`, `build/grand-tour/20261101-212316-roomcore`, under the release build's load): 165 / 3 — status pill dodge and `didChangeStatusText` (passed on the rerun at lower load, `20261101-213138`: tabs and chrome26b 73 / 1) and B-56's discard renderer (11 → 12, as 3.3a). The extensions step's new check (`overflow_menu_pin_items`: no Pin items, every item with an icon) passed.
+
+## Phase 5.12 (2026-11-01/02)
+
+Debug app on the dev framework (156.0.8078.48 + patch 0029), throwaway states under `/tmp/room-5/`, load 24–49 (other builds and the user's apps).
+
+- **Tab drag (B-160).** The user's log on build 26: five drags, each `began` → `over the list: operation 16` → `ended: operation 0, inside the window` 0.58–0.60 s later. Reproduced by computer use (a background drag; then one full-screen drag at 100 ms steps): the same lines; `log show` had `[com.apple.AppKit:DragAndDrop] *** Ignoring exception raised by (Sidebar.SidebarOutlineView) during a dragging session. Exception: NSInvalidArgumentException`; lldb on `objc_exception_throw`: `-[Sidebar.SidebarOutlineView draggingSession:movedToPoint:]: unrecognized selector` from `SidebarOutlineView.swift:101` (the `super` call) under `NSCoreDragProcessSourceDrag`. After the fix the slow drag moved the third row to the top; the background drag still ends without a drop (its whole path arrives in under a second, before the session's loop).
+- **Press feedback.** `fixes512 press` before: during a held press on Reload `pressed=false cell_highlighted=true animations=[] scale=1.000`; after: `pressed=true … animations=["control-hover","control-press"] scale=0.900 | after: pressed=false cell_highlighted=false`.
+- **Menu images.** A bare AppKit process on macOS 27 hides an `NSMenuItem.image` (SF Symbol or bitmap) in a pop-up menu; `preferredImageVisibility = .visible` shows it (`fixes512 extmenu` capture).
+- **Reveal.** `reveal_in: mid_x=-102 rest_x=4 width=300 sliding=true`, `reveal_out: mid_x=-92 … sliding=true` (before: the overlay appeared at rest).
+- **Forward.** `forward_hidden=true back_x=32 | after back: forward_hidden=false alpha=1.0 back_x=0 forward_x=32`.
+- **Switcher.** Three tabs visited: `pictured=3 size={160, 100}` (later 144 × 90 to fit five cards in a 1,200 pt window).
+- **Picker.** 1,894 emoji in 9 groups (Unicode 16.0, fully qualified, no skin-tone or hair variants), 198 symbols; `picker_typed: icon=🦊` (an emoji typed into the search sets it).
+- **PiP.** `pip_controls_shown: 2`; the window 590 × 332 pt; captured by computer use (`phase-5.12-pip-*.jpg`; the in-process capture of Chrome's overlay window is blank, as in 4.6).
