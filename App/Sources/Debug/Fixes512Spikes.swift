@@ -131,6 +131,19 @@ extension SpikeRunner.Context {
         _ = await open(URL(string: Self.f512Base + "find.html?ext")!)
         try? await Task.sleep(for: .milliseconds(800))
         let menu = sidebar.extensionBar.overflowMenu()
+        if UserDefaults.standard.bool(forKey: "RoomSpikeMenuVariants"), let real = menu.items.first, let icon = real.image {
+            // AppKit's own choice on macOS 27 (no preferredImageVisibility): the image hidden.
+            let a = NSMenuItem(title: "Plain + symbol", action: nil, keyEquivalent: "")
+            a.image = NSImage(systemSymbolName: "star", accessibilityDescription: nil)
+            let b = NSMenuItem(title: "Plain + icon", action: nil, keyEquivalent: "")
+            b.image = icon
+            let c = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            c.attributedTitle = NSAttributedString(string: "Attributed + icon")
+            c.image = icon
+            let d = NSMenuItem(title: "Enabled plain + icon", action: #selector(NSText.selectAll(_:)), keyEquivalent: "")
+            d.image = icon
+            for item in [a, b, c, d] { menu.addItem(item) }
+        }
         let items = menu.items.filter { !$0.isSeparatorItem }
         SpikeRunner.record("extmenu_items", "count=\(items.count) images=\(items.map { $0.image.map { NSStringFromSize($0.size) } ?? "none" })")
         // The menu as it shows: captured from inside its own tracking loop, then dismissed.
@@ -139,11 +152,12 @@ extension SpikeRunner.Context {
         let appearance = f512Appearance
         let timer = Timer(timeInterval: 0.5, repeats: false) { [weakMenu = MainActorWeak(menu)] _ in
             MainActor.assumeIsolated {
-                let menuWindows = NSApp.windows.filter { $0.isVisible && String(describing: Swift.type(of: $0)).contains("Menu") }
-                var result = "windows=\(menuWindows.count)"
-                if let directory, let target = menuWindows.first {
+                let numbers = WindowSnapshot.ownWindowNumbers(layer: 101)
+                var result = "menu_windows=\(numbers.count)"
+                if let directory, let number = numbers.first, let image = WindowSnapshot.capture(windowNumber: number),
+                   let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
                     let url = URL(fileURLWithPath: directory).appending(path: "phase-5.12-extmenu-\(appearance).png")
-                    result += " capture=\((try? WindowSnapshot.writePNG(target, to: url)) != nil ? url.lastPathComponent : "failed")"
+                    result += " capture=\((try? data.write(to: url)) != nil ? url.lastPathComponent : "failed") size=\(image.width)x\(image.height)"
                 }
                 SpikeRunner.record("extmenu_open", result)
                 weakMenu.value?.cancelTracking()

@@ -369,6 +369,7 @@ public final class ExtensionBarView: NSView {
         if let icon = (action.icon ?? Symbol.extensions.image(.controlSmall, accessibilityDescription: action.name))?.copy() as? NSImage {
             icon.size = NSSize(width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize)
             item.image = icon
+            MenuImages.show(item)
         }
         return item
     }
@@ -947,4 +948,15 @@ enum SpaceIcon: Equatable {
 private final class FlippedRow: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
+}
+
+/// macOS 27 hides menu items' images unless the item asks (`NSMenuItem.preferredImageVisibility`,
+/// 5.12: the extensions menu showed names only). Set through its selector: CI's SDK (Xcode 26.6) has
+/// no such property, and macOS 26 shows images anyway.
+enum MenuImages {
+    static func show(_ item: NSMenuItem) {
+        let setter = NSSelectorFromString("setPreferredImageVisibility:")
+        guard item.responds(to: setter) else { return }
+        item.setValue(1, forKey: "preferredImageVisibility")   // NSMenuItemImageVisibilityVisible
+    }
 }
