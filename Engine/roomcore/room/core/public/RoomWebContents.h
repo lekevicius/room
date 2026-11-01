@@ -734,6 +734,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 @property(nonatomic, readonly) RoomSecurityLevel securityLevel;
 // Passive mixed content shown on an HTTPS page.
 @property(nonatomic, readonly) BOOL hasMixedContent;
+// The committed page's certificate and its intermediates as DER, leaf first;
+// empty for a page without one (http:, file:, chrome:). Read on demand (the
+// site panel's "Connection is secure", 5.11).
+@property(nonatomic, readonly, copy) NSArray<NSData*>* certificateChain;
 // Playing sound now (WebContents::IsCurrentlyAudible, both edges).
 @property(nonatomic, readonly, getter=isAudible) BOOL audible;
 // Requests Room's blocker stopped on the current page (its frames and

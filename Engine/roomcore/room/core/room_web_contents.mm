@@ -1458,6 +1458,15 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (NSArray<NSData*>*)certificateChain {
+  if (!_contents) {
+    return @[];
+  }
+  std::unique_ptr<security_state::VisibleSecurityState> visible =
+      chrome_security_state::GetVisibleSecurityState(_contents);
+  return room::DERChain(visible ? visible->certificate.get() : nullptr);
+}
+
 - (void)room_refreshFavicon {
   if (!_contents) {
     return;

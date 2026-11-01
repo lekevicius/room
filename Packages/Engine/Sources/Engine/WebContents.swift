@@ -42,6 +42,9 @@ public protocol WebContents: AnyObject, Observable {
     /// The page's root background; the card fills with it during resize.
     var rootBackgroundColor: NSColor? { get }
     var securityState: SecurityState { get }
+    /// The committed page's certificate and its intermediates as DER, leaf first; empty for a page
+    /// without one. Read on demand (the site panel's "Connection is secure", 5.11).
+    var certificateChain: [Data] { get }
     var isAudible: Bool { get }
     /// Requests Room's blocker stopped on the current page (its frames and
     /// workers); 0 again when another page commits (B-30).

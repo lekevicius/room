@@ -29,6 +29,8 @@ public final class FakeWebContents: WebContents {
     public private(set) var themeColor: NSColor?
     public private(set) var rootBackgroundColor: NSColor? = .white
     public private(set) var securityState = SecurityState.none
+    /// Tests set the chain a secure page has.
+    public var certificateChain: [Data] = []
     public private(set) var isAudible = false
     /// Set by `simulateBlockedRequests`; 0 again at the next navigation.
     public internal(set) var blockedRequestCount = 0

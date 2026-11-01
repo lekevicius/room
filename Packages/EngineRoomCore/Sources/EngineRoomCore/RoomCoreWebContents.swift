@@ -37,6 +37,7 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
     public private(set) var themeColor: NSColor?
     public private(set) var rootBackgroundColor: NSColor?
     public private(set) var securityState = SecurityState.none
+    public var certificateChain: [Data] { page.certificateChain }
     public private(set) var isAudible = false
     public private(set) var blockedRequestCount = 0
     public private(set) var state = WebContentsState.alive

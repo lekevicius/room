@@ -7,6 +7,7 @@
 // sheet and answers.
 
 #import "room/core/room_page_ui_internal.h"
+#import "room/core/room_web_contents_internal.h"
 
 #include <memory>
 #include <string>
@@ -259,19 +260,7 @@ class RoomLoginHandler : public LoginHandler {
 // MARK: - Certificate errors
 
 NSArray<NSData*>* ChainOf(const net::SSLInfo& ssl_info) {
-  NSMutableArray<NSData*>* chain = [NSMutableArray array];
-  const net::X509Certificate* cert = ssl_info.cert.get();
-  if (!cert) {
-    return chain;
-  }
-  base::span<const uint8_t> leaf = cert->cert_span();
-  [chain addObject:[NSData dataWithBytes:leaf.data() length:leaf.size()]];
-  for (const auto& buffer : cert->intermediate_buffers()) {
-    base::span<const uint8_t> bytes =
-        net::x509_util::CryptoBufferAsSpan(buffer.get());
-    [chain addObject:[NSData dataWithBytes:bytes.data() length:bytes.size()]];
-  }
-  return chain;
+  return room::DERChain(ssl_info.cert.get());
 }
 
 bool HandleCertificateError(content::WebContents* contents,
@@ -432,6 +421,21 @@ bool RunFileChooser(content::RenderFrameHost* frame,
 }  // namespace
 
 namespace room {
+
+NSArray<NSData*>* DERChain(const net::X509Certificate* cert) {
+  NSMutableArray<NSData*>* chain = [NSMutableArray array];
+  if (!cert) {
+    return chain;
+  }
+  base::span<const uint8_t> leaf = cert->cert_span();
+  [chain addObject:[NSData dataWithBytes:leaf.data() length:leaf.size()]];
+  for (const auto& buffer : cert->intermediate_buffers()) {
+    base::span<const uint8_t> bytes =
+        net::x509_util::CryptoBufferAsSpan(buffer.get());
+    [chain addObject:[NSData dataWithBytes:bytes.data() length:bytes.size()]];
+  }
+  return chain;
+}
 
 void InstallPagePromptHooks() {
   g_create_login_handler_hook =

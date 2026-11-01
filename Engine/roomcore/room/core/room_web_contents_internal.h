@@ -89,7 +89,15 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
                       userGesture:(BOOL)userGesture;
 @end
 
+namespace net {
+class X509Certificate;
+}
+
 namespace room {
+// A certificate and its intermediates as DER, leaf first (room_page_prompts.mm):
+// the certificate-error interstitial's chain and the site panel's (5.11).
+NSArray<NSData*>* DERChain(const net::X509Certificate* cert);
+
 // Points Chrome's DevTools update hook (patches/0028) at the inspected page's
 // wrapper (room_web_contents_tools.mm, 5.10). Once, at startup.
 void InstallDevToolsHook();
