@@ -20,9 +20,10 @@ public final class GlassPillView: NSView {
         didSet { if isHighlighted != oldValue { needsDisplay = true } }
     }
 
-    /// `.clear` is the quieter variant (5.12: the address field, "takes a bit too much attention").
-    public var style: NSGlassEffectView.Style = .regular {
-        didSet { glass.style = style }
+    /// How strongly the glass shows (5.12, the user on build 26: the address field "takes a bit too
+    /// much attention"; `.clear` glass reads as white over the light sidebar too, so it is drawn fainter).
+    public var strength: CGFloat = 1 {
+        didSet { glass.alphaValue = strength }
     }
 
     public var cornerRadius: CGFloat = GlassMetrics.cornerRadius {
@@ -106,6 +107,8 @@ public final class GlassPillView: NSView {
 
 /// The glass pills' tokens (5.10).
 public enum GlassMetrics {
+    /// The address field's glass (`GlassPillView.strength`): quieter than the selected row's.
+    public static let addressFieldStrength: CGFloat = 0.5
     /// The palette's glass (5.12, the user on build 26: the new tab field "a bit less transparent,
     /// more white, keep Liquid Glass"): tinted toward white, in Dark Mode toward the window's grey.
     public static var paletteTint: NSColor {
