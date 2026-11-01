@@ -60,6 +60,7 @@ public final class AddressFieldView: PressableView {
         // A hover affordance: the keyboard has ⇧⌘C, and Tab never lands on a button that hides as the field loses focus.
         copyButton.refusesFirstResponder = true
         copyButton.setAccessibilityIdentifier("copy-url")
+        glass.style = .clear
         addSubview(glass)
         addSubview(siteButton)
         addSubview(domainField)

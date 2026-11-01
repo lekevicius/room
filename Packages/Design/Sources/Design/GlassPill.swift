@@ -20,6 +20,11 @@ public final class GlassPillView: NSView {
         didSet { if isHighlighted != oldValue { needsDisplay = true } }
     }
 
+    /// `.clear` is the quieter variant (5.12: the address field, "takes a bit too much attention").
+    public var style: NSGlassEffectView.Style = .regular {
+        didSet { glass.style = style }
+    }
+
     public var cornerRadius: CGFloat = GlassMetrics.cornerRadius {
         didSet {
             glass.cornerRadius = cornerRadius
@@ -101,12 +106,21 @@ public final class GlassPillView: NSView {
 
 /// The glass pills' tokens (5.10).
 public enum GlassMetrics {
+    /// The palette's glass (5.12, the user on build 26: the new tab field "a bit less transparent,
+    /// more white, keep Liquid Glass"): tinted toward white, in Dark Mode toward the window's grey.
+    public static var paletteTint: NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor.windowBackgroundColor.withAlphaComponent(0.5) : NSColor.white.withAlphaComponent(0.6)
+        }
+    }
     /// The design's Liquid Glass - Small at the rows' pill corner.
     public static let cornerRadius: CGFloat = SidebarMetrics.pillCornerRadius
     /// The selected row's and Essential's glow: the favicon itself, blurred behind it (the design: a
     /// 48 pt square blurred 32 pt, clipped to the pill). 5.11 (the user on build 25: one flat colour,
-    /// "way too intense, a third of that is enough"): the favicon's own pixels, at 40 % / 3.
-    public static let glowAlpha: CGFloat = 0.4 / 3
+    /// "way too intense, a third of that is enough"): the favicon's own pixels, at 40 % / 3;
+    /// 5.12 (build 26: "too faint, increase them 2x"): twice that.
+    public static let glowAlpha: CGFloat = 0.8 / 3
     public static let glowSourceSize: CGFloat = 48
     /// Figma's layer blur is twice the Gaussian's deviation.
     public static let glowBlurSigma: CGFloat = 16

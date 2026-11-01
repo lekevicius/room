@@ -56,6 +56,7 @@ final class PalettePanelView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         glass.cornerRadius = Radius.large
+        glass.tintColor = GlassMetrics.paletteTint
         glass.frame = bounds
         glass.autoresizingMask = [.width, .height]
         searchIcon.image = Symbol.search.image(.paletteField, accessibilityDescription: nil)
