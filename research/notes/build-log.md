@@ -842,3 +842,14 @@ The requests after the rebase (the mini's `/Volumes/JL4/laptop-engines/requests/
 | `out/dev`, two `//room` follow-ups | 28 s, 19 s | |
 | `out/release` (official incremental, series 26) | **223 s** | `RoomCoreCommit 8626287` |
 | `roomcore-package.sh --release` | Swift host 25 s, app 101 s | framework 268 MB |
+
+## Phase 5.11 (2026-11-01, the M1 Max laptop, 64 GB, `ROOM_BUILD_JOBS=6`)
+
+| step | time | notes |
+|---|---|---|
+| `out/dev` incremental (`certificateChain`) | 29 s | load 7 |
+| `out/release` (official incremental) | **242 s** | load 97 (the tour beside it) |
+| `roomcore-package.sh --release` | Swift host 24 s, app 104 s | framework 268 MB |
+| Debug app over release | 48 s | `ROOM_PACKAGE_STAGED=1` |
+| sign + notarize | notarized in 72 s, stapled | `build/roomcore-release-signed` |
+| `sparkle-package.sh` | DMG 217,103,650 B | `build/sparkle-26`, appcast entry verified |

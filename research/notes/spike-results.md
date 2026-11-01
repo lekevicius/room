@@ -4588,3 +4588,19 @@ Counts are with this session's two harness fixes applied to the checks (`diafram
 The tour's steps that read the changed shapes (`grand-tour.sh --only window,cdp,diaframe,devtools,chrome26b,extensions,layoutmodes,sidebardemo,palette,windows,incognito light`, a no-op `screencapture` on PATH, B-157): dev **234 / 241** first, then chrome26b and extensions rerun **83 / 88** and, with the spikes pinning their fixtures, extensions and incognito **54 / 54**; release framework **239 / 242**. Every failure attributed: the four extension checks assumed installs arrive pinned (156's `ExtensionsPinnedByDefault`, now off: the spikes pin as a user would, and a new check sees installs land in "…"); the status pill's three checks once on dev (passed alone, in `find,zoom,status`, `print,status` and the full step's rerun: a run condition); `audible on and off` and `didChangeAudible` on every run, the pre-5.10 Debug app included (B-159); release chrome26b's "no crash report: -1 new" (a report count that went down; no Room report in DiagnosticReports).
 
 The engine baseline (`roomcore-baseline.sh`, embryo host on dev): nav assertions passed; quits 0.661 / 0.793 / 0.525 s with 10 pages, 0 helpers left, 0 crash reports (load 63–71).
+
+## Phase 5.11 — the user's notes on build 25 (2026-11-01, M1 Max laptop, 64 GB, Pro Display XDR at 60 Hz; RoomCore 156.0.8078.48, series 26, `room_web_contents` with `certificateChain`; load 7–97 while the release engine built)
+
+`scripts/fixes-check.sh` (new; `App/Sources/Debug/Fixes511Spikes.swift`), dev light and dark, the release framework light; identical lines on both builds:
+
+| check | result |
+|---|---|
+| tabdrag (posted press and 12 moves) | `drags_begun=1`: AppKit began the row's drag session; it then follows the hardware pointer (the drop never reaches the list in-process) |
+| tabdrag_drop (Room's drop code, a row's pasteboard over the third row's lower part) | operation 16 (move), insertion line at y 167, accepted, order 0,1,2 → 1,2,0 |
+| tabdrag_movers | window movable, not by its background; `NSGlassEffectView.mouseDownCanMoveWindow` = true, but only the titlebar region could move the window |
+| split_shadows | 2 shadow layers; `CardContainerView` masks=false clips=false (before: true/true: setting `layer.cornerRadius` on AppKit's backing layer turned `clipsToBounds` back on after the split had turned it off) |
+| dock_hide / dock_show (⌘S at half of `Motion.dock` 180 ms) | animating; card x 300 → 163 → 0 and 0 → 131–137 → 300; sidebar x −136 hiding, −162/−168 showing (before the `CATransaction.flush`: 0 — the reparented layer did not animate) |
+| folder_first_click (preview key, a click on the folder) | `acceptsFirstMouse` true, preview closed, folder expanded (before: the transient popover swallowed the press) |
+| sitepanel_anchor (overlay pinned) | the panel under the chevron (not the card's corner); `certificateChain` 4 certificates on example.com |
+
+`spacewindow` spike on dev: all lines as 5.7b's (focus name/icon/theme/routes, saved values, cancel, new space), the window 480 × 632; captures in `research/screenshots/phase-5.11/`. Tour subset (`--only extensions,spaces,spacecaptures,tabs,chrome26b,palette,window,diaframe light`, `build/grand-tour/20261101-212316-roomcore`, under the release build's load): 165 / 3 — status pill dodge and `didChangeStatusText` (passed on the rerun at lower load, `20261101-213138`: tabs and chrome26b 73 / 1) and B-56's discard renderer (11 → 12, as 3.3a). The extensions step's new check (`overflow_menu_pin_items`: no Pin items, every item with an icon) passed.
