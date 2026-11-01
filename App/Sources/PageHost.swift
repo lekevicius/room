@@ -59,6 +59,8 @@ final class PageHost: PageDisplay {
         splitView.apply(split, focused: contents)
         // B-113: a split's panes are cards of their own; the page card steps back.
         controller?.cardView.isSplitHost = split != nil
+        // 5.10: one page is edge to edge; a split's panes keep the inset.
+        controller?.rootView.isCardInset = split != nil
         // ⌃⇧1…4 and ⌃⇧] / ⌃⇧[ move the keyboard with the focus (a click already put it there).
         if changed, split != nil, keyboardInSplit { focusPage() }
         guard changed else { return }

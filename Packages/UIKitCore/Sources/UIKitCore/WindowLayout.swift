@@ -14,11 +14,14 @@ public struct WindowLayout: Equatable, Sendable {
 
     /// `pageFullscreen`: a page's element fullscreen (a video, `requestFullscreen()`)
     /// takes the whole window, sidebar hidden and no inset.
-    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool, pageFullscreen: Bool = false) -> WindowLayout {
+    /// `insetCard`: a split's panes keep the card inset `CardMetrics.inset` from the window's
+    /// edges (5.10); one page fills the window beside the sidebar, edge to edge, its corners the window's.
+    public static func compute(bounds: CGRect, sidebarWidth: CGFloat, isSidebarOpen: Bool, pageFullscreen: Bool = false,
+                               insetCard: Bool = false) -> WindowLayout {
         if pageFullscreen {
             return WindowLayout(sidebar: CGRect(x: bounds.minX, y: bounds.minY, width: 0, height: bounds.height), splitter: nil, card: bounds)
         }
-        let inset = CardMetrics.inset
+        let inset = insetCard ? CardMetrics.inset : 0
         let width = isSidebarOpen ? effectiveSidebarWidth(sidebarWidth, availableWidth: bounds.width) : 0
         // Between the card and the sidebar, and on the card's outer side.
         let inner = isSidebarOpen ? CardMetrics.sidebarSideInset : inset

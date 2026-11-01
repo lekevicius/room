@@ -159,8 +159,10 @@ public enum SidebarMetrics {
     public static let essentialTileMinWidth: CGFloat = 48
     public static let essentialMaxColumns = 6
     public static let essentialIconSize: CGFloat = 16
-    /// A hovered tile: the selection fill at this alpha over the tile's own.
+    /// A hovered tile: the selection fill at this alpha over the tile's own (before 5.10).
     public static let essentialHoverAlpha: CGFloat = 0.5
+    /// A tile at rest is outlined (5.10, the Room Browser design: 1 px at 10% black): the hairline, this many device pixels wide.
+    public static let essentialBorderPixels: CGFloat = 2
     /// The selected tile's lift (the design: `drop-shadow 0 0.5 1 rgba(0,0,0,.15)`).
     public static let essentialShadowRadius: CGFloat = 0.5
     public static let essentialsGap: CGFloat = Spacing.s
@@ -205,8 +207,12 @@ public enum SpaceIconMetrics {
     public static let dotSize: CGFloat = 6
     /// The active icon's scale (spec §B).
     public static let activeScale: CGFloat = 1.15
-    /// The highlight behind the active icon extends this far around it.
+    /// The highlight behind the active icon extended this far around it (before 5.10, which removed it).
     public static let indicatorPadding: CGFloat = 2
+    /// The hovered space's name above the icons (5.10): its capsule, padding and gap above the footer (chosen).
+    public static let nameChipHeight: CGFloat = 20
+    public static let nameChipPadding: CGFloat = Spacing.s
+    public static let nameChipGap: CGFloat = Spacing.xs
     /// An inactive icon's opacity.
     public static let inactiveAlpha: CGFloat = 0.55
     /// Pointer travel that turns a press on an icon into a reorder drag (Zen: 5 px).
@@ -366,13 +372,17 @@ public enum TrafficLightMetrics {
 }
 
 public enum CardMetrics {
-    /// Gap between the card and the window edge on the top, trailing and bottom sides.
-    /// Dia's window measured 6; the Room Browser design (2026-10-07) is 8.
+    /// Gap between a split's panes and the window edge on the top, trailing and bottom sides
+    /// (5.10: only a split keeps it; one page is edge to edge). Dia's window measured 6; the Room Browser design (2026-10-07) is 8.
     public static let inset: CGFloat = Spacing.s
     /// Gap on the sidebar side while the sidebar is open (the card butts against it).
     public static let sidebarSideInset: CGFloat = 0
-    /// Continuous corner (the Room Browser design: 6; Dia measured 10).
+    /// A split pane's continuous corner, and the inset card's before 5.10 (the Room Browser design: 6; Dia measured 10).
     public static let cornerRadius: CGFloat = Radius.small
+    /// The edge-to-edge page's corner (5.10, the Room Browser design's window, Figma 67:2115): the
+    /// window's own, so the page's corners follow the window's curve (`NSThemeFrame._cornerRadius`
+    /// read 16 for Room's window style on macOS 26, with and without the unified toolbar).
+    public static let windowCornerRadius: CGFloat = 16
     public static let borderWidth: CGFloat = 1
     /// The design's `0 2 6 rgba(0,0,0,.15)` (blur 6 = radius 3).
     public static let shadowRadius: CGFloat = 3
@@ -485,8 +495,8 @@ public enum Motion {
     /// Peek open.
     public static let slow: TimeInterval = 0.35
     /// The hidden sidebar slides in over this long, ease-out (spec §E said 250 ms;
-    /// B-114: shortened with the dwell), and out over `revealOut`, ease-in.
-    public static let revealIn: TimeInterval = 0.18
+    /// B-114: shortened with the dwell; 5.10: 180 → 140 ms, "more quickly"), and out over `revealOut`, ease-in.
+    public static let revealIn: TimeInterval = 0.14
     public static let revealOut: TimeInterval = 0.15
 
     /// A spring described like SwiftUI's `Spring(duration:bounce:)`.
@@ -646,8 +656,9 @@ public enum Timing {
     public static let statusPillHideGrace: TimeInterval = 0.1
     /// The pointer rests this long in the edge band before the hidden sidebar
     /// slides in (spec §E said 150 ms; B-114, 2026-10-21: shortened so the
-    /// sidebar, with the traffic lights in it, arrives sooner).
-    public static let revealDwell: TimeInterval = 0.06
+    /// sidebar, with the traffic lights in it, arrives sooner; 5.10: 60 → 20 ms, enough to
+    /// ignore a pointer crossing the band on its way off the window).
+    public static let revealDwell: TimeInterval = 0.02
     /// The revealed sidebar hides this long after the pointer left it (spec §E,
     /// Zen `sidebar-keep-hover.duration`: 150 ms).
     public static let revealGrace: TimeInterval = 0.15
@@ -695,6 +706,12 @@ public enum PaletteMetrics {
     public static let chipPadding: CGFloat = 8
     /// The × that removes a history row (spec §C), on hover or highlight.
     public static let deleteButtonSize: CGFloat = 18
+    /// The panel's shadow (5.10, the user on build 24: "much stronger"; the glass's own read as
+    /// none over a white page): a deep, soft drop, darker in dark mode (chosen, Spotlight's depth).
+    public static let shadowRadius: CGFloat = 24
+    public static let shadowOffset = CGSize(width: 0, height: -12)
+    public static let shadowOpacityLight: Float = 0.3
+    public static let shadowOpacityDark: Float = 0.6
 }
 
 /// The page's prompts in the card (ROADMAP 2.6 task 2): JavaScript dialogs,
@@ -721,11 +738,15 @@ public enum PromptMetrics {
 
 /// The hidden sidebar and its hover-revealed overlay (spec §E, Phase 2.7a).
 public enum RevealMetrics {
-    /// The band at the window's leading edge that reveals the sidebar (spec §E: 4 px).
-    public static let edgeBand: CGFloat = 4
+    /// The band at the window's leading edge that reveals the sidebar (spec §E: 4 px; 5.10, the user:
+    /// "more easily": 10, the page's own left edge rarely holds a control that close).
+    public static let edgeBand: CGFloat = 10
+    /// Outside the window, this far past its leading edge still counts as the band (5.10): a pointer
+    /// thrown at the screen's edge with the window there, or overshooting a window's edge.
+    public static let outsideBand: CGFloat = 24
     /// The revealed overlay floats this far from the window's top, leading
-    /// and bottom edges (spec §E: Zen `--zen-compact-float`, 10 px).
-    public static let overlayInset: CGFloat = 10
+    /// and bottom edges (spec §E: Zen `--zen-compact-float`, 10 px; 5.10, the user: "4px enough").
+    public static let overlayInset: CGFloat = 4
     /// A grey wash inside the overlay's glass, like the docked sidebar's
     /// material (white 0.88 light, 0.16 dark) at this alpha, so rows and the
     /// white selection pill read over any page (chosen: untinted glass let

@@ -344,6 +344,7 @@ public final class BrowserWindowView: NSView {
         materialView.frame = bounds
         materialView.autoresizingMask = [.width, .height]
         cardView.setAccessibilityIdentifier("card")
+        cardView.cornerRadius = CardMetrics.windowCornerRadius
         overlayView.isHidden = true
         addSubview(materialView)
         addSubview(sidebarView)
@@ -358,8 +359,18 @@ public final class BrowserWindowView: NSView {
 
     public override var isFlipped: Bool { true }
 
+    /// The card holds a split (5.10): its panes keep the inset from the window's edges.
+    public var isCardInset = false {
+        didSet {
+            guard isCardInset != oldValue else { return }
+            cardView.cornerRadius = isCardInset ? CardMetrics.cornerRadius : CardMetrics.windowCornerRadius
+            needsLayout = true
+        }
+    }
+
     public var currentLayout: WindowLayout {
-        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen)
+        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen,
+                             insetCard: isCardInset)
     }
 
     /// Where the overlay sits while shown.

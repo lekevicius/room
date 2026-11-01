@@ -163,6 +163,14 @@ public final class CardContainerView: NSView {
     public override var wantsUpdateLayer: Bool { true }
     public override var mouseDownCanMoveWindow: Bool { false }
 
+    /// The page under the titlebar never moves the window (B-32, 5.10). The window server starts
+    /// a titlebar drag by itself, before Room sees the press, wherever AppKit thinks the titlebar
+    /// shows through; the page draws out of process into a layer, so AppKit took it for transparent
+    /// (`RenderWidgetHostViewCocoa` also answers YES to `mouseDownCanMoveWindow`). This
+    /// undocumented method, which Chromium's own content view answers the same way
+    /// (`BridgedContentView`), marks the card's area as opaque to that drag.
+    @objc func _opaqueRectForWindowMoveWhenInTitlebar() -> NSRect { bounds }
+
     /// Runs inside the view's effective appearance, so dynamic colors resolve correctly.
     public override func updateLayer() {
         guard let layer else { return }
