@@ -13,7 +13,7 @@ import UIKitCore
 /// card's corner while the sidebar is hidden). The popover closing by
 /// itself (focus loss, Esc) tells the engine through the center. Unpinned
 /// actions are in the overflow menu (4.5): a click there runs the action
-/// and its popup points at the overflow button; "Pin" pins it.
+/// and its popup points at the overflow button (pinning is the site panel's and Settings', 5.11).
 final class ExtensionPopups: ExtensionPopupPresenting {
     private let center: ExtensionsCenter
     private weak var sidebar: SidebarController?
@@ -35,7 +35,6 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         self.rootView = rootView
         // The center's presenter is the app's router (one per app; it picks this window for its pages, 4.8a).
         sidebar.extensionBar.onExtensionAction = { [weak self] id in self?.run(id) }
-        sidebar.extensionBar.onExtensionPin = { [weak self] id in self?.pin(id) }
         observe()
     }
 
@@ -59,13 +58,6 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         sidebar?.extensionBar.setOverflowActions(center.overflowActions(profile: profileID, page: tabs?.focusedPage).filter { allows?($0.id) ?? true })
     }
 
-    /// The overflow menu's "Pin": the action joins the header at the end of the pinned order.
-    func pin(_ id: InstalledExtension.ID) {
-        guard let section = center.section(profile: profileID),
-              let item = section.installed.first(where: { $0.id == id }) else { return }
-        center.setPinned(true, item, in: section)
-    }
-
     /// A click on `id`'s button.
     func run(_ id: InstalledExtension.ID) {
         guard let page = tabs?.focusedPage, allows?(id) ?? true else { return }
@@ -87,7 +79,7 @@ final class ExtensionPopups: ExtensionPopupPresenting {
         }
         self.popover = popover
         if let button = sidebar?.extensionBar.extensionButton(for: id), button.window != nil,
-           rootView?.isSidebarOpen == true {
+           rootView?.showsSidebarHeader == true {
             popover.show(relativeTo: button.bounds, of: button)
         } else if let rootView {
             // The sidebar is hidden: the card's top-left corner.

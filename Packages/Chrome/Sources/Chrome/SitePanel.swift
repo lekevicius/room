@@ -124,6 +124,8 @@ public final class SitePanelModel {
     public let extensions: SitePanelExtensions?
     /// Room's blocker on this site (B-30); `nil` without one.
     public let blocking: SitePanelBlocking?
+    /// Shows the page's certificate (5.11: "Connection is secure" opens it); `nil` for a page without one.
+    @ObservationIgnored public var showCertificate: (() -> Void)?
 
     public init(origin: URL, security: SecurityState, profile: any Profile, extensions: SitePanelExtensions? = nil,
                 blocking: SitePanelBlocking? = nil, reload: @escaping () -> Void) {
@@ -347,22 +349,21 @@ struct SitePanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(model.host).font(.headline).lineLimit(1).truncationMode(.middle)
-                let connection = SitePanelRules.connection(model.security)
-                Label(connection.text, systemImage: connection.symbol.name)
-                    .font(Font(Typography.secondary))
-                    .foregroundStyle(model.security.level == .secure ? .secondary : Color(nsColor: .systemRed))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                connection
             }
             Divider()
-            Text("Permissions").font(Font(Typography.secondary)).foregroundStyle(.secondary)
-            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Permissions").font(Font(Typography.secondary)).foregroundStyle(.secondary)
                 ForEach(model.rows, id: \.self) { permission in
-                    GridRow {
+                    HStack(spacing: 8) {
                         Image(systemName: SitePanelRules.symbol(for: permission))
                             .frame(width: 18)
                             .foregroundStyle(.secondary)
                         Text(SitePanelRules.title(for: permission))
+                        Spacer(minLength: 8)
                         Picker(SitePanelRules.title(for: permission), selection: Binding(
                             get: { model.setting(permission) },
                             set: { model.set($0, for: permission) })) {
@@ -373,19 +374,18 @@ struct SitePanelView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .fixedSize()
-                        .gridColumnAlignment(.trailing)
                         .accessibilityIdentifier("site-permission-\(permission.rawValue)")
                     }
                 }
-            }
-            if model.hasStoredSettings {
-                Button("Reset Permissions") { Task { await model.resetPermissions() } }
-                    .buttonStyle(.link)
-                    .accessibilityIdentifier("site-reset-permissions")
+                if model.hasStoredSettings {
+                    Button("Reset Permissions") { Task { await model.resetPermissions() } }
+                        .buttonStyle(.link)
+                        .accessibilityIdentifier("site-reset-permissions")
+                }
             }
             if let blocking = model.blocking {
                 Divider()
-                Toggle(isOn: Binding(get: { blocking.isBlocking }, set: { model.setBlocking($0) })) {
+                HStack(alignment: .center, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Block ads and trackers")
                         Text(blocking.isBlocking
@@ -395,19 +395,22 @@ struct SitePanelView: View {
                             .font(Font(Typography.secondary))
                             .foregroundStyle(.secondary)
                     }
+                    Spacer(minLength: 8)
+                    Toggle("Block ads and trackers", isOn: Binding(get: { blocking.isBlocking }, set: { model.setBlocking($0) }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("site-blocking")
                 }
-                .toggleStyle(.switch)
-                .accessibilityIdentifier("site-blocking")
             }
             if let extensions = model.extensions, !extensions.rows.isEmpty {
                 Divider()
                 SitePanelExtensionsView(model: extensions)
             }
             Divider()
-            HStack {
+            HStack(spacing: 8) {
                 Text(model.siteDataCleared ? "Cookies and site data cleared" : "Cookies and site data")
                     .foregroundStyle(model.siteDataCleared ? .secondary : .primary)
-                Spacer()
+                Spacer(minLength: 8)
                 Button("Clear…") { confirmClear = true }
                     .disabled(model.isClearing)
                     .accessibilityIdentifier("site-clear-data")
@@ -418,9 +421,9 @@ struct SitePanelView: View {
                 Text("You will be signed out of \(model.host) in this profile.")
             }
             if model.needsReload {
-                HStack {
+                HStack(spacing: 8) {
                     Text("Reload to apply the changes").font(Font(Typography.secondary)).foregroundStyle(.secondary)
-                    Spacer()
+                    Spacer(minLength: 8)
                     Button("Reload") { model.reload() }
                         .keyboardShortcut(.defaultAction)
                         .accessibilityIdentifier("site-reload")
@@ -429,6 +432,55 @@ struct SitePanelView: View {
         }
         .padding(16)
         .frame(width: SitePanelMetrics.width)
+    }
+
+    /// The connection's line; with a certificate, a ghost pill that opens it (5.11, the user on build 25).
+    @ViewBuilder private var connection: some View {
+        let connection = SitePanelRules.connection(model.security)
+        let label = Label(connection.text, systemImage: connection.symbol.name)
+            .font(Font(Typography.secondary))
+            .foregroundStyle(model.security.level == .secure ? .secondary : Color(nsColor: .systemRed))
+        if let show = model.showCertificate {
+            Button(action: show) {
+                HStack(spacing: 4) {
+                    label
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(GhostPillButtonStyle())
+            .help("Show Certificate")
+            .accessibilityIdentifier("site-certificate")
+        } else {
+            label
+        }
+    }
+}
+
+/// A ghost pill (5.11): the label alone at rest, the controls' hover fill behind it while the
+/// pointer is on it or presses it. Its padding hangs outside the label's column,
+/// so the text lines up with the rows around it.
+struct GhostPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Pill(configuration: configuration) }
+
+    private struct Pill: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, SitePanelMetrics.pillPadding)
+                .padding(.vertical, 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: ControlMetrics.cornerRadius, style: .continuous)
+                        .fill(Color(nsColor: Palette.sidebarHover).opacity(hovering || configuration.isPressed ? 1 : 0))
+                }
+                .contentShape(Rectangle())
+                .padding(.horizontal, -SitePanelMetrics.pillPadding)
+                .onHover { hovering = $0 }
+                .animation(.easeOut(duration: Motion.fast), value: hovering)
+        }
     }
 }
 
@@ -492,4 +544,6 @@ struct SitePanelExtensionsView: View {
 /// The panel's width (chosen, as the permission popover's).
 public enum SitePanelMetrics {
     public static let width: CGFloat = PromptMetrics.permissionWidth
+    /// A ghost pill's padding beside its label (5.11).
+    public static let pillPadding: CGFloat = 6
 }

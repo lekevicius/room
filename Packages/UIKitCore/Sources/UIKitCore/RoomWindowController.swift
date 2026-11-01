@@ -148,7 +148,7 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// sidebar) and validates it disabled, ahead of its controller in the
     /// responder chain (2.7b; Room's menu routes through the app delegate).
     @objc public func toggleSidebarVisibility(_ sender: Any?) {
-        isSidebarOpen.toggle()
+        rootView.setSidebarOpen(!isSidebarOpen, animated: true)
         onSidebarStateChange?(sidebarWidth, isSidebarOpen)
     }
 
@@ -328,6 +328,9 @@ public final class BrowserWindowView: NSView {
 
     /// The overlay is shown (or sliding in).
     public private(set) var isOverlayShown = false
+    /// The sidebar's header is on screen, docked or in the revealed overlay: popovers point at its
+    /// buttons, else at the card's corner (5.11).
+    public var showsSidebarHeader: Bool { (isSidebarOpen || isOverlayShown) && !isPageFullscreen }
     /// The slide is running; the animation owns the overlay's origin.
     public private(set) var isOverlayAnimating = false
     private var overlayGeneration = 0
@@ -385,7 +388,62 @@ public final class BrowserWindowView: NSView {
     /// not: a reveal then only shows and slides it. Moving the sidebar into the overlay as the
     /// slide began cost 40 ms on the main thread and three frames of the slide (5.1b's motion
     /// harness); ⌘S pays it now, while nothing slides.
-    private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen }
+    private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen && !isDockAnimating }
+
+    // MARK: ⌘S's slide (5.11)
+
+    /// The slide owns the sidebar's and the card's frames; the sidebar stays beside the card until it ends.
+    public private(set) var isDockAnimating = false
+    private var dockGeneration = 0
+
+    /// Docks the sidebar or hides it, sliding (`WindowMotion.dock`): docking, the sidebar comes in from
+    /// the window's edge (or from where the revealed overlay holds it) as the card narrows; hiding, it
+    /// leaves as the card widens.
+    public func setSidebarOpen(_ open: Bool, animated: Bool) {
+        guard open != isSidebarOpen else { return }
+        let variant = WindowMotion.dock.variant
+        guard animated, variant != .instant, window != nil, !isPageFullscreen else {
+            isSidebarOpen = open
+            return
+        }
+        let docked = WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: true, pageFullscreen: false,
+                                          insetCard: isCardInset).sidebar
+        let away = docked.offsetBy(dx: -docked.maxX, dy: 0)
+        let fromOverlay = open && (isOverlayShown || isOverlayAnimating)
+        let start = fromOverlay ? overlayView.frame : open ? away : docked
+        let fromCard = cardView.frame
+        dockGeneration += 1
+        let generation = dockGeneration
+        isDockAnimating = true
+        placeSidebar()
+        sidebarView.isHidden = false
+        isSidebarOpen = open
+        let crossfade = variant == .crossfade
+        sidebarView.frame = crossfade ? docked : start
+        cardView.frame = crossfade ? currentLayout.card : fromCard
+        if crossfade, !fromOverlay { sidebarView.alphaValue = open ? 0 : 1 }
+        // The sidebar's layer moved out of the overlay just now: its start frame must reach the render
+        // tree before the slide, or Core Animation has nothing to animate from and it appears in place.
+        CATransaction.flush()
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = Motion.dock
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            if crossfade {
+                sidebarView.animator().alphaValue = open ? 1 : 0
+            } else {
+                cardView.animator().frame = currentLayout.card
+                sidebarView.animator().frame = open ? docked : away
+            }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, generation == self.dockGeneration else { return }
+                self.isDockAnimating = false
+                self.sidebarView.alphaValue = 1
+                self.needsLayout = true
+                self.layoutSubtreeIfNeeded()
+            }
+        })
+    }
 
     public override func layout() {
         super.layout()
@@ -393,7 +451,10 @@ public final class BrowserWindowView: NSView {
         let layout = currentLayout
         let geometry = trafficLights?.geometry ?? .none
         placeSidebar()
-        if sidebarInOverlay {
+        if isDockAnimating {
+            // ⌘S's slide places the sidebar and the card itself.
+            sidebarView.trafficLights = sidebarTrafficLights(geometry, origin: .zero)
+        } else if sidebarInOverlay {
             let frame = overlayFrame
             if isOverlayAnimating { overlayView.setFrameSize(frame.size) } else { overlayView.frame = frame }
             sidebarView.isHidden = false
@@ -413,7 +474,7 @@ public final class BrowserWindowView: NSView {
                 sidebarView.trafficLights = sidebarTrafficLights(geometry, origin: frame.origin)
             }
         }
-        cardView.frame = layout.card
+        if !isDockAnimating { cardView.frame = layout.card }
         if showsToolbar {
             // The traffic lights over the card: they sit in the bar's leading end.
             if buttonsOverCard, let buttons = geometry.buttonsRect {

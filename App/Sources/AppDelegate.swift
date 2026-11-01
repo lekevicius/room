@@ -10,6 +10,7 @@ import Library
 import Model
 import Omnibox
 import Palette
+import SecurityInterface
 import Sidebar
 import Store
 import SwiftUI
@@ -1001,8 +1002,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         session.promptPresenter = PagePromptPresenter(
             prompts: chrome.prompts, crashes: chrome.crashes, host: pageHost.container.promptLayer,
             permissionAnchor: { [weak rootView, weak sidebar] in
-                // The site button while the sidebar shows it; otherwise the card's corner.
-                guard let rootView, rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil else {
+                // The site button while the sidebar shows it (docked or revealed); otherwise the card's corner.
+                guard let rootView, rootView.showsSidebarHeader, let button = sidebar?.addressField.siteButtonView, button.window != nil else {
                     return nil
                 }
                 return (button, button.bounds)
@@ -1016,7 +1017,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Chrome's own bubbles (RoomCore, 3.7a) point where the permission popover does.
         pageDelegate.bubbleAnchor = { [weak rootView, weak sidebar] in
             guard let rootView, rootView.window != nil else { return nil }
-            if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {
+            if rootView.showsSidebarHeader, let button = sidebar?.addressField.siteButtonView, button.window != nil {
                 return button.convert(button.bounds, to: nil)
             }
             let card = rootView.currentLayout.card
@@ -1836,7 +1837,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                    blocking: blockingSection) {
             [weak page] in page?.reload()
         }
-        if rootView.isSidebarOpen, let button = sidebar?.addressField.siteButtonView, button.window != nil {
+        // 5.11: "Connection is secure" opens the page's certificate (macOS's own sheet over the window).
+        let chain = page.certificateChain.compactMap { SecCertificateCreateWithData(nil, $0 as CFData) }
+        if !chain.isEmpty {
+            model.showCertificate = { [weak self] in
+                self?.sitePanel.close()
+                guard let window = self?.activeWindow?.controller.window else { return }
+                SFCertificatePanel.shared().beginSheet(for: window, modalDelegate: nil, didEnd: nil, contextInfo: nil,
+                                                       certificates: chain, showGroup: true)
+            }
+        }
+        // The header shows docked or in the revealed overlay (5.11: from the overlay it came out of the card's corner).
+        if rootView.showsSidebarHeader, let button = sidebar?.addressField.siteButtonView, button.window != nil {
             sitePanel.show(model, relativeTo: button.bounds, of: button, preferredEdge: .maxY)
         } else {
             // No header (hidden sidebar): the card's top-left corner, as the permission popover.
