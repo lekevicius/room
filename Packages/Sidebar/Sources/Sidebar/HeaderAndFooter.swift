@@ -16,12 +16,14 @@ public final class AddressFieldView: PressableView {
     private let siteButton = HoverButton()
     private let domainField = NSTextField(labelWithString: "")
     private let copyButton = HoverButton()
+    /// Liquid Glass under the field (5.10, the Room Browser design); it deepens under the pointer.
+    private let glass = GlassPillView()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
-    /// Its fill deepens under the pointer (B-111): `Palette.sidebarHover` → `Palette.addressFieldHover`.
+    /// The press (B-111); the hover is the glass's (5.10), so the field's own layer stays clear.
     private lazy var feedback: ControlFeedback = {
         let feedback = ControlFeedback(view: self)
-        feedback.restFill = { Palette.sidebarHover }
-        feedback.hoverFill = { Palette.addressFieldHover }
+        feedback.restFill = { .clear }
+        feedback.hoverFill = { .clear }
         return feedback
     }()
     private var url: String?
@@ -49,6 +51,8 @@ public final class AddressFieldView: PressableView {
         domainField.cell?.truncatesLastVisibleLine = true
         domainField.hideFromAccessibility()
         copyButton.image = Symbol.copyURL.image(.controlSmall, accessibilityDescription: "Copy URL")
+        // At the label's colour, as the chevron beside it (5.10: it read faded at the button's default tint).
+        copyButton.contentTintColor = .labelColor
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
         copyButton.setTip("Copy URL (⇧⌘C)")
@@ -56,6 +60,7 @@ public final class AddressFieldView: PressableView {
         // A hover affordance: the keyboard has ⇧⌘C, and Tab never lands on a button that hides as the field loses focus.
         copyButton.refusesFirstResponder = true
         copyButton.setAccessibilityIdentifier("copy-url")
+        addSubview(glass)
         addSubview(siteButton)
         addSubview(domainField)
         addSubview(copyButton)
@@ -108,15 +113,17 @@ public final class AddressFieldView: PressableView {
             toolTip = nil
         }
         let symbol = Self.siteSymbol(url: url, isSecure: isSecure)
-        if symbol != previousSymbol { siteButton.image = symbol.image(.control, accessibilityDescription: "Site Information") }
-        siteButton.toolTip = url == nil ? nil : (isSecure ? "Site Information" : "Not Secure")
+        if symbol != previousSymbol { siteButton.image = symbol.image(.control, accessibilityDescription: isSecure ? "Page Settings" : "Site Information") }
+        siteButton.toolTip = url == nil ? nil : (isSecure ? "Page Settings" : "Not Secure")
         siteButton.isEnabled = url != nil
         setAccessibilityValue(url ?? "Search or enter URL")
         updateHover()
     }
 
+    /// The site button: a chevron for the page's settings (5.10, the Room Browser design), the
+    /// warning on a page that is not secure, the search glyph with no page.
     private static func siteSymbol(url: String?, isSecure: Bool) -> Symbol {
-        url == nil ? .search : (isSecure ? .siteInfo : .siteInsecure)
+        url == nil ? .search : (isSecure ? .pageSettings : .siteInsecure)
     }
 
     public override func updateLayer() {
@@ -127,6 +134,7 @@ public final class AddressFieldView: PressableView {
 
     public override func layout() {
         super.layout()
+        glass.frame = bounds
         let padding = SidebarMetrics.addressFieldPadding
         let button = SidebarMetrics.addressButtonSize
         // The button's icon lines up `padding` from the trailing edge, as the domain does from the leading one.
@@ -142,6 +150,7 @@ public final class AddressFieldView: PressableView {
 
     private func updateHover() {
         copyButton.isHidden = !(hovering && url != nil)
+        glass.isHighlighted = hovering
         feedback.setHovering(hovering)
         needsLayout = true
     }
@@ -458,8 +467,9 @@ final class SidebarFooterView: NSView {
     let downloadsButton = DownloadsButton()
     let plusButton = HoverButton()
     private let iconRow = FlippedRow()
-    private let indicator = NSView()
     private let nameLabel = NSTextField(labelWithString: "")
+    /// The name's backing above the icon row (5.10).
+    private let nameChip = NSView()
     private var icons: [SpaceIconView] = []
     private var spaces: [Space] = []
     private var activeID: UUID?
@@ -486,10 +496,7 @@ final class SidebarFooterView: NSView {
         plusButton.target = self
         plusButton.action = #selector(plusClicked)
         plusButton.setAccessibilityIdentifier("footer-plus")
-        indicator.wantsLayer = true
-        indicator.layer?.cornerCurve = .continuous
-        indicator.isHidden = true
-        iconRow.addSubview(indicator)
+        // 5.10 (the user on build 24): no ring behind the active space; its full size and opacity mark it.
         iconRow.setAccessibilityIdentifier("space-icons")
         // The icons as one group (5.3a); the hovered name beside them repeats an icon's label.
         iconRow.setAccessibilityElement(true)
@@ -498,13 +505,17 @@ final class SidebarFooterView: NSView {
         nameLabel.hideFromAccessibility()
         plusButton.setAccessibilityHelp("A new tab, folder or space")
         nameLabel.font = Typography.secondary
-        nameLabel.textColor = Palette.sidebarSecondaryLabel
+        nameLabel.textColor = .labelColor
+        nameLabel.alignment = .center
         nameLabel.lineBreakMode = .byTruncatingTail
-        nameLabel.alphaValue = 0
+        // 5.10: the hovered space's name above its icon, a small label on the selection's fill.
+        nameChip.wantsLayer = true
+        nameChip.alphaValue = 0
+        nameChip.addSubview(nameLabel)
         addSubview(downloadsButton)
         addSubview(iconRow)
-        addSubview(nameLabel)
         addSubview(plusButton)
+        addSubview(nameChip)
         registerForDraggedTypes([SidebarController.entryPasteboardType] + SidebarDrop.contentTypes)
     }
 
@@ -548,7 +559,6 @@ final class SidebarFooterView: NSView {
             applyActive(animated: animated && previousActive != nil && previousActive != active)
             return
         }
-        indicator.isHidden = icons.isEmpty
         needsLayout = true
         layoutSubtreeIfNeeded()
         applyActive(animated: false)
@@ -557,13 +567,11 @@ final class SidebarFooterView: NSView {
 
     private func applyActive(animated: Bool) {
         guard let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index) else { return }
-        let target = indicatorFrame(icons[index].frame)
         let duration = animated && SidebarMotion.spaceIndicator.animates ? Motion.medium : 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = duration > 0
-            indicator.animator().frame = target
             for (offset, icon) in icons.enumerated() where icon.isActive != (offset == index) || !animated {
                 icon.setActive(offset == index, animated: duration > 0)
             }
@@ -574,30 +582,38 @@ final class SidebarFooterView: NSView {
         if hovering { hoveredID = space } else if hoveredID == space { hoveredID = nil }
     }
 
-    /// The hovered space's name beside the row, only while the pointer is on it (spec §B).
+    /// The hovered space's name above its icon, only while the pointer is on it (spec §B; 5.10: above, not beside).
     private func updateLabel() {
         let name = hoveredID.flatMap { id in spaces.first { $0.id == id }?.name }
         if let name { nameLabel.stringValue = name }
         needsLayout = true
         layoutSubtreeIfNeeded()
-        // A name longer than the gap before "+" takes its place while shown.
-        let covers = name != nil && nameLabel.frame.maxX > plusButton.frame.minX - Spacing.xs
         NSAnimationContext.runAnimationGroup { context in
             context.duration = SidebarMotion.spaceName.animates ? Motion.fast : 0
-            nameLabel.animator().alphaValue = name == nil ? 0 : 1
-            plusButton.animator().alphaValue = covers ? 0 : 1
+            nameChip.animator().alphaValue = name == nil ? 0 : 1
         }
     }
 
     override func updateLayer() {
-        indicator.layer?.backgroundColor = Palette.sidebarHover.cgColor
+        styleNameChip()
     }
 
     override var wantsUpdateLayer: Bool { true }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { indicator.layer?.backgroundColor = Palette.sidebarHover.cgColor }
+        effectiveAppearance.performAsCurrentDrawingAppearance { styleNameChip() }
+    }
+
+    private func styleNameChip() {
+        guard let layer = nameChip.layer else { return }
+        layer.backgroundColor = Palette.sidebarSelection.cgColor
+        layer.cornerRadius = SpaceIconMetrics.nameChipHeight / 2
+        layer.cornerCurve = .continuous
+        layer.shadowColor = Palette.cardShadow.cgColor
+        layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark)
+        layer.shadowRadius = SidebarMetrics.pillShadowRadius
+        layer.shadowOffset = SidebarMetrics.pillShadowOffset
     }
 
     override func layout() {
@@ -619,22 +635,16 @@ final class SidebarFooterView: NSView {
         for (index, icon) in icons.enumerated() {
             icon.frame = NSRect(x: CGFloat(index) * pitch + (pitch - box) / 2, y: ((bounds.height - box) / 2).rounded(), width: box, height: box)
         }
-        let glyph = min(SpaceIconMetrics.size, box)
-        indicator.layer?.cornerRadius = (glyph + 2 * SpaceIconMetrics.indicatorPadding) / 2
-        if let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index), indicator.layer?.animationKeys()?.isEmpty != false {
-            indicator.frame = indicatorFrame(icons[index].frame)
-        }
+        // The name above the hovered icon, centred on it, kept inside the footer's width.
         let labelSize = nameLabel.cell?.cellSize ?? NSSize(width: 0, height: 14)
-        let labelX = iconRow.frame.maxX + Spacing.xs
-        nameLabel.frame = NSRect(x: labelX, y: ((bounds.height - ceil(labelSize.height)) / 2).rounded(),
-                                 width: max(0, min(ceil(labelSize.width), bounds.width - inset - labelX)), height: ceil(labelSize.height))
-    }
-
-    /// The active icon's highlight: a circle `indicatorPadding` around its glyph box, centred in its square.
-    private func indicatorFrame(_ icon: NSRect) -> NSRect {
-        let glyph = min(SpaceIconMetrics.size, icon.width)
-        return NSRect(x: icon.midX - glyph / 2, y: icon.midY - glyph / 2, width: glyph, height: glyph)
-            .insetBy(dx: -SpaceIconMetrics.indicatorPadding, dy: -SpaceIconMetrics.indicatorPadding)
+        let chipHeight = SpaceIconMetrics.nameChipHeight
+        let chipWidth = min(ceil(labelSize.width) + 2 * SpaceIconMetrics.nameChipPadding, bounds.width - 2 * inset)
+        let anchor = hoveredID.flatMap { id in spaces.firstIndex { $0.id == id } }.flatMap { icons.indices.contains($0) ? icons[$0] : nil }
+        let centreX = anchor.map { iconRow.convert(NSPoint(x: $0.frame.midX, y: 0), to: self).x } ?? bounds.midX
+        let chipX = min(max(inset, centreX - chipWidth / 2), bounds.width - inset - chipWidth)
+        nameChip.frame = NSRect(x: chipX.rounded(), y: -chipHeight - SpaceIconMetrics.nameChipGap, width: chipWidth, height: chipHeight)
+        nameLabel.frame = NSRect(x: SpaceIconMetrics.nameChipPadding, y: ((chipHeight - ceil(labelSize.height)) / 2).rounded(),
+                                 width: max(0, chipWidth - 2 * SpaceIconMetrics.nameChipPadding), height: ceil(labelSize.height))
     }
 
     // MARK: Reordering (spec §B: drag an icon more than a few points, Zen)
@@ -793,7 +803,7 @@ final class SpaceIconView: PressableView {
 
     func update(_ space: Space) {
         self.space = space
-        toolTip = space.name
+        // No tooltip: the footer shows the name above the icon at once (5.10).
         setAccessibilityLabel(space.name)
         setAccessibilityHelp("Switch to this space")
         switch SpaceIcon(space.icon) {

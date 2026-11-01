@@ -105,6 +105,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private let readerIndicator = NSImageView()
     /// The page's title leads with an unread counter ("(3) Inbox", spec §I.3).
     private let unreadDot = UnreadDotView()
+    /// The selected row's glow (5.10, the Room Browser design): its favicon's colour, soft, behind
+    /// the favicon, inside the pill's corner. The clip is the pill; the glow a radial gradient.
+    private let glowClip = CALayer()
+    private let glow = CAGradientLayer()
 
     /// A folder with a custom icon shows it in the favicon's place.
     private var showsCustomFolderIcon: Bool {
@@ -163,6 +167,33 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
                      unreadDot] as [NSView] {
             addSubview(view)
         }
+        glowClip.actions = CALayer.noImplicitActions
+        glowClip.masksToBounds = true
+        glowClip.cornerRadius = SidebarMetrics.pillCornerRadius
+        glowClip.cornerCurve = .continuous
+        glowClip.isHidden = true
+        glow.actions = CALayer.noImplicitActions
+        glow.type = .radial
+        glow.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glow.endPoint = CGPoint(x: 1, y: 1)
+        glowClip.addSublayer(glow)
+        layer?.insertSublayer(glowClip, at: 0)
+    }
+
+    /// The colour of what the favicon square shows: the favicon's, else its letter tile's (no custom icon's).
+    static func iconColor(_ model: EntryRowModel) -> NSColor? {
+        if model.page.favicon != nil { return FaviconTint.color(of: model.page.favicon) }
+        guard SpaceIcon(model.entry.customIcon) == .none else { return nil }
+        return Palette.letterTileColor(for: EntryLabel.domain(model.entry.currentURL) ?? EntryLabel.title(model.entry))
+    }
+
+    /// The glow shows on the selected row whose favicon has a colour (`FaviconTint`).
+    private func updateGlow() {
+        let color = model.flatMap { $0.isSelected && $0.entry.kind != .folder ? Self.iconColor($0) : nil }
+        glowClip.isHidden = color == nil
+        guard let color else { return }
+        glow.colors = [color.withAlphaComponent(GlassMetrics.glowAlpha).cgColor, color.withAlphaComponent(0).cgColor]
+        needsLayout = true
     }
 
     @available(*, unavailable)
@@ -206,6 +237,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             }
         }
         if !isRenaming { titleField.stringValue = EntryLabel.title(entry) }
+        updateGlow()
         titleField.textColor = (isFolder || model.page.isLoaded) ? .labelColor
             : Palette.sidebarUnloadedLabel
         let audible = model.page.isAudible || model.page.isMuted
@@ -217,10 +249,8 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             audioButton.image = symbol.image(.rowButton, accessibilityDescription: label)
             audioButton.toolTip = label
             audioButton.setAccessibilityLabel(label)
+            // 5.10 (the user, on build 24): the two-wave glyph still, no level animation over it.
             audioButton.removeAllSymbolEffects()
-            if model.page.isAudible, !model.page.isMuted, SidebarMotion.audioIndicator.animates {
-                audioButton.addSymbolEffect(.variableColor.iterative)
-            }
         }
         captureIndicator.isHidden = model.page.capture == nil
         if let capture = model.page.capture {
@@ -312,6 +342,13 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         super.layout()
         let icon = iconRect
         favicon.frame = icon
+        if !glowClip.isHidden {
+            // The favicon is centred vertically, so the glow's centre holds whichever way the layer is flipped.
+            let pill = SidebarRowView.pillRect(in: bounds)
+            glowClip.frame = pill
+            let diameter = GlassMetrics.glowDiameter
+            glow.frame = CGRect(x: icon.midX - pill.minX - diameter / 2, y: icon.midY - pill.minY - diameter / 2, width: diameter, height: diameter)
+        }
         // The folder glyph is wider than a favicon (B-115), centred where the favicon's centre is.
         let glyph = SidebarMetrics.folderGlyphSize
         folderIcon.frame = NSRect(x: (icon.midX - glyph.width / 2).rounded(), y: (icon.midY - glyph.height / 2).rounded(),
@@ -734,17 +771,32 @@ final class SeparatorCellView: NSTableCellView {
         updateClearAlpha(animated: animated)
     }
 
+    /// Clear is shown (or the button has the keyboard): the line stops before it.
+    private var clearVisible: Bool { !clearButton.isHidden && (pointerInside || clearButton.hasKeyboardFocus) }
+
     private func updateClearAlpha(animated: Bool) {
         let alpha: CGFloat = pointerInside || clearButton.hasKeyboardFocus ? 1 : 0
         guard clearButton.alphaValue != alpha else { return }
+        // 5.10: while Clear is faded out the line runs to the row's end (it left a gap where Clear sat).
+        let lineFrame = lineFrame(clearShown: alpha > 0)
         if animated, SidebarMotion.clearReveal.animates, window != nil {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = Motion.fast
+                context.allowsImplicitAnimation = true
                 clearButton.animator().alphaValue = alpha
+                line.animator().frame = lineFrame
             }
         } else {
             clearButton.alphaValue = alpha
+            line.frame = lineFrame
         }
+    }
+
+    private func lineFrame(clearShown: Bool) -> NSRect {
+        let inset = SidebarMetrics.rowHorizontalInset + SidebarMetrics.rowContentInset
+        let trailing = bounds.width - inset
+        let lineEnd = clearShown && !clearButton.isHidden ? clearButton.frame.minX - Spacing.s : trailing
+        return NSRect(x: inset, y: (bounds.height / 2).rounded(), width: max(0, lineEnd - inset), height: line.thickness)
     }
 
     override func layout() {
@@ -753,8 +805,7 @@ final class SeparatorCellView: NSTableCellView {
         let buttonWidth = clearButton.isHidden ? 0 : ceil(clearButton.fittingSize.width)
         let trailing = bounds.width - inset
         clearButton.frame = NSRect(x: trailing - buttonWidth, y: 0, width: buttonWidth, height: bounds.height)
-        let lineEnd = clearButton.isHidden ? trailing : trailing - buttonWidth - Spacing.s
-        line.frame = NSRect(x: inset, y: (bounds.height / 2).rounded(), width: max(0, lineEnd - inset), height: line.thickness)
+        line.frame = lineFrame(clearShown: clearVisible)
     }
 }
 

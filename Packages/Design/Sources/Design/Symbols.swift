@@ -18,6 +18,8 @@ public enum Symbol: CaseIterable, Sendable {
     case siteSecure
     case siteInsecure
     case siteInfo
+    /// The address field's site button since 5.10: the page's settings (the Room Browser design's chevron).
+    case pageSettings
     case copyURL
     case copyMarkdown
     case paste
@@ -150,6 +152,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .siteSecure: "lock.fill"
         case .siteInsecure: "exclamationmark.triangle.fill"
         case .siteInfo: "slider.horizontal.2.square"
+        case .pageSettings: "chevron.down"
         case .copyURL: "link"
         case .copyMarkdown: "text.quote"
         case .paste: "doc.on.clipboard"

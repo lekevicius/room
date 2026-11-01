@@ -303,6 +303,8 @@ final class EssentialTileView: PressableView {
     /// The page's title leads with an unread counter (spec §I.3): the tile's top-left corner.
     private let unreadDot = UnreadDotView()
     private let multiSelectionLayer = CALayer()
+    /// The selected tile's Liquid Glass, tinted with its favicon's colour (5.10, the Room Browser design).
+    private let glass = GlassPillView()
     private var hovering = false { didSet { if hovering != oldValue { update() } } }
     private var isSelected = false
     private var isChanged = false
@@ -319,6 +321,8 @@ final class EssentialTileView: PressableView {
         wantsLayer = true
         // Resized with the tile without Core Animation's implicit 0.25 s animation (5.1a).
         multiSelectionLayer.actions = CALayer.noImplicitActions
+        glass.isHidden = true
+        addSubview(glass)
         layer?.addSublayer(multiSelectionLayer)
         setAccessibilityIdentifier("essential")
         resetButton.image = Symbol.resetPinned.image(.tileReset, accessibilityDescription: "Back to pinned URL")
@@ -362,6 +366,10 @@ final class EssentialTileView: PressableView {
         favicon.customIcon = entry.customIcon
         favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
         favicon.isUnloaded = !page.isLoaded
+        glass.isHidden = !isSelected
+        if isSelected {
+            glass.tint = EntryCellView.iconColor(EntryRowModel(entry: entry, page: page, isSelected: true, isChanged: isChanged, depth: 0))
+        }
         let unread = EntryLabel.hasUnread(entry, isLoaded: page.isLoaded)
         unreadDot.isHidden = !unread
         favicon.isLoading = page.isLoading
@@ -397,10 +405,11 @@ final class EssentialTileView: PressableView {
         guard let layer else { return }
         layer.cornerRadius = SidebarMetrics.pillCornerRadius
         layer.cornerCurve = .continuous
-        // A hovered tile is half the selection fill in place of its own (the design).
-        let fill = isSelected ? Palette.sidebarSelection
-            : hovering ? Palette.sidebarSelection.withAlphaComponent(SidebarMetrics.essentialHoverAlpha) : Palette.sidebarHover
-        layer.backgroundColor = fill.cgColor
+        // 5.10 (the Room Browser design): a tile at rest is an outline; under the pointer the rows'
+        // hover fill; selected, the tinted glass (`glass`) with the design's lift.
+        layer.backgroundColor = !isSelected && hovering ? Palette.sidebarHover.cgColor : nil
+        layer.borderWidth = isSelected ? 0 : Hairline.width(in: self) * SidebarMetrics.essentialBorderPixels
+        layer.borderColor = Palette.hairline.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
         layer.shadowOpacity = isSelected ? SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark) : 0
         layer.shadowRadius = SidebarMetrics.essentialShadowRadius
@@ -423,6 +432,7 @@ final class EssentialTileView: PressableView {
         let size = SidebarMetrics.essentialIconSize
         let icon = NSRect(x: ((bounds.width - size) / 2).rounded(), y: ((bounds.height - size) / 2).rounded(), width: size, height: size)
         favicon.frame = icon
+        glass.frame = bounds
         resetButton.frame = icon.insetBy(dx: -Spacing.xs, dy: -Spacing.xs)
         let dotSize = SidebarMetrics.changedDotSize, mark = ChangedMark.style().size
         let inset = SidebarMetrics.tileBadgeInset, badge = SidebarMetrics.tileBadgeSize

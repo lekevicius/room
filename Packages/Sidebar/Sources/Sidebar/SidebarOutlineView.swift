@@ -330,30 +330,24 @@ final class DropIndicatorView: NSView {
 final class SelectionPillView: NSView {
     /// The entry the pill marks.
     private(set) var entryID: UUID?
+    /// Liquid Glass (5.10, the Room Browser design): the glass's own edge and depth replace
+    /// B-112's drawn shadow; the row's cell adds its favicon's glow over it.
+    private let glass = GlassPillView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         isHidden = true
+        glass.frame = bounds
+        glass.autoresizingMask = [.width, .height]
+        addSubview(glass)
         setAccessibilityElement(false)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    override var wantsUpdateLayer: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    override func updateLayer() {
-        guard let layer else { return }
-        layer.cornerRadius = SidebarMetrics.pillCornerRadius
-        layer.cornerCurve = .continuous
-        layer.backgroundColor = Palette.sidebarSelection.cgColor
-        layer.shadowColor = Palette.cardShadow.cgColor
-        layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark)
-        layer.shadowRadius = SidebarMetrics.pillShadowRadius
-        layer.shadowOffset = SidebarMetrics.pillShadowOffset
-    }
 
     /// Marks `entry`'s row at `target` (`nil` hides the pill). Only the same
     /// entry's row moving animates, alongside the rows' own `Motion.standard`.
