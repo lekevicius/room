@@ -12,9 +12,12 @@ source_set("browser") {
     "room_find_bar.h",
     "room_location_bar.cc",
     "room_location_bar.h",
+    "room_video_overlay.h",
+    "room_video_overlay.mm",
   ]
   deps = [
     "//base",
+    "//cc/paint",
     "//chrome/browser/ui",
     "//chrome/browser/ui:sad_tab",
     "//chrome/browser/ui/location_bar",
@@ -23,6 +26,7 @@ source_set("browser") {
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/navigator",
+    "//chrome/browser/ui/views/overlay",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/toasts",
     "//chrome/browser/ui/toasts/api:toasts",
@@ -40,8 +44,10 @@ source_set("browser") {
     "//content/public/browser",
     "//third_party/blink/public/mojom:mojom_platform",
     "//ui/base",
+    "//ui/compositor",
     "//ui/gfx",
     "//ui/views",
+    "//skia",
     "//url",
   ]
   frameworks = [ "AppKit.framework" ]

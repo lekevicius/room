@@ -44,6 +44,7 @@
 #include "room/browser/room_exclusive_access_context.h"
 #include "room/browser/room_find_bar.h"
 #include "room/browser/room_location_bar.h"
+#include "room/browser/room_video_overlay.h"
 #include "third_party/blink/public/mojom/picture_in_picture_window_options/picture_in_picture_window_options.mojom.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
@@ -497,6 +498,7 @@ namespace room {
 
 void InstallBrowserWindowFactory() {
   g_create_browser_window_hook = &CreateRoomBrowserWindow;
+  InstallVideoOverlayHook();
   // No ToastService for a Room window (B-58): its RoomBrowserWindow
   // registered a RoomToastController in the slot ToastService's controller
   // would take. The factory's override is named for tests upstream but has

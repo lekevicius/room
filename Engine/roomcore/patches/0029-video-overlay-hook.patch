@@ -1,0 +1,51 @@
+diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+index 0afdeb691c3ee..66b92f3ab1f18 100644
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -102,6 +102,20 @@
+ #include "chrome/browser/ui/views/overlay/video_overlay_window_native_widget_mac.h"
+ #endif  // BUILDFLAG(IS_MAC)
+ 
++namespace room {
++// Room restyles the window's controls (//room/browser/room_video_overlay.mm):
++// once its views exist (`layout` false) and after each layout (true).
++void (*g_video_overlay_hook)(views::View* controls,
++                             views::View* title,
++                             views::Label* origin,
++                             views::View* favicon,
++                             views::Button* back_to_tab,
++                             views::Button* close,
++                             views::View* minimize,
++                             views::View* playback,
++                             bool layout) = nullptr;
++}  // namespace room
++
+ namespace {
+ 
+ // Lower bound size of the window is a fixed value to allow for minimal sizes
+@@ -1402,6 +1416,12 @@ void VideoOverlayWindowViews::SetUpViews() {
+   resize_handle_view_ =
+       controls_container_view_->AddChildView(std::move(resize_handle_view));
+ #endif
++  if (room::g_video_overlay_hook) {
++    room::g_video_overlay_hook(controls_container_view_, title_view_, origin_,
++                               favicon_view_, back_to_tab_button_,
++                               close_controls_view_, minimize_button_,
++                               playback_controls_container_view_, false);
++  }
+ }
+ 
+ void VideoOverlayWindowViews::OnRootViewReady() {
+@@ -1703,6 +1723,12 @@ void VideoOverlayWindowViews::OnUpdateControlsBounds() {
+   replay_10_seconds_button_->SetVisible(!is_dragging_progress_bar && !is_live_);
+   forward_10_seconds_button_->SetVisible(!is_dragging_progress_bar &&
+                                          !is_live_);
++  if (room::g_video_overlay_hook) {
++    room::g_video_overlay_hook(controls_container_view_, title_view_, origin_,
++                               favicon_view_, back_to_tab_button_,
++                               close_controls_view_, minimize_button_,
++                               playback_controls_container_view_, true);
++  }
+ }
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
