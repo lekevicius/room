@@ -13,8 +13,8 @@ import UIKitCore
 /// test servers (:8766). Sections (`-RoomSpikeOnly` picks):
 /// - `card`: one page edge to edge beside the sidebar and over the whole window with it hidden, the
 ///   window's corner; a split's panes inset; the card opaque to the titlebar's server-side drag (B-32);
-/// - `devtools`: the header's Dock to Right, Left, Bottom, Open in Window and Close, clicked through
-///   their buttons: the pane's frame beside the page, the window, DevTools closed;
+/// - `devtools`: DevTools' own Dock side (bottom, left, right, undocked into Room's window, back) and
+///   close button, driven in the front-end: where the page goes, the window, DevTools closed;
 /// - `scroll`: a new tab opened below the list's visible part comes into view;
 /// - `shots`: the window open and hidden, the revealed overlay, the palette, a hovered space's name.
 /// `-RoomSpikeCaptureDirectory` keeps in-process captures named `phase-5.10-<name>-<appearance>.png`.
@@ -97,67 +97,69 @@ extension SpikeRunner.Context {
 
     // MARK: devtools
 
+    /// DevTools' own Dock side (the front-end's DockController, as its ⋮ menu sets it) and close button
+    /// (InspectorFrontendHost.closeWindow, as its × calls it), driven in the front-end page.
     private func redesignDevTools() async {
         guard let page = await open(URL(string: Self.redesignBase + "find.html?devtools")!), let app = AppDelegate.current,
               let host = app.pageHost else { return SpikeRunner.record("error", "devtools: no page") }
         guard page.devTools != nil else { return SpikeRunner.record("error", "devtools: none on this engine") }
-        // A known start: docked at the bottom.
-        UserDefaults.standard.set("bottom", forKey: "RoomDevToolsPlacement")
         host.toggleDevTools()
         _ = await waitUntil(10) { page.devTools?.isOpen == true }
+        guard let frontend = devToolsFrontend(page) else { return SpikeRunner.record("error", "devtools: no front-end") }
+        await waitLoaded(frontend, timeout: 10)
         try? await Task.sleep(for: .seconds(2))
         let container = host.container
-        func record(_ label: String) {
+        func frontendJS(_ body: String) async -> String {
+            await js(frontend, "(async () => { try { const UI = await import('devtools://devtools/bundled/ui/legacy/legacy.js'); "
+                + "const dock = UI.DockController.DockController.instance(); \(body) } catch (e) { return 'error ' + e } })()")
+        }
+        func record(_ label: String) async {
             container.layoutSubtreeIfNeeded()
-            let pane = container.devToolsPane
-            let frontend = container.devToolsHost.subviews.first
-            SpikeRunner.record("devtools_\(label)", "open=\(page.devTools?.isOpen == true) pane=\(pane.isHidden ? "hidden" : NSStringFromRect(pane.frame)) "
-                + "page=\(NSStringFromRect(container.pageView?.frame ?? .zero)) frontend_in_pane=\(frontend != nil) "
-                + "window=\(NSApp.windows.contains { $0.isVisible && $0.title.hasPrefix("Developer Tools") })")
+            let side = await frontendJS("return dock.dockSide() + ' canDock=' + dock.canDock() + ' close=' + (dock.closeButton ? dock.closeButton.visible() : 'none');")
+            let devToolsWindow = NSApp.windows.first { $0.isVisible && $0.title.hasPrefix("Developer Tools") }
+            let inWindow = devToolsWindow.flatMap { redesignFind("devtools-host", in: $0.contentView) }?.subviews.isEmpty == false
+            SpikeRunner.record("devtools_\(label)", "open=\(page.devTools?.isOpen == true) docked=\(page.devTools?.isDocked == true) "
+                + "page=\(NSStringFromRect(container.pageFrame)) container=\(NSStringFromRect(container.bounds)) "
+                + "frontend_in_card=\(!container.devToolsHost.subviews.isEmpty) window=\(devToolsWindow != nil) in_window=\(inWindow) frontend=\(side)")
         }
-        record("bottom")
-        redesignCapture("devtools-bottom")
-        func click(_ id: String, in root: NSView) -> Bool {
-            guard let button = redesignFind(id, in: root) as? NSButton else {
-                SpikeRunner.record("error", "devtools: no button \(id)")
-                return false
-            }
-            button.performClick(nil)
-            return true
+        await record("opened")
+        redesignCapture("devtools-opened")
+        for side in ["bottom", "left", "right"] {
+            _ = await frontendJS("dock.setDockSide('\(side)'); return 'ok';")
+            try? await Task.sleep(for: .seconds(1.5))
+            await record(side)
+            redesignCapture("devtools-\(side)")
         }
-        for placement in ["right", "left", "bottom"] {
-            guard click("devtools-\(placement)", in: container.devToolsPane) else { return }
-            try? await Task.sleep(for: .seconds(1))
-            record(placement)
-            if placement != "bottom" { redesignCapture("devtools-\(placement)") }
+        _ = await frontendJS("dock.setDockSide('undocked'); return 'ok';")
+        try? await Task.sleep(for: .seconds(2))
+        await record("undocked")
+        if let window = NSApp.windows.first(where: { $0.isVisible && $0.title.hasPrefix("Developer Tools") }) {
+            redesignCapture("devtools-window", of: window)
         }
-        guard click("devtools-window", in: container.devToolsPane) else { return }
-        try? await Task.sleep(for: .seconds(1.5))
-        let devToolsWindow = NSApp.windows.first { $0.isVisible && $0.title.hasPrefix("Developer Tools") }
-        let inWindow = devToolsWindow.flatMap { redesignFind("devtools-host", in: $0.contentView) }?.subviews.isEmpty == false
-        record("window")
-        SpikeRunner.record("devtools_window_frontend", "in_window=\(inWindow) title=\(devToolsWindow?.title ?? "none")")
-        if let devToolsWindow { redesignCapture("devtools-window", of: devToolsWindow) }
-        // Dock back from the window's own strip, then Close from the pane's.
-        if let content = devToolsWindow?.contentView, click("devtools-right", in: content) {
-            try? await Task.sleep(for: .seconds(1))
-            record("docked_from_window")
+        _ = await frontendJS("dock.setDockSide('right'); return 'ok';")
+        try? await Task.sleep(for: .seconds(2))
+        await record("redocked")
+        // The front-end's own close button.
+        let closeCall = await js(frontend, "(async () => { try { const Host = await import('devtools://devtools/bundled/core/host/host.js'); "
+            + "Host.InspectorFrontendHost.InspectorFrontendHostInstance.closeWindow(); return 'ok'; } catch (e) { return 'error ' + e } })()")
+        var samples: [String] = []
+        for _ in 0..<10 {
+            try? await Task.sleep(for: .milliseconds(500))
+            samples.append("\(page.devTools?.isOpen == true ? 1 : 0)\(page.devTools?.isDocked == true ? "d" : "")")
         }
-        guard click("devtools-close", in: container.devToolsPane) else { return }
-        _ = await waitUntil(5) { page.devTools?.isOpen == false }
-        try? await Task.sleep(for: .milliseconds(500))
-        record("closed")
-        // The window's close button closes DevTools too.
+        SpikeRunner.record("devtools_close_samples", "call=\(closeCall) \(samples.joined(separator: " "))")
+        try? await Task.sleep(for: .milliseconds(800))
+        SpikeRunner.record("devtools_closed_by_frontend", "open=\(page.devTools?.isOpen == true) frontend_in_card=\(!container.devToolsHost.subviews.isEmpty) "
+            + "card_hidden=\(container.devToolsHost.isHidden) page=\(NSStringFromRect(container.pageFrame))")
+        // ⌥⌘I twice: opens where it was, closes.
         host.toggleDevTools()
         _ = await waitUntil(10) { page.devTools?.isOpen == true }
         try? await Task.sleep(for: .seconds(1))
-        guard click("devtools-window", in: container.devToolsPane) else { return }
-        try? await Task.sleep(for: .seconds(1))
-        NSApp.windows.first { $0.isVisible && $0.title.hasPrefix("Developer Tools") }?.performClose(nil)
+        SpikeRunner.record("devtools_reopened", "docked=\(page.devTools?.isDocked == true) page=\(NSStringFromRect(container.pageFrame))")
+        host.toggleDevTools()
         _ = await waitUntil(5) { page.devTools?.isOpen == false }
-        record("window_closed")
-        host.place(.bottom)
-        host.closeDevTools()
+        try? await Task.sleep(for: .milliseconds(500))
+        SpikeRunner.record("devtools_closed_by_key", "open=\(page.devTools?.isOpen == true) card_hidden=\(container.devToolsHost.isHidden)")
     }
 
     private func redesignFind(_ identifier: String, in root: NSView?) -> NSView? {

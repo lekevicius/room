@@ -601,12 +601,10 @@ extension SpikeRunner.Context {
                 try? await Task.sleep(for: .milliseconds(20))
             }
             if round == 0 {
-                // Drag the divider 150 pt up.
-                let before = container.devToolsFraction
-                let paneTop = container.bounds.height - DevToolsSplit.paneHeight(fraction: before, height: container.bounds.height)
-                drag(in: container, from: NSPoint(x: container.bounds.midX, y: paneTop), to: NSPoint(x: container.bounds.midX, y: paneTop - 150))
-                try? await Task.sleep(for: .milliseconds(500))
-                SpikeRunner.record("devtools_resize", String(format: "fraction %.3f → %.3f", before, container.devToolsFraction))
+                // 5.10: Chrome docks DevTools and says where the page goes in the card.
+                container.layoutSubtreeIfNeeded()
+                SpikeRunner.record("devtools_docked", "docked=\(page.devTools?.isDocked == true) page=\(NSStringFromRect(container.pageFrame)) "
+                    + "container=\(NSStringFromRect(container.bounds))")
                 await captureB("devtools-pane")
             }
             session.host.toggleDevTools()
@@ -641,9 +639,6 @@ extension SpikeRunner.Context {
         }
         session.host.toggleDevTools()
         _ = await waitUntil(5) { page.devTools?.isOpen == false }
-        // Restore the default share for later runs.
-        container.devToolsFraction = DevToolsMetrics.defaultFraction
-        UserDefaults.standard.removeObject(forKey: "RoomDevToolsFraction")
     }
 
     /// The front-end has a page target (it attached over the debugging port).

@@ -93,28 +93,8 @@ struct CardTests {
     }
 }
 
-@Suite("The DevTools pane's divider (ROADMAP 2.6 task 4)")
-struct DevToolsSplitTests {
-    @Test("Dragging the divider sets the pane's share; neither the page nor the pane goes under 120 pt")
-    func drag() {
-        #expect(DevToolsSplit.fraction(dividerAt: 600, height: 1000) == 0.4)
-        #expect(DevToolsSplit.fraction(dividerAt: 990, height: 1000) == 0.12)
-        #expect(DevToolsSplit.fraction(dividerAt: 10, height: 1000) == 0.88)
-        #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 1000) == 420)
-        #expect(DevToolsSplit.paneHeight(fraction: 0.95, height: 1000) == 880)
-        #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 200) == 100)
-    }
-
-    @Test("Docked at a side (5.10): the pane's share along the width; at the left the pane is before the divider")
-    func sides() {
-        #expect(DevToolsSplit.fraction(dividerAt: 600, length: 1000, leading: false) == 0.4)
-        #expect(DevToolsSplit.fraction(dividerAt: 400, length: 1000, leading: true) == 0.4)
-        #expect(DevToolsSplit.fraction(dividerAt: 50, length: 1000, leading: true) == 0.12)
-        #expect(DevToolsPlacement.stored(nil) == .bottom)
-        #expect(DevToolsPlacement.stored("left") == .left)
-        #expect(DevToolsPlacement.left.isHorizontal && DevToolsPlacement.left.isLeading && !DevToolsPlacement.window.isDocked)
-    }
-
+@Suite("The card's states")
+struct CardStateTests {
     @Test("The empty card names New Tab's current key, or the button when New Tab has none (5.6a)")
     func emptyStateCopy() {
         #expect(CardEmptyStateView.message(newTabKey: "⌘T") == "Press ⌘T to search or type a URL")

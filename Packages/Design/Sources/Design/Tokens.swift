@@ -832,18 +832,8 @@ public enum SplitMetrics {
 
 /// The docked DevTools pane under the page (Phase 1.4; resizable in 2.6b).
 public enum DevToolsMetrics {
-    /// The pane's share of the card when first opened (Phase 1.4).
-    public static let defaultFraction: CGFloat = 0.42
-    /// Neither side of the divider gets smaller than this (chosen).
-    public static let minPaneHeight: CGFloat = 120
-    public static let minPageHeight: CGFloat = 120
-    /// The divider's drag area, centred on its 1 pt line (chosen, as the sidebar splitter).
-    public static let dividerHitHeight: CGFloat = 8
-    /// Room's strip over the docked pane and the DevTools window (5.10): the placements and Close (chosen:
-    /// the split pane header's size, the buttons `IconStyle.rowButton` in the rows' small squares).
-    public static let headerHeight: CGFloat = SplitMetrics.paneHeaderHeight + Spacing.xs
-    public static let headerButtonSize: CGFloat = SidebarMetrics.closeButtonSize
-    /// The DevTools window's first size (chosen: Chrome's undocked window).
+    /// The DevTools window's first size, undocked (5.10; chosen: Chrome's undocked window). Docked,
+    /// DevTools lays itself out in the card (Chrome's resizing strategy) and draws its own split.
     public static let windowSize = CGSize(width: 960, height: 640)
 }
 

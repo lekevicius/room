@@ -52,9 +52,9 @@ final class PageHost: PageDisplay {
         let changed = contents !== self.contents || container.pageView == nil
         if changed {
             self.contents?.devTools?.close()
+            container.devTools = nil
             container.isDevToolsOpen = false
-            devToolsWindow?.dismiss()
-            devToolsWindow = nil
+            dismissDevToolsWindow()
         }
         let keyboardInSplit = splitView.isSplit && isFirstResponderInSplit
         self.contents = contents
@@ -117,78 +117,94 @@ final class PageHost: PageDisplay {
 
     var isDevToolsOpen: Bool { container.isDevToolsOpen || devToolsWindow != nil || contents?.devTools?.isOpen == true }
 
-    /// Where DevTools shows (5.10): docked at the card's bottom, right or left, or in its own window;
-    /// the pane's header and the window's change it. Remembered across launches.
-    private(set) var devToolsPlacement = DevToolsPlacement.stored(UserDefaults.standard.string(forKey: PageHost.placementKey)) {
-        didSet { UserDefaults.standard.set(devToolsPlacement.rawValue, forKey: Self.placementKey) }
-    }
-
-    private static let placementKey = "RoomDevToolsPlacement"
-    /// The DevTools window while DevTools is undocked (5.10).
+    /// The DevTools window while DevTools is undocked (5.10: DevTools' own Dock side menu undocks it).
     private var devToolsWindow: DevToolsWindowController?
 
-    /// ⌥⌘I: DevTools for the page where it was last placed (docked or its window), or closed.
+    /// ⌥⌘I: DevTools for the page, where Chrome last docked it (DevTools' own Dock side menu
+    /// moves it; its close button closes it), or closed.
     func toggleDevTools(inspecting point: NSPoint? = nil) {
         guard let devTools = contents?.devTools else { return }
         if isDevToolsOpen && point == nil {
             closeDevTools()
             return
         }
-        let host = devToolsHost(for: devTools)
+        follow(devTools)
         if let point {
-            devTools.inspectElement(at: point, in: host)
+            devTools.inspectElement(at: point, in: devToolsHost(for: devTools))
         } else {
-            devTools.open(in: host)
+            devTools.open(in: devToolsHost(for: devTools))
         }
+        updateDevTools()
     }
 
     /// ⌥⌘J (console) and ⌥⌘C (element picker): open on that tool.
     func openDevTools(_ tool: DevToolsTool) {
         guard let devTools = contents?.devTools else { return }
+        follow(devTools)
         devTools.open(in: devToolsHost(for: devTools), tool: tool)
+        updateDevTools()
     }
 
-    /// The view DevTools' front-end goes into for the current placement, shown.
-    private func devToolsHost(for devTools: any DevTools) -> NSView {
-        if devToolsPlacement == .window || !devTools.isDockable {
-            container.isDevToolsOpen = false
-            return showDevToolsWindow().host
+    /// Closes DevTools, docked or in its window.
+    func closeDevTools() {
+        contents?.devTools?.close()
+        container.devTools = nil
+        container.isDevToolsOpen = false
+        dismissDevToolsWindow()
+        focusPage()
+    }
+
+    /// The engine tells of every docking change, split move and close (its own controls included).
+    private func follow(_ devTools: any DevTools) {
+        devTools.onChange = { [weak self, weak devTools] in
+            guard let self, let devTools, devTools === self.contents?.devTools else { return }
+            self.updateDevTools()
         }
-        devToolsWindow?.dismiss()
-        devToolsWindow = nil
-        container.devToolsPlacement = devToolsPlacement
-        container.devToolsPane.header.onPlacement = { [weak self] placement in self?.place(placement) }
-        container.devToolsPane.header.onClose = { [weak self] in self?.closeDevTools() }
-        container.isDevToolsOpen = true
-        container.layoutSubtreeIfNeeded()
+    }
+
+    /// Where the front-end goes now: the card while docked (or before Chrome has said), else its window.
+    private func devToolsHost(for devTools: any DevTools) -> NSView {
+        if devTools.isOpen, !devTools.isDocked { return showDevToolsWindow().host }
         return container.devToolsHost
+    }
+
+    /// Follows the engine: docked, the front-end fills the card under the page, which sits where
+    /// DevTools says; undocked, its window; closed, neither.
+    private func updateDevTools() {
+        guard let devTools = contents?.devTools, devTools.isOpen else {
+            container.devTools = nil
+            container.isDevToolsOpen = false
+            dismissDevToolsWindow()
+            return
+        }
+        if devTools.isDocked || !devTools.isDockable {
+            dismissDevToolsWindow()
+            container.devTools = devTools
+            container.isDevToolsOpen = true
+            devTools.open(in: container.devToolsHost)
+            container.needsLayout = true
+        } else {
+            container.devTools = nil
+            container.isDevToolsOpen = false
+            devTools.open(in: showDevToolsWindow().host)
+        }
     }
 
     private func showDevToolsWindow() -> DevToolsWindowController {
         if let devToolsWindow { return devToolsWindow }
         let window = DevToolsWindowController(title: contents?.title, parent: controller?.window)
-        window.header.onPlacement = { [weak self] placement in self?.place(placement) }
-        window.header.onClose = { [weak self] in self?.closeDevTools() }
-        window.onClose = { [weak self] in self?.closeDevTools(windowClosing: true) }
+        window.onClose = { [weak self] in
+            self?.devToolsWindow = nil
+            self?.closeDevTools()
+        }
         devToolsWindow = window
         window.show()
         return window
     }
 
-    /// Moves open DevTools to `placement` (the header's buttons): the engine re-hosts the front-end.
-    func place(_ placement: DevToolsPlacement) {
-        guard let devTools = contents?.devTools else { return }
-        devToolsPlacement = placement
-        devTools.open(in: devToolsHost(for: devTools))
-    }
-
-    /// Close: the front-end goes, with its pane or window.
-    func closeDevTools(windowClosing: Bool = false) {
-        contents?.devTools?.close()
-        container.isDevToolsOpen = false
-        if !windowClosing { devToolsWindow?.dismiss() }
+    private func dismissDevToolsWindow() {
+        devToolsWindow?.dismiss()
         devToolsWindow = nil
-        focusPage()
     }
 
     private func trackBackground() {
@@ -207,95 +223,52 @@ final class PageHost: PageDisplay {
     }
 }
 
-/// The card's content: the page, and an optional DevTools pane docked at its bottom, right or left (5.10).
+/// The card's content: the page, and DevTools docked in it (5.10: Chrome's own docking). Docked,
+/// the front-end fills the container under the page, and the page sits where DevTools' resizing
+/// strategy says (`DevTools.pageFrame(inContainerOf:)`); DevTools draws the split and moves it.
 final class PageContainerView: NSView {
-    /// The docked DevTools: Room's header (placements, Close) over the front-end's host.
-    let devToolsPane = DevToolsPaneView()
     /// The DevTools front-end page is placed in this view (RoomCore 3.3b: `DevToolsWindow`'s front-end adopted).
-    var devToolsHost: NSView { devToolsPane.host }
+    let devToolsHost = FlippedPaneView()
     /// Shown in place of a page when nothing is selected.
     let emptyState = CardEmptyStateView()
     /// Over the page, under its prompts: the find bar, the zoom indicator, the status pill (2.6b).
     let toolLayer = ToolLayerView()
     /// Over the page: its dialog sheet or certificate interstitial (2.6a).
     let promptLayer = PromptLayerView()
-    /// Between the page and DevTools: drag to resize, double-click for the default.
-    private let divider = DevToolsDividerView()
+    /// Docked DevTools: it says where the page goes.
+    weak var devTools: (any DevTools)? {
+        didSet { needsLayout = true }
+    }
 
     var pageView: NSView? {
         didSet {
             guard pageView !== oldValue else { return }
             // A page view another container took already (Peek → Open as Tab) stays where it is.
             if oldValue?.superview === self { oldValue?.removeFromSuperview() }
-            if let pageView { addSubview(pageView, positioned: .below, relativeTo: nil) }
+            // Above the docked front-end, which fills the container.
+            if let pageView { addSubview(pageView, positioned: .above, relativeTo: devToolsHost) }
             // Tools and prompts stay above the page view whatever was added last.
             addSubview(toolLayer, positioned: .above, relativeTo: nil)
             addSubview(promptLayer, positioned: .above, relativeTo: nil)
-            addSubview(divider, positioned: .above, relativeTo: nil)
             needsLayout = true
         }
     }
 
     var isDevToolsOpen = false {
         didSet {
-            devToolsPane.isHidden = !isDevToolsOpen
-            divider.isHidden = !isDevToolsOpen
+            devToolsHost.isHidden = !isDevToolsOpen
             needsLayout = true
         }
-    }
-
-    /// The docked pane's side (never `.window` here; the host keeps that).
-    var devToolsPlacement = DevToolsPlacement.bottom {
-        didSet {
-            guard devToolsPlacement != oldValue else { return }
-            divider.isVertical = devToolsPlacement.isHorizontal
-            devToolsPane.header.placement = devToolsPlacement
-            devToolsFraction = Self.storedFraction(devToolsPlacement)
-            needsLayout = true
-        }
-    }
-
-    /// The card's share DevTools takes when open along its axis; dragging the divider sets it,
-    /// and it is remembered across launches per axis (a view preference, not model state).
-    var devToolsFraction: CGFloat = PageContainerView.storedFraction(.bottom) {
-        didSet { needsLayout = true }
-    }
-
-    private static let fractionKey = "RoomDevToolsFraction"
-    private static let sideFractionKey = "RoomDevToolsSideFraction"
-    private static func fractionKey(_ placement: DevToolsPlacement) -> String { placement.isHorizontal ? sideFractionKey : fractionKey }
-
-    private static func storedFraction(_ placement: DevToolsPlacement) -> CGFloat {
-        let stored = UserDefaults.standard.double(forKey: fractionKey(placement))
-        return stored > 0 ? CGFloat(stored) : DevToolsMetrics.defaultFraction
     }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        devToolsPane.isHidden = true
-        divider.isHidden = true
-        devToolsPane.setAccessibilityIdentifier("devtools-pane")
-        divider.onDrag = { [weak self] point in
-            guard let self else { return }
-            let horizontal = devToolsPlacement.isHorizontal
-            devToolsFraction = DevToolsSplit.fraction(dividerAt: horizontal ? point.x : point.y,
-                                                      length: horizontal ? bounds.width : bounds.height, leading: devToolsPlacement.isLeading)
-        }
-        divider.onDragEnd = { [weak self] in
-            guard let self else { return }
-            UserDefaults.standard.set(Double(devToolsFraction), forKey: Self.fractionKey(devToolsPlacement))
-        }
-        divider.onReset = { [weak self] in
-            guard let self else { return }
-            devToolsFraction = DevToolsMetrics.defaultFraction
-            UserDefaults.standard.removeObject(forKey: Self.fractionKey(devToolsPlacement))
-        }
-        addSubview(devToolsPane)
+        devToolsHost.isHidden = true
+        devToolsHost.setAccessibilityIdentifier("devtools-pane")
+        addSubview(devToolsHost)
         addSubview(toolLayer)
         addSubview(promptLayer)
-        // Above the pane's and the page's own views (Chromium's), so it gets the drags.
-        addSubview(divider)
     }
 
     @available(*, unavailable)
@@ -304,28 +277,18 @@ final class PageContainerView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// The page's frame: where docked DevTools puts it, else the whole container.
+    var pageFrame: NSRect {
+        guard isDevToolsOpen, let devTools else { return bounds }
+        return devTools.pageFrame(inContainerOf: bounds.size)
+    }
+
     override func layout() {
         super.layout()
-        let placement = devToolsPlacement
-        let length = placement.isHorizontal ? bounds.width : bounds.height
-        let pane = isDevToolsOpen ? DevToolsSplit.paneHeight(fraction: devToolsFraction, height: length) : 0
-        let page: NSRect
-        let hit = DevToolsMetrics.dividerHitHeight
-        switch placement {
-        case .bottom, .window:
-            page = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - pane)
-            devToolsPane.frame = NSRect(x: 0, y: page.maxY, width: bounds.width, height: pane)
-            divider.frame = NSRect(x: 0, y: page.maxY - hit / 2, width: bounds.width, height: hit)
-        case .right:
-            page = NSRect(x: 0, y: 0, width: bounds.width - pane, height: bounds.height)
-            devToolsPane.frame = NSRect(x: page.maxX, y: 0, width: pane, height: bounds.height)
-            divider.frame = NSRect(x: page.maxX - hit / 2, y: 0, width: hit, height: bounds.height)
-        case .left:
-            page = NSRect(x: pane, y: 0, width: bounds.width - pane, height: bounds.height)
-            devToolsPane.frame = NSRect(x: 0, y: 0, width: pane, height: bounds.height)
-            divider.frame = NSRect(x: pane - hit / 2, y: 0, width: hit, height: bounds.height)
-        }
+        devToolsHost.frame = bounds
+        let page = pageFrame
         pageView?.frame = page
+        pageView?.isHidden = page.isEmpty && isDevToolsOpen
         promptLayer.frame = page
         toolLayer.frame = page
     }
@@ -368,48 +331,3 @@ final class ToolLayerView: NSView {
     }
 }
 
-/// The DevTools pane's edge toward the page: a 1 pt line in an 8 pt drag area with the
-/// resize cursor (ROADMAP 2.6 task 4; 5.10: vertical when DevTools is docked at a side).
-final class DevToolsDividerView: NSView {
-    /// The pointer during a drag, in the container's (flipped) coordinates.
-    var onDrag: ((NSPoint) -> Void)?
-    var onDragEnd: (() -> Void)?
-    var onReset: (() -> Void)?
-    /// A line from top to bottom (DevTools at the right or left).
-    var isVertical = false {
-        didSet {
-            needsDisplay = true
-            window?.invalidateCursorRects(for: self)
-        }
-    }
-
-    override var isFlipped: Bool { true }
-    override var mouseDownCanMoveWindow: Bool { false }
-
-    override func draw(_ dirtyRect: NSRect) {
-        Palette.hairline.setFill()
-        let line = Hairline.width(in: self)
-        if isVertical {
-            NSRect(x: (bounds.width / 2).rounded(.down), y: 0, width: line, height: bounds.height).fill()
-        } else {
-            NSRect(x: 0, y: (bounds.height / 2).rounded(.down), width: bounds.width, height: line).fill()
-        }
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: isVertical ? .resizeLeftRight : .resizeUpDown)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 { return onReset?() ?? () }
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let container = superview else { return }
-        onDrag?(container.convert(event.locationInWindow, from: nil))
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        onDragEnd?()
-    }
-}
