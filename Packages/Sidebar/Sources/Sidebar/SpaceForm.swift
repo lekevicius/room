@@ -88,62 +88,222 @@ public enum SpaceFormFocus: Hashable, Sendable {
     case name, icon, theme, routes
 }
 
-/// Curated choices for the icon picker (chosen; any emoji can be typed).
+/// The icon picker's symbols (5.12: some 200, filled, from the everyday to the specific).
 enum SpaceIconChoices {
     static let symbols = [
-        "house", "briefcase", "book", "graduationcap", "hammer", "paintbrush", "music.note", "film", "gamecontroller", "cart",
-        "airplane", "leaf", "flame", "bolt", "star", "heart", "globe", "terminal", "chevron.left.forwardslash.chevron.right",
-        "camera", "cup.and.saucer", "dumbbell", "pawprint", "moon",
+        "star.fill", "bookmark.fill", "heart.fill", "flag.fill", "bolt.fill", "triangle.fill", "asterisk", "bell.fill",
+        "lightbulb.fill", "square.on.circle.fill", "square.grid.2x2.fill", "circle.grid.3x3.fill", "square.stack.3d.up.fill",
+        "cylinder.split.1x2.fill", "tray.full.fill", "square.on.square.fill", "folder.fill", "tray.fill", "calendar",
+        "envelope.fill", "checkmark.square.fill", "doc.fill", "book.fill", "bubble.left.fill", "person.2.fill",
+        "apple.terminal.fill", "hammer.fill", "wrench.and.screwdriver.fill", "square.fill", "drop.fill", "circle.fill",
+        "moon.fill", "sun.max.fill", "globe.americas.fill", "leaf.fill", "cloud.fill", "pawprint.fill", "basket.fill",
+        "gift.fill", "bed.double.fill", "fork.knife", "dumbbell.fill", "airplane", "music.note", "paintpalette.fill",
+        "video.fill", "bandage.fill", "chevron.left.forwardslash.chevron.right", "baseball.fill", "map.fill", "flame.fill",
+        "house.fill", "building.2.fill", "briefcase.fill", "graduationcap.fill", "cart.fill", "bag.fill", "creditcard.fill",
+        "banknote.fill", "chart.bar.fill", "chart.pie.fill", "gamecontroller.fill", "film.fill", "tv.fill", "headphones",
+        "camera.fill", "photo.fill", "mic.fill", "phone.fill", "message.fill", "paperplane.fill", "link", "globe",
+        "magnifyingglass", "lock.fill", "key.fill", "shield.fill", "gearshape.fill", "cpu.fill", "desktopcomputer",
+        "laptopcomputer", "iphone", "keyboard.fill", "printer.fill", "server.rack", "externaldrive.fill", "wifi",
+        "antenna.radiowaves.left.and.right", "car.fill", "bus.fill", "tram.fill", "bicycle", "sailboat.fill", "fuelpump.fill",
+        "location.fill", "mappin", "mountain.2.fill", "tree.fill", "tortoise.fill", "hare.fill", "bird.fill", "fish.fill",
+        "ant.fill", "ladybug.fill", "carrot.fill", "cup.and.saucer.fill", "wineglass.fill", "birthday.cake.fill",
+        "popcorn.fill", "sportscourt.fill", "soccerball", "basketball.fill", "tennisball.fill", "figure.run", "figure.hiking",
+        "figure.yoga", "trophy.fill", "medal.fill", "crown.fill", "sparkles", "wand.and.stars", "theatermasks.fill",
+        "puzzlepiece.fill", "dice.fill", "guitars.fill", "pianokeys", "pencil.and.ruler.fill", "scissors", "paintbrush.fill",
+        "eyedropper.full", "ruler.fill", "compass.drawing", "atom", "flask.fill", "testtube.2", "brain.head.profile",
+        "stethoscope", "cross.case.fill", "pills.fill", "heart.text.square.fill", "newspaper.fill", "books.vertical.fill",
+        "text.book.closed.fill", "note.text", "list.bullet", "checklist", "clock.fill", "alarm.fill", "hourglass", "timer",
+        "stopwatch.fill", "bell.badge.fill", "tag.fill", "pin.fill", "paperclip", "archivebox.fill", "shippingbox.fill",
+        "cube.fill", "hexagon.fill", "seal.fill", "burst.fill", "snowflake", "umbrella.fill", "thermometer.medium", "tornado",
+        "hurricane", "rainbow", "sunrise.fill", "moon.stars.fill", "sparkle", "eye.fill", "hand.thumbsup.fill",
+        "hand.raised.fill", "face.smiling.inverse", "person.fill", "person.3.fill", "figure.2.and.child.holdinghands",
+        "dog.fill", "cat.fill", "lizard.fill", "teddybear.fill", "balloon.fill", "party.popper.fill", "tent.fill",
+        "beach.umbrella.fill", "house.lodge.fill", "storefront.fill", "building.columns.fill", "dollarsign.circle.fill",
+        "eurosign.circle.fill", "bitcoinsign.circle.fill", "bolt.heart.fill", "infinity", "number", "questionmark.circle.fill",
+        "exclamationmark.triangle.fill", "xmark.octagon.fill", "checkmark.seal.fill",
     ]
-    static let emoji = ["🏠", "💼", "📚", "🎨", "🎵", "🎬", "🎮", "🛒", "✈️", "🌿", "🔥", "⚡️", "⭐️", "❤️", "🌍", "💻", "📷", "☕️",
-                        "🏋️", "🐾", "🌙", "🧪", "🧭", "🍕"]
+
+    /// Emoji whose name has every word of `query`, by group (`EmojiCatalog`); all of them for an empty query.
+    static func emoji(matching query: String) -> [(group: EmojiCatalog.Group, emoji: [String])] {
+        let words = query.lowercased().split(separator: " ")
+        return EmojiCatalog.groups.compactMap { group in
+            var found: [String] = []
+            var index = 0
+            while index + 1 < group.items.count {
+                let name = group.items[index + 1].lowercased()
+                if words.allSatisfy({ name.contains($0) }) { found.append(group.items[index]) }
+                index += 2
+            }
+            return found.isEmpty ? nil : (group, found)
+        }
+    }
+
+    /// Symbols whose name has `query` (dots read as spaces: "cup" finds cup.and.saucer.fill).
+    static func symbols(matching query: String) -> [String] {
+        let words = query.lowercased().split(separator: " ")
+        guard !words.isEmpty else { return symbols }
+        return symbols.filter { name in
+            let spaced = name.replacingOccurrences(of: ".", with: " ")
+            return words.allSatisfy { spaced.contains($0) }
+        }
+    }
 }
 
-/// The icon picker (spec §B; 5.6a: Change Icon… for entries and folders
-/// takes it as it is): a field for any emoji, None, and the curated
-/// symbols and emoji. `icon` is an emoji or an SF Symbol name, `nil` for none.
+/// The icon picker (spec §B; 5.6a: Change Icon… for entries and folders takes it as it is; 5.12:
+/// every emoji and some 200 symbols, the user on build 26). Emoji or Icon, a search field, the grid
+/// (emoji under their group's name) and, for emoji, a bar that jumps to each group; the bin clears
+/// the icon. `icon` is an emoji or an SF Symbol name, `nil` for none.
 struct IconPickerView<Focus: Hashable>: View {
+    enum Kind: String, CaseIterable { case emoji = "Emoji", icon = "Icon" }
+
     @Binding var icon: String?
     var emojiFocus: FocusState<Focus?>.Binding
     var focusValue: Focus
-    @State private var emojiField = ""
+    @State private var kind: Kind
+    @State private var query = ""
+
+    init(icon: Binding<String?>, emojiFocus: FocusState<Focus?>.Binding, focusValue: Focus) {
+        _icon = icon
+        self.emojiFocus = emojiFocus
+        self.focusValue = focusValue
+        // Opens on the kind of the icon it has (a symbol name has a letter where an emoji has none).
+        let isSymbol = icon.wrappedValue.map { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil } ?? false
+        _kind = State(initialValue: isSymbol ? .icon : .emoji)
+    }
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.fixed(SpaceFormMetrics.pickerCell), spacing: 0), count: SpaceFormMetrics.pickerColumns)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Icon").font(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-                TextField("Emoji", text: $emojiField)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Icon emoji")
-                    .accessibilityIdentifier("icon-picker-emoji")
-                    .frame(width: 64)
-                    .focused(emojiFocus, equals: focusValue)
-                    .onChange(of: emojiField) {
-                        if let first = emojiField.first, first.unicodeScalars.first?.properties.isEmoji == true { icon = String(first) }
-                    }
-                Button("None") { icon = nil }.controlSize(.small).accessibilityIdentifier("icon-picker-none")
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(SpaceFormMetrics.iconCell), spacing: 4), count: 6), spacing: 4) {
-                ForEach(SpaceIconChoices.symbols, id: \.self) { name in
-                    iconButton(selected: icon == name) { Image(systemName: name) } action: { icon = name }
-                        .accessibilityLabel(name)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Picker("Icon kind", selection: $kind) {
+                    ForEach(Kind.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                ForEach(SpaceIconChoices.emoji, id: \.self) { emoji in
-                    iconButton(selected: icon == emoji) { Text(emoji) } action: { icon = emoji }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("icon-picker-kind")
+                Button { icon = nil } label: { Image(systemName: "trash") }
+                    .buttonStyle(.borderless)
+                    .help("No icon")
+                    .accessibilityLabel("No icon")
+                    .accessibilityIdentifier("icon-picker-none")
+            }
+            TextField("Search", text: $query, prompt: Text(kind == .emoji ? "Search emoji" : "Search symbols"))
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("icon-picker-search")
+                .focused(emojiFocus, equals: focusValue)
+                .onSubmit(pickFirst)
+            switch kind {
+            case .emoji: emojiGrid
+            case .icon: symbolGrid
+            }
+        }
+        .onChange(of: kind) { query = "" }
+        // An emoji typed or pasted (or from ⌃⌘Space's palette) is the icon, as the old field's was.
+        .onChange(of: query) {
+            if let first = query.first, first.unicodeScalars.contains(where: { $0.properties.isEmojiPresentation }) {
+                icon = String(first)
+                query = ""
+            }
+        }
+    }
+
+    private var emojiGrid: some View {
+        let groups = SpaceIconChoices.emoji(matching: query)
+        return ScrollViewReader { proxy in
+            VStack(spacing: 4) {
+                ScrollView {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groups, id: \.group.id) { entry in
+                            Section {
+                                ForEach(entry.emoji, id: \.self) { emoji in
+                                    cell(selected: icon == emoji) { Text(emoji).font(.system(size: SpaceFormMetrics.pickerGlyph)) } action: { icon = emoji }
+                                }
+                            } header: {
+                                Text(entry.group.name)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 4)
+                                    .background(.regularMaterial)
+                                    .id(entry.group.id)
+                            }
+                        }
+                    }
+                }
+                .frame(height: SpaceFormMetrics.pickerGridHeight)
+                .overlay { if groups.isEmpty { Text("No Emoji").foregroundStyle(.secondary) } }
+                if query.isEmpty {
+                    Divider()
+                    HStack(spacing: 0) {
+                        ForEach(EmojiCatalog.groups) { group in
+                            Button { withAnimation { proxy.scrollTo(group.id, anchor: .top) } } label: {
+                                Image(systemName: group.symbol)
+                                    .frame(maxWidth: .infinity, minHeight: SpaceFormMetrics.pickerCell * 0.75)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help(group.name)
+                            .accessibilityLabel(group.name)
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func iconButton(selected: Bool, @ViewBuilder label: () -> some View, action: @escaping () -> Void) -> some View {
+    private var symbolGrid: some View {
+        let names = SpaceIconChoices.symbols(matching: query)
+        return ScrollView {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+                ForEach(names, id: \.self) { name in
+                    cell(selected: icon == name) { Image(systemName: name).font(.system(size: SpaceFormMetrics.pickerSymbol)) } action: { icon = name }
+                        .accessibilityLabel(name)
+                        .help(name)
+                }
+            }
+        }
+        .frame(height: SpaceFormMetrics.pickerGridHeight)
+        .overlay { if names.isEmpty { Text("No Symbols").foregroundStyle(.secondary) } }
+    }
+
+    /// Return picks the first match.
+    private func pickFirst() {
+        switch kind {
+        case .emoji: if let first = SpaceIconChoices.emoji(matching: query).first?.emoji.first { icon = first }
+        case .icon: if let first = SpaceIconChoices.symbols(matching: query).first { icon = first }
+        }
+    }
+
+    private func cell(selected: Bool, @ViewBuilder label: () -> some View, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             label()
-                .frame(width: SpaceFormMetrics.iconCell, height: SpaceFormMetrics.iconCell)
+                .frame(width: SpaceFormMetrics.pickerCell, height: SpaceFormMetrics.pickerCell)
                 .background(selected ? Color.accentColor.opacity(SpaceFormMetrics.selectionAlpha) : .clear, in: .rect(cornerRadius: SpaceFormMetrics.cornerRadius))
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(IconCellStyle())
+    }
+}
+
+/// The picker's cells: the rows' hover fill under the pointer.
+private struct IconCellStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { IconCell(configuration: configuration) }
+
+    private struct IconCell: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hovering = false
+        var body: some View {
+            configuration.label
+                .foregroundStyle(.primary)
+                .background(hovering || configuration.isPressed ? Color(nsColor: Palette.sidebarHover) : .clear,
+                            in: .rect(cornerRadius: SpaceFormMetrics.cornerRadius))
+                .onHover { hovering = $0 }
+        }
     }
 }
 

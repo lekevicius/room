@@ -234,8 +234,14 @@ public enum SpaceFormMetrics {
     /// The theme preview with no colours (secondary at this alpha), and a one-colour gradient's fade.
     public static let emptyPreviewAlpha: CGFloat = 0.12
     public static let previewFadeAlpha: CGFloat = 0.4
-    /// Change Icon…'s popover for an entry or a folder (5.6a): the picker's six columns and its padding.
-    public static let iconPopoverWidth: CGFloat = 6 * iconCell + 5 * 4 + 2 * padding + 24
+    /// The icon picker (5.12: every emoji and some 200 symbols, as the user asked on build 26): eight
+    /// columns of `pickerCell`, the grid's height before it scrolls, and the popover's width.
+    public static let pickerColumns = 8
+    public static let pickerCell: CGFloat = 32
+    public static let pickerGridHeight: CGFloat = 272
+    public static let pickerGlyph: CGFloat = 22
+    public static let pickerSymbol: CGFloat = 16
+    public static let iconPopoverWidth: CGFloat = CGFloat(pickerColumns) * pickerCell + 2 * padding
     /// The space window's header (5.11): the space's icon as a tile beside its name, as System
     /// Settings' Focus and Contacts show theirs; the glyph's size in it, and the theme's wash.
     public static let headerIcon: CGFloat = 52
@@ -694,6 +700,16 @@ public enum TabSwitcherMetrics {
     public static let width: CGFloat = 340
     public static let rowHeight: CGFloat = 36
     public static let padding: CGFloat = 8
+    /// 5.12 (B-119, the user on build 26, as Dia's): a card per tab, its page's picture over its icon
+    /// and title, side by side; the picture's corner and the gap between cards.
+    public static let cardWidth: CGFloat = 144
+    public static let thumbnailHeight: CGFloat = 90
+    public static let cardGap: CGFloat = 6
+    public static let cardPadding: CGFloat = 8
+    public static let thumbnailCorner: CGFloat = Radius.small
+    public static let titleHeight: CGFloat = 28
+    /// Pictures kept in memory (each 288 × 180 px, 200 KB).
+    public static let thumbnailsKept = 24
 }
 
 /// The ⌘T / ⌘L palette (spec §C, §I.1).
