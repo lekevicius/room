@@ -97,7 +97,7 @@ extension SpikeRunner.Context {
         let events = installPopupHooks()
         let before = events.shown.count
         let start = ContinuousClock.now
-        if let index = menu.items.firstIndex(where: { ($0.representedObject as? String) == id && $0.title != "Pin" }) {
+        if let index = menu.items.firstIndex(where: { ($0.representedObject as? String) == id }) {
             menu.performActionForItem(at: index)
         }
         let shown = await waitUntil(8) { events.shown.count > before }
@@ -111,11 +111,10 @@ extension SpikeRunner.Context {
         ExtensionPopups.debugOnShow = nil
         ExtensionPopups.debugOnResize = nil
         ExtensionPopups.debugOnClose = nil
-        // The menu's Pin: the fixture comes back at the header's end (ToolbarActionsModel's order).
-        let pinMenu = field.overflowMenu()
-        if let index = pinMenu.items.firstIndex(where: { ($0.representedObject as? String) == id && $0.title == "Pin" }) {
-            pinMenu.performActionForItem(at: index)
-        }
+        // Pinned again (the site panel's Pin; 5.11: the menu has no Pin items): the fixture comes back at the
+        // header's end (ToolbarActionsModel's order).
+        SpikeRunner.record("overflow_menu_pin_items", pinItems(field.overflowMenu()))
+        center.setPinned(true, fixture, in: section)
         _ = await waitUntil(5) { field.extensionActionIDs == [second, id] }
         SpikeRunner.record("header_repinned", "buttons=\(ids()) shown=\(shownIDs()) overflow=\(field.overflowActionIDs.count) overflow_button=\(field.overflowButtonView != nil) "
             + "installed_order=\((center.sections.first?.installed ?? []).map { $0.id == id ? "fixture" : $0.id == second ? "second" : $0.name })")
@@ -123,6 +122,11 @@ extension SpikeRunner.Context {
         if let item = center.sections.first?.installed.first(where: { $0.id == second }) {
             center.setPinned(false, item, in: section)
         }
+    }
+
+    /// The menu's items titled Pin (5.11: none), and whether each extension's item has its icon.
+    private func pinItems(_ menu: NSMenu) -> String {
+        "pin_items=\(menu.items.filter { $0.title == "Pin" }.count) icons=\(menu.items.filter { !$0.isSeparatorItem }.allSatisfy { $0.image != nil })"
     }
 
     // MARK: sitepanel: the Extensions section (B-30)

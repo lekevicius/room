@@ -223,7 +223,8 @@ extension AddressFieldView: NSDraggingSource {
 }
 
 /// The extensions in the sidebar's top bar, packed against Back (the Room
-/// Browser design): the overflow button ("···", 4.5) first, then the pinned
+/// Browser design): the extensions menu's button (the puzzle piece; "···" until
+/// 5.11) first, then the pinned
 /// extensions' action buttons (3.6b), aligned to the bar's trailing edge.
 /// Pinned buttons that do not fit the bar's width move into the overflow menu.
 public final class ExtensionBarView: NSView {
@@ -231,8 +232,6 @@ public final class ExtensionBarView: NSView {
     private var actionButtons: [ExtensionActionButton] = []
     /// A click on an extension's action button (its id), or its item in the overflow menu.
     public var onExtensionAction: ((String) -> Void)?
-    /// The overflow menu's "Pin" for an extension (4.5).
-    public var onExtensionPin: ((String) -> Void)?
     /// Shows while an extension with an action is unpinned, or a pinned one does not fit; its menu lists them.
     private let overflowButton = HoverButton()
     private var overflowActions: [HeaderExtensionAction] = []
@@ -242,7 +241,7 @@ public final class ExtensionBarView: NSView {
     public override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("extension-bar")
-        overflowButton.image = Symbol.more.image(.control, accessibilityDescription: "Extensions")
+        overflowButton.image = Symbol.extensions.image(.control, accessibilityDescription: "Extensions")
         overflowButton.contentTintColor = .labelColor
         overflowButton.target = self
         overflowButton.action = #selector(overflowClicked)
@@ -339,22 +338,16 @@ public final class ExtensionBarView: NSView {
     /// The pinned extensions the bar shows, in order (B-125: the tour reads these, not the pinned list).
     public var shownActionIDs: [String] { shownButtons.map(\.model.id) }
 
-    /// The overflow menu (4.5): the pinned actions that did not fit, then each
-    /// unpinned action with a "Pin" item under it; each with its badge (a
-    /// click runs it: its popup opens on the overflow button).
+    /// The extensions menu (4.5): the pinned actions that did not fit, then the
+    /// unpinned ones, each with its icon and badge (a click runs it: its popup
+    /// opens on the menu's button). Pinning lives in the site panel and
+    /// Settings ▸ Extensions (5.11, the user: no "Pin" items here).
     public func overflowMenu() -> NSMenu {
         let menu = NSMenu(title: "Extensions")
         let hidden = hiddenPinnedActions
         for action in hidden { menu.addItem(item(for: action)) }
         if !hidden.isEmpty, !overflowActions.isEmpty { menu.addItem(.separator()) }
-        for action in overflowActions {
-            menu.addItem(item(for: action))
-            let pin = NSMenuItem(title: "Pin", action: #selector(overflowPinClicked(_:)), keyEquivalent: "")
-            pin.target = self
-            pin.representedObject = action.id
-            pin.indentationLevel = 1
-            menu.addItem(pin)
-        }
+        for action in overflowActions { menu.addItem(item(for: action)) }
         return menu
     }
 
@@ -389,11 +382,6 @@ public final class ExtensionBarView: NSView {
     @objc private func overflowItemClicked(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
         onExtensionAction?(id)
-    }
-
-    @objc private func overflowPinClicked(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        onExtensionPin?(id)
     }
 
     @objc private func extensionClicked(_ sender: ExtensionActionButton) { onExtensionAction?(sender.model.id) }

@@ -1406,6 +1406,7 @@ def _extensions(c):
     c.contains("header_unpinned", 'buttons=["second"]', 'shown=["second"]', 'overflow=["fixture"]', "overflow_button=true", "Room 3.6 fixture  T", "badge=T",
                label="unpinned: the header keeps the other, the overflow menu lists it with its badge")
     c.contains("overflow_run", "popover=true", "anchored_on_overflow=true", "shown_id=fixture", label="the overflow item runs the action; its popup on the overflow button")
+    c.contains("overflow_menu_pin_items", "pin_items=0", "icons=true", label="the extensions menu: no Pin items, each extension with its icon (5.11)")
     c.contains("header_repinned", 'buttons=["second", "fixture"]', 'shown=["second", "fixture"]', "overflow_button=false", label="Pin puts it back at the header's end (the pinned order)")
     c.contains("site_panel_section", 'rows=["fixture"]', "host=127.0.0.1", "level=0", "run_shown=true", "ran_before_run=false",
                label="the site panel lists the extension on click with Run; the script has not run")
