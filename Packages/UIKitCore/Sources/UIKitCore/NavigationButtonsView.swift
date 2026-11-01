@@ -2,7 +2,10 @@ import AppKit
 import Design
 
 /// Back, Forward and Reload (Stop while loading): the sidebar's top bar
-/// and the optional toolbar (spec §E).
+/// and the optional toolbar (spec §E). Forward shows only while the page can
+/// go forward (5.12, the user on build 26, as Dia): it slides in beside Back
+/// over `Motion.fast` (a fade under Reduce Motion), the buttons packed to the
+/// trailing edge in the sidebar and the leading one in the toolbar.
 public final class NavigationButtonsView: NSView {
     public var onBack: (() -> Void)?
     public var onForward: (() -> Void)?
@@ -13,6 +16,9 @@ public final class NavigationButtonsView: NSView {
     private let forward = NavigationButtonsView.button(.forward, "Forward", key: "⌘]")
     private let reload = NavigationButtonsView.button(.reload, "Reload", key: "⌘R")
     private let size: CGFloat
+    /// The sidebar's top bar packs the buttons against its trailing edge; the toolbar against its leading one.
+    public var packsTrailing = true { didSet { needsLayout = true } }
+    private var showsForward = false
 
     public init(buttonSize: CGFloat) {
         size = buttonSize
@@ -26,7 +32,8 @@ public final class NavigationButtonsView: NSView {
         reload.target = self
         reload.action = #selector(reloadClicked)
         reload.setAccessibilityIdentifier("nav-reload")
-        [back, forward, reload].forEach(addSubview)
+        [forward, back, reload].forEach(addSubview)
+        forward.isHidden = true
         update(canGoBack: false, canGoForward: false, isLoading: false, hasPage: false)
     }
 
@@ -41,6 +48,7 @@ public final class NavigationButtonsView: NSView {
     public func update(canGoBack: Bool, canGoForward: Bool, isLoading: Bool, hasPage: Bool) {
         back.isEnabled = canGoBack
         forward.isEnabled = canGoForward
+        setShowsForward(canGoForward)
         reload.isEnabled = hasPage
         let symbol: Symbol = isLoading ? .stop : .reload
         reload.image = symbol.image(.control, accessibilityDescription: isLoading ? "Stop" : "Reload")
@@ -51,11 +59,49 @@ public final class NavigationButtonsView: NSView {
 
     public override func layout() {
         super.layout()
-        // Three equal buttons across the bounds (the sidebar's top bar may narrow them).
+        for (button, frame) in zip([back, forward, reload], buttonFrames) { button.frame = frame }
+        forward.alphaValue = showsForward ? 1 : 0
+    }
+
+    /// Three equal slots across the bounds (the sidebar's top bar may narrow them); without Forward,
+    /// Back takes its slot (trailing) or Reload does (leading), and Forward waits under Back.
+    private var buttonFrames: [NSRect] {
         let side = min(bounds.width / 3, bounds.height)
-        for (index, button) in [back, forward, reload].enumerated() {
-            button.frame = NSRect(x: CGFloat(index) * side, y: ((bounds.height - side) / 2).rounded(), width: side, height: side)
+        let y = ((bounds.height - side) / 2).rounded()
+        let slot = { (index: Int) in NSRect(x: CGFloat(index) * side, y: y, width: side, height: side) }
+        switch (showsForward, packsTrailing) {
+        case (true, _): return [slot(0), slot(1), slot(2)]
+        case (false, true): return [slot(1), slot(1), slot(2)]
+        case (false, false): return [slot(0), slot(0), slot(1)]
         }
+    }
+
+    private func setShowsForward(_ shows: Bool) {
+        guard shows != showsForward else { return }
+        showsForward = shows
+        forward.isHidden = false
+        let frames = buttonFrames
+        let animates = window != nil && !isHiddenOrHasHiddenAncestor
+        guard animates else {
+            needsLayout = true
+            forward.isHidden = !shows
+            return
+        }
+        let slides = !Motion.reduceMotion
+        if shows, slides { forward.frame = back.frame }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = Motion.fast
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            for (button, frame) in zip([back, forward, reload], frames) {
+                if slides { button.animator().frame = frame } else { button.frame = frame }
+            }
+            forward.animator().alphaValue = shows ? 1 : 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.showsForward == shows else { return }
+                self.forward.isHidden = !shows
+            }
+        })
     }
 
     @objc private func backClicked() { onBack?() }

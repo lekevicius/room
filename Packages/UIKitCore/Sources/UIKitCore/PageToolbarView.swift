@@ -27,6 +27,7 @@ public final class PageToolbarView: NSView {
         super.init(frame: frame)
         setAccessibilityIdentifier("page-toolbar")
         urlField.onClick = { [weak self] in self?.onURLClick?() }
+        navigation.packsTrailing = false
         addSubview(navigation)
         addSubview(urlField)
         addSubview(separator)
