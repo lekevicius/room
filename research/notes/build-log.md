@@ -832,3 +832,13 @@ The M1 Max laptop (64 GB, default jobs, `ROOM_BUILD_JOBS` unset) ran the rebase 
 Cost of the rebase in `//room`: one conflicting hunk (0026), one generated stub, five call sites to 156's API changes; no new patch, no DCHECK touched, the series still 25. **Rough total on the laptop:** about 6 h of builds (2 h 49 min + about 15 min official, 2 h 53 min dev), most of it the two near-full rebuilds; the fix work itself under 30 minutes.
 
 The requests after the rebase (the mini's `/Volumes/JL4/laptop-engines/requests/`, served by the laptop's watcher, `build/rebase-156/watch-requests.sh`) each report "patches: 0 applied, 25 already on the room branch" in their build logs: `54b-1` dev and release, `54b-2` release, `58-1` release, `58-2` dev, `59-1` dev and release. Official `//room` incrementals 215–509 s ("build done in"), dev 11–34 s, the copy 30–60 s; the watcher's `DONE` lines are in the 5.4b and 5.8e sections above.
+
+## Phase 5.10 (2026-11-01, the M1 Max laptop, 64 GB, default jobs)
+
+| Build | Time | Note |
+|---|---|---|
+| `out/dev`, `//room` only (`ExtensionsPinnedByDefault` off) | 17 s | |
+| `out/dev` after `0028-devtools-update-hook` and its `//room` | 28 s | the patch touches `devtools_ui_controller.cc` only |
+| `out/dev`, two `//room` follow-ups | 28 s, 19 s | |
+| `out/release` (official incremental, series 26) | **223 s** | `RoomCoreCommit 8626287` |
+| `roomcore-package.sh --release` | Swift host 25 s, app 101 s | framework 268 MB |

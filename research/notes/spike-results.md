@@ -4570,3 +4570,21 @@ Counts are with this session's two harness fixes applied to the checks (`diafram
 | after | `b5f394a` (59-2, `,OmniboxEverywhere` in the policy) | 0 / 0, no `statusbar_appeared` | `UIKitCore.RoomWindow {{352, 187}, {1280, 800}}; NativeWidgetMacNSWindow {{352, 187}, {1280, 800}}` |
 
 0 minidumps in each run. The other surfaces (156 source): `OmniboxEverywhereController` (global hotkey, the background-mode manager's icon and keep-alive, the UI manager, the FRE and promo) is made in `GlobalFeatures` only when the feature is on; `OmniboxEverywhereServiceFactory` returns null without it; the `--omnibox-everywhere` startup path also checks it. The hotkey's absence is read from the source, not exercised.
+
+## Phase 5.10 — the redesign and the bugs (2026-11-01, M1 Max laptop, 64 GB, main display the Pro Display XDR at 60 Hz; RoomCore 156.0.8078.48, series 26; main checkout; load 7–70 from Spotlight indexing `build/` and CloudMounter)
+
+`scripts/redesign-check.sh` (`-RoomSpike redesign`), each run on a fresh state and engine under /tmp/room-5/redesign; dev light and dark, the release framework light. Every line identical on the three runs:
+
+| Check | Result |
+|---|---|
+| One page, sidebar shown | card `{{300, 0}, {900, 780}}` in a 1200 × 780 window, corner 16 (`CardMetrics.windowCornerRadius`; `NSThemeFrame._cornerRadius` read 16 for this window style) |
+| Sidebar hidden | card `{{0, 0}, {1200, 780}}`, corner 16 |
+| A split | card `{{300, 8}, {892, 764}}` (the 8 pt inset), corner 6; unsplit back to edge to edge |
+| B-32, the titlebar's drag | `CardContainerView` answers `_opaqueRectForWindowMoveWhenInTitlebar` with its bounds (`{{0, 0}, {900, 780}}`); the titlebar is the window's top 52 pt. The real pointer is the user's (computer use declined) |
+| DevTools, Chrome's docking | opened docked right (`canDock=true`, the front-end's close button visible), the page `{{0, 0}, {345, 780}}` over the 900 pt card; Dock side bottom: page `{{0, 0}, {900, 480}}`; left: `{{555, 0}, {345, 780}}`; undocked: Room's window holds the front-end, the page fills the card; docked again from the front-end; the front-end's close button closes it (0 within 500 ms); ⌥⌘I reopens on the right and closes |
+| A new tab below the visible list (37 rows) | the pill `{{8, 1248}, {284, 36}}` inside the visible `{{0, 638}, {300, 646}}` |
+| The hidden sidebar's overlay | `{{4, 4}, {300, 772}}` |
+
+The tour's steps that read the changed shapes (`grand-tour.sh --only window,cdp,diaframe,devtools,chrome26b,extensions,layoutmodes,sidebardemo,palette,windows,incognito light`, a no-op `screencapture` on PATH, B-157): dev **234 / 241** first, then chrome26b and extensions rerun **83 / 88** and, with the spikes pinning their fixtures, extensions and incognito **54 / 54**; release framework **239 / 242**. Every failure attributed: the four extension checks assumed installs arrive pinned (156's `ExtensionsPinnedByDefault`, now off: the spikes pin as a user would, and a new check sees installs land in "…"); the status pill's three checks once on dev (passed alone, in `find,zoom,status`, `print,status` and the full step's rerun: a run condition); `audible on and off` and `didChangeAudible` on every run, the pre-5.10 Debug app included (B-159); release chrome26b's "no crash report: -1 new" (a report count that went down; no Room report in DiagnosticReports).
+
+The engine baseline (`roomcore-baseline.sh`, embryo host on dev): nav assertions passed; quits 0.661 / 0.793 / 0.525 s with 10 pages, 0 helpers left, 0 crash reports (load 63–71).
