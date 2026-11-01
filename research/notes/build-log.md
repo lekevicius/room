@@ -853,3 +853,16 @@ The requests after the rebase (the mini's `/Volumes/JL4/laptop-engines/requests/
 | Debug app over release | 48 s | `ROOM_PACKAGE_STAGED=1` |
 | sign + notarize | notarized in 72 s, stapled | `build/roomcore-release-signed` |
 | `sparkle-package.sh` | DMG 217,103,650 B | `build/sparkle-26`, appcast entry verified |
+
+## 2026-11-02 — Rebase 156.0.8078.48 → 157.0.8103.26 (Mac mini, 6.4)
+
+The Mac mini (24 GB, `ROOM_BUILD_JOBS=6`), from the command line; the user's apps running beside it (load 24–380: siso runs code generators beyond `-j`).
+
+| Step | Time | Notes |
+|---|---|---|
+| `git fetch` of the tag | 1 min 32 s | 157.0.8103.26: Mac stable since 2026-10-28 (chromiumdash); 156 was at .80 |
+| dry run | 31 s | upstream 11,749 commits; 15 patches exact, 8 with offsets, 1 merged (0008), 3 conflicts |
+| the conflicts, by hand | minutes | 0016 (two hunks): upstream added NTP includes and Glic/guest-view throttles at the hook's places; both kept, the hook last. 0021 then applied with an offset. 0026: upstream put the enterprise network-scanning proxy where the hook was; the hook (a blocker) before it, as its comment asks. The script's `--continue` re-applied 0008's old file instead of its clean merge and looped; 0008's patch refreshed by hand (`git apply --3way` onto the tag) |
+| `--continue --no-build` | switch 13 s, sync 118 s, runhooks 30 s, apply | "0 applied, 27 already"; the stub generator dropped `MaybeShowProfileSwitchIPH` and `MaybeShowSupervisedUserProfileSignInIPH`; `gn gen` failed (the script's exit 1): `//chrome/browser/ui:ui` was deleted upstream (68a8e85cf5885), `//room` now depends on `//chrome/browser` |
+| `//room` objects only (`autoninja -k 0` on the 41 `obj/room/**.o`, their generated deps included) | about 35 min | one file broken: `room_page_dialogs.mm` (TabDialogs is a TabFeatures member since 157): patch 0031 (a factory redirect) and `RoomTabDialogs : TabDialogsViews` |
+| official `out/release` | started 00:57 | |

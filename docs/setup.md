@@ -205,8 +205,9 @@ the team identity avoids that and is needed for the notarization pipeline.
    every installed copy must take by hand.
 5. Update feed and crash reports: `ROOM_UPDATE_FEED_URL` (a `.invalid`
    placeholder until 6.2: the feed will be `updates.room.app`, the DMGs on
-   GitHub Releases, decided 2026-10-18) and `ROOM_SENTRY_DSN` (empty: no
-   third-party crash service; a self-hosted collector in 6.3, B-105) in
+   GitHub Releases, decided 2026-10-18) and `ROOM_CRASH_DSN` (the user's own
+   crash collector, `https://<key>@<host>/<project>`; empty: reports stay on
+   the Mac; deploy notes in `tools/crash-collector/README.md`) in
    `xcodegen/base.yml` are the one place for both.
 
 ## 5a. Computer use on a session's own process (5.0a)
