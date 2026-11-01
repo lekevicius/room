@@ -159,12 +159,12 @@ def _window(c):
     c.check("traffic lights at AppKit's place (19,19 60×14) in every state", len(lights) == len(states), f"{len(lights)}/{len(states)}")
     c.check("active states main", all("main=true" in v for k, v in states.items() if "-active-" in k or "compare" in k or "page-" in k), "")
     c.check("inactive states not main", all("main=false" in v for k, v in states.items() if "-inactive-" in k), "")
-    # The Room Browser design (2026-10-07): the card 8 pt from the window's edges, a 300 pt default sidebar.
-    dia_framing(c, all("card={{280, 8}, {956, 802}}" in v for k, v in states.items() if "compare" in k), "Dia framing: card {{280, 8}, {956, 802}}",
+    # 5.10 (the Room Browser design, Figma 67:2115): one page edge to edge beside the 300 pt default sidebar.
+    dia_framing(c, all("card={{280, 0}, {964, 818}}" in v for k, v in states.items() if "compare" in k), "Dia framing: card {{280, 0}, {964, 818}}",
                 next((v.split("card=")[1].split(" title")[0] for k, v in states.items() if "compare" in k), ""))
-    c.check("sidebar open: card at x 300, closed: at x 8",
-            all("card={{300, 8}" in v for k, v in states.items() if k.endswith("-open")) and
-            all("card={{8, 8}" in v for k, v in states.items() if k.endswith("-closed")), "")
+    c.check("sidebar open: card at x 300, closed: the whole window (edge to edge, 5.10)",
+            all("card={{300, 0}" in v for k, v in states.items() if k.endswith("-open")) and
+            all("card={{0, 0}" in v for k, v in states.items() if k.endswith("-closed")), "")
 
 
 @step_check("cdp")
@@ -263,9 +263,9 @@ def _open10(c):
 
 @step_check("diaframe")
 def _diaframe(c):
-    # The card is `CardMetrics.inset` 8 pt in since the Room Browser design (`beea283`, 2026-10-07; Dia measured 6):
-    # in Dia's 1244 × 818 window beside the 280 pt sidebar that is {{280, 8}, {956, 802}} (5.9: the check still had 6).
-    dia_framing(c, c.first("card") == "{{280, 8}, {956, 802}}", "card at Dia's framing (8 pt inset)", c.first("card") or "missing")
+    # 5.10: one page is edge to edge (the Room Browser design, Figma 67:2115; a split keeps `CardMetrics.inset`):
+    # in Dia's 1244 × 818 window beside the 280 pt sidebar that is {{280, 0}, {964, 818}}.
+    dia_framing(c, c.first("card") == "{{280, 0}, {964, 818}}", "card at Dia's framing (edge to edge)", c.first("card") or "missing")
 
 
 @step_check("keys")
