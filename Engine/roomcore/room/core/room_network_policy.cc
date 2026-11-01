@@ -102,6 +102,11 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   // 5.9's tour; the status button's tooltip, 2026-10-22). Room's palette is
   // its own; no menu-bar item, no keep-alive.
   disabled += ",OmniboxEverywhere";
+  // Not network: 156's field-trial testing config enables
+  // ExtensionsPinnedByDefault, so ToolbarActionsModel pins every extension
+  // installed after it (the user saw unpinned extensions in the top bar on
+  // build 24). Room pins only what the user pins; new ones go to "…".
+  disabled += ",ExtensionsPinnedByDefault";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
   // M154's global manifest broker registers/downloads its manifest even with
