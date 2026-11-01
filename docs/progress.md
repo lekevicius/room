@@ -613,6 +613,15 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 
 **Phase 5.12 done (2026-11-02).** Review: the user offered computer use while at the Mac, and the tab drag that two phases could not reproduce fell in minutes: a real drag ended 0.6 s after it began with no drop, the system log showed AppKit "ignoring exception raised by SidebarOutlineView during a dragging session", and lldb on `objc_exception_throw` named it: `-[SidebarOutlineView draggingSession:movedToPoint:]: unrecognized selector` from the override's `super` call (NSTableView dropped the method on macOS 27; the 5.5 code was right on 26). Two more macOS 27 changes surfaced the same way: buttons' tracking no longer calls `highlight(_:)` (the press's scale had not run on any HoverButton) and menus hide item images unless the item asks. The rest is the notes as asked; the PiP window is Chrome's with Room's controls through a two-call hook (patch 0029, series 27). Not shown: the hover scale's feel and the glass strengths are the user's eyes.
 
+### Chapter 6 — Ship (started 2026-11-02; spec in ROADMAP)
+- [x] 6.4 Rebase to 157.0.8103.26 (`b415018`, `56fc665`, `59300d7`: three hand merges, `//chrome/browser/ui:ui` gone, patch 0031 for TabDialogs; all `//room` objects compile)
+- [ ] 6.4 Official engine at 157 (building), the dev engine after it; the checks on 157 (fixes and fixes512 spikes, the tour's groups)
+- [x] 6.3 Crash uploads to the user's collector: patch 0030, `RoomApplication.crashUploadURL`/`crashUploadsEnabled`, `ROOM_CRASH_DSN`, Sentry Cocoa removed (`a7e1d3a`, `cae7275`, `b4a4f7c`); `tools/crash-collector/` and `scripts/crash-symbols.sh` (`5e33e8d`); the collector checked locally (an upload stored, a wrong key refused)
+- [ ] 6.3 End to end on a build: a crash's minidump reaches a local collector with the opt-in on, nothing with it off; the user deploys the collector and sets the DSN
+- [x] 6.2 Deltas published with each release; release notes in the appcast (`9745d17`)
+- [x] 6.1 `scripts/release.sh`, `docs/releases/0.3.0.html`, version 0.3.0 build 27 (`b54a22f`)
+- [ ] 0.3.0 (27) packaged, signed, notarized; publishing is the user's go
+
 ## Log
 
 - 2026-10-01 — Research completed (`research/notes/`), `PLAN.md` and `ROADMAP.md` written, repository initialized. Next: Phase 1.1.
