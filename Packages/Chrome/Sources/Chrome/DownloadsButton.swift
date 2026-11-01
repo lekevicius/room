@@ -173,7 +173,8 @@ public final class DownloadsButton: PressableView {
         let size = badge.cell?.cellSize ?? .zero
         let height = DownloadsMetrics.badgeHeight
         let width = max(height, ceil(size.width) + 6)
-        let badgeRect = NSRect(x: bounds.maxX - width + 3, y: -2, width: width, height: height)
+        // Inside the button's square (5.10: 3 pt past its corner, the layer's rounded clip cut it).
+        let badgeRect = NSRect(x: bounds.maxX - width - 1, y: 1, width: width, height: height)
         badgeBackground.frame = badgeRect
         badgeBackground.cornerRadius = height / 2
         badge.frame = NSRect(x: badgeRect.minX, y: badgeRect.minY + (height - ceil(size.height)) / 2, width: width, height: ceil(size.height))

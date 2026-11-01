@@ -77,6 +77,10 @@ final class PalettePanelView: NSView {
         SolidBackingView.install(in: content, cornerRadius: Radius.large)
         glass.contentView = content
         addSubview(glass)
+        layer?.masksToBounds = false
+        layer?.shadowColor = Palette.cardShadow.cgColor
+        layer?.shadowRadius = PaletteMetrics.shadowRadius
+        layer?.shadowOffset = PaletteMetrics.shadowOffset
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Command palette")
@@ -100,11 +104,23 @@ final class PalettePanelView: NSView {
     override func updateLayer() {
         super.updateLayer()
         chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor
+        updateShadow()
+    }
+
+    /// 5.10: a deep shadow under the panel, from its rounded outline.
+    private func updateShadow() {
+        guard let layer else { return }
+        layer.shadowColor = Palette.cardShadow.cgColor
+        layer.shadowOpacity = effectiveAppearance.isDark ? PaletteMetrics.shadowOpacityDark : PaletteMetrics.shadowOpacityLight
+        layer.shadowPath = CGPath(roundedRect: bounds, cornerWidth: Radius.large, cornerHeight: Radius.large, transform: nil)
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            chip.layer?.backgroundColor = Palette.sidebarMultiSelection.cgColor
+            updateShadow()
+        }
     }
 
     /// The panel's height for `rowCount` rows in `groupCount` groups.
@@ -116,6 +132,7 @@ final class PalettePanelView: NSView {
 
     override func layout() {
         super.layout()
+        updateShadow()
         if textScale.needsUpdate() {
             field.font = Typography.paletteField
             chipLabel.font = NSFont.systemFont(ofSize: Typography.paletteSecondary.pointSize, weight: .semibold)

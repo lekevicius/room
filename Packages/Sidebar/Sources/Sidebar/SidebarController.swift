@@ -465,6 +465,7 @@ public final class SidebarController: NSObject {
             if !themePreviewActive { onTintChange?(space.theme, true) }
         }
         updateAddressField()
+        if pendingScrollToSelection { scrollSelectionIntoView() }
         retainMultiSelection()
         if let node = focusedNode, outline.row(forItem: node) < 0 { focusedNode = nil }
         updateFocusRing()
@@ -587,7 +588,23 @@ public final class SidebarController: NSObject {
             if let tile = grid.tile(for: id) { configureTile(tile) }
         }
         updateAddressField()
+        if selectedEntryID != previous { scrollSelectionIntoView() }
         updateOverflow()
+    }
+
+    /// The selected row comes into view (5.10: a new tab opened below the list's visible part stayed
+    /// out of sight). A selection whose row is not in the list yet (the store's insert follows) waits
+    /// for the change that adds it (`apply`).
+    private var pendingScrollToSelection = false
+
+    private func scrollSelectionIntoView() {
+        guard let id = selectedEntryID else { return pendingScrollToSelection = false }
+        guard let node = tree.displayedNode(for: id), case let row = outline.row(forItem: node), row >= 0 else {
+            pendingScrollToSelection = true
+            return
+        }
+        pendingScrollToSelection = false
+        outline.scrollRowToVisible(row)
     }
 
     func updatePill(animated: Bool) { updatePill(in: pane, animated: animated) }

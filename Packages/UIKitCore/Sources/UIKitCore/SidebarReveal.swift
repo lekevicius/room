@@ -23,6 +23,9 @@ public enum RevealZone: Equatable, Sendable {
             if let overlay, point.x <= overlay.maxX { return .overlay }
             return point.x < RevealMetrics.edgeBand ? .band : .elsewhere
         }
+        // Just past the window's leading edge, level with it (5.10: the window at the screen's edge,
+        // or a pointer overshooting the window's edge).
+        if point.x < 0, point.x >= -RevealMetrics.outsideBand, point.y >= 0, point.y <= contentSize.height { return .band }
         guard let overlay else { return .elsewhere }
         let tolerant = overlay.insetBy(dx: -RevealMetrics.outsideToleranceX, dy: -RevealMetrics.outsideToleranceY)
         return tolerant.contains(point) ? .tolerance : .elsewhere
