@@ -90,19 +90,32 @@ public final class CardContainerView: NSView {
     var isEdgeToEdge = false {
         didSet {
             layer?.cornerRadius = isEdgeToEdge ? 0 : cornerRadius
+            applyClipping()
             needsDisplay = true
         }
     }
 
     var cornerRadius: CGFloat = CardMetrics.cornerRadius {
-        didSet { if !isEdgeToEdge { layer?.cornerRadius = cornerRadius } }
+        didSet {
+            if !isEdgeToEdge { layer?.cornerRadius = cornerRadius }
+            applyClipping()
+        }
     }
 
     var isSplitHost = false {
         didSet {
-            layer?.masksToBounds = !isSplitHost
+            applyClipping()
             needsDisplay = true
         }
+    }
+
+    /// One page is clipped to the card's corner; a split's panes are not (their shadows reach past the
+    /// card's edge). AppKit's backing layer turns the view's `clipsToBounds` back on whenever its corner
+    /// radius is set (5.11, the user on build 25: the panes' shadows were cut at the card's edge, since
+    /// the split's inset set the corner after the split had turned clipping off), so every change re-applies it.
+    private func applyClipping() {
+        clipsToBounds = !isSplitHost
+        layer?.masksToBounds = !isSplitHost
     }
 
     public var contentView: NSView? {
@@ -142,6 +155,7 @@ public final class CardContainerView: NSView {
 
     public override func layout() {
         super.layout()
+        applyClipping()
         let height = accessoryHeight
         topAccessory?.frame = NSRect(x: 0, y: isFlipped ? 0 : bounds.height - height, width: bounds.width, height: height)
         contentView?.frame = contentFrame
@@ -154,7 +168,7 @@ public final class CardContainerView: NSView {
         guard let layer else { return }
         layer.cornerRadius = CardMetrics.cornerRadius
         layer.cornerCurve = .continuous
-        layer.masksToBounds = true
+        applyClipping()
     }
 
     @available(*, unavailable)

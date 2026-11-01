@@ -91,6 +91,20 @@ struct CardTests {
         let selector = NSSelectorFromString("_opaqueRectForWindowMoveWhenInTitlebar")
         #expect(card.container.responds(to: selector))
     }
+
+    @Test("A split's card does not clip its panes' shadows; one page's card clips the page")
+    func splitHostClipping() {
+        let card = makeCard()
+        #expect(card.container.clipsToBounds && card.container.layer?.masksToBounds == true)
+        // 5.11 (the user on build 25): AppKit restored the layer's mask from the view's `clipsToBounds`.
+        card.isSplitHost = true
+        #expect(!card.container.clipsToBounds && card.container.layer?.masksToBounds == false)
+        // The split's inset corner, set after: AppKit's backing layer turned clipping back on with it.
+        card.cornerRadius = CardMetrics.cornerRadius + 1
+        #expect(!card.container.clipsToBounds && card.container.layer?.masksToBounds == false)
+        card.isSplitHost = false
+        #expect(card.container.clipsToBounds && card.container.layer?.masksToBounds == true)
+    }
 }
 
 @Suite("The card's states")

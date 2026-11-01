@@ -566,9 +566,33 @@ final class SplitResizerView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    private var cursor: NSCursor { divider?.axis == .horizontal ? .resizeUpDown : .resizeLeftRight }
+
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: divider?.axis == .horizontal ? .resizeUpDown : .resizeLeftRight)
+        addCursorRect(bounds, cursor: cursor)
     }
+
+    /// The pages beside the gap set the arrow as the pointer leaves them (Chromium's
+    /// `RenderWidgetHostViewCocoa`, on its mouse exit), after the cursor rect above set the resizer's:
+    /// 5.11 (the user on build 25: the cursor showed for a frame, then the arrow). The resizer sets
+    /// its cursor again once that exit has run, and on each move over it.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        cursor.set()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.window,
+                  self.bounds.contains(self.convert(window.mouseLocationOutsideOfEventStream, from: nil)) else { return }
+            self.cursor.set()
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) { cursor.set() }
 
     override var frame: NSRect { didSet { if frame.size != oldValue.size { window?.invalidateCursorRects(for: self) } } }
 
