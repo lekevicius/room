@@ -1,6 +1,6 @@
 # Room — roadmap: Chapters and Phases
 
-Development runs in **Chapters** (broad arcs with a clear end state) made of **Phases** (units of work with an exit criterion). Chapters 1–5 are specified in detail here (each chapter's spec was written as the previous one closed: 2 in Phase 1.6, 3 in 2.9, 4 and 5 on 2026-10-06 after the Chapter 3 review); Chapter 6 is scoped and gets its spec after the UI and UX iteration that follows Chapter 5. Decisions and architecture live in `PLAN.md`; the product spec lives in `research/notes/feature-spec.md`.
+Development runs in **Chapters** (broad arcs with a clear end state) made of **Phases** (units of work with an exit criterion). Chapters 1–5 are specified in detail here (each chapter's spec was written as the previous one closed: 2 in Phase 1.6, 3 in 2.9, 4 and 5 on 2026-10-06 after the Chapter 3 review); Chapter 6 got its spec on 2026-11-02, after the UI and UX iteration that followed Chapter 5 (5.10–5.12). Decisions and architecture live in `PLAN.md`; the product spec lives in `research/notes/feature-spec.md`.
 
 Chapter overview:
 
@@ -656,10 +656,12 @@ Two sessions per phase unless stated; the Chapter 4 session rules apply (unit te
 
 **End state.** Public, updating, observable, maintainable by one person.
 
+**Spec (2026-11-02, after 5.12; the user: "there are already people using Room, so we can do Chapter 6 too").** Decided with the user: the next build ships on Chromium 157 (the stable major since 2026-10-28); crash reports go to a collector the user deploys (no third-party service, B-105). What already exists and is not redone: signing, notarization, the DMG, Sparkle 2 with EdDSA and the feed at `updates.room.app` (R2), the first-run flow (5.7b). Order: 6.4's rebase first (its builds run for hours in the background), 6.3 and 6.1/6.2 beside it, one release (0.3.0) at the end with everything; the website, beta channel and public repository wait for the user (6.5, 6.6).
+
 Phases:
-- **6.1 Release pipeline.** Mac mini or Depot runner for release builds; static official build; sign, notarize, staple, DMG; versioning; changelog.
-- **6.2 Updates.** Sparkle 2 appcast at `updates.room.app`, DMGs on GitHub Releases (S3 if GitHub does not serve Sparkle well; decided 2026-10-18), EdDSA keys, delta measurement, in-app update UI, channel for betas.
-- **6.3 Crash and health loop.** Crashpad and the app's reports → a self-hosted collector the user deploys (no third-party crash service, decided 2026-10-18; B-105), symbol upload, triage routine, opt-in diagnostics only (no analytics by default).
-- **6.4 Rebase operations.** Scheduled Chromium stable bumps (2-week) with the script; weekly security refresh checks; smoke-test suite gating a release.
-- **6.5 Onboarding and defaults.** First-run flow (import, default browser, essentials picker, theme), docs, website, release notes, support channel.
+- **6.1 Release pipeline.** Release notes per version (`docs/releases/<version>.html`, embedded in the appcast: Sparkle's update dialog shows them); the build number and version in `xcodegen/base.yml`; the chain (official engine build, package, sign, notarize, `sparkle-package.sh`, `release-publish.sh` on the user's go) as written in the log; later a Mac mini runner.
+- **6.2 Updates.** Delta updates actually published (5.x's appcast named a delta `release-publish.sh` never uploaded, so every update was the full ~217 MB DMG): `build/release` keeps the published DMGs (the last one fetched from `updates.room.app` when missing), `generate_appcast` writes the deltas, `release-publish.sh` uploads them; the delta's size measured per release. A beta channel when the user wants one.
+- **6.3 Crash and health loop.** Crashpad uploads to the user's collector: patch 0030 (the upload URL hook; the user's fourth patch exception), `RoomApplication.crashUploadURL` / `crashUploadsEnabled`, `EngineConfiguration.crashUploadURL` from `ROOM_CRASH_DSN` (Sentry's DSN shape), the opt-in switching Crashpad's consent; Sentry Cocoa removed (a second handler in the app process, never configured). `tools/crash-collector/` (collector, triage with `minidump-stackwalk`, deploy notes), `scripts/crash-symbols.sh` (Breakpad symbols per release). The user deploys the collector and sets the DSN; until then reports stay on disk.
+- **6.4 Rebase operations.** Rebase to 157.0.8103.26 (`scripts/roomcore-rebase.sh`; three hand merges, `//chrome/browser/ui:ui` gone upstream); both engines rebuilt; the tour, the 5.11/5.12 spikes and the official build's checks on 157. Then the routine: each Chromium stable point release (security fixes, roughly weekly) rebased and built within days, each major within two weeks of its stable date; `chromiumdash` names them.
+- **6.5 Onboarding and defaults.** Docs, website, release notes page, support channel (the user's; the first-run flow exists).
 - **6.6 Public release.** Beta cohort → public; MPL-2.0 (decided 2026-10-18); the repository goes public with the first public beta, after a clean-up session (B-104); the passkey entitlement if Apple has granted it; roadmap for Chapter 7+ (sync, Windows, AI only if ever wanted).
