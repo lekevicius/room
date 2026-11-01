@@ -1188,6 +1188,19 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (void)room_devToolsDidChange {
+  // Chrome calls in the middle of its own change (DevToolsWindow's destructor
+  // among them): the host hears it once that is over.
+  RoomWebContents* __weak weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RoomWebContents* strongSelf = weakSelf;
+    id<RoomWebContentsDelegate> delegate = strongSelf.delegate;
+    if ([delegate respondsToSelector:@selector(webContentsDevToolsDidChange:)]) {
+      [delegate webContentsDevToolsDidChange:strongSelf];
+    }
+  });
+}
+
 - (NSRect)room_bubbleAnchorRect {
   id<RoomWebContentsDelegate> delegate = self.delegate;
   if (![delegate respondsToSelector:@selector(webContentsBubbleAnchorRect:)]) {

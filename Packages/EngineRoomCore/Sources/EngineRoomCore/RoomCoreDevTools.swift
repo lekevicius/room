@@ -3,13 +3,15 @@ import Engine
 import RoomCore
 
 /// DevTools for one `RoomCoreWebContents`: Chrome's `DevToolsWindow` with its
-/// bindings and lifetime, its front-end page shown in the host's pane.
+/// bindings and lifetime, its front-end page shown in the view the host gives.
 ///
-/// The inspected page's `Browser` has no `DevtoolsUIController`, so Chrome
-/// cannot dock and makes a DevTools `Browser` of its own, which RoomCore
-/// keeps headless (no Chromium window, 3.2a); the front-end `WebContents`
-/// stays in that Browser's strip and its view is adopted here into the view
-/// the host gives (ROADMAP 3.3, shape (a)). No remote-debugging port.
+/// Since 5.10 the inspected page's `Browser` has a `DevtoolsUIController`
+/// (RoomBrowser), so Chrome docks DevTools on its remembered dock side and the
+/// front-end shows its own Dock side menu and close button; the host lays the
+/// page out over the front-end where Chrome's resizing strategy says
+/// (`pageFrame(inContainerOf:)`), told of every change through `onChange`.
+/// Undocked, the front-end lives in a headless DevTools `Browser` (3.2a) and
+/// the host shows it in a window of its own. No remote-debugging port.
 @MainActor
 public final class RoomCoreDevTools: DevTools {
     private weak var contents: RoomCoreWebContents?
@@ -31,6 +33,28 @@ public final class RoomCoreDevTools: DevTools {
     /// The pane is the host's on RoomCore, Debug and Release alike.
     public var isDockable: Bool { true }
 
+    public var onChange: (() -> Void)?
+
+    public var isDocked: Bool {
+        guard isOpen, let contents else { return false }
+        return contents.page.isDevToolsDocked
+    }
+
+    public func pageFrame(inContainerOf size: CGSize) -> CGRect {
+        guard isOpen, let contents else { return CGRect(origin: .zero, size: size) }
+        return contents.page.devToolsPageFrame(inContainerOf: size)
+    }
+
+    /// `webContentsDevToolsDidChange` (patches/0028): the front-end may have moved or closed.
+    func engineDidChange() {
+        if let frontend, frontend.state == .closed || contents?.page.isDevToolsOpen != true {
+            frontend.nativeView.removeFromSuperview()
+            self.frontend = nil
+            hostView = nil
+        }
+        onChange?()
+    }
+
     public func open(in hostView: NSView) {
         show(.default, in: hostView)
     }
@@ -51,7 +75,8 @@ public final class RoomCoreDevTools: DevTools {
         adopt(in: hostView)
     }
 
-    /// Closes Chrome's DevTools Browser (the front-end goes with it).
+    /// Closes DevTools: docked, the front-end's page closes (as its own close button);
+    /// undocked, Chrome's DevTools Browser (the front-end goes with it).
     public func close() {
         contents?.page.closeDevTools()
         frontend?.nativeView.removeFromSuperview()
@@ -61,7 +86,9 @@ public final class RoomCoreDevTools: DevTools {
 
     private func show(_ tool: RoomDevToolsTool, in hostView: NSView) {
         guard let contents, contents.state != .closed else { return }
-        contents.page.showDevTools(tool)
+        // Open DevTools moved to another host (docked ↔ its window) is only re-hosted: showing it
+        // again would re-dock it on Chrome's side and take the focus.
+        if tool != .default || !isOpen { contents.page.showDevTools(tool) }
         adopt(in: hostView)
     }
 

@@ -518,6 +518,13 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 - (void)webContents:(RoomWebContents*)webContents
     didRequestToast:(NSString*)kind
     NS_SWIFT_NAME(webContents(_:didRequestToast:));
+// This page's DevTools changed its layout (5.10): docked or undocked from the
+// front-end's Dock side menu, its split moved, opened or closed (the
+// front-end's close button too). Called after Chrome's change, on a later
+// turn of the main thread; the host reads devToolsOpen, devToolsDocked and
+// -devToolsPageFrameInContainerOfSize:.
+- (void)webContentsDevToolsDidChange:(RoomWebContents*)webContents
+    NS_SWIFT_NAME(webContentsDevToolsDidChange(_:));
 // Where Chrome's own bubbles point while this page is its window's active
 // page (the password save and update bubbles, address and card saves,
 // device choosers, FedCM): the host's site button, in the window's
@@ -865,12 +872,24 @@ typedef NS_ENUM(NSInteger, RoomDevToolsTool) {
 - (BOOL)printWithPreview;
 
 // DevTools for this page: Chrome's DevToolsWindow with its front-end in a
-// RoomWebContents the host shows in its own view (never a Chromium window).
+// RoomWebContents the host shows in its own view (never a Chromium window):
+// docked in the page's card, or (undocked) in a host window.
 @property(nonatomic, readonly, getter=isDevToolsOpen) BOOL devToolsOpen;
 // The front-end page while DevTools is open; the host adds its nativeView to
 // its pane and sizes it. Its closed change follows when DevTools goes.
 @property(nonatomic, readonly, nullable) RoomWebContents* devToolsWebContents
     NS_SWIFT_NAME(devToolsWebContents);
+// DevTools is docked in this page's card (5.10): Chrome's own dock side, set
+// from the front-end's Dock side menu; NO when it is undocked or closed. While
+// undocked the host shows devToolsWebContents in a window of its own.
+@property(nonatomic, readonly, getter=isDevToolsDocked) BOOL devToolsDocked;
+// While DevTools is docked, where the page goes in a container of `size`
+// (points, top-left origin): the front-end fills the container and the page
+// sits over it there, as Chrome's ApplyDevToolsContentsResizingStrategy lays
+// out its own (the front-end draws the split and moves it). NSZeroRect when
+// DevTools hides the page; the whole container when not docked.
+- (NSRect)devToolsPageFrameInContainerOfSize:(NSSize)size
+    NS_SWIFT_NAME(devToolsPageFrame(inContainerOf:));
 // Opens DevTools (or keeps it open) on `tool`.
 - (void)showDevTools:(RoomDevToolsTool)tool;
 // Opens DevTools on the Elements panel with the element at `point` (the

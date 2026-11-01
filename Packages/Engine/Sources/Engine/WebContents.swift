@@ -184,6 +184,16 @@ public protocol DevTools: AnyObject {
     /// `false` when the engine can show DevTools only in a window of its own:
     /// the host view is then unused.
     var isDockable: Bool { get }
+    /// Docked in the page's card (5.10): where DevTools' own Dock side menu put it. `false` while it is
+    /// undocked (the host shows it in a window of its own) or closed.
+    var isDocked: Bool { get }
+    /// While docked, the page's frame in a container of `size` (top-left origin): DevTools fills the
+    /// container and the page sits over it there; DevTools draws the split and moves it. `.zero` when
+    /// DevTools hides the page; the whole container when not docked.
+    func pageFrame(inContainerOf size: CGSize) -> CGRect
+    /// Called after DevTools docks, undocks, moves its split, opens or closes, its own controls
+    /// included (its close button); the host lays out again.
+    var onChange: (() -> Void)? { get set }
     /// Shows DevTools filling `hostView`. A second call moves it to the new host.
     func open(in hostView: NSView)
     /// Opens DevTools if needed on a tool: the console (⌥⌘J) or the element picker (⌥⌘C).

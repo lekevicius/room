@@ -36,6 +36,14 @@ final class FakeDevTools: DevTools {
     private(set) var inspectedPoint: NSPoint?
     private(set) var tool: DevToolsTool?
     var isDockable: Bool { true }
+    var onChange: (() -> Void)?
+    /// Docked at the bottom, the page over its top share (as Chrome's first dock).
+    var isDocked: Bool { isOpen }
+
+    func pageFrame(inContainerOf size: CGSize) -> CGRect {
+        guard isOpen else { return CGRect(origin: .zero, size: size) }
+        return CGRect(x: 0, y: 0, width: size.width, height: (size.height * 0.58).rounded())
+    }
 
     init(contents: FakeWebContents) {
         self.contents = contents
@@ -50,6 +58,7 @@ final class FakeDevTools: DevTools {
         label.autoresizingMask = [.width, .height]
         hostView.addSubview(label)
         view = label
+        onChange?()
     }
 
     func open(in hostView: NSView, tool: DevToolsTool) {
@@ -67,5 +76,6 @@ final class FakeDevTools: DevTools {
         view = nil
         inspectedPoint = nil
         tool = nil
+        onChange?()
     }
 }

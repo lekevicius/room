@@ -594,6 +594,12 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
 
     /// One of Chrome's confirmation toasts (`RoomToastController`, B-58): the
     /// host shows its own.
+    /// DevTools docked, undocked, resized, opened or closed (5.10, patches/0028).
+    @objc(webContentsDevToolsDidChange:)
+    public func webContentsDevToolsDidChange(_ webContents: RoomWebContents) {
+        roomDevTools?.engineDidChange()
+    }
+
     @objc(webContents:didRequestToast:)
     public func webContents(_ webContents: RoomWebContents, didRequestToast kind: String) {
         uiDelegate?.webContents(self, didRequestToast: ToastKind(engineName: kind))

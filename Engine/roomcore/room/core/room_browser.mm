@@ -255,6 +255,10 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
   std::shared_ptr<int> _spike_address_decisions;
   std::shared_ptr<int> _spike_card_decisions;
 #endif
+  // Lets DevTools dock in the host's card (5.10): Chrome docks only for a
+  // Browser with one. No ContentsContainerView (the host lays out through
+  // -devToolsPageFrameInContainerOfSize:, told by patches/0028's hook).
+  std::unique_ptr<DevtoolsUIController> _devtoolsUI;
   // Wrappers of the pages in the tab strip, so KVO observers the host set up
   // survive as long as the page does.
   NSMutableArray<RoomWebContents*>* _pages;
@@ -290,6 +294,9 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     if (RoomBrowserWindow* chromeWindow = room::RoomBrowserWindowFor(_browser)) {
       chromeWindow->GetBubbleAnchor();
     }
+    _devtoolsUI = std::make_unique<DevtoolsUIController>(
+        _browser.get(),
+        std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>>());
     _stripObserver = std::make_unique<StripObserver>(self);
     _browser->GetTabStripModel()->AddObserver(_stripObserver.get());
     _extensions = room::RoomBrowserExtensions::Create(_browser);
@@ -582,6 +589,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 
 - (void)room_windowWillClose {
   _extensions.reset();
+  _devtoolsUI.reset();
   _stripObserver.reset();
 #if BUILDFLAG(ROOM_ENABLE_SPIKES)
   _spike_identity_controller.reset();
@@ -594,6 +602,7 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
 
 - (void)room_windowDestroyed {
   _extensions.reset();
+  _devtoolsUI.reset();
   [self willChangeValueForKey:@"closed"];
   _browser = nullptr;
   [self didChangeValueForKey:@"closed"];

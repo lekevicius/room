@@ -1,0 +1,44 @@
+Room: //room hears each DevTools layout update.
+
+Room docks DevTools in its own card (5.10, the user: DevTools' own Dock side
+menu and close button rather than Room's strip). Chrome lets DevTools dock
+only when the inspected Browser has a DevtoolsUIController; //room registers
+one with no ContentsContainerView (a host-owned window has none), so Chrome
+docks, and the front-end shows its Dock side menu and close button. Every
+layout change then reaches DevtoolsUIController::UpdateDevtools (shown docked,
+undocked, the front-end's split moved through SetInspectedPageBounds, the
+window closing), which is non-virtual and lays out only Views containers.
+
+The hook tells //room, which reads DevToolsWindow::GetInTabWebContents and
+the resizing strategy and tells the host. Nothing else changes in Chrome.
+
+Phase 5.10, 2026-11-01. //room: room/core/room_web_contents_tools.mm,
+room/core/room_browser.mm.
+diff --git a/chrome/browser/devtools/devtools_ui_controller.cc b/chrome/browser/devtools/devtools_ui_controller.cc
+index f2a3fe25fe45f..378d007b932c2 100644
+--- a/chrome/browser/devtools/devtools_ui_controller.cc
++++ b/chrome/browser/devtools/devtools_ui_controller.cc
+@@ -15,6 +15,13 @@
+ 
+ DEFINE_USER_DATA(DevtoolsUIController);
+ 
++namespace room {
++// Room: set by //room/core. Called with the inspected page on every update of
++// its DevTools layout (docked, undocked, the front-end's split moved, closing):
++// a host-owned window has no ContentsContainerView for Chrome to lay out.
++void (*g_devtools_update_hook)(content::WebContents*) = nullptr;
++}  // namespace room
++
+ DevtoolsUIController::DevtoolsUIController(
+     BrowserWindowInterface* browser,
+     const std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>>&
+@@ -43,6 +50,9 @@ void DevtoolsUIController::TearDown() {
+ bool DevtoolsUIController::UpdateDevtools(
+     content::WebContents* web_contents,
+     bool update_devtools_web_contents) {
++  if (::room::g_devtools_update_hook) {
++    ::room::g_devtools_update_hook(web_contents);
++  }
+   auto it = std::ranges::find_if(
+       devtools_web_view_controllers_, [&web_contents](const auto& entry) {
+         return entry.first->contents_view()->web_contents() == web_contents;

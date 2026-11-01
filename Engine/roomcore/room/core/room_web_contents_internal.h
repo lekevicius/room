@@ -61,6 +61,9 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
 - (void)room_requestActivation;
 // Chrome would show a confirmation toast (RoomToastController, B-58).
 - (void)room_requestToast:(NSString*)kind;
+// DevTools' layout changed (patches/0028, 5.10): the delegate hears it on a
+// later turn.
+- (void)room_devToolsDidChange;
 // The delegate's bubble anchor (window coordinates), NSZeroRect when none.
 - (NSRect)room_bubbleAnchorRect;
 - (void)room_didEnterFullscreen:(const url::Origin&)origin;
@@ -85,5 +88,11 @@ bool AllowOpenFromRoomPage(const NavigateParams& params);
                   requestedBounds:(NSRect)requestedBounds
                       userGesture:(BOOL)userGesture;
 @end
+
+namespace room {
+// Points Chrome's DevTools update hook (patches/0028) at the inspected page's
+// wrapper (room_web_contents_tools.mm, 5.10). Once, at startup.
+void InstallDevToolsHook();
+}  // namespace room
 
 #endif  // ROOM_CORE_ROOM_WEB_CONTENTS_INTERNAL_H_

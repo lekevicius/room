@@ -26,7 +26,9 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
+#include "chrome/browser/devtools/devtools_ui_bindings.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/printing/print_view_manager_common.h"
 #include "chrome/browser/profiles/profile.h"
@@ -410,14 +412,42 @@ class DevToolsCommandClient : public content::DevToolsAgentHostClient {
   return wrapper;
 }
 
+- (BOOL)isDevToolsDocked {
+  // GetInTabWebContents alone is not enough: undocked, it returns the
+  // device-mode toolbox Chrome shows in the inspected tab.
+  content::WebContents* contents = self.room_webContents;
+  DevToolsWindow* window = DevToolsFor(contents);
+  return window && window->IsDocked() &&
+         DevToolsWindow::GetInTabWebContents(contents, nullptr);
+}
+
+- (NSRect)devToolsPageFrameInContainerOfSize:(NSSize)size {
+  content::WebContents* contents = self.room_webContents;
+  NSRect whole = NSMakeRect(0, 0, size.width, size.height);
+  DevToolsContentsResizingStrategy strategy;
+  if (!self.devToolsDocked ||
+      !DevToolsWindow::GetInTabWebContents(contents, &strategy)) {
+    return whole;
+  }
+  gfx::Rect devtools;
+  gfx::Rect page;
+  ApplyDevToolsContentsResizingStrategy(
+      strategy, gfx::Rect(0, 0, size.width, size.height), &devtools, &page);
+  if (strategy.hide_inspected_contents()) {
+    return NSZeroRect;
+  }
+  return NSMakeRect(page.x(), page.y(), page.width(), page.height());
+}
+
 - (void)showDevTools:(RoomDevToolsTool)tool {
   content::WebContents* contents = self.room_webContents;
   if (!contents) {
     return;
   }
-  // Without a DevtoolsUIController on the inspected Browser, DevToolsWindow
-  // cannot dock and makes its own (headless) DevTools Browser synchronously:
-  // the front-end exists when this returns.
+  // The inspected Browser's DevtoolsUIController (RoomBrowser, 5.10) lets
+  // DevToolsWindow dock on the dock side Chrome remembers; undocked it makes
+  // its own (headless) DevTools Browser. Either way the front-end exists when
+  // this returns.
   auto action = [tool] {
     switch (tool) {
       case RoomDevToolsToolConsole:
@@ -448,16 +478,11 @@ class DevToolsCommandClient : public content::DevToolsAgentHostClient {
 
 - (void)closeDevTools {
   DevToolsWindow* window = DevToolsFor(self.room_webContents);
-  content::WebContents* frontend =
-      window ? window->GetDevToolsWebContents().get() : nullptr;
-  BrowserWindowInterface* browser =
-      frontend
-          ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(frontend)
-          : nullptr;
-  // What DevToolsWindow::CloseWindow() does for an undocked window: close
-  // its Browser (the front-end's beforeunload is DevToolsWindow's to run).
-  if (browser) {
-    browser->GetWindow()->Close();
+  // What the front-end's own close button does (DevToolsUIBindings'
+  // CloseWindow): docked, the front-end's beforeunload, then CloseContents
+  // deletes the DevToolsWindow; undocked, its DevTools Browser closes.
+  if (window) {
+    static_cast<DevToolsUIBindings::Delegate*>(window)->CloseWindow();
   }
   objc_setAssociatedObject(self, &kDevToolsWrapperKey, nil,
                            OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -548,3 +573,16 @@ class DevToolsCommandClient : public content::DevToolsAgentHostClient {
 }
 
 @end
+
+namespace room {
+
+// patches/0028-devtools-update-hook.patch
+extern void (*g_devtools_update_hook)(content::WebContents*);
+
+void InstallDevToolsHook() {
+  g_devtools_update_hook = +[](content::WebContents* inspected) {
+    [[RoomWebContents room_existingWrapperFor:inspected] room_devToolsDidChange];
+  };
+}
+
+}  // namespace room

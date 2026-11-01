@@ -382,6 +382,7 @@ void RememberStartupProfile(Profile* profile) {
   room::InstallPagePromptHooks();
   room::InstallPageDialogHooks();
   room::InstallExtensionHooks();
+  room::InstallDevToolsHook();
 
   __weak RoomApplication* weakSelf = self;
   _willTerminateObserver = [NSNotificationCenter.defaultCenter
