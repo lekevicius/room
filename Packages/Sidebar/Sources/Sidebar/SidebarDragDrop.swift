@@ -3,6 +3,7 @@ import Chrome
 import Design
 import Model
 import Omnibox
+import os
 import Store
 
 /// Drag and drop (spec §A.9, §A.6 folders, §I.7 content): reorder with the
@@ -20,6 +21,11 @@ public enum SidebarDragTypes {
     /// A split's row: all its panes' ids, in order.
     public static let splitPanes = NSPasteboard.PasteboardType("app.room.desktop.split-panes")
 }
+
+/// A row or tile drag's life in the system log (5.11: the user saw tab drags fail with a real pointer while
+/// every in-process check passed): counts and operations only, never a URL or a title.
+/// `log stream --predicate 'subsystem == "app.room.desktop" AND category == "drag"'`.
+let dragLog = Logger(subsystem: "app.room.desktop", category: "drag")
 
 extension SidebarController {
     /// One sidebar entry on the pasteboard: its id for drops on the sidebar,
@@ -41,6 +47,8 @@ extension SidebarController {
         var refusedForCap = false
         /// Where feedback was last shown, for the haptic tick when it moves.
         var feedback: Feedback?
+        /// The operation the log last told of (`dragLog`, once per change).
+        var loggedOperation: UInt?
     }
 
     struct HoverKey: Equatable {
@@ -89,6 +97,10 @@ extension SidebarController {
     // MARK: Starting a drag (outline rows; tiles below)
 
     func draggingSessionWillBegin(_ session: NSDraggingSession, ids: [UUID]) {
+        #if DEBUG
+        debugDragsBegun += 1
+        #endif
+        dragLog.notice("began: \(ids.count, privacy: .public) entries")
         drag = DragState(ids: ids)
         onEntryDrag?(true)
         setDragging(ids, dimmed: true)
@@ -479,9 +491,8 @@ extension SidebarController {
     /// A drag that no target took (`operation` empty), of one entry, ending
     /// beyond the drag-out distance outside the window: a new window there.
     func dragEnded(_ ids: [UUID], at screenPoint: NSPoint, operation: NSDragOperation) {
-        #if DEBUG
-        NSLog("Room drag: ended at %@ operation %lu", NSStringFromPoint(screenPoint), operation.rawValue)
-        #endif
+        let inside = outline.window.map { $0.frame.contains(screenPoint) } ?? false
+        dragLog.notice("ended: operation \(operation.rawValue, privacy: .public), \(inside ? "inside" : "outside", privacy: .public) the window")
         guard operation.isEmpty, ids.count == 1, let id = ids.first, let frame = outline.window?.frame,
               DragOutRule.opensWindow(at: screenPoint, windowFrame: frame), let onOpenInNewWindow else { return }
         onOpenInNewWindow(id, screenPoint)

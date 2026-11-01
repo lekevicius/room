@@ -108,6 +108,10 @@ public final class SidebarController: NSObject {
     var focusRingVisible = false
     /// Clear's slide-out is running.
     var isClearing = false
+    #if DEBUG
+    /// Row and tile drags AppKit began (5.11's drag check: a press and a move through the event queue).
+    public internal(set) var debugDragsBegun = 0
+    #endif
     /// Stretches Clear's animation (DEBUG captures of the mid-Clear frame).
     var clearSlowdown: Double = 1
     /// Closed tabs for ⇧⌘T, newest last.
@@ -1001,6 +1005,10 @@ extension SidebarController: NSOutlineViewDataSource, NSOutlineViewDelegate {
     public func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?,
                             proposedChildIndex index: Int) -> NSDragOperation {
         let operation = outlineDragUpdated(info)
+        if drag?.loggedOperation != operation.rawValue {
+            drag?.loggedOperation = operation.rawValue
+            dragLog.notice("over the list: operation \(operation.rawValue, privacy: .public), \(self.draggedEntryIDs(info).count, privacy: .public) entries")
+        }
         // The target is ours (`DropRules`); AppKit only needs a valid one and draws nothing.
         if !operation.isEmpty { outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex) }
         return operation
