@@ -18,7 +18,7 @@ source_set("browser") {
   deps = [
     "//base",
     "//cc/paint",
-    "//chrome/browser/ui",
+    "//chrome/browser",
     "//chrome/browser/ui:sad_tab",
     "//chrome/browser/ui/location_bar",
     "//chrome/browser/ui/browser_active_state_manager",
