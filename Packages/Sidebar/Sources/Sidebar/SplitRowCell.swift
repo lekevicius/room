@@ -78,7 +78,7 @@ final class SplitGroupCellView: NSTableCellView {
             icon.customIcon = segment.entry.customIcon
             icon.isLoading = segment.page.isLoading
             icon.isUnloaded = !segment.page.isLoaded
-            icon.showsChangedDot = segment.isChanged
+            icon.showsChangedDot = segment.isChanged && ChangedIndicators.isShown
             titles[index].stringValue = EntryLabel.title(segment.entry)
             titles[index].textColor = segment.page.isLoaded ? .labelColor : Palette.sidebarSecondaryLabel
         }
@@ -132,7 +132,8 @@ final class SplitGroupCellView: NSTableCellView {
                 titles[index].frame = NSRect(x: x, y: ((bounds.height - height) / 2).rounded(), width: max(0, frame.maxX - Spacing.xs - x), height: height)
             }
             if index < dividers.count {
-                dividers[index].isHidden = index == frames.count - 1
+                // The selected row's blue segment already parts the panes (5.12, the user on build 26).
+                dividers[index].isHidden = index == frames.count - 1 || model?.focused != nil
                 dividers[index].frame = NSRect(x: frame.maxX, y: frame.minY + 4, width: Hairline.width(in: self), height: frame.height - 8)
             }
         }

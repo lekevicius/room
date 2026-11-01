@@ -388,14 +388,14 @@ final class EssentialTileView: PressableView {
     }
 
     private func update() {
-        let showReset = hovering && isChanged
+        let showReset = hovering && isChanged && ChangedIndicators.isShown
         if showReset == resetButton.isHidden, SidebarMotion.resetIconSwap.animates {
             // The favicon and the reset icon swap with the hover fill (spec §I.8; hover fades).
             layer?.add(EntryCellView.fade(Motion.fast), forKey: "hover-swap")
         }
         resetButton.isHidden = !showReset
         favicon.isHidden = !resetButton.isHidden
-        dot.isHidden = !isChanged || hovering
+        dot.isHidden = !isChanged || hovering || !ChangedIndicators.isShown
         needsDisplay = true
         needsLayout = true
     }

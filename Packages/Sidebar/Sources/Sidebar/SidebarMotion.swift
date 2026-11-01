@@ -67,3 +67,11 @@ public enum SidebarMotion: String, CaseIterable, Sendable {
     /// Whether it animates at all now.
     public var animates: Bool { variant != .instant }
 }
+
+/// A pinned entry or Essential whose page left its pinned URL (spec §A.5, §I.8): the dot on its
+/// icon and the reset icon under the pointer. Off since 5.12 (the user on build 26: the dot "very
+/// distracting", the reset icon showing "most of the time"); Back to Pinned URL stays in the menu,
+/// and a click on the selected changed entry still resets it.
+public enum ChangedIndicators {
+    public static let isShown = false
+}

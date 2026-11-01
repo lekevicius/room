@@ -224,7 +224,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
             favicon.image = model.page.favicon
             favicon.letterSource = EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry)
             favicon.isLoading = model.page.isLoading
-            favicon.showsChangedDot = model.isChanged
+            favicon.showsChangedDot = model.isChanged && ChangedIndicators.isShown
             let unloaded = !model.page.isLoaded
             favicon.isUnloaded = unloaded
             if previous?.entry.id == entry.id, previous?.isChanged == true, !model.isChanged, SidebarMotion.resetCrossfade.animates {
@@ -297,7 +297,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
     private func updateHoverState() {
         guard let model else { return }
         let entry = model.entry
-        let showReset = isHovered && model.isChanged
+        let showReset = isHovered && model.isChanged && ChangedIndicators.isShown
         if showReset == resetButton.isHidden, hoverEntryID == entry.id, SidebarMotion.resetIconSwap.animates {
             // The favicon and the reset icon swap with the hover's other changes (spec §I.4, §I.8; hover fades).
             layer?.add(Self.fade(Motion.fast), forKey: "hover-swap")
@@ -310,7 +310,7 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         unreadDot.isHidden = !(EntryLabel.hasUnread(entry, isLoaded: model.page.isLoaded) && closeButton.isHidden)
         // Sublabel: over the reset icon, what clicking it does (⌘ swaps it);
         // elsewhere on a changed entry, the live page's title (spec §I.3, §I.4).
-        let text = HoverSublabel.text(hovered: isHovered, changed: model.isChanged, onIcon: isHoveringIcon, command: isCommandHeld,
+        let text = HoverSublabel.text(hovered: isHovered, changed: model.isChanged, onIcon: isHoveringIcon && ChangedIndicators.isShown, command: isCommandHeld,
                                       selected: model.isSelected, currentTitle: EntryLabel.currentTitle(entry))
         sublabel.stringValue = text ?? ""
         sublabel.isHidden = text == nil || isRenaming
