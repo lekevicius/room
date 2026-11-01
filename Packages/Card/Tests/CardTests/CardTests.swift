@@ -86,6 +86,10 @@ struct CardTests {
         let card = makeCard()
         #expect(!card.mouseDownCanMoveWindow)
         #expect(!card.container.mouseDownCanMoveWindow)
+        // B-32 (5.10): AppKit's server-side titlebar drag skips the rect a view calls opaque; the page draws
+        // out of process, so the card says so itself, or a press-drag on the page's top moved the window.
+        let selector = NSSelectorFromString("_opaqueRectForWindowMoveWhenInTitlebar")
+        #expect(card.container.responds(to: selector))
     }
 }
 
@@ -99,6 +103,16 @@ struct DevToolsSplitTests {
         #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 1000) == 420)
         #expect(DevToolsSplit.paneHeight(fraction: 0.95, height: 1000) == 880)
         #expect(DevToolsSplit.paneHeight(fraction: 0.42, height: 200) == 100)
+    }
+
+    @Test("Docked at a side (5.10): the pane's share along the width; at the left the pane is before the divider")
+    func sides() {
+        #expect(DevToolsSplit.fraction(dividerAt: 600, length: 1000, leading: false) == 0.4)
+        #expect(DevToolsSplit.fraction(dividerAt: 400, length: 1000, leading: true) == 0.4)
+        #expect(DevToolsSplit.fraction(dividerAt: 50, length: 1000, leading: true) == 0.12)
+        #expect(DevToolsPlacement.stored(nil) == .bottom)
+        #expect(DevToolsPlacement.stored("left") == .left)
+        #expect(DevToolsPlacement.left.isHorizontal && DevToolsPlacement.left.isLeading && !DevToolsPlacement.window.isDocked)
     }
 
     @Test("The empty card names New Tab's current key, or the button when New Tab has none (5.6a)")

@@ -7,24 +7,31 @@ import Design
 struct WindowLayoutTests {
     let bounds = CGRect(x: 0, y: 0, width: 1280, height: 800)
 
-    @Test("Open sidebar: card butts against it, inset on the other three sides")
+    @Test("Open sidebar: one page fills the rest of the window edge to edge (5.10)")
     func open() throws {
         let layout = WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: true)
         #expect(layout.sidebar == CGRect(x: 0, y: 0, width: 240, height: 800))
-        let inset = CardMetrics.inset
-        #expect(layout.card == CGRect(x: 240, y: inset, width: 1280 - 240 - inset, height: 800 - 2 * inset))
+        #expect(layout.card == CGRect(x: 240, y: 0, width: 1280 - 240, height: 800))
         let splitter = try #require(layout.splitter)
         #expect(splitter.width == SidebarMetrics.splitterHitWidth)
         #expect(splitter.minX < 240 && splitter.maxX > 240)
     }
 
-    @Test("Closed sidebar: card inset on all four sides, no splitter")
+    @Test("Closed sidebar: one page fills the window, no splitter (5.10)")
     func closed() {
         let layout = WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: false)
-        let inset = CardMetrics.inset
         #expect(layout.sidebar.width == 0)
         #expect(layout.splitter == nil)
-        #expect(layout.card == bounds.insetBy(dx: inset, dy: inset))
+        #expect(layout.card == bounds)
+    }
+
+    @Test("A split keeps its panes inset: beside the sidebar on three sides, on all four with it hidden (5.10)")
+    func splitInset() {
+        let inset = CardMetrics.inset
+        let open = WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: true, insetCard: true)
+        #expect(open.card == CGRect(x: 240, y: inset, width: 1280 - 240 - inset, height: 800 - 2 * inset))
+        let closed = WindowLayout.compute(bounds: bounds, sidebarWidth: 240, isSidebarOpen: false, insetCard: true)
+        #expect(closed.card == bounds.insetBy(dx: inset, dy: inset))
     }
 
     @Test("The sidebar gives way so the card keeps its minimum width")
@@ -32,7 +39,7 @@ struct WindowLayoutTests {
         let narrow = CGRect(x: 0, y: 0, width: 600, height: 400)
         let layout = WindowLayout.compute(bounds: narrow, sidebarWidth: 500, isSidebarOpen: true)
         #expect(layout.sidebar.width == 600 - WindowLayout.minimumCardWidth)
-        #expect(layout.card.width >= WindowLayout.minimumCardWidth - CardMetrics.inset)
+        #expect(layout.card.width >= WindowLayout.minimumCardWidth)
         let tiny = WindowLayout.compute(bounds: CGRect(x: 0, y: 0, width: 400, height: 400), sidebarWidth: 500, isSidebarOpen: true)
         #expect(tiny.sidebar.width == SidebarMetrics.minWidth)
     }
@@ -42,10 +49,10 @@ struct WindowLayoutTests {
         #expect(WindowLayout.proposedWidth(pointerX: 300, bounds: bounds, grabOffset: 2) == 302)
     }
 
-    @Test("The revealed overlay floats 10 pt from the top, leading and bottom edges at the sidebar's width (spec §E)")
+    @Test("The revealed overlay floats 4 pt from the top, leading and bottom edges at the sidebar's width (spec §E; 5.10)")
     func overlayFrame() {
         let frame = WindowLayout.overlayFrame(bounds: bounds, sidebarWidth: 280)
-        #expect(frame == CGRect(x: 10, y: 10, width: 280, height: 780))
+        #expect(frame == CGRect(x: 4, y: 4, width: 280, height: 792))
         // A narrow window keeps the card's minimum beside it, as the docked sidebar does.
         let narrow = WindowLayout.overlayFrame(bounds: CGRect(x: 0, y: 0, width: 600, height: 400), sidebarWidth: 500)
         #expect(narrow.width == 600 - RevealMetrics.overlayInset - WindowLayout.minimumCardWidth)

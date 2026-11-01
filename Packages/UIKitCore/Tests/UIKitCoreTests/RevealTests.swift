@@ -77,23 +77,27 @@ struct SidebarRevealTests {
         #expect(!toggled.isShown && !toggled.isPinned)
     }
 
-    @Test("Zones: the 4 pt band, the overlay with its inset, 200 × 100 pt outside it, elsewhere")
+    @Test("Zones: the 10 pt band and 24 pt past the window's edge (5.10), the overlay with its inset, 200 × 100 pt outside it, elsewhere")
     func zones() {
         let size = CGSize(width: 1000, height: 700)
-        let overlay = CGRect(x: 10, y: 10, width: 240, height: 680)
+        let overlay = CGRect(x: 4, y: 4, width: 240, height: 692)
         #expect(RevealZone.of(CGPoint(x: 2, y: 300), contentSize: size, overlay: nil) == .band)
-        #expect(RevealZone.of(CGPoint(x: 4, y: 300), contentSize: size, overlay: nil) == .elsewhere)
+        #expect(RevealZone.of(CGPoint(x: 9, y: 300), contentSize: size, overlay: nil) == .band)
+        #expect(RevealZone.of(CGPoint(x: 10, y: 300), contentSize: size, overlay: nil) == .elsewhere)
         #expect(RevealZone.of(CGPoint(x: 500, y: 300), contentSize: size, overlay: nil) == .elsewhere)
+        // Just past the window's leading edge, level with it: the band (a pointer thrown at the screen's edge).
+        #expect(RevealZone.of(CGPoint(x: -20, y: 300), contentSize: size, overlay: nil) == .band)
+        #expect(RevealZone.of(CGPoint(x: -20, y: 710), contentSize: size, overlay: nil) == .elsewhere)
         #expect(RevealZone.of(CGPoint(x: -50, y: 300), contentSize: size, overlay: nil) == .elsewhere)
         // Shown: the band and the gap before the overlay count as the overlay.
         #expect(RevealZone.of(CGPoint(x: 2, y: 300), contentSize: size, overlay: overlay) == .overlay)
-        #expect(RevealZone.of(CGPoint(x: 249, y: 5), contentSize: size, overlay: overlay) == .overlay)
-        #expect(RevealZone.of(CGPoint(x: 251, y: 300), contentSize: size, overlay: overlay) == .elsewhere)
+        #expect(RevealZone.of(CGPoint(x: 243, y: 5), contentSize: size, overlay: overlay) == .overlay)
+        #expect(RevealZone.of(CGPoint(x: 245, y: 300), contentSize: size, overlay: overlay) == .elsewhere)
         // Outside the window.
         #expect(RevealZone.of(CGPoint(x: -190, y: 300), contentSize: size, overlay: overlay) == .tolerance)
-        #expect(RevealZone.of(CGPoint(x: -200, y: 300), contentSize: size, overlay: overlay) == .elsewhere)
-        #expect(RevealZone.of(CGPoint(x: 100, y: 780), contentSize: size, overlay: overlay) == .tolerance)
-        #expect(RevealZone.of(CGPoint(x: 100, y: 800), contentSize: size, overlay: overlay) == .elsewhere)
+        #expect(RevealZone.of(CGPoint(x: -197, y: 300), contentSize: size, overlay: overlay) == .elsewhere)
+        #expect(RevealZone.of(CGPoint(x: 100, y: 790), contentSize: size, overlay: overlay) == .tolerance)
+        #expect(RevealZone.of(CGPoint(x: 100, y: 797), contentSize: size, overlay: overlay) == .elsewhere)
     }
 
     private func shown() -> SidebarReveal {
