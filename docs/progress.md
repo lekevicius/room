@@ -601,7 +601,7 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 ### Phase 5.12 — The user's notes on build 26 (added 2026-11-01)
 - [x] Tab drag (B-160): the outline's `super.draggingSession(_:movedTo:)` raised on macOS 27 and AppKit ended every drag at its first move (`6db85d1`; found with lldb by computer use, a real slow drag then moved the row)
 - [x] The hidden sidebar's reveal slides (`1426844`)
-- [x] Press and release on every HoverButton (`a7d3c55`…: the cell reports them; macOS 27 skips `highlight(_:)`)
+- [x] Press and release on every HoverButton (`78ae928`: the cell reports them; macOS 27 skips `highlight(_:)`)
 - [x] The extensions menu's icons (`abd9127`, `preferredImageVisibility`)
 - [x] The glow ×2; no changed dot or reset icon; the split row's divider; Forward on demand; the palette whiter, the address field quieter (`f08230e`, `9f8a1dd`, `a573b44`, `6bf2908`)
 - [x] The folder preview's favicons (`0eec8db`); Settings' title (the Extensions pane read Untitled)
