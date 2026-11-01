@@ -6,6 +6,10 @@ import Model
 import Sidebar
 import Store
 import UIKitCore
+#if ROOM_ENGINE_ROOMCORE
+import EngineRoomCore
+import RoomCore
+#endif
 
 /// Phase 5.12 spike `fixes512` (`scripts/fixes-check.sh` with `-RoomSpike fixes512` through ROOM_SPIKE) on a
 /// throwaway state, the pages on the test servers (:8766). Sections (`-RoomSpikeOnly` picks):
@@ -16,6 +20,7 @@ import UIKitCore
 /// - `picker`: Change Icon…'s picker (every emoji, the symbols) captured; an emoji typed in its field sets it;
 /// - `folder`: the folder preview's rows have their pages' favicons;
 /// - `press`: a press on Reload held through AppKit's tracking: the button's pressed state and its scale animation;
+/// - `pip`: video picture-in-picture's window with Room's controls (patch 0029), shown by a pointer move, captured;
 /// - `shots`: the selected split row (no divider), the palette's glass, the address field.
 /// `-RoomSpikeCaptureDirectory` keeps captures named `phase-5.12-<name>-<appearance>.png`.
 extension SpikeRunner.Context {
@@ -37,6 +42,7 @@ extension SpikeRunner.Context {
         if runs("picker") { await f512Picker() }
         if runs("folder") { await f512Folder() }
         if runs("press") { await f512Press() }
+        if runs("pip") { await f512PictureInPicture() }
         if runs("shots") { await f512Shots() }
         controller.isSidebarOpen = true
     }
@@ -239,6 +245,49 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(400))
         SpikeRunner.record("press", "during: pressed=\(pressed) cell_highlighted=\(highlighted) (before \(original)) animations=\(keys) "
             + String(format: "scale=%.3f", scale) + " | after: pressed=\(reload.feedback.isPressed) cell_highlighted=\(reload.cell?.isHighlighted ?? false)")
+    }
+
+    // MARK: pip
+
+    private func f512PictureInPicture() async {
+        let url = URL(string: "\(Self.mediaBase)/phase-3.7/pip.html")!
+        guard let video = await open(url) else { return SpikeRunner.record("error", "pip: no page") }
+        try? await Task.sleep(for: .milliseconds(500))
+        await click(video, "#video-pip")
+        guard await waitUntil(5, { self.overlayWindow() != nil }), let overlay = overlayWindow() else {
+            return SpikeRunner.record("pip", "no overlay window")
+        }
+        try? await Task.sleep(for: .milliseconds(600))
+        #if ROOM_ENGINE_ROOMCORE
+        let browser = tabs.engineProfiles.values.compactMap { ($0 as? RoomCoreProfile)?.spikeBrowsers.first }.first
+        let shown = browser.flatMap { SpikeRunner.spikeHook($0, "roomSpikeAction:", "pip-show-controls" as NSString)?.intValue } ?? -99
+        SpikeRunner.record("pip_controls_shown", "\(shown)")
+        #endif
+        // The controls show while the pointer is over the window.
+        let inside = NSPoint(x: overlay.frame.width / 2, y: overlay.frame.height / 2)
+        for offset in [CGFloat(0), 4, 8] {
+            if let move = NSEvent.mouseEvent(with: .mouseMoved, location: NSPoint(x: inside.x + offset, y: inside.y), modifierFlags: [],
+                                             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: overlay.windowNumber, context: nil,
+                                             eventNumber: 0, clickCount: 0, pressure: 0) {
+                overlay.sendEvent(move)
+            }
+            try? await Task.sleep(for: .milliseconds(120))
+        }
+        try? await Task.sleep(for: .milliseconds(500))
+        SpikeRunner.record("pip", "window=\(NSStringFromRect(overlay.frame))")
+        if let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"), let image = WindowSnapshot.capture(overlay),
+           let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+            let file = URL(fileURLWithPath: directory).appending(path: "phase-5.12-pip-\(f512Appearance).png")
+            SpikeRunner.record("capture_pip", (try? data.write(to: file)) != nil ? file.lastPathComponent : "failed")
+        }
+        // `-RoomSpikeHoldPip <s>` keeps the window up to look at (its in-process capture comes out blank).
+        let hold = UserDefaults.standard.double(forKey: "RoomSpikeHoldPip")
+        if hold > 0 {
+            SpikeRunner.record("pip_hold", "\(hold) s")
+            try? await Task.sleep(for: .seconds(hold))
+        }
+        _ = await js(video, "document.exitPictureInPicture().then(() => 'left', e => 'error ' + e.name)")
+        try? await Task.sleep(for: .milliseconds(400))
     }
 
     // MARK: shots

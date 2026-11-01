@@ -88,6 +88,7 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
+#include "room/browser/room_video_overlay.h"
 #include "room/build/buildflags.h"
 #import "room/browser/room_browser_window.h"
 #import "room/core/room_extension_popups.h"
@@ -708,6 +709,11 @@ RoomWindowOpenDisposition ToRoomDisposition(WindowOpenDisposition disposition,
     LocationBarModel* model =
         location_bar ? location_bar->GetLocationBarModel() : nullptr;
     return @(model ? static_cast<int>(model->GetSecurityLevel()) : -1);
+  }
+  if ([action isEqualToString:@"pip-show-controls"]) {
+    // 5.12: video picture-in-picture's controls as a pointer over the window
+    // shows them (patch 0029's restyling, captured by the fixes512 spike).
+    return @(room::DebugShowVideoOverlayControls());
   }
   if ([action isEqualToString:@"pm-urgent-discard"]) {
     // 3.7b: what performance_manager's urgent discarding does under memory
