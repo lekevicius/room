@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A seekable video</title>
+<p><button id="video-pip">Video PiP</button></p>
+<video id="v" src="clip.mp4" width="640" height="360" muted playsinline loop></video>
+<script>
+const v = document.getElementById('v');
+document.getElementById('video-pip').onclick = async () => { await v.play(); await v.requestPictureInPicture(); };
+</script>

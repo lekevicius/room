@@ -250,7 +250,9 @@ extension SpikeRunner.Context {
     // MARK: pip
 
     private func f512PictureInPicture() async {
-        let url = URL(string: "\(Self.mediaBase)/phase-3.7/pip.html")!
+        // `-RoomSpikePipPage phase-5.12/video.html`: a seekable video (the default fixture is a live canvas stream).
+        let path = UserDefaults.standard.string(forKey: "RoomSpikePipPage") ?? "phase-3.7/pip.html"
+        let url = URL(string: "\(Self.mediaBase)/\(path)")!
         guard let video = await open(url) else { return SpikeRunner.record("error", "pip: no page") }
         try? await Task.sleep(for: .milliseconds(500))
         await click(video, "#video-pip")

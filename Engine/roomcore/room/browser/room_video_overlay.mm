@@ -21,6 +21,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
+#include "chrome/browser/ui/views/overlay/playback_image_button.h"
 #include "chrome/browser/ui/views/overlay/video_overlay_window_views.h"
 #include "room/browser/room_video_overlay.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -294,6 +295,10 @@ int DebugShowVideoOverlayControls() {
     }
     if (auto* window = static_cast<VideoOverlayWindowViews*>(view->GetWidget())) {
       window->ForceControlsVisibleForTesting(true, true);
+      // The largest playback button (play/pause) as the pointer over it leaves it.
+      if (views::Button* play = window->play_pause_controls_view_for_testing()) {
+        play->SetState(views::Button::STATE_HOVERED);
+      }
       shown++;
     }
   }
