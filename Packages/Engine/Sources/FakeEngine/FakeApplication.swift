@@ -60,6 +60,8 @@ public final class FakeApplication: EngineApplication {
     /// The blocker the host configures (`||host^` and `##selector` only).
     public let fakeContentBlocking = FakeContentBlocking()
     public var contentBlocking: (any ContentBlocking)? { fakeContentBlocking }
+    /// Recorded only (tests read it).
+    public var crashUploadsEnabled = false
 
     public func createProfile(name: String) async throws -> any Profile {
         try profile(named: name)

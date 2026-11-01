@@ -66,6 +66,12 @@ public final class RoomCoreApplication: NSObject, EngineApplication, RoomApplica
             applicationClass: RoomCoreNSApplication.self,
             userDataDirectory: configuration.userDataDirectory)
         features = configuration.features
+        core.crashUploadURL = configuration.crashUploadURL?.absoluteString
+    }
+
+    public var crashUploadsEnabled: Bool {
+        get { core.crashUploadsEnabled }
+        set { core.crashUploadsEnabled = newValue }
     }
 
     /// The process's arguments as the engine may see them. DevTools is the

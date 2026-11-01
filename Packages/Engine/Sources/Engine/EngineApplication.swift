@@ -15,19 +15,25 @@ public struct EngineConfiguration: Sendable {
     /// Chromium feature names (`base::Feature`) forced on or off for this run,
     /// the equivalent of `--enable-features` / `--disable-features`.
     public var features: EngineFeatures
+    /// Where the engine's crash reports go (6.3, B-105: the user's own
+    /// collector, its minidump URL); `nil`: they stay on disk. Fixed for the
+    /// run; whether they are sent is `EngineApplication.crashUploadsEnabled`.
+    public var crashUploadURL: URL?
 
     public init(
         userDataDirectory: URL,
         logFile: URL? = nil,
         locale: String? = nil,
         usesSystemKeychain: Bool = true,
-        features: EngineFeatures = EngineFeatures()
+        features: EngineFeatures = EngineFeatures(),
+        crashUploadURL: URL? = nil
     ) {
         self.userDataDirectory = userDataDirectory
         self.logFile = logFile
         self.locale = locale
         self.usesSystemKeychain = usesSystemKeychain
         self.features = features
+        self.crashUploadURL = crashUploadURL
     }
 }
 
@@ -107,6 +113,11 @@ public protocol EngineApplication: AnyObject {
     /// Room's built-in ad and tracker blocker, one for the whole app (B-30);
     /// `nil` when the engine has none (no engine).
     var contentBlocking: (any ContentBlocking)? { get }
+
+    /// The user's consent to send crash reports to the configuration's
+    /// `crashUploadURL` (6.3; off until the host says so). RoomCore:
+    /// Crashpad's upload setting (`crash_reporter::SetUploadConsent`).
+    var crashUploadsEnabled: Bool { get set }
 }
 
 /// The system's memory pressure as the engine reports it (Chromium

@@ -22,6 +22,7 @@ final class NoEngineApplication: EngineApplication {
     weak var delegate: (any EngineApplicationDelegate)?
 
     var profiles: [any Profile] { [] }
+    var crashUploadsEnabled = false
 
     func createProfile(name: String) async throws -> any Profile {
         throw EngineError.notSupported("NoEngineApplication.createProfile")
