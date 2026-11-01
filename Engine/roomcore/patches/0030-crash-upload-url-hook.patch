@@ -1,0 +1,35 @@
+Room: Crashpad uploads to the user's own collector.
+
+An unbranded Chromium build starts Crashpad's handler with an empty upload
+URL (CrashReporterClient::GetUploadUrl returns kDefaultUploadURL only for
+GOOGLE_CHROME_BRANDING && OFFICIAL_BUILD), so Room wrote minidumps and never
+sent one. Room's crash reports go to a collector its user deploys
+(B-105, research/notes/crash-reporting.md; the user, 2026-11-01): //room
+returns that collector's minidump URL here, from the host's configuration,
+before ChromeMain. Consent stays Crashpad's own setting, switched by //room
+through crash_reporter::SetUploadConsent when the user opts in or out; with
+no URL nothing can upload whatever the consent says.
+
+Phase 6.3, 2026-11-02. //room: room/core/room_application.mm.
+diff --git a/components/crash/core/app/crash_reporter_client.cc b/components/crash/core/app/crash_reporter_client.cc
+index 0941e78cef594..c25fa613dc458 100644
+--- a/components/crash/core/app/crash_reporter_client.cc
++++ b/components/crash/core/app/crash_reporter_client.cc
+@@ -140,7 +140,17 @@ void CrashReporterClient::GetSanitizationInformation(
+ }
+ #endif
+ 
++namespace room {
++// Room: set by //room/core before ChromeMain. The upload URL of the crash
++// collector Room's user deploys (empty: Crashpad never uploads, as in any
++// unbranded build).
++std::string (*g_crash_upload_url_hook)() = nullptr;
++}  // namespace room
++
+ std::string CrashReporterClient::GetUploadUrl() {
++  if (room::g_crash_upload_url_hook) {
++    return room::g_crash_upload_url_hook();
++  }
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING) && defined(OFFICIAL_BUILD)
+   return kDefaultUploadURL;
+ #else

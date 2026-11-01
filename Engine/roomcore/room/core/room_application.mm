@@ -13,6 +13,7 @@
 #include "base/apple/bundle_locations.h"
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/no_destructor.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/memory/memory_pressure_level.h"
@@ -39,6 +40,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_paths_internal.h"
+#include "components/crash/core/app/crashpad.h"
 #include "components/crash/core/common/crash_key.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "url/gurl.h"
@@ -55,6 +57,11 @@
 
 // chrome/app/chrome_main.cc, linked into the same library.
 extern "C" int ChromeMain(int argc, const char** argv);
+
+namespace room {
+// components/crash/core/app/crash_reporter_client.cc (patch 0030).
+extern std::string (*g_crash_upload_url_hook)();
+}  // namespace room
 
 namespace {
 
@@ -155,6 +162,20 @@ void SetCrashKeys() {
 @interface RoomApplication ()
 - (void)room_memoryPressureChanged:(base::MemoryPressureLevel)level;
 @end
+
+namespace {
+
+// -crashUploadURL as Crashpad's handler reads it (patch 0030's hook).
+std::string& CrashUploadURLStorage() {
+  static base::NoDestructor<std::string> url;
+  return *url;
+}
+
+std::string CrashUploadURL() {
+  return CrashUploadURLStorage();
+}
+
+}  // namespace
 
 namespace {
 
@@ -259,6 +280,29 @@ void RememberStartupProfile(Profile* profile) {
 
 @synthesize delegate = _delegate;
 @synthesize applicationDelegate = _applicationDelegate;
+@synthesize crashUploadsEnabled = _crashUploadsEnabled;
+
+- (NSString*)crashUploadURL {
+  const std::string& url = CrashUploadURLStorage();
+  return url.empty() ? nil : base::SysUTF8ToNSString(url);
+}
+
+- (void)setCrashUploadURL:(NSString*)url {
+  CrashUploadURLStorage() = url ? base::SysNSStringToUTF8(url) : std::string();
+}
+
+- (void)setCrashUploadsEnabled:(BOOL)enabled {
+  _crashUploadsEnabled = enabled;
+  // A no-op until Crashpad's database exists; the browser's startup applies
+  // the stored value (`room_applyCrashConsent`).
+  crash_reporter::SetUploadConsent(enabled);
+}
+
+// Crashpad set consent from Chrome's client as it started (always NO for an
+// unbranded build); the host's choice goes back on top.
+- (void)room_applyCrashConsent {
+  crash_reporter::SetUploadConsent(_crashUploadsEnabled);
+}
 
 + (void)initialize {
   if (self != RoomApplication.class) {
@@ -412,6 +456,9 @@ void RememberStartupProfile(Profile* profile) {
   CHECK(!user_data.empty());
   CHECK(base::PathService::Override(chrome::DIR_CRASH_DUMPS,
                                     user_data.AppendASCII("Crashpad")));
+
+  // Crashpad's handler is started inside ChromeMain with this URL (patch 0030).
+  room::g_crash_upload_url_hook = [] { return CrashUploadURL(); };
 
   auto network_policy = room::InstallNetworkPolicy();
   const int result = ChromeMain(argc, argv.data());
@@ -614,6 +661,7 @@ void RememberStartupProfile(Profile* profile) {
 
 - (void)room_didFinishLaunching {
   SetCrashKeys();
+  [self room_applyCrashConsent];
   room::g_did_finish_launching = base::TimeTicks::Now();
   AfterStartupTaskUtils::PostTask(
       FROM_HERE, content::GetUIThreadTaskRunner({}), base::BindOnce([] {

@@ -89,6 +89,18 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
                           error:(NSError**)error
     NS_SWIFT_NAME(initialize(arguments:applicationClass:userDataDirectory:));
 
+// The crash collector's minidump URL (6.3, B-105; the Sentry minidump shape,
+// https://host/api/<project>/minidump/?sentry_key=<key>). Read once, by
+// Crashpad's handler as -run starts it: set it before -run. nil or empty:
+// Crashpad never uploads (it still writes minidumps under the data root's
+// Crashpad directory).
+@property(nonatomic, copy, nullable) NSString* crashUploadURL;
+
+// The user's consent to send crash reports (Crashpad's own setting; NO until
+// the host says so). Takes effect at once while the engine runs; set before
+// -run, it applies once Crashpad starts.
+@property(nonatomic) BOOL crashUploadsEnabled;
+
 // Runs Chromium's browser main on this thread (creates NSApp, starts the
 // browser process, runs the main run loop). Returns the process exit code
 // once Chromium has shut down, after which no RoomCore object may be used.

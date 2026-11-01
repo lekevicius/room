@@ -28,3 +28,4 @@
 0027-render-frame-created-hook.patch
 0028-devtools-update-hook.patch
 0029-video-overlay-hook.patch
+0030-crash-upload-url-hook.patch
