@@ -1741,6 +1741,8 @@ extension SidebarController {
     public func debugHoverSpaceIcon(_ space: UUID?) { footer.debugHover(space) }
 
     public var debugOutline: NSOutlineView { outline }
+    /// The selection pill's frame in the outline, `nil` while hidden (5.10's scroll check).
+    public var debugPillFrame: NSRect? { outline.pill.isHidden ? nil : outline.pill.frame }
 
     /// ⌘-click on an entry (multi-selection).
     public func debugToggleSelection(_ id: UUID) { toggleSelection(id) }
