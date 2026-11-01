@@ -562,6 +562,23 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 
 **Phase 5.9 done (2026-10-22); Chapter 5's sessions done.** Review: the full tour ran on Chromium 156 on both builds in both appearances, every failure attributed and the harness faults fixed; the chapter review and the 70-row iteration list are written for the user; build 24 (Chapter 5 on 156.0.8078.48, `b5f394a`) is notarized and published at https://updates.room.app. Two 156 surprises were caught before the release: Gemini (Glic) and Omnibox Everywhere switched on by 156's field-trial testing config, the latter with a "Search with Room" menu-bar item (B-156), both disabled in `//room`. Open for the user: the by-hand list (120 Hz runs, a real IME and trackpad, real drags between apps, taste on the review sheets), B-56, B-127, B-53's last 2–3 ms.
 
+### Phase 5.10 — The user's redesign and bugs; release 0.2 (added 2026-11-01)
+- [ ] Page edge-to-edge with the window's corner; split keeps the inset
+- [ ] Hidden sidebar: sooner, easier, 4 pt inset
+- [ ] Liquid Glass: address field, active tab (favicon glow), selected Essential
+- [ ] Chevron for page settings; Copy URL at full colour
+- [ ] Audio indicator: two waves, no level animation, fill on hover
+- [ ] The Today line to the edge while Clear is faded
+- [ ] The palette's stronger shadow
+- [ ] The page's top never drags the window (real pointer)
+- [ ] Downloads badge unclipped
+- [ ] A new tab scrolls into view
+- [ ] No ring on the active space; the space name above the icons
+- [ ] Only pinned extensions in the top bar (`ExtensionsPinnedByDefault` off)
+- [ ] DevTools placements (right, bottom, left, window) and a close button
+- [ ] Version 0.2.0 (build 25): engines, CI spec, tour steps, review sheet, DMG
+- [ ] Exit: each item shown on dev and release; the DMG built
+
 ## Log
 
 - 2026-10-01 — Research completed (`research/notes/`), `PLAN.md` and `ROADMAP.md` written, repository initialized. Next: Phase 1.1.
