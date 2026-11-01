@@ -33,5 +33,11 @@ put() { # <file> <key> <content-type> <cache-control>
 name=$(basename "$DMG")
 put "$DMG" "$name" application/x-apple-diskimage "public, max-age=31536000, immutable"
 put "$DMG" Room.dmg application/x-apple-diskimage "public, max-age=300"
+# 6.2: the delta updates to this build the appcast names (5.x published none: every update was the full DMG).
+for delta in "$DIR"/Room"$BUILD"-*.delta; do
+  [[ -f "$delta" ]] || continue
+  grep -q "$(basename "$delta")" "$DIR/appcast.xml" || continue
+  put "$delta" "$(basename "$delta")" application/octet-stream "public, max-age=31536000, immutable"
+done
 put "$DIR/appcast.xml" appcast.xml "application/xml; charset=utf-8" "public, max-age=60"
 echo "published build $BUILD: https://updates.room.app/$name, https://updates.room.app/Room.dmg, https://updates.room.app/appcast.xml"

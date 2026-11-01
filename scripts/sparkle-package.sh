@@ -11,6 +11,12 @@
 # Usage: scripts/sparkle-package.sh <Room.app> <output-directory>
 # ROOM_FEED_PREFIX: the download URL prefix written into the entry (default a
 # .invalid placeholder; the feed URL is B-6's/the user's).
+# ROOM_RELEASE_NOTES: an HTML fragment (docs/releases/<version>.html) copied
+# beside the DMG under its name and embedded in the new entry (6.1: Sparkle
+# shows it in the update dialog). <output-directory> may already hold the
+# published DMGs (build/release): generate_appcast then writes delta updates
+# from them to the new build (6.2), Room<new>-<old>.delta, which
+# scripts/release-publish.sh uploads with the DMG.
 # ROOM_SPARKLE_UNSIGNED=1: stop after the DMG and write the appcast entry
 # without sparkle:edSignature (signing reads the private key from the login
 # keychain, which prompts until the user approves it; 3.1b-2).
@@ -70,8 +76,13 @@ fi
 if [[ -n "${ROOM_SPARKLE_ED_KEY:-}" ]]; then keysrc="ROOM_SPARKLE_ED_KEY"; else keysrc="login keychain"; fi
 echo "== sign_update (key: $keysrc)"
 sparkle sign_update "$DMG" | tee "$OUT/signature.txt"
+if [[ -n "${ROOM_RELEASE_NOTES:-}" ]]; then
+  cp "$ROOM_RELEASE_NOTES" "${DMG%.dmg}.html"
+  echo "release notes: ${DMG%.dmg}.html"
+fi
 echo "== generate_appcast"
-sparkle generate_appcast --download-url-prefix "$PREFIX" "$OUT"
+sparkle generate_appcast --download-url-prefix "$PREFIX" --embed-release-notes "$OUT"
+ls "$OUT"/Room"$build"-*.delta 2>/dev/null | while read -r delta; do echo "delta: $(basename "$delta") $(stat -f %z "$delta") bytes"; done
 echo "== appcast.xml"
 cat "$OUT/appcast.xml"
 sig=$(grep -o 'sparkle:edSignature="[^"]*"' "$OUT/appcast.xml" | head -1 | cut -d'"' -f2)
