@@ -97,10 +97,14 @@ final class SidebarOutlineView: NSOutlineView {
     }
 
     /// NSOutlineView keeps this to itself (its data source hears only begin and end): B-96 needs the moves.
+    /// NSTableView does not implement it on macOS 27: calling super raised `unrecognized selector`,
+    /// which AppKit swallows by ending the drag at its first move (B-160, every row drag in build 26).
     override func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
-        super.draggingSession(session, movedTo: screenPoint)
+        if Self.superMovesDrag { super.draggingSession(session, movedTo: screenPoint) }
         events?.outlineDragMoved(session, to: screenPoint)
     }
+
+    static let superMovesDrag = NSOutlineView.instancesRespond(to: #selector(NSDraggingSource.draggingSession(_:movedTo:)))
 
     // Rows draw their own disclosure (folder icon, space-title chevron).
     override func frameOfOutlineCell(atRow row: Int) -> NSRect { .zero }
