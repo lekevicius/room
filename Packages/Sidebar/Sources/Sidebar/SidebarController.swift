@@ -916,7 +916,8 @@ public final class SidebarController: NSObject {
         guard row >= 0 else { return }
         let items = descendants(of: id).map { entry in
             FolderPreviewController.Item(id: entry.id, title: EntryLabel.title(entry), url: entry.currentURL,
-                                         domain: EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry))
+                                         domain: EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry),
+                                         favicon: pageState(entry.id).favicon, customIcon: entry.customIcon)
         }
         folderPreview = FolderPreviewController.show(folderName: EntryLabel.title(folder), items: items,
                                                      relativeTo: SidebarRowView.pillRect(in: outline.rect(ofRow: row)), of: outline) {

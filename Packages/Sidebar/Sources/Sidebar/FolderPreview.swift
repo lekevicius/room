@@ -13,6 +13,9 @@ final class FolderPreviewController: NSViewController, NSSearchFieldDelegate {
         var title: String
         var url: String?
         var domain: String
+        /// The row's own icon (5.12: the preview showed only letters).
+        var favicon: NSImage?
+        var customIcon: String?
     }
 
     private let folderName: String
@@ -200,6 +203,8 @@ private final class FolderPreviewRow: NSView {
     init(item: FolderPreviewController.Item) {
         super.init(frame: .zero)
         favicon.letterSource = item.domain
+        favicon.image = item.favicon
+        favicon.customIcon = item.customIcon
         title.stringValue = item.title
         title.font = Typography.row
         title.lineBreakMode = .byTruncatingTail
