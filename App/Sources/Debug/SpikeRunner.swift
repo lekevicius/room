@@ -127,6 +127,7 @@ enum SpikeRunner {
         case "details2": await context.details2Checks()
         case "redesign": await context.redesignChecks()
         case "fixes": await context.fixesChecks()
+        case "fixes512": await context.fixes512Checks()
         case "passwordpopover": await context.passwordPopoverChecks()
         default: record("error", "unknown spike")
         }

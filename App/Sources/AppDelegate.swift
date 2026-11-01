@@ -201,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // The accessibility spikes (5.3a) read SwiftUI's trees, which SwiftUI builds only for a client that
         // asked before the hosting views were made: ask on the app's own behalf, before the first window.
         if ["a11y", "keyboard"].contains(SpikeRunner.requested) { AccessibilityAudit.requestTree() }
+        loadUnpackedAtLaunch()
         #endif
         NSApp.mainMenu = MainMenu.make(target: self)
         store = Self.openStore()

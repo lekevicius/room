@@ -5,6 +5,7 @@
 # extensions menu, review captures) on a fresh throwaway state and engine
 # directory under /tmp/room-5/fixes/, search suggestions off.
 # Prints the spike's lines.
+# ROOM_FIXES_SPIKE=fixes512 runs 5.12's spike (App/Sources/Debug/Fixes512Spikes.swift) instead.
 # Usage: scripts/fixes-check.sh <out-file> [capture-dir] [extra app args, e.g. -RoomSpikeOnly devtools -RoomSpikeAppearance dark]
 # ROOM_APP picks the app (default the dev build's Debug app; the release
 # framework's: build/roomcore-release/DerivedData/Build/Products/Debug/Room.app).
@@ -23,7 +24,7 @@ args=(-RoomStateDirectory "$WORK/state" -RoomEngineDirectory "$WORK/engine" -App
 # An absolute capture directory: the app's working directory is / (3.6a's finding).
 [[ -n "$CAPS" ]] && { mkdir -p "$CAPS"; CAPS="$(cd "$CAPS" && pwd)"; args+=(-RoomSpikeCaptureDirectory "$CAPS"); }
 echo "conditions: app=${ROOM_APP:-build/roomcore/DerivedData/Build/Products/Debug/Room.app} load=$(sysctl -n vm.loadavg) state=$WORK"
-ROOM_SPIKE_OUT="$OUT" scripts/run-spike.sh fixes "${args[@]}" "$@" >/dev/null || true
+ROOM_SPIKE_OUT="$OUT" scripts/run-spike.sh "${ROOM_FIXES_SPIKE:-fixes}" "${args[@]}" "$@" >/dev/null || true
 cat "$OUT"
 dumps=$(ls "$WORK"/engine/Crashpad/pending/*.dmp "$WORK"/engine/Crashpad/completed/*.dmp 2>/dev/null || true)
 echo "crashpad_dumps: $(printf '%s' "$dumps" | grep -c . || true)"
