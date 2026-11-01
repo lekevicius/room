@@ -16,7 +16,7 @@ FileSelectHelper. Directory enumeration for a dropped folder
 
 Phase 3.4a, 2026-10-05. //room: room/core/room_page_prompts.mm.
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index 36323e6f2e308..fa60ef72ca628 100644
+index 59424dacd3e30..bee9f56310296 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 @@ -129,6 +129,12 @@ namespace room {
@@ -32,7 +32,7 @@ index 36323e6f2e308..fa60ef72ca628 100644
  }  // namespace room
  
  namespace {
-@@ -1137,6 +1143,10 @@ void BrowserWebContentsDelegate::RunFileChooser(
+@@ -1129,6 +1135,10 @@ void BrowserWebContentsDelegate::RunFileChooser(
      content::RenderFrameHost* render_frame_host,
      scoped_refptr<content::FileSelectListener> listener,
      const blink::mojom::FileChooserParams& params) {

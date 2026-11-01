@@ -16,7 +16,7 @@ where @executable_path/../../../../Libraries/libaperitif.dylib is expected.
 The component build is unaffected (@rpath install name).
 
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index d98c86e5dace9..5bc0c76c42958 100644
+index f1d133b6cda97..c6e9702db78a7 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -28,6 +28,7 @@ import("//services/shape_detection/features.gni")
@@ -27,7 +27,7 @@ index d98c86e5dace9..5bc0c76c42958 100644
  import("//tools/resources/generate_resource_allowlist.gni")
  import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
  import("//ui/gl/features.gni")
-@@ -486,7 +487,7 @@ if (is_win) {
+@@ -491,7 +492,7 @@ if (is_win) {
    }
  } else if (is_mac) {
    chrome_helper_name = chrome_product_full_name + " Helper"
@@ -37,10 +37,10 @@ index d98c86e5dace9..5bc0c76c42958 100644
  
    verify_dynamic_libraries = !is_component_build && !is_asan && !is_ubsan_any
 diff --git a/chrome/app/chrome_exe_main_mac.cc b/chrome/app/chrome_exe_main_mac.cc
-index 1b476471618a7..095660c54df91 100644
+index f812b05fd7df5..c8dcfe65d2b10 100644
 --- a/chrome/app/chrome_exe_main_mac.cc
 +++ b/chrome/app/chrome_exe_main_mac.cc
-@@ -182,14 +182,13 @@ __attribute__((visibility("default"))) int main(int argc, char* argv[]) {
+@@ -183,14 +183,13 @@ __attribute__((visibility("default"))) int main(int argc, char* argv[]) {
    // The helper lives within the versioned framework directory, so simply
    // go up to find the main dylib.
    static constexpr char entry_symbol[] = "ChromeMain";

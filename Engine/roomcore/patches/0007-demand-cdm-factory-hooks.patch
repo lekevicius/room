@@ -56,10 +56,10 @@ index 1bc9b09556c04..83f4f2106932d 100644
  
  void CdmRegistryImpl::SetHardwareSecureCdmStatus(CdmInfo::Status status) {
 diff --git a/content/renderer/media/media_factory.cc b/content/renderer/media/media_factory.cc
-index 68b9cfb038f67..130b952bb7672 100644
+index cfd3fb96ca410..803b9051b0beb 100644
 --- a/content/renderer/media/media_factory.cc
 +++ b/content/renderer/media/media_factory.cc
-@@ -302,6 +302,14 @@ class LocalFrameDelegate
+@@ -305,6 +305,14 @@ class LocalFrameDelegate
  
  }  // namespace
  
@@ -74,7 +74,7 @@ index 68b9cfb038f67..130b952bb7672 100644
  namespace content {
  
  MediaFactory::MediaFactory(
-@@ -499,11 +507,14 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
+@@ -509,11 +517,14 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
  
  blink::WebEncryptedMediaClient* MediaFactory::EncryptedMediaClient() {
    if (!web_encrypted_media_client_) {

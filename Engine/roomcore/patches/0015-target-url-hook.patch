@@ -16,7 +16,7 @@ forward ~150 members.
 Phase 3.2a, 2026-10-05. //room: room/core/room_web_contents.mm
 (InstallWebContentsHooks).
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index 3bc40bcc9139a..36323e6f2e308 100644
+index 2e02cc461e504..59424dacd3e30 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 @@ -125,6 +125,12 @@
@@ -32,7 +32,7 @@ index 3bc40bcc9139a..36323e6f2e308 100644
  namespace {
  
  const extensions::Extension* GetExtensionForOrigin(
-@@ -796,6 +802,10 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
+@@ -788,6 +794,10 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
  
  void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
                                                   const GURL& url) {

@@ -280,8 +280,6 @@ class RoomBrowserWindow : public BrowserWindow {
   void PreHandleDragExit() override;
   void HandleDragEnded() override;
   void ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) override;
-  void MaybeShowProfileSwitchIPH() override;
-  void MaybeShowSupervisedUserProfileSignInIPH() override;
   void ShowHatsDialog( const std::string& site_id, const std::optional<std::string>& hats_histogram_name, const std::optional<uint64_t> hats_survey_ukm_id, base::OnceClosure success_callback, base::OnceClosure failure_callback, const SurveyBitsData& product_specific_bits_data, const SurveyStringData& product_specific_string_data) override;
   std::unique_ptr<content::EyeDropper> OpenEyeDropper( content::RenderFrameHost* frame, content::EyeDropperListener* listener) override;
   void ShowCaretBrowsingDialog() override;

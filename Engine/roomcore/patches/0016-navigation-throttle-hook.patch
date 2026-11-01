@@ -21,12 +21,12 @@ main frame of a page RoomCore wraps.
 Phase 3.3a, 2026-10-05. //room: room/core/room_web_contents.mm
 (InstallWebContentsHooks, RoomNavigationThrottle).
 diff --git a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-index dfa341dccc511..b32e2bdd908d7 100644
+index ce3cc119e6c3c..4756fb9c08450 100644
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -192,6 +192,13 @@
- #include "extensions/browser/extensions_browser_client.h"
- #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+@@ -193,6 +193,13 @@
+ #include "chrome/browser/ui/search/new_tab_page_navigation_throttle.h"
+ #endif
  
 +namespace room {
 +// Room: set by //room/core at startup. Adds //room's navigation throttle to
@@ -38,7 +38,7 @@ index dfa341dccc511..b32e2bdd908d7 100644
  namespace {
  
  // Wrapper for SSLErrorHandler::HandleSSLError() that supplies //chrome-level
-@@ -637,6 +644,10 @@ void CreateAndAddChromeThrottlesForNavigation(
+@@ -634,6 +641,10 @@ void CreateAndAddChromeThrottlesForNavigation(
    glic::GlicGuestNavigationThrottle::MaybeCreateAndAdd(registry);
  
    pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);
@@ -49,10 +49,10 @@ index dfa341dccc511..b32e2bdd908d7 100644
  }
  
  void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
-@@ -653,4 +664,8 @@ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
-   // navigations that commit without a URL loader (e.g. a subframe navigating
-   // the main frame to about:blank), which never reach WillStartRequest().
-   pwc::PwcNavigationThrottle::MaybeCreateAndAdd(registry);
+@@ -656,4 +667,8 @@ void CreateAndAddChromeThrottlesForCommitWithoutUrlLoader(
+ #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
+   guest_view::MaybeCreateAndAddSlimWebViewNavigationThrottle(registry);
+ #endif
 +
 +  if (room::g_navigation_throttles_hook) {
 +    room::g_navigation_throttles_hook(registry);

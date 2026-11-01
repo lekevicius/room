@@ -16,10 +16,10 @@ caller's own client) and never for downloads.
 2026-10-17. //room: room/core/content_blocking/network_blocking.cc
 (InstallNetworkBlockingHook).
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index 2e0f287290b76..ffe01b75522f7 100644
+index 1defcfa514d5b..b5d3c7965fd71 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -847,6 +847,19 @@ using plugins::ChromeContentBrowserClientPluginsPart;
+@@ -862,6 +862,19 @@ using plugins::ChromeContentBrowserClientPluginsPart;
  using web_app::ChromeContentBrowserClientIsolatedWebAppsPart;
  #endif
  
@@ -39,7 +39,7 @@ index 2e0f287290b76..ffe01b75522f7 100644
  namespace {
  
  const char kAIManagerUserDataKey[] = "ai_manager";
-@@ -6865,6 +6878,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+@@ -6934,6 +6947,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
          frame, factory_builder);
    }
  
@@ -49,6 +49,6 @@ index 2e0f287290b76..ffe01b75522f7 100644
 +                                    factory_builder);
 +  }
 +
-   MaybeSetTargetNetwork(GetBoundNetworkFromRenderFrameHost(frame),
-                         factory_builder, is_for_network_service);
- 
+ #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+   // Install the proxying factory scanning network requests for the
+   // "OnNetworkRequestEnterpriseConnector" policy. This is done after proxies

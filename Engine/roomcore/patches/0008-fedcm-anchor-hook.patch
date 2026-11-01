@@ -1,10 +1,10 @@
 diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
-index 7e0fb256dc829..48f0c8796ff2b 100644
+index 48b64c507e700..ece22e72a8d32 100644
 --- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
 +++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
-@@ -52,6 +52,10 @@
- #include "ui/views/widget/widget.h"
+@@ -64,6 +64,10 @@
  #include "ui/views/window/dialog_delegate.h"
+ #include "url/origin.h"
  
 +namespace room {
 +views::View* (*g_fedcm_anchor_hook)(BrowserWindowInterface*) = nullptr;
@@ -12,30 +12,30 @@ index 7e0fb256dc829..48f0c8796ff2b 100644
 +
  namespace {
  
- // We could have a situation where the WebContents with an actor task opens a
-@@ -1175,10 +1179,14 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
+ // Size of the account picture shown in the ambient bubble.
+@@ -1229,10 +1233,14 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
          web_contents()->GetTopLevelNativeWindow();
      views::Widget* top_level_widget =
          views::Widget::GetWidgetForNativeWindow(top_level_native_window);
 +    views::View* embedder_anchor = room::g_fedcm_anchor_hook
-+        ? room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface()) : nullptr;
++	? room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface()) : nullptr;
      dialog_widget = base::WrapUnique(views::DialogDelegate::CreateDialogWidget(
          widget_delegate_.get()->AsDialogDelegate(),
          /*context=*/gfx::NativeWindow(),
 -        /*parent=*/top_level_widget->GetNativeView()));
-+        /*parent=*/embedder_anchor
-+            ? embedder_anchor->GetWidget()->GetNativeView()
-+            : top_level_widget->GetNativeView()));
++	/*parent=*/embedder_anchor
++	    ? embedder_anchor->GetWidget()->GetNativeView()
++	    : top_level_widget->GetNativeView()));
    }
  
    extensions::SecurityDialogTracker::GetInstance()->AddSecurityDialog(
-@@ -1233,6 +1241,12 @@ FedCmAccountSelectionView::GetURLLoaderFactory() {
+@@ -1287,6 +1295,12 @@ FedCmAccountSelectionView::GetURLLoaderFactory() {
  }
  
  views::View* FedCmAccountSelectionView::GetAnchorView() {
 +  if (room::g_fedcm_anchor_hook) {
 +    if (auto* anchor =
-+            room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface())) {
++	    room::g_fedcm_anchor_hook(tab_->GetBrowserWindowInterface())) {
 +      return anchor;
 +    }
 +  }
