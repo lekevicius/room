@@ -166,41 +166,37 @@ final class SpaceRoutesModel {
     func remove(_ id: UUID) { store.removeRoutingRule(id) }
 }
 
+/// The routes as the form's last section (5.11: grouped, System Settings' rows): each route a row with
+/// its switch and a remove button, then a row to add one, All Rules… at the end.
 private struct SpaceRoutesSection: View {
     @Bindable var model: SpaceRoutesModel
     let openAllRules: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Routes").font(.subheadline).foregroundStyle(.secondary)
-            Text("Links from other apps that match open in this space.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        Section {
             if model.rules.isEmpty {
-                Text("No routes yet.").font(.callout).foregroundStyle(.secondary)
+                Text("No routes yet.").foregroundStyle(.secondary)
                     .accessibilityIdentifier("space-window-no-routes")
             }
             ForEach(model.rules, id: \.id) { rule in
-                HStack(spacing: 6) {
-                    Toggle("", isOn: Binding(get: { rule.enabled }, set: { model.setEnabled(rule.id, $0) }))
-                        .labelsHidden().toggleStyle(.checkbox)
-                        .accessibilityLabel("Route enabled")
+                HStack(spacing: 8) {
+                    Button { model.remove(rule.id) } label: { Image(systemName: "minus.circle.fill").foregroundStyle(.red) }
+                        .buttonStyle(.borderless).help("Remove").accessibilityLabel("Remove route")
                     Text(RoutingRulesModel.describe(rule.match)).foregroundStyle(.secondary)
                     Text(rule.pattern).lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    Button { model.remove(rule.id) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).help("Remove").accessibilityLabel("Remove route")
+                    Spacer(minLength: 8)
+                    Toggle("Route enabled", isOn: Binding(get: { rule.enabled }, set: { model.setEnabled(rule.id, $0) }))
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
                 }
-                .opacity(rule.enabled ? 1 : 0.5)
             }
-            HStack(spacing: 6) {
-                Picker("", selection: $model.match) {
+            HStack(spacing: 8) {
+                Picker("Route match", selection: $model.match) {
                     ForEach(RoutingMatch.allCases, id: \.self) { Text(RoutingRulesModel.describe($0)).tag($0) }
                 }
                 .labelsHidden().fixedSize()
-                .accessibilityLabel("Route match")
-                TextField("", text: $model.pattern, prompt: Text(model.match == .equals ? "example.com" : "github.com/room"))
+                TextField("Route pattern", text: $model.pattern, prompt: Text(model.match == .equals ? "example.com" : "github.com/room"))
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Route pattern")
                     .accessibilityIdentifier("space-window-route-pattern")
                     .onSubmit { model.add() }
                 Button("Add") { model.add() }
@@ -209,11 +205,19 @@ private struct SpaceRoutesSection: View {
             if let message = model.patternError ?? model.error {
                 Text(message).font(.caption).foregroundStyle(Color(nsColor: .systemRed)).fixedSize(horizontal: false, vertical: true)
             }
+        } header: {
             HStack {
+                Text("Routes")
                 Spacer()
                 Button("All Rules…", action: openAllRules)
+                    .buttonStyle(.link)
+                    .font(.callout)
                     .help("Every space's rules in order, and Try a URL")
             }
+            .id(SpaceFormFocus.routes)
+        } footer: {
+            Text("Links from other apps that match open in this space.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -221,10 +225,9 @@ private struct SpaceRoutesSection: View {
 /// A new space has no routes until it exists.
 private struct SpaceRoutesPlaceholder: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Routes").font(.subheadline).foregroundStyle(.secondary)
-            Text("Routes for links from other apps can be added once the space is created (its Space Settings…).")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        Section("Routes") {
+            Text("Routes for links from other apps can be added once the space is created.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }

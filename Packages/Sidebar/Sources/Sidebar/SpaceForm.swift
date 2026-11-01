@@ -191,8 +191,10 @@ enum IconPopover {
     nonisolated(unsafe) private static var observerKey: UInt8 = 0
 }
 
-/// The form's body in the space window: the sections scroll, Cancel and
-/// Create/Save stay at the bottom; `routes` (the window's) goes under the profile.
+/// The form's body in the space window (5.11, the user on build 25: "think how Apple would design
+/// that"): a grouped form, as System Settings' panes. A header with the space's icon as a tile washed
+/// with its theme and the name beside it (a click on the tile opens the icon picker in a popover),
+/// then Appearance, Profile and the window's `routes`; Cancel and Create/Save stay at the bottom.
 public struct SpaceFormView: View {
     @Bindable var model: SpaceFormModel
     var routes: AnyView?
@@ -203,6 +205,7 @@ public struct SpaceFormView: View {
     @FocusState private var focus: SpaceFormModel.Focus?
     @State private var addingProfile = false
     @State private var profileName = ""
+    @State private var pickingIcon = false
 
     public init(model: SpaceFormModel, routes: AnyView? = nil, onCommit: @escaping () -> Void, onCancel: @escaping () -> Void,
                 onThemeChange: @escaping () -> Void) {
@@ -216,28 +219,21 @@ public struct SpaceFormView: View {
     public var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Name").font(.subheadline).foregroundStyle(.secondary)
-                        TextField("Space Name", text: $model.name, prompt: Text(model.placeholderName))
-                            .textFieldStyle(.roundedBorder)
-                            .focused($focus, equals: .name)
-                            .onSubmit(onCommit)
-                            .accessibilityIdentifier("space-form-name")
-                        iconSection
-                        themeSection
-                        profileSection
-                        if let routes {
-                            routes.id(SpaceFormFocus.routes)
-                        }
-                    }
-                    .padding(.horizontal, SpaceFormMetrics.padding)
-                    .padding(.vertical, SpaceFormMetrics.padding)
+                Form {
+                    Section { header }
+                    themeSection
+                    profileSection
+                    // The routes' header row carries `SpaceFormFocus.routes` (a form scrolls to rows, not sections).
+                    if let routes { routes }
                 }
+                .formStyle(.grouped)
                 .onAppear {
-                    focus = model.initialFocus == .routes ? nil : model.initialFocus
-                    if model.initialFocus == .routes || model.initialFocus == .theme {
-                        DispatchQueue.main.async { proxy.scrollTo(model.initialFocus == .routes ? SpaceFormFocus.routes : SpaceFormFocus.theme, anchor: .top) }
+                    switch model.initialFocus {
+                    case .name: focus = .name
+                    case .icon: pickingIcon = true
+                    case .theme, .routes:
+                        let target = model.initialFocus
+                        DispatchQueue.main.async { proxy.scrollTo(target, anchor: .top) }
                     }
                 }
             }
@@ -257,43 +253,97 @@ public struct SpaceFormView: View {
         .onChange(of: model.opacity) { onThemeChange() }
     }
 
-    // MARK: Icon
+    // MARK: Header: icon and name
 
-    private var iconSection: some View {
-        IconPickerView(icon: $model.icon, emojiFocus: $focus, focusValue: .icon)
+    private var header: some View {
+        HStack(spacing: 12) {
+            Button { pickingIcon = true } label: { iconTile }
+                .buttonStyle(.plain)
+                .help("Choose an icon")
+                .accessibilityLabel("Icon")
+                .accessibilityIdentifier("space-form-icon")
+                .popover(isPresented: $pickingIcon, arrowEdge: .bottom) {
+                    IconPickerView(icon: $model.icon, emojiFocus: $focus, focusValue: .icon)
+                        .padding(SpaceFormMetrics.padding)
+                        .frame(width: SpaceFormMetrics.iconPopoverWidth)
+                }
+            TextField("Name", text: $model.name, prompt: Text(model.placeholderName))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.large)
+                .focused($focus, equals: .name)
+                .onSubmit(onCommit)
+                .accessibilityLabel("Space Name")
+                .accessibilityIdentifier("space-form-name")
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// The space's icon on its theme's wash (the dot without an icon).
+    private var iconTile: some View {
+        let colors = model.paletteColors
+        return RoundedRectangle(cornerRadius: SpaceFormMetrics.headerTileCorner, style: .continuous)
+            .fill(colors.isEmpty
+                  ? AnyShapeStyle(Color.secondary.opacity(SpaceFormMetrics.emptyPreviewAlpha))
+                  : AnyShapeStyle(LinearGradient(colors: (colors.count == 1 ? [colors[0], colors[0]] : colors)
+                                                    .map { $0.opacity(SpaceFormMetrics.headerWashAlpha) },
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .frame(width: SpaceFormMetrics.headerIcon, height: SpaceFormMetrics.headerIcon)
+            .overlay {
+                Group {
+                    if let icon = model.icon, !icon.isEmpty {
+                        if icon.unicodeScalars.first?.properties.isEmoji == true, NSImage(systemSymbolName: icon, accessibilityDescription: nil) == nil {
+                            Text(icon).font(.system(size: SpaceFormMetrics.headerGlyph))
+                        } else {
+                            Image(systemName: icon).font(.system(size: SpaceFormMetrics.headerGlyph, weight: .medium))
+                        }
+                    } else {
+                        Circle().frame(width: SpaceFormMetrics.headerGlyph / 2, height: SpaceFormMetrics.headerGlyph / 2)
+                    }
+                }
+                .foregroundStyle(.primary)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "pencil.circle.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, Color.accentColor)
+                    .font(.system(size: 16))
+                    .offset(x: 4, y: 4)
+            }
     }
 
     // MARK: Theme
 
     private var themeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Colour").font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(model.wells.indices, id: \.self) { index in
-                    // Guarded: a well removed (−, Remove Colour, a reset) can be read once more by the old binding.
-                    ColorPicker("", selection: Binding(get: { model.wells.indices.contains(index) ? model.wells[index] : .clear },
-                                                       set: { if model.wells.indices.contains(index) { model.wells[index] = $0 } }),
-                                supportsOpacity: false)
-                        .labelsHidden()
-                        .accessibilityLabel("Colour \(index + 1)")
-                        .contextMenu { Button("Remove Colour") { if model.wells.indices.contains(index) { model.wells.remove(at: index) } } }
-                }
-                if model.wells.count < ThemePalette.maxColors {
-                    Button { model.addWell() } label: {
-                        Image(systemName: "plus").frame(width: 28, height: 20)
+        Section("Appearance") {
+            LabeledContent("Colours") {
+                HStack(spacing: 8) {
+                    ForEach(model.wells.indices, id: \.self) { index in
+                        // Guarded: a well removed (−, Remove Colour, a reset) can be read once more by the old binding.
+                        ColorPicker("", selection: Binding(get: { model.wells.indices.contains(index) ? model.wells[index] : .clear },
+                                                           set: { if model.wells.indices.contains(index) { model.wells[index] = $0 } }),
+                                    supportsOpacity: false)
+                            .labelsHidden()
+                            .accessibilityLabel("Colour \(index + 1)")
+                            .contextMenu { Button("Remove Colour") { if model.wells.indices.contains(index) { model.wells.remove(at: index) } } }
                     }
-                    .help("Click to add a color")
-                    .accessibilityLabel("Click to add a color")
-                }
-                if !model.wells.isEmpty {
-                    Button { model.wells.removeLast() } label: { Image(systemName: "minus").frame(width: 20, height: 20) }
-                        .buttonStyle(.plain)
-                        .help("Remove the last colour")
-                        .accessibilityLabel("Remove the last colour")
+                    if !model.wells.isEmpty {
+                        Button { model.wells.removeLast() } label: { Image(systemName: "minus") }
+                            .buttonStyle(.borderless)
+                            .help("Remove the last colour")
+                            .accessibilityLabel("Remove the last colour")
+                    }
+                    if model.wells.count < ThemePalette.maxColors {
+                        Button { model.addWell() } label: { Image(systemName: "plus") }
+                            .buttonStyle(.borderless)
+                            .help("Click to add a color")
+                            .accessibilityLabel("Click to add a color")
+                    }
                 }
             }
             .focused($focus, equals: .theme)
-            Picker("Algorithm", selection: $model.algorithm) {
+            .id(SpaceFormFocus.theme)
+            Picker("Harmony", selection: $model.algorithm) {
                 Text("Complementary").tag(ThemeAlgorithm.complementary)
                 Text("Split").tag(ThemeAlgorithm.split)
                 Text("Analogous").tag(ThemeAlgorithm.analogous)
@@ -301,7 +351,6 @@ public struct SpaceFormView: View {
                 Text("Floating").tag(ThemeAlgorithm.floating)
             }
             .pickerStyle(.menu)
-            .labelsHidden()
             .accessibilityIdentifier("space-form-algorithm")
             TintOpacityControl(opacity: $model.opacity)
             // What the window tint will show.
@@ -316,38 +365,40 @@ public struct SpaceFormView: View {
                 .accessibilityAddTraits(.isImage)
                 .accessibilityLabel("Theme preview")
         }
-        .id(SpaceFormFocus.theme)
     }
 
     // MARK: Profile
 
     private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Profile").font(.subheadline).foregroundStyle(.secondary)
-            HStack {
-                Picker("Profile", selection: $model.profileID) {
-                    ForEach(model.profiles) { profile in Text(profile.name).tag(profile.id) }
-                }
-                .labelsHidden()
-                .disabled(model.newProfileName != nil)
-                Button("New…") { addingProfile = true }.controlSize(.small)
+        Section {
+            Picker("Profile", selection: $model.profileID) {
+                ForEach(model.profiles) { profile in Text(profile.name).tag(profile.id) }
             }
-            .help("Profiles are used to separate cookies and site data between spaces")
+            .disabled(model.newProfileName != nil)
             if addingProfile || model.newProfileName != nil {
-                HStack {
-                    TextField("Profile Name", text: $profileName)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { acceptProfile() }
-                    Button(model.newProfileName == nil ? "Use" : "Undo") {
-                        if model.newProfileName == nil { acceptProfile() } else { model.newProfileName = nil; profileName = ""; addingProfile = false }
+                LabeledContent("New Profile") {
+                    HStack {
+                        TextField("Profile Name", text: $profileName)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { acceptProfile() }
+                        Button(model.newProfileName == nil ? "Use" : "Undo") {
+                            if model.newProfileName == nil { acceptProfile() } else { model.newProfileName = nil; profileName = ""; addingProfile = false }
+                        }
                     }
-                    .controlSize(.small)
                 }
-                if let name = model.newProfileName {
-                    Text("A new profile “\(name)” is created with the space; logins and cookies won't carry over from other profiles.")
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack {
+                    Spacer()
+                    Button("New Profile…") { addingProfile = true }
                 }
             }
+        } header: {
+            Text("Profile")
+        } footer: {
+            Text(model.newProfileName.map { "A new profile “\($0)” is created with the space; logins and cookies won't carry over from other profiles." }
+                 ?? "Profiles keep cookies, logins and site data apart between spaces.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -368,15 +419,16 @@ public struct TintOpacityControl: View {
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
-            Text("Opacity").font(.subheadline).foregroundStyle(.secondary)
-            Slider(value: $opacity, in: 0...1)
-                .controlSize(.small)
-                .accessibilityIdentifier("space-form-opacity")
-            Text(opacity, format: .percent.precision(.fractionLength(0)))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 36, alignment: .trailing)
+        LabeledContent("Opacity") {
+            HStack(spacing: 8) {
+                Slider(value: $opacity, in: 0...1)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("space-form-opacity")
+                Text(opacity, format: .percent.precision(.fractionLength(0)))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 36, alignment: .trailing)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tint opacity")
