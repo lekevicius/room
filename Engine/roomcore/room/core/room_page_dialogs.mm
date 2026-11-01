@@ -44,6 +44,8 @@
 #include "chrome/browser/ui/passwords/bubble_controllers/save_update_bubble_controller.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/tab_dialogs.h"
+#include "chrome/browser/ui/views/tab_dialogs_views.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/javascript_dialogs/app_modal_dialog_controller.h"
 #include "components/javascript_dialogs/app_modal_dialog_manager.h"
 #include "components/javascript_dialogs/app_modal_dialog_view.h"
@@ -522,33 +524,20 @@ class PasswordOffers {
 
 // MARK: - The hung-page question
 
+// Chrome's TabDialogs for a page, with the hung-page question and the password
+// offers going to the host; the rest is Chrome's own (TabDialogsViews). Since
+// 157 a tab's TabDialogs belongs to its TabFeatures: patch 0031 hands Room's to
+// TabDialogs::Create for every tab (a page no host answers keeps Chrome's
+// dialogs through the fallbacks below).
 // Chrome's TabDialogs for the page with the hung-page question and the
 // password offers going to the host. Everything else is Chrome's (forwarded).
-class RoomTabDialogs : public TabDialogs {
+class RoomTabDialogs : public TabDialogsViews {
  public:
-  static void Adopt(content::WebContents* contents) {
-    if (!TabDialogs::FromWebContents(contents)) {
-      return;
-    }
-    std::unique_ptr<base::SupportsUserData::Data> chrome =
-        contents->TakeUserData(UserDataKey());
-    contents->SetUserData(
-        UserDataKey(),
-        std::make_unique<RoomTabDialogs>(
-            contents,
-            std::unique_ptr<TabDialogs>(static_cast<TabDialogs*>(chrome.release()))));
-  }
-
-  RoomTabDialogs(content::WebContents* contents,
-                 std::unique_ptr<TabDialogs> chrome)
-      : contents_(contents), chrome_(std::move(chrome)), passwords_(contents) {}
+  RoomTabDialogs(tabs::TabInterface& tab, content::WebContents* contents)
+      : TabDialogsViews(tab, contents), contents_(contents), passwords_(contents) {}
   ~RoomTabDialogs() override = default;
 
   // TabDialogs:
-  gfx::NativeView GetDialogParentView() const override {
-    return chrome_->GetDialogParentView();
-  }
-  void ShowCollectedCookies() override { chrome_->ShowCollectedCookies(); }
   void ShowHungRendererDialog(
       content::RenderWidgetHost* render_widget_host,
       base::RepeatingClosure hang_monitor_restarter) override {
@@ -556,7 +545,7 @@ class RoomTabDialogs : public TabDialogs {
         contents_, @selector(webContentsRendererDidBecomeUnresponsive:
                                                         completion:));
     if (!wrapper) {
-      chrome_->ShowHungRendererDialog(render_widget_host,
+      TabDialogsViews::ShowHungRendererDialog(render_widget_host,
                                       std::move(hang_monitor_restarter));
       return;
     }
@@ -581,7 +570,7 @@ class RoomTabDialogs : public TabDialogs {
   void HideHungRendererDialog(
       content::RenderWidgetHost* render_widget_host) override {
     if (!asking_) {
-      chrome_->HideHungRendererDialog(render_widget_host);
+      TabDialogsViews::HideHungRendererDialog(render_widget_host);
       return;
     }
     asking_ = false;
@@ -597,37 +586,19 @@ class RoomTabDialogs : public TabDialogs {
     }
   }
   bool IsShowingHungRendererDialog() override {
-    return asking_ || chrome_->IsShowingHungRendererDialog();
-  }
-  void ShowDeprecatedAppsDialog(
-      const extensions::ExtensionId& optional_launched_extension_id,
-      const std::set<extensions::ExtensionId>& deprecated_app_ids,
-      content::WebContents* web_contents) override {
-    chrome_->ShowDeprecatedAppsDialog(optional_launched_extension_id,
-                                      deprecated_app_ids, web_contents);
-  }
-  void ShowForceInstalledDeprecatedAppsDialog(
-      const extensions::ExtensionId& app_id,
-      content::WebContents* web_contents) override {
-    chrome_->ShowForceInstalledDeprecatedAppsDialog(app_id, web_contents);
-  }
-  void ShowForceInstalledPreinstalledDeprecatedAppDialog(
-      const extensions::ExtensionId& extension_id,
-      content::WebContents* web_contents) override {
-    chrome_->ShowForceInstalledPreinstalledDeprecatedAppDialog(extension_id,
-                                                               web_contents);
+    return asking_ || TabDialogsViews::IsShowingHungRendererDialog();
   }
   void ShowManagePasswordsBubble(bool user_action) override {
     if (!user_action && passwords_.Show()) {
       return;
     }
-    chrome_->ShowManagePasswordsBubble(user_action);
+    TabDialogsViews::ShowManagePasswordsBubble(user_action);
   }
   void HideManagePasswordsBubble() override {
     if (passwords_.Hide()) {
       return;
     }
-    chrome_->HideManagePasswordsBubble();
+    TabDialogsViews::HideManagePasswordsBubble();
   }
 
  private:
@@ -652,7 +623,6 @@ class RoomTabDialogs : public TabDialogs {
   }
 
   raw_ptr<content::WebContents> contents_;
-  std::unique_ptr<TabDialogs> chrome_;
   PasswordOffers passwords_;
   bool asking_ = false;
   int question_ = 0;
@@ -759,7 +729,12 @@ bool RunExternalProtocolDialog(const GURL& url,
 
 namespace room {
 
+// chrome/browser/ui/views/tab_dialogs_views.cc (patch 0031).
+extern std::unique_ptr<TabDialogs> (*g_create_tab_dialogs_hook)(tabs::TabInterface&, content::WebContents*);
+
 void InstallPageDialogHooks() {
+  g_create_tab_dialogs_hook = [](tabs::TabInterface& tab, content::WebContents* contents)
+      -> std::unique_ptr<TabDialogs> { return std::make_unique<RoomTabDialogs>(tab, contents); };
   g_run_external_protocol_dialog_hook = &RunExternalProtocolDialog;
 }
 
@@ -799,7 +774,6 @@ void AdoptPageDialogs(content::WebContents* contents) {
     javascript_dialogs::TabModalDialogManager::CreateForWebContents(
         contents, std::make_unique<RoomTabModalDialogDelegate>(contents));
   }
-  RoomTabDialogs::Adopt(contents);
 }
 
 }  // namespace room

@@ -1,0 +1,38 @@
+Room: Room's TabDialogs for a tab.
+
+Room asks the host when a page stops responding (instead of Chrome's hung
+renderer dialog) and routes the password manager's automatic offers to the
+host (3.7a, 4.x). Until 156 //room swapped the page's TabDialogs, a
+WebContents user data. 157 made TabDialogs a member of the tab's
+TabFeatures, created by TabDialogs::Create and registered on the tab's
+unowned user data: there is nothing left to swap. A factory redirect gives
+TabDialogs::Create Room's subclass of TabDialogsViews; everything it does
+not answer stays Chrome's.
+
+Phase 6.4 (the rebase to 157), 2026-11-02. //room: room/core/room_page_dialogs.mm.
+diff --git a/chrome/browser/ui/views/tab_dialogs_views.cc b/chrome/browser/ui/views/tab_dialogs_views.cc
+index d85a7322ba380..8b9221b96889a 100644
+--- a/chrome/browser/ui/views/tab_dialogs_views.cc
++++ b/chrome/browser/ui/views/tab_dialogs_views.cc
+@@ -19,10 +19,21 @@
+ #include "chrome/browser/ui/views/web_apps/force_installed_preinstalled_deprecated_app_dialog_view.h"
+ #endif
+ 
++namespace room {
++// Room: set by //room/core at startup. A TabDialogsViews of Room's for every
++// tab (the hung-page question and password offers go to the host).
++std::unique_ptr<TabDialogs> (*g_create_tab_dialogs_hook)(tabs::TabInterface&,
++                                                         content::WebContents*) =
++    nullptr;
++}  // namespace room
++
+ // static
+ std::unique_ptr<TabDialogs> TabDialogs::Create(tabs::TabInterface& tab,
+                                                content::WebContents* contents) {
+   DCHECK(contents);
++  if (room::g_create_tab_dialogs_hook) {
++    return room::g_create_tab_dialogs_hook(tab, contents);
++  }
+   return std::make_unique<TabDialogsViews>(tab, contents);
+ }
+ 
