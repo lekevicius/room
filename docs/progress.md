@@ -617,7 +617,8 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [x] 6.4 Rebase to 157.0.8103.26 (`b415018`, `56fc665`, `59300d7`: three hand merges, `//chrome/browser/ui:ui` gone, patch 0031 for TabDialogs; all `//room` objects compile)
 - [ ] 6.4 Official engine at 157 (building), the dev engine after it; the checks on 157 (fixes and fixes512 spikes, the tour's groups)
 - [x] 6.3 Crash uploads to the user's collector: patch 0030, `RoomApplication.crashUploadURL`/`crashUploadsEnabled`, `ROOM_CRASH_DSN`, Sentry Cocoa removed (`a7e1d3a`, `cae7275`, `b4a4f7c`); `tools/crash-collector/` and `scripts/crash-symbols.sh` (`5e33e8d`); the collector checked locally (an upload stored, a wrong key refused)
-- [ ] 6.3 End to end on a build: a crash's minidump reaches a local collector with the opt-in on, nothing with it off; the user deploys the collector and sets the DSN
+- [x] 6.3 End to end on the 157 build (`scripts/crash-upload-check.sh`, the `crashupload` spike): off, the renderer's minidump stays in `Crashpad/` and nothing is posted; on, the next one reaches the local collector (789,616 bytes, `ptype` renderer, `ver` 157.0.8103.26). The collector first refused every upload: Crashpad on the Mac streams the form chunked, with no length (fixed, `5b6ff16`). A report carries the crashed page's address (`url-chunk`); the setting now says so (`c07fb71`)
+- [ ] 6.3 The user deploys the collector (`tools/crash-collector/README.md`) and sets `ROOM_CRASH_DSN`; whether to strip page addresses on the Mac before upload is the user's call
 - [x] 6.2 Deltas published with each release; release notes in the appcast (`9745d17`)
 - [x] 6.1 `scripts/release.sh`, `docs/releases/0.3.0.html`, version 0.3.0 build 27 (`b54a22f`)
 - [ ] 0.3.0 (27) packaged, signed, notarized; publishing is the user's go
