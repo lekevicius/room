@@ -185,7 +185,7 @@ final class PaletteRowView: NSView {
         symbol.imageScaling = .scaleNone
         symbol.contentTintColor = .secondaryLabelColor
         symbol.symbolConfiguration = Self.symbolConfiguration
-        label.lineBreakMode = .byTruncatingTail
+        label.lineBreakMode = .byClipping
         hint.textColor = .secondaryLabelColor
         hint.stringValue = ""
         chipLabel.textColor = .secondaryLabelColor
@@ -242,6 +242,8 @@ final class PaletteRowView: NSView {
             favicon.isHidden = true
         }
         label.attributedStringValue = Self.text(title: row.title, detail: row.detail)
+        // The fade follows the new text even when the frame stays.
+        label.updateTrailingFade()
         chip.isHidden = row.spaceName == nil
         if let space = row.spaceName, chipLabel.stringValue != space {
             chipLabel.stringValue = space
@@ -270,10 +272,11 @@ final class PaletteRowView: NSView {
         if let row { label.attributedStringValue = Self.text(title: row.title, detail: row.detail) }
     }
 
-    /// Title and detail in one text, the detail cut first (tail truncation).
+    /// Title and detail in one text, the detail cut first: its end fades as the tab titles' do (5.13 review:
+    /// "127.0...." read as a double dot; the user wants fades, not ellipses).
     private static func text(title: String, detail: String?) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.lineBreakMode = .byClipping
         let string = NSMutableAttributedString(string: title, attributes: [
             .font: Typography.paletteRow, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph,
         ])
@@ -358,6 +361,7 @@ final class PaletteRowView: NSView {
         let labelLimit = right - 8 - gap
         let labelHeight = Self.labelHeight
         Self.place(label, NSRect(x: labelX, y: ((height - labelHeight) / 2).rounded(), width: max(0, labelLimit - labelX), height: labelHeight))
+        label.updateTrailingFade()
     }
 
     /// Frames are only set when they change: each set lays the view out again.
