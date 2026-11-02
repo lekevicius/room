@@ -831,6 +831,16 @@ struct SwitchingTests {
         #expect(state.highlighted == ids[3] && state.items.count == 4)
     }
 
+    @Test("5.13: the switcher shows only the cards the card's width holds, the highlighted one among them (five ran past a 900 pt card)")
+    func switcherFits() {
+        // 900 pt: four cards of 177 pt inside 16 pt margins and 15 pt padding.
+        #expect(TabSwitcherLayout.visibleRange(count: 5, highlighted: 1, hostWidth: 900) == 0..<4)
+        #expect(TabSwitcherLayout.visibleRange(count: 5, highlighted: 4, hostWidth: 900) == 1..<5)
+        #expect(TabSwitcherLayout.visibleRange(count: 5, highlighted: 0, hostWidth: 1200) == 0..<5)
+        // Never fewer than two.
+        #expect(TabSwitcherLayout.visibleRange(count: 5, highlighted: 3, hostWidth: 300) == 2..<4)
+    }
+
     @Test("The switcher lists the five most recently used entries, the selected one first")
     func recentEntries() throws {
         let f = try TabsFixture()

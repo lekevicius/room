@@ -194,10 +194,26 @@ public final class TabSwitcher {
             return TabSwitcherPanel.Row(title: EntryLabel.title(entry), domain: EntryLabel.domain(entry.currentURL) ?? "",
                                         favicon: page.favicon, isLoaded: page.isLoaded, thumbnail: tabs.thumbnail(for: id))
         }
-        panel.setRows(rows, highlighted: state.index)
+        let shown = TabSwitcherLayout.visibleRange(count: rows.count, highlighted: state.index, hostWidth: hostView.bounds.width)
+        panel.setRows(Array(rows[shown]), highlighted: state.index - shown.lowerBound)
         let size = panel.fittingSize
         panel.frame = NSRect(x: (hostView.bounds.width - size.width) / 2, y: (hostView.bounds.height - size.height) / 2,
                              width: size.width, height: size.height).integral
+    }
+}
+
+/// Which cards the panel shows (5.13: five at the default window ran under the sidebar and past the
+/// window's edge): as many as the host's width holds inside `hostMargin`, at least two, the
+/// highlighted one among them and as near the middle as the ends allow.
+public enum TabSwitcherLayout {
+    public static func visibleRange(count: Int, highlighted: Int, hostWidth: CGFloat) -> Range<Int> {
+        let m = TabSwitcherMetrics.self
+        let stride = m.cardWidth + 2 * m.cardPadding + m.cardGap
+        let room = hostWidth - 2 * m.hostMargin - 2 * m.panelPadding + m.cardGap
+        let fits = max(2, Int(room / stride))
+        guard count > fits else { return 0..<count }
+        let start = max(0, min(highlighted - fits / 2, count - fits))
+        return start..<(start + fits)
     }
 }
 

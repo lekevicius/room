@@ -779,6 +779,8 @@ public enum TabSwitcherMetrics {
     public static let cardPadding: CGFloat = 12
     public static let panelPadding: CGFloat = 15
     public static let panelCorner: CGFloat = 32
+    /// The panel stays this far inside the card's sides; fewer cards show when five do not fit.
+    public static let hostMargin: CGFloat = Spacing.l
     public static let highlightCorner: CGFloat = 14
     public static let thumbnailCorner: CGFloat = Radius.medium
     /// The icon and title's line: its centre this far below the picture, and the card's bottom this far
