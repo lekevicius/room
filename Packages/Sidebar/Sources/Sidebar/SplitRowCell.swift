@@ -121,7 +121,8 @@ final class SplitGroupCellView: NSTableCellView {
         CATransaction.setDisableActions(true)
         for (index, frame) in frames.enumerated() {
             let showsTitle = frame.width >= SplitMetrics.segmentTitleMinWidth
-            let iconX = showsTitle ? frame.minX + Spacing.s : (frame.midX - size / 2).rounded()
+            // The first pane's icon in the single rows' icon column (5.13 review: 2 pt further in); each pane alike.
+            let iconX = showsTitle ? frame.minX + SidebarMetrics.rowContentInset - Spacing.xs : (frame.midX - size / 2).rounded()
             icons[index].frame = NSRect(x: iconX, y: ((bounds.height - size) / 2).rounded(), width: size, height: size)
             titles[index].isHidden = !showsTitle
             if showsTitle {
