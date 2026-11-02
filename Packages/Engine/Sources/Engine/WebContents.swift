@@ -116,6 +116,9 @@ public protocol WebContents: AnyObject, Observable {
     func mediaPreviousTrack()
     /// The page's "seekto" handler, else its players seek.
     func mediaSeek(to seconds: TimeInterval)
+    /// The page's playing video in picture-in-picture (5.13: the mini-player's button), as
+    /// Chrome's media controls do it: no user gesture on the page needed.
+    func mediaEnterPictureInPicture()
 
     // MARK: Documents (4.7a)
 

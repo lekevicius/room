@@ -816,6 +816,10 @@ ROOM_EXPORT NS_SWIFT_UI_ACTOR
 - (void)mediaNextTrack;
 - (void)mediaPreviousTrack;
 - (void)mediaSeekTo:(NSTimeInterval)seconds;
+// The page's playing video in picture-in-picture, as Chrome's media controls'
+// button (MediaSession::EnterPictureInPicture: browser-initiated, so no user
+// gesture on the page is needed). Nothing without a video that can.
+- (void)mediaEnterPictureInPicture;
 
 // Runs `script` in RoomCore's isolated world of the page's main frame (the
 // page's DOM is shared; its own JavaScript globals are not visible) and

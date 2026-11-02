@@ -1907,6 +1907,13 @@ bool AllowOpenFromRoomPage(const NavigateParams& params) {
   }
 }
 
+- (void)mediaEnterPictureInPicture {
+  if (_contents) {
+    LOG(INFO) << "RoomCore: media enter picture-in-picture";
+    content::MediaSession::Get(_contents)->EnterPictureInPicture();
+  }
+}
+
 - (void)close {
   if (!_contents) {
     return;

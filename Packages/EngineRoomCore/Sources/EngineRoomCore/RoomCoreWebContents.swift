@@ -438,6 +438,11 @@ public final class RoomCoreWebContents: NSObject, WebContents, RoomWebContentsDe
         page.mediaSeek(to: seconds)
     }
 
+    public func mediaEnterPictureInPicture() {
+        guard state != .closed else { return }
+        page.mediaEnterPictureInPicture()
+    }
+
     // MARK: Documents (4.7a)
 
     /// `WebContents::SavePage` (HTML, complete HTML: Chrome's SavePackage,

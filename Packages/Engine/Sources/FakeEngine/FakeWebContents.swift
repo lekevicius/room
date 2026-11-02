@@ -456,6 +456,7 @@ public final class FakeWebContents: WebContents {
     /// Recorded; the page's handler (if any) is the test's: `simulateMediaSession`.
     public func mediaNextTrack() { mediaControls.append(.nextTrack) }
     public func mediaPreviousTrack() { mediaControls.append(.previousTrack) }
+    public func mediaEnterPictureInPicture() { mediaControls.append(.pictureInPicture) }
 
     /// Recorded; a reported position moves there.
     public func mediaSeek(to seconds: TimeInterval) {
@@ -601,6 +602,6 @@ public struct FakeSavedPage: Hashable, Sendable {
 
 /// A media session control `FakeWebContents` recorded.
 public enum FakeMediaControl: Hashable, Sendable {
-    case play, pause, nextTrack, previousTrack
+    case play, pause, nextTrack, previousTrack, pictureInPicture
     case seek(TimeInterval)
 }
