@@ -308,18 +308,27 @@ public enum OnboardingMetrics {
 public enum MediaRowMetrics {
     /// Collapsed: the card's height (the list ends above it).
     public static let height: CGFloat = 44
-    /// Expanded (under the pointer).
-    public static let expandedHeight: CGFloat = 116
+    /// Expanded (under the pointer): the header, the progress row and the controls' row (`expandedLayout`).
+    public static var expandedHeight: CGFloat { expandedControlsY + buttonSize + expandedBottomPadding }
     public static let cornerRadius: CGFloat = 14
-    /// The card's inner padding.
+    /// The collapsed card's inner padding; the expanded card's (its header and sides) and its bottom's, which
+    /// is smaller because the controls' squares carry their own air.
     public static let padding: CGFloat = 8
+    public static let expandedPadding: CGFloat = 12
+    public static let expandedBottomPadding: CGFloat = 8
     /// The artwork or favicon: collapsed, expanded.
     public static let imageSize: CGFloat = 28
-    public static let expandedImageSize: CGFloat = 36
+    public static let expandedImageSize: CGFloat = 40
     public static let imageCornerRadius: CGFloat = 6
-    /// Play/pause and the controls' squares; × is smaller.
+    /// The expanded rows, from the card's top: the progress row under the artwork, the controls under it.
+    public static var expandedProgressY: CGFloat { expandedPadding + expandedImageSize + 10 }
+    public static let progressRowHeight: CGFloat = 14
+    public static var expandedControlsY: CGFloat { expandedProgressY + progressRowHeight + 6 }
+    /// Play/pause and the controls' squares; × is a smaller circle.
     public static let buttonSize: CGFloat = 28
     public static let closeSize: CGFloat = 20
+    /// Previous and next sit this far from play/pause's centre.
+    public static let transportSpacing: CGFloat = 40
     /// The progress row: the bar's thickness and the times' column.
     public static let progressHeight: CGFloat = 4
     public static let timeWidth: CGFloat = 36

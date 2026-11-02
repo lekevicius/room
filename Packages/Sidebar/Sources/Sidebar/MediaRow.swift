@@ -77,14 +77,24 @@ public enum MediaRowAction: Equatable, Sendable {
 /// upward over the list (`isExpanded`; the list keeps ending above the collapsed card): the
 /// artist, ×, the elapsed and total time around a bar that seeks, then volume, previous,
 /// play/pause, next and picture-in-picture. A click elsewhere on the card selects its entry.
+///
+/// The growth is one motion (5.13, the user: "doesn't look like smooth transformation"): the header
+/// rides the card's top edge, its artwork growing and its title making room for the artist, while the
+/// rows below sit at their places under the header and come into view from the card's bottom edge as
+/// it rises (the card clips them). Nothing crosses the card: the collapsed play/pause fades where it is
+/// and the controls' own fades in with its row.
 final class MediaRowView: NSView {
     private let glass = NSGlassEffectView()
+    /// Everything on the card, clipped to it.
+    private let cardContent = MediaRowContentView()
     private let imageView = NSImageView()
     private let titleLabel = MarqueeLabel()
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let elapsedLabel = NSTextField(labelWithString: "")
     private let totalLabel = NSTextField(labelWithString: "")
     private let progress = MediaProgressView()
+    /// The collapsed card's play/pause, at its trailing edge.
+    let compactPlayButton = HoverButton()
     let playButton = HoverButton()
     let nextButton = HoverButton()
     let previousButton = HoverButton()
@@ -101,7 +111,8 @@ final class MediaRowView: NSView {
 
     /// The views only the expanded card shows.
     private var expandedViews: [NSView] {
-        [subtitleLabel, closeButton, elapsedLabel, totalLabel, progress, muteButton, previousButton, nextButton, pictureInPictureButton]
+        [subtitleLabel, closeButton, elapsedLabel, totalLabel, progress, muteButton, previousButton, playButton, nextButton,
+         pictureInPictureButton]
     }
 
     override init(frame: NSRect) {
@@ -110,6 +121,11 @@ final class MediaRowView: NSView {
         glass.style = .regular
         glass.cornerRadius = MediaRowMetrics.cornerRadius
         addSubview(glass)
+        cardContent.wantsLayer = true
+        cardContent.layer?.masksToBounds = true
+        cardContent.layer?.cornerRadius = MediaRowMetrics.cornerRadius
+        cardContent.layer?.cornerCurve = .continuous
+        addSubview(cardContent)
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = MediaRowMetrics.imageCornerRadius
@@ -129,11 +145,12 @@ final class MediaRowView: NSView {
             self?.onAction?(.seek(fraction * duration))
         }
         for (button, symbol, style, label, action) in [
+            (compactPlayButton, Symbol.pause, IconStyle.player, "Pause", #selector(playPauseClicked)),
             (playButton, Symbol.pause, IconStyle.player, "Pause", #selector(playPauseClicked)),
             (nextButton, Symbol.nextTrack, IconStyle.player, "Next Track", #selector(nextClicked)),
             (previousButton, Symbol.previousTrack, IconStyle.player, "Previous Track", #selector(previousClicked)),
-            (muteButton, Symbol.playerVolume, IconStyle.player, "Mute", #selector(muteClicked)),
-            (pictureInPictureButton, Symbol.pictureInPicture, IconStyle.player, "Picture in Picture", #selector(pictureInPictureClicked)),
+            (muteButton, Symbol.playerVolume, IconStyle.playerSecondary, "Mute", #selector(muteClicked)),
+            (pictureInPictureButton, Symbol.pictureInPicture, IconStyle.playerSecondary, "Picture in Picture", #selector(pictureInPictureClicked)),
             (closeButton, Symbol.closeTab, IconStyle.media, "Hide", #selector(closeClicked)),
         ] {
             button.image = symbol.image(style, accessibilityDescription: label)
@@ -142,16 +159,17 @@ final class MediaRowView: NSView {
             button.target = self
             button.action = action
         }
-        closeButton.contentTintColor = Palette.sidebarSecondaryLabel
+        for button in [muteButton, pictureInPictureButton, closeButton] { button.contentTintColor = Palette.sidebarSecondaryLabel }
         playButton.setAccessibilityIdentifier("media-row-play")
+        compactPlayButton.setAccessibilityIdentifier("media-row-play-compact")
         nextButton.setAccessibilityIdentifier("media-row-next")
         previousButton.setAccessibilityIdentifier("media-row-previous")
         muteButton.setAccessibilityIdentifier("media-row-mute")
         pictureInPictureButton.setAccessibilityIdentifier("media-row-pip")
         closeButton.setAccessibilityIdentifier("media-row-close")
         setAccessibilityIdentifier("media-row")
-        for view in [imageView, titleLabel, playButton] + expandedViews { addSubview(view) }
-        for view in expandedViews { view.alphaValue = 0 }
+        for view in [imageView, titleLabel, compactPlayButton] + expandedViews { cardContent.addSubview(view) }
+        applyVisibility()
     }
 
     @available(*, unavailable)
@@ -169,12 +187,14 @@ final class MediaRowView: NSView {
         subtitleLabel.stringValue = content.subtitle
         imageView.image = content.image ?? Symbol.audible.image(.media, accessibilityDescription: nil)
         let (symbol, label) = content.isPlaying ? (Symbol.pause, "Pause") : (Symbol.play, "Play")
-        playButton.image = symbol.image(.player, accessibilityDescription: label)
-        playButton.setTip(label)
+        for button in [playButton, compactPlayButton] {
+            button.image = symbol.image(.player, accessibilityDescription: label)
+            button.setTip(label)
+        }
         nextButton.isEnabled = content.canGoNext
         previousButton.isEnabled = content.canGoPrevious
         muteButton.image = (content.isMuted ? Symbol.playerMuted : Symbol.playerVolume)
-            .image(.player, accessibilityDescription: content.isMuted ? "Unmute" : "Mute")
+            .image(.playerSecondary, accessibilityDescription: content.isMuted ? "Unmute" : "Mute")
         muteButton.setTip(content.isMuted ? "Unmute" : "Mute")
         toolTip = content.subtitle.isEmpty ? content.title : "\(content.title) — \(content.subtitle)"
         setAccessibilityLabel(toolTip)
@@ -215,15 +235,39 @@ final class MediaRowView: NSView {
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
             // Reduce Motion: the card's height changes at once and its rows cross-fade.
             context.allowsImplicitAnimation = animates && SidebarMotion.mediaRowExpansion.variant == .full
-            for view in expandedViews { (animates ? view.animator() : view).alphaValue = expanded ? 1 : 0 }
+            applyVisibility(animated: animates)
+            // The card's frame (the owner) and the header's places (`layout`) in this one transaction.
+            needsLayout = true
             onExpansionChange?()
+            layoutSubtreeIfNeeded()
         }
+    }
+
+    /// The expanded views fade with the card; the collapsed play/pause the other way.
+    private func applyVisibility(animated: Bool = false) {
+        for view in expandedViews { (animated ? view.animator() : view).alphaValue = isExpanded ? 1 : 0 }
+        (animated ? compactPlayButton.animator() : compactPlayButton).alphaValue = isExpanded ? 0 : 1
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateTimer()
-        if window == nil { collapseWork?.cancel(); isExpanded = false; for view in expandedViews { view.alphaValue = 0 } }
+        if window == nil {
+            collapseWork?.cancel()
+            isExpanded = false
+            applyVisibility()
+        }
+    }
+
+    /// Faded views take no clicks (× and the collapsed play/pause share a corner).
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        guard bounds.contains(local), !isHidden else { return nil }
+        let inContent = cardContent.convert(local, from: self)
+        for view in cardContent.subviews.reversed() where !view.isHidden && view.alphaValue > 0.01 {
+            if let hit = view.hitTest(inContent) { return hit }
+        }
+        return self
     }
 
     // MARK: Progress
@@ -273,45 +317,49 @@ final class MediaRowView: NSView {
     override func layout() {
         super.layout()
         glass.frame = bounds
-        let pad = MediaRowMetrics.padding
+        cardContent.frame = bounds
+        let width = bounds.width
         let button = MediaRowMetrics.buttonSize
-        let expanded = bounds.height > (MediaRowMetrics.height + MediaRowMetrics.expandedHeight) / 2
-        let image = expanded ? MediaRowMetrics.expandedImageSize : MediaRowMetrics.imageSize
+        let close = MediaRowMetrics.closeSize
+        let lineHeight = ceil(titleLabel.fittingSize.height)
+        let subHeight = ceil(subtitleLabel.fittingSize.height)
+        // The header, from the card's top: collapsed, the artwork and the title centred on the 44 pt row;
+        // expanded, a larger artwork with the title and the artist centred beside it and × level with them.
+        let pad = isExpanded ? MediaRowMetrics.expandedPadding : MediaRowMetrics.padding
+        let image = isExpanded ? MediaRowMetrics.expandedImageSize : MediaRowMetrics.imageSize
         imageView.frame = NSRect(x: pad, y: pad, width: image, height: image)
         let textX = imageView.frame.maxX + SidebarMetrics.faviconTitleGap
-        let lineHeight = ceil(titleLabel.fittingSize.height)
-        if expanded {
-            let close = MediaRowMetrics.closeSize
-            closeButton.frame = NSRect(x: bounds.width - pad - close, y: pad - 2, width: close, height: close)
-            let textWidth = max(0, closeButton.frame.minX - Spacing.xs - textX)
-            let subHeight = ceil(subtitleLabel.fittingSize.height)
-            let top = imageView.frame.midY - (lineHeight + subHeight) / 2
-            titleLabel.frame = NSRect(x: textX, y: top.rounded(), width: textWidth, height: lineHeight)
-            subtitleLabel.frame = NSRect(x: textX, y: (top + lineHeight).rounded(), width: textWidth, height: subHeight)
-            playButton.frame = NSRect(x: (bounds.width - button) / 2, y: bounds.height - pad - button, width: button, height: button)
-        } else {
-            playButton.frame = NSRect(x: bounds.width - pad - button + 2, y: (bounds.height - button) / 2, width: button, height: button)
-            titleLabel.frame = NSRect(x: textX, y: ((bounds.height - lineHeight) / 2).rounded(),
-                                      width: max(0, playButton.frame.minX - Spacing.xs - textX), height: lineHeight)
-            subtitleLabel.frame = titleLabel.frame.offsetBy(dx: 0, dy: lineHeight)
-            closeButton.frame = NSRect(x: bounds.width - pad - MediaRowMetrics.closeSize, y: pad - 2,
-                                       width: MediaRowMetrics.closeSize, height: MediaRowMetrics.closeSize)
-        }
-        // The progress row under the artwork, and the controls' row at the bottom.
-        let controlsY = bounds.height - pad - button
-        let progressY = imageView.frame.maxY + Spacing.xs
+        let headerMid = imageView.frame.midY
+        let expandedPad = MediaRowMetrics.expandedPadding
+        let expandedMid = expandedPad + MediaRowMetrics.expandedImageSize / 2
+        closeButton.frame = NSRect(x: width - expandedPad - close + 2, y: (expandedMid - close / 2).rounded(), width: close, height: close)
+        compactPlayButton.frame = NSRect(x: width - MediaRowMetrics.padding - button + 2, y: (headerMid - button / 2).rounded(),
+                                         width: button, height: button)
+        let trailing = (isExpanded ? closeButton.frame.minX : compactPlayButton.frame.minX) - Spacing.xs
+        let textWidth = max(0, trailing - textX)
+        let titleY = isExpanded ? headerMid - (lineHeight + subHeight) / 2 : headerMid - lineHeight / 2
+        titleLabel.frame = NSRect(x: textX, y: titleY.rounded(), width: textWidth, height: lineHeight)
+        subtitleLabel.frame = NSRect(x: textX, y: titleLabel.frame.maxY, width: textWidth, height: subHeight)
+        // The rows under the header stay at their expanded places; the collapsed card clips them.
+        let progressY = MediaRowMetrics.expandedProgressY
+        let rowHeight = MediaRowMetrics.progressRowHeight
         let timeHeight = ceil(elapsedLabel.fittingSize.height)
+        let timeY = (progressY + (rowHeight - timeHeight) / 2).rounded()
         let time = MediaRowMetrics.timeWidth
-        elapsedLabel.frame = NSRect(x: pad + 2, y: progressY, width: time, height: timeHeight)
-        totalLabel.frame = NSRect(x: bounds.width - pad - 2 - time, y: progressY, width: time, height: timeHeight)
-        progress.frame = NSRect(x: elapsedLabel.frame.maxX + Spacing.xs, y: progressY, width: max(0, totalLabel.frame.minX - Spacing.xs - elapsedLabel.frame.maxX - Spacing.xs),
-                                height: timeHeight)
-        let centre = bounds.width / 2
-        let spacing = button + Spacing.m
-        previousButton.frame = NSRect(x: centre - spacing - button / 2, y: controlsY, width: button, height: button)
-        nextButton.frame = NSRect(x: centre + spacing - button / 2, y: controlsY, width: button, height: button)
-        muteButton.frame = NSRect(x: pad, y: controlsY, width: button, height: button)
-        pictureInPictureButton.frame = NSRect(x: bounds.width - pad - button, y: controlsY, width: button, height: button)
+        elapsedLabel.frame = NSRect(x: expandedPad, y: timeY, width: time, height: timeHeight)
+        totalLabel.frame = NSRect(x: width - expandedPad - time, y: timeY, width: time, height: timeHeight)
+        progress.frame = NSRect(x: elapsedLabel.frame.maxX + Spacing.xs, y: progressY,
+                                width: max(0, totalLabel.frame.minX - Spacing.xs - elapsedLabel.frame.maxX - Spacing.xs), height: rowHeight)
+        // The controls: the transport centred, volume and picture-in-picture under the times' columns.
+        let controlsY = MediaRowMetrics.expandedControlsY
+        let centre = (width / 2).rounded()
+        let spacing = MediaRowMetrics.transportSpacing
+        playButton.frame = NSRect(x: centre - button / 2, y: controlsY, width: button, height: button)
+        previousButton.frame = playButton.frame.offsetBy(dx: -spacing, dy: 0)
+        nextButton.frame = playButton.frame.offsetBy(dx: spacing, dy: 0)
+        // The glyphs' centres under the times' text (the squares' own air past the padding).
+        muteButton.frame = NSRect(x: expandedPad - (button - 16) / 2, y: controlsY, width: button, height: button)
+        pictureInPictureButton.frame = NSRect(x: width - expandedPad - button + (button - 16) / 2, y: controlsY, width: button, height: button)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -325,6 +373,11 @@ final class MediaRowView: NSView {
     @objc private func muteClicked() { onAction?(.toggleMute) }
     @objc private func pictureInPictureClicked() { onAction?(.pictureInPicture) }
     @objc private func closeClicked() { onAction?(.dismiss) }
+}
+
+/// The mini-player's clipped content.
+private final class MediaRowContentView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 /// The mini-player's progress: a rounded track and the elapsed part; a click seeks.

@@ -217,8 +217,8 @@ public enum Symbol: CaseIterable, Sendable {
         case .pause: "pause.fill"
         case .nextTrack: "forward.end.fill"
         case .previousTrack: "backward.end.fill"
-        case .playerVolume: "speaker.wave.2.fill"
-        case .playerMuted: "speaker.slash.fill"
+        case .playerVolume: "speaker.wave.2"
+        case .playerMuted: "speaker.slash"
         case .pictureInPicture: "pip.enter"
         case .pictureInPictureExit: "pip.exit"
         case .find: "text.magnifyingglass"
@@ -307,6 +307,8 @@ public enum IconStyle: String, CaseIterable, Sendable {
     case media
     /// The mini-player's controls (5.13; play/pause the same size, the user: "consistent with other icon sizes").
     case player
+    /// The mini-player's volume and picture-in-picture, quieter than its transport.
+    case playerSecondary
     /// The downloads button's arrow inside the progress ring.
     case downloadProgress
     /// The palette field's search glyph.
@@ -330,6 +332,7 @@ public enum IconStyle: String, CaseIterable, Sendable {
         case .spaceDot: SpaceIconMetrics.dotSize
         case .paletteField: 15
         case .player: 15
+        case .playerSecondary: 13
         case .interstitial: PromptMetrics.interstitialIconSize
         }
     }
@@ -337,7 +340,7 @@ public enum IconStyle: String, CaseIterable, Sendable {
     public var weight: NSFont.Weight {
         switch self {
         case .menu, .control, .controlSmall, .paneControl, .rowGlyph, .folder, .spaceDot, .media, .downloadProgress,
-             .paletteField, .paletteRow, .interstitial: .regular
+             .paletteField, .paletteRow, .interstitial, .playerSecondary: .regular
         case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset, .player: .medium
         case .findButton, .disclosure, .spaceTitle, .tileBadge, .paletteDelete: .semibold
         }
