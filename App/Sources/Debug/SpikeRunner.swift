@@ -129,6 +129,7 @@ enum SpikeRunner {
         case "fixes": await context.fixesChecks()
         case "fixes512": await context.fixes512Checks()
         case "passwordpopover": await context.passwordPopoverChecks()
+        case "crashupload": await context.crashUploadChecks()
         default: record("error", "unknown spike")
         }
         if UserDefaults.standard.bool(forKey: "RoomSpikeStatusBarWatch") { record("statusbar_end", StatusBarWatch.snapshotLine()) }

@@ -4,7 +4,7 @@ Where Room's crash reports go when a user opts in (Settings ▸ Privacy ▸ Send
 
 Room's engine (Chromium's Crashpad) catches a crash in any of Room's processes, the app's own included, and writes a minidump under the data root's `Crashpad/` directory. With the user's consent it posts the minidump here. Without it, nothing leaves the Mac.
 
-- `collector.py` receives the uploads at Sentry's minidump URL, `POST /api/<project>/minidump/?sentry_key=<key>`. It stores `<id>.dmp` and `<id>.json` (Chromium's annotations: product, version, process type, channel, Room's commit) under `DATA/<project>/<date>/`. It keeps no client addresses and deletes reports after 90 days. Python's standard library only.
+- `collector.py` receives the uploads at Sentry's minidump URL, `POST /api/<project>/minidump/?sentry_key=<key>` (Crashpad on the Mac streams the form, chunked; a length works too). It stores `<id>.dmp` and `<id>.json` (Chromium's annotations: product, version, process type, channel, Room's commit) under `DATA/<project>/<date>/`. It keeps no client addresses and deletes reports after 90 days. Python's standard library only.
 - `triage.py` stack-walks new dumps with `minidump-stackwalk` (rust-minidump) against Breakpad symbols and prints one line per crash signature, most reports first.
 - `scripts/crash-symbols.sh` (in the repository) writes the symbols for a release.
 
@@ -74,4 +74,6 @@ Each signature prints as one line: the number of reports, the top three named fr
 
 ## What a report holds
 
-A minidump holds each thread's stack memory, the registers, the loaded modules and the OS version. Stack memory can contain fragments of what was on the page (a URL, some text), so Room's setting says so. No heap, no browsing history, no identifiers beyond Chromium's annotations.
+A minidump holds each thread's stack memory, the registers, the loaded modules and the OS version. Stack memory can contain fragments of what was on the page (some text). No heap, no browsing history.
+
+The form's other fields are Chromium's crash keys, about 70 on a renderer crash (`scripts/crash-upload-check.sh`, 2026-11-02): the product (`Room_Mac`), the engine's version (`ver`), the process type (`ptype`), on a browser-process crash Room's own (`room-app-version`, `room-chromium`, `room-commit`), GPU and OS details, the enabled and disabled features, and three that name what the user was doing: `url-chunk` (the crashed page's full address), `top-origin` and `loaded-origin-<n>` (the sites in that tab). `guid` is Crashpad's random id for the install's crash database, the same on every report from one Mac. Room's setting says the page's address is sent.

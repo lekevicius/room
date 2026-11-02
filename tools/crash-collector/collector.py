@@ -23,6 +23,7 @@ import gzip
 import json
 import os
 import re
+import sys
 import threading
 import time
 import uuid
@@ -62,12 +63,37 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def reply(self, status, text):
+        if self.command == "POST":
+            print(f"{datetime.datetime.now(datetime.timezone.utc):%Y-%m-%dT%H:%M:%SZ} POST {status} {text.strip()}",
+                  file=sys.stderr, flush=True)
         data = text.encode()
         self.send_response(status)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def read_body(self):
+        """The request body, or None when it is missing or over MAX_BODY. Crashpad's Mac uploader
+        streams the form (Transfer-Encoding: chunked, no Content-Length); curl sends a length."""
+        if (self.headers.get("Transfer-Encoding") or "").lower() == "chunked":
+            chunks, total = [], 0
+            while True:
+                size = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
+                if size == 0:
+                    while self.rfile.readline() not in (b"\r\n", b"\n", b""):  # trailers
+                        pass
+                    break
+                total += size
+                if total > MAX_BODY:
+                    return None
+                chunks.append(self.rfile.read(size))
+                self.rfile.readline()  # the chunk's CRLF
+            return b"".join(chunks) or None
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > MAX_BODY:
+            return None
+        return self.rfile.read(length)
 
     def do_GET(self):
         self.reply(200 if self.path == "/health" else 404, "ok\n" if self.path == "/health" else "not found\n")
@@ -81,10 +107,9 @@ class Handler(BaseHTTPRequestHandler):
         key = (parse_qs(url.query).get("sentry_key") or [""])[0]
         if self.server.keys.get(project) != key or not key:
             return self.reply(403, "unknown project or key\n")
-        length = int(self.headers.get("Content-Length") or 0)
-        if length <= 0 or length > MAX_BODY:
+        body = self.read_body()
+        if body is None:
             return self.reply(413, "bad length\n")
-        body = self.rfile.read(length)
         if (self.headers.get("Content-Encoding") or "").lower() == "gzip":
             try:
                 body = gzip.decompress(body)
@@ -114,6 +139,8 @@ def prune(data):
     while True:
         cutoff = (datetime.date.today() - datetime.timedelta(days=RETENTION_DAYS)).isoformat()
         for project in os.listdir(data) if os.path.isdir(data) else []:
+            if not os.path.isdir(os.path.join(data, project)):
+                continue
             for day in os.listdir(os.path.join(data, project)):
                 if re.match(r"^\d{4}-\d{2}-\d{2}$", day) and day < cutoff:
                     path = os.path.join(data, project, day)
