@@ -197,10 +197,11 @@ struct ToastView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             if let title = content.actionTitle {
+                // AppKit's glass button, as the chrome's others (5.13 review: accent text on the dark glass read at ~2:1).
                 Button(title, action: onAction)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
                     .font(Font(Typography.row).weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
                     .accessibilityIdentifier("toast-action")
             }
         }
