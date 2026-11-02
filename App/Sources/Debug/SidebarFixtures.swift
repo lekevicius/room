@@ -95,8 +95,8 @@ enum SidebarFixtures {
                 let reading = try sidebar.addFolder(name: "Reading", space: space.id)
                 try sidebar.addEntry(.pinned, url: "https://www.economist.com", title: "The Economist", space: space.id, folder: reading.id)
                 try sidebar.addEntry(.pinned, url: "https://lithub.com", title: "Literary Hub", space: space.id, folder: reading.id)
-                let later = try sidebar.addFolder(name: "Later", space: space.id, parent: reading.id)
-                try sidebar.addEntry(.pinned, url: "https://www.lrb.co.uk", title: "London Review of Books", space: space.id, folder: later.id)
+                // One level of folders (5.13, the user: nested folders are not part of Room's look).
+                try sidebar.addEntry(.pinned, url: "https://www.lrb.co.uk", title: "London Review of Books", space: space.id, folder: reading.id)
                 let archive = try sidebar.addFolder(name: "Archive", space: space.id)
                 try sidebar.setFolderCollapsed(archive.id, true)
                 try sidebar.addEntry(.pinned, url: "https://archive.org", title: "Internet Archive", space: space.id, folder: archive.id)
