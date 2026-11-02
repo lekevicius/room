@@ -28,11 +28,27 @@ extension NSTextField {
 /// A one-line label whose overflow fades out (5.13: every tab title fades, never an ellipsis;
 /// split rows and ⌃Tab still truncated). The fade follows the frame and the text.
 public final class FadingLabel: NSTextField {
-    public convenience init(string: String = "") {
-        self.init(labelWithString: string)
+    /// A label however it is made: `FadingLabel()` reaches NSTextField's `init(frame:)`, an editable,
+    /// bezeled field with a white background (5.13: split rows and the folder preview showed them).
+    public override init(frame: NSRect) {
+        super.init(frame: frame)
+        isBezeled = false
+        isBordered = false
+        drawsBackground = false
+        isEditable = false
+        isSelectable = false
+        textColor = .labelColor
         lineBreakMode = .byClipping
         cell?.truncatesLastVisibleLine = false
         maximumNumberOfLines = 1
+    }
+
+    @available(*, unavailable)
+    public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    public convenience init(string: String) {
+        self.init(frame: .zero)
+        stringValue = string
     }
 
     public override var stringValue: String {
