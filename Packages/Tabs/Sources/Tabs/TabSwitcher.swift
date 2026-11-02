@@ -220,14 +220,14 @@ final class TabSwitcherPanel: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        glass.cornerRadius = Radius.large
+        glass.cornerRadius = TabSwitcherMetrics.panelCorner
         let content = NSView()
         content.addSubview(highlight)
         stack.orientation = .horizontal
         stack.spacing = TabSwitcherMetrics.cardGap
         stack.alignment = .top
-        stack.edgeInsets = NSEdgeInsets(top: TabSwitcherMetrics.padding, left: TabSwitcherMetrics.padding,
-                                        bottom: TabSwitcherMetrics.padding, right: TabSwitcherMetrics.padding)
+        let padding = TabSwitcherMetrics.panelPadding
+        stack.edgeInsets = NSEdgeInsets(top: padding, left: padding, bottom: padding, right: padding)
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -237,7 +237,7 @@ final class TabSwitcherPanel: NSView {
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
         ])
         // Reduce Transparency (5.3b): an opaque fill under the cards.
-        SolidBackingView.install(in: content, cornerRadius: Radius.large)
+        SolidBackingView.install(in: content, cornerRadius: TabSwitcherMetrics.panelCorner)
         glass.contentView = content
         glass.translatesAutoresizingMaskIntoConstraints = false
         addSubview(glass)
@@ -306,14 +306,15 @@ private final class SwitcherCardView: NSView {
             picture.addSubview(icon)
         }
         addSubview(picture)
-        let icon = FaviconView(frame: NSRect(x: inset, y: inset + (TabSwitcherMetrics.titleHeight - SidebarMetrics.faviconSize) / 2,
+        // The row under the picture: the icon at the picture's leading edge, the title after it.
+        let icon = FaviconView(frame: NSRect(x: inset, y: inset + ((TabSwitcherMetrics.titleHeight - SidebarMetrics.faviconSize) / 2).rounded(),
                                              width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize))
         icon.image = row.favicon
         icon.letterSource = row.domain
         icon.isUnloaded = !row.isLoaded
         addSubview(icon)
         let title = FadingLabel(string: row.title)
-        title.font = Typography.row
+        title.font = NSFont.systemFont(ofSize: TabSwitcherMetrics.titleFontSize, weight: .medium)
         title.textColor = row.isLoaded ? .labelColor : .secondaryLabelColor
         let titleHeight = ceil(title.cell?.cellSize.height ?? 16)
         let x = icon.frame.maxX + SidebarMetrics.faviconTitleGap
@@ -336,7 +337,8 @@ private final class SwitcherCardView: NSView {
 /// The highlighted row's pill (drawn, so captures show it too).
 private final class HighlightView: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        Palette.sidebarMultiSelection.setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: Radius.medium, yRadius: Radius.medium).fill()
+        NSColor.labelColor.withAlphaComponent(0.12).setFill()
+        let corner = TabSwitcherMetrics.highlightCorner
+        NSBezierPath(roundedRect: bounds, xRadius: corner, yRadius: corner).fill()
     }
 }
