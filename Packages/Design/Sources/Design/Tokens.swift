@@ -886,8 +886,9 @@ public enum PeekMetrics {
     public static let cornerRadius: CGFloat = 24
     /// The page behind fades to this opacity (5.13: no dark layer, so a split's panes fade alike).
     public static let backgroundAlpha: CGFloat = 0.3
-    /// …and shrinks to this scale about its centre (5.13, the user: "the lower page is not scaled down").
-    public static let backgroundScale: CGFloat = 0.94
+    /// …and shrinks to this scale about its centre (5.13, the user: "the lower page is not scaled down";
+    /// 0.94 was too much, halved).
+    public static let backgroundScale: CGFloat = 0.97
     /// The header: the page's domain, centred and quiet (5.13).
     public static let headerHeight: CGFloat = 32
     /// Close, Open as Tab and Split as glass circles beside the card's top-right corner (5.13).
