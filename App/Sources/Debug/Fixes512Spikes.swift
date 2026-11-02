@@ -277,6 +277,17 @@ extension SpikeRunner.Context {
         }
         try? await Task.sleep(for: .milliseconds(500))
         SpikeRunner.record("pip", "window=\(NSStringFromRect(overlay.frame))")
+        // 5.13: Room's AppKit controls in the window's content view, the corners rounded.
+        let content = overlay.contentView
+        let controls = content?.subviews.first { NSStringFromClass(Swift.type(of: $0)).contains("RoomVideoControls") }
+        func describe(_ view: NSView, depth: Int = 0) -> [String] {
+            guard depth < 3 else { return [] }
+            let own = view.isHidden || view.alphaValue == 0 ? [] : ["\(String(describing: Swift.type(of: view)))\(NSStringFromRect(view.frame))"]
+            return own + view.subviews.flatMap { describe($0, depth: depth + 1) }
+        }
+        SpikeRunner.record("pip_native", "corner=\(content?.layer?.cornerRadius ?? -1) masks=\(content?.layer?.masksToBounds ?? false) "
+            + "opaque=\(overlay.isOpaque) controls=\(controls.map { NSStringFromRect($0.frame) } ?? "none")")
+        if let controls { SpikeRunner.record("pip_native_views", describe(controls).joined(separator: " ")) }
         if let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"), let image = WindowSnapshot.capture(overlay),
            let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
             let file = URL(fileURLWithPath: directory).appending(path: "phase-5.12-pip-\(f512Appearance).png")
