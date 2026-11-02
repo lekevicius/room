@@ -26,6 +26,7 @@ public final class SidebarController: NSObject {
     public var footerView: NSView { footer }
     /// The footer's media row (4.6); `setMediaRow` shows it.
     let mediaRow = MediaRowView()
+    let updateBanner = UpdateBannerView()
     /// A click on the media row: its action and the entry it shows (the tab controller acts).
     public var onMediaRowAction: ((MediaRowAction, UUID) -> Void)?
     /// One list per space of the window, built ahead of a switch; `pane` is
@@ -1194,6 +1195,15 @@ public final class SidebarBodyView: NSView {
             needsLayout = true
         }
     }
+    /// The update banner (5.13) above the media row; hidden until an update waits for a restart.
+    var updateBannerView: NSView? {
+        didSet {
+            guard updateBannerView !== oldValue else { return }
+            oldValue?.removeFromSuperview()
+            if let updateBannerView { addSubview(updateBannerView) }
+            needsLayout = true
+        }
+    }
     /// A view in place of the spaces view (the essentials and the lists) between the header and the footer, which stay: the Library
     /// (⇧⌘L, 4.1a). `nil` shows the spaces again.
     public var replacementView: NSView? {
@@ -1310,6 +1320,10 @@ public final class SidebarBodyView: NSView {
     func setOverflow(above: Bool, below: Bool) {
         overflowTop.isHidden = !above
         overflowBottom.isHidden = !below
+    }
+
+    func setOverflowIcon(image: NSImage?, letterSource: String, customIcon: String?) {
+        for indicator in [overflowTop, overflowBottom] { indicator.setIcon(image: image, letterSource: letterSource, customIcon: customIcon) }
     }
 
     /// Which overflow lines show (spikes).
@@ -1489,10 +1503,17 @@ public final class SidebarBodyView: NSView {
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         var bodyBottom = bounds.height - footerHeight
+        // From the footer up (5.13): the update banner, then the mini-player, whose expanded card
+        // grows over the list (the list ends above the collapsed card).
+        if let updateBannerView, !updateBannerView.isHidden {
+            let height = UpdateBannerMetrics.height
+            updateBannerView.frame = NSRect(x: inset, y: bodyBottom - height, width: width, height: height)
+            bodyBottom = updateBannerView.frame.minY - MediaRowMetrics.gap
+        }
         if let mediaRowView, !mediaRowView.isHidden {
-            let height = MediaRowMetrics.height
+            let height = (mediaRowView as? MediaRowView)?.preferredHeight ?? MediaRowMetrics.height
             mediaRowView.frame = NSRect(x: inset, y: bodyBottom - height, width: width, height: height)
-            bodyBottom = mediaRowView.frame.minY - MediaRowMetrics.gap
+            bodyBottom -= MediaRowMetrics.height + MediaRowMetrics.gap
         }
         if let replacementView {
             replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bodyBottom))
@@ -1517,9 +1538,10 @@ public final class SidebarBodyView: NSView {
             outline.sizeLastColumnToFit()
             outline.tile()
         }
-        let hit = SidebarMetrics.overflowHitHeight
-        overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: hit)
-        overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - hit, width: bounds.width, height: hit)
+        // The pills float over the list's edges (5.13), above the mini-player and the banner.
+        let strip = OverflowPillMetrics.height + 2 * OverflowPillMetrics.inset
+        overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: strip)
+        overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - strip, width: bounds.width, height: strip)
         onScroll?()
     }
 

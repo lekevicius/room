@@ -295,6 +295,11 @@ extension SidebarController {
             }
         }
         bodyView.setOverflow(above: above, below: below)
+        if (above || below), let id = selectedEntryID, let entry = sidebar.entry(id) {
+            let page = pageState(id)
+            bodyView.setOverflowIcon(image: page.favicon, letterSource: EntryLabel.domain(entry.currentURL) ?? EntryLabel.title(entry),
+                                     customIcon: entry.customIcon)
+        }
     }
 
     /// The indicator was clicked: bring the selected row to the middle of the list.
@@ -407,21 +412,32 @@ extension SidebarController {
     }
 }
 
-/// The overflow indicator (spec §I.11): a 2 pt accent line at the list's
-/// edge; its click target is taller than the line.
+/// The selected tab out of view (spec §I.11; 5.13, the user's design): a pill at the list's edge
+/// with the tab's icon and an arrow toward it, floating over the rows (it was a 2 pt accent line);
+/// a click scrolls the tab into view.
 final class OverflowIndicatorView: NSView {
     enum Edge { case top, bottom }
 
     let edge: Edge
     var onClick: (() -> Void)?
-    private let line = CALayer()
+    private let pill = NSView()
+    private let favicon = FaviconView()
+    private let arrow = NSImageView()
+    private lazy var feedback = ControlFeedback(view: pill)
 
     init(edge: Edge) {
         self.edge = edge
         super.init(frame: .zero)
         wantsLayer = true
-        line.actions = CALayer.noImplicitActions
-        layer?.addSublayer(line)
+        pill.wantsLayer = true
+        arrow.image = NSImage(systemSymbolName: edge == .top ? "arrow.up" : "arrow.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: OverflowPillMetrics.arrowSize, weight: .medium))
+        arrow.contentTintColor = .labelColor
+        addSubview(pill)
+        pill.addSubview(favicon)
+        pill.addSubview(arrow)
+        feedback.restFill = { Palette.sidebarSelection }
+        feedback.hoverFill = { Palette.sidebarSelection }
         isHidden = true
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
@@ -436,19 +452,54 @@ final class OverflowIndicatorView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    override func layout() {
-        super.layout()
-        let width = SidebarMetrics.overflowLineWidth
-        let inset = SidebarMetrics.rowHorizontalInset
-        line.frame = CGRect(x: inset, y: edge == .top ? 0 : bounds.height - width, width: max(0, bounds.width - 2 * inset), height: width)
-        line.cornerRadius = width / 2
-        effectiveAppearance.performAsCurrentDrawingAppearance { line.backgroundColor = Palette.accent.cgColor }
+    /// The selected tab's icon.
+    func setIcon(image: NSImage?, letterSource: String, customIcon: String?) {
+        favicon.image = image
+        favicon.letterSource = letterSource
+        favicon.customIcon = customIcon
     }
 
-    override func mouseDown(with event: NSEvent) {}
+    /// Only the pill takes clicks; the rest of the strip is the list's.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !isHidden, pill.frame.contains(convert(point, from: superview)) else { return nil }
+        return self
+    }
+
+    override func layout() {
+        super.layout()
+        let m = OverflowPillMetrics.self
+        let width = m.padding * 2 + SidebarMetrics.faviconSize + m.gap + m.arrowSize
+        let y = edge == .top ? m.inset : bounds.height - m.inset - m.height
+        pill.frame = NSRect(x: ((bounds.width - width) / 2).rounded(), y: y, width: width, height: m.height)
+        let icon = SidebarMetrics.faviconSize
+        favicon.frame = NSRect(x: m.padding, y: (m.height - icon) / 2, width: icon, height: icon)
+        arrow.frame = NSRect(x: favicon.frame.maxX + m.gap, y: (m.height - m.arrowSize - 2) / 2, width: m.arrowSize, height: m.arrowSize + 2)
+        guard let layer = pill.layer else { return }
+        layer.cornerRadius = m.height / 2
+        layer.cornerCurve = .continuous
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer.shadowColor = Palette.cardShadow.cgColor
+            layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark) * 2
+            layer.shadowRadius = m.shadowRadius
+            layer.shadowOffset = CGSize(width: 0, height: -2)
+            feedback.appearanceChanged()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: pill.frame, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { feedback.setHovering(true) }
+    override func mouseExited(with event: NSEvent) { feedback.setHovering(false) }
+
+    override func mouseDown(with event: NSEvent) { feedback.setPressed(true) }
 
     override func mouseUp(with event: NSEvent) {
-        if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
+        feedback.setPressed(false)
+        if pill.frame.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
     }
 
     override func accessibilityPerformPress() -> Bool {

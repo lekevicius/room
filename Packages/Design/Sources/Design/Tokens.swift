@@ -213,9 +213,6 @@ public enum SidebarMetrics {
     public static let dragShadowOpacity: CGFloat = 0.25
     /// Rows being dragged stay in place, dimmed (chosen).
     public static let draggedRowAlpha: CGFloat = 0.35
-    /// The overflow indicator's line and its click target (spec §I.11).
-    public static let overflowLineWidth: CGFloat = 2
-    public static let overflowHitHeight: CGFloat = 10
     /// The Essentials "12/12" badge and the refused-drop shake amplitude (spec §A.9; chosen sizes).
     public static let fullBadgeHeight: CGFloat = 16
     public static let shakeDistance: CGFloat = 6
@@ -305,17 +302,53 @@ public enum OnboardingMetrics {
     public static let swatchRingWidth: CGFloat = 2
 }
 
-/// The footer's media row (spec §F, §I.5; 4.6): one row above the footer at
-/// the rows' width (chosen sizes; Chapter 5 revisits).
+/// The mini-player above the footer (spec §F, §I.5; 4.6; 5.13, the user's design from Dia's): a
+/// glass card at the rows' width, collapsed to the artwork, the title and play/pause; under the
+/// pointer it grows upward over the list with the artist, ×, the progress and the controls.
 public enum MediaRowMetrics {
-    public static let height: CGFloat = 40
-    /// The artwork or favicon.
-    public static let imageSize: CGFloat = 24
-    public static let imageCornerRadius: CGFloat = Radius.small / 2
-    /// Play/pause, next and × (their glyphs `IconStyle.media`).
-    public static let buttonSize: CGFloat = 24
+    /// Collapsed: the card's height (the list ends above it).
+    public static let height: CGFloat = 44
+    /// Expanded (under the pointer).
+    public static let expandedHeight: CGFloat = 116
+    public static let cornerRadius: CGFloat = 14
+    /// The card's inner padding.
+    public static let padding: CGFloat = 8
+    /// The artwork or favicon: collapsed, expanded.
+    public static let imageSize: CGFloat = 28
+    public static let expandedImageSize: CGFloat = 36
+    public static let imageCornerRadius: CGFloat = 6
+    /// Play/pause and the controls' squares; × is smaller.
+    public static let buttonSize: CGFloat = 28
+    public static let closeSize: CGFloat = 20
+    /// The progress row: the bar's thickness and the times' column.
+    public static let progressHeight: CGFloat = 4
+    public static let timeWidth: CGFloat = 36
+    /// The title's scroll when it does not fit (points a second) and the pause at each end.
+    public static let marqueeSpeed: CGFloat = 24
+    public static let marqueePause: TimeInterval = 1.6
+    /// The pointer left: the card collapses after this.
+    public static let collapseDelay: TimeInterval = 0.35
     /// Above the footer and below the list.
     public static let gap: CGFloat = Spacing.xs
+}
+
+/// The selected tab out of view (spec §I.11; 5.13, the user's design): a pill with its icon and an arrow.
+public enum OverflowPillMetrics {
+    public static let height: CGFloat = 32
+    public static let padding: CGFloat = 12
+    public static let gap: CGFloat = 6
+    public static let arrowSize: CGFloat = 12
+    /// From the list's edge.
+    public static let inset: CGFloat = 8
+    public static let shadowRadius: CGFloat = 8
+}
+
+/// The update banner above the mini-player (5.13; chosen: the mini-player's card).
+public enum UpdateBannerMetrics {
+    public static let height: CGFloat = 52
+    public static let cornerRadius: CGFloat = MediaRowMetrics.cornerRadius
+    public static let padding: CGFloat = 10
+    public static let iconSize: CGFloat = 20
 }
 
 /// The document picture-in-picture panel (4.6, B-51).
