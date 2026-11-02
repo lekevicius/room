@@ -19,8 +19,9 @@ final class UpdateBannerView: NSView {
         glass.cornerRadius = UpdateBannerMetrics.cornerRadius
         addSubview(glass)
         icon.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: UpdateBannerMetrics.iconSize, weight: .regular))
-        icon.contentTintColor = .controlAccentColor
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: UpdateBannerMetrics.iconSize, weight: .regular)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.white, .controlAccentColor])))
+        // A white arrow on the accent disc (5.13 review: tinted, the arrow was a cut-out showing the glass, grey in dark).
         titleLabel.font = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         versionLabel.font = Typography.secondary
         versionLabel.textColor = Palette.sidebarSecondaryLabel
