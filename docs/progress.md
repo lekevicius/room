@@ -615,13 +615,15 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 
 ### Chapter 6 — Ship (started 2026-11-02; spec in ROADMAP)
 - [x] 6.4 Rebase to 157.0.8103.26 (`b415018`, `56fc665`, `59300d7`: three hand merges, `//chrome/browser/ui:ui` gone, patch 0031 for TabDialogs; all `//room` objects compile)
-- [ ] 6.4 Official engine at 157 (building), the dev engine after it; the checks on 157 (fixes and fixes512 spikes, the tour's groups)
+- [x] 6.4 Official engine at 157 (first attempt 3 h 33 min, a link error in 0030, `16e89c3`; relink 207 s); the checks on 157: `fixes` and `fixes512` as on 156, the tour's layout, tabs and netlog groups 206 / 5 (B-56, the card check's hard-coded total, quits under load also slow on 156), netlog 0 requests
+- [ ] 6.4 The dev engine (`out/dev`) at 157
 - [x] 6.3 Crash uploads to the user's collector: patch 0030, `RoomApplication.crashUploadURL`/`crashUploadsEnabled`, `ROOM_CRASH_DSN`, Sentry Cocoa removed (`a7e1d3a`, `cae7275`, `b4a4f7c`); `tools/crash-collector/` and `scripts/crash-symbols.sh` (`5e33e8d`); the collector checked locally (an upload stored, a wrong key refused)
 - [x] 6.3 End to end on the 157 build (`scripts/crash-upload-check.sh`, the `crashupload` spike): off, the renderer's minidump stays in `Crashpad/` and nothing is posted; on, the next one reaches the local collector (789,616 bytes, `ptype` renderer, `ver` 157.0.8103.26). The collector first refused every upload: Crashpad on the Mac streams the form chunked, with no length (fixed, `5b6ff16`). A report carries the crashed page's address (`url-chunk`); the setting now says so (`c07fb71`)
 - [ ] 6.3 The user deploys the collector (`tools/crash-collector/README.md`) and sets `ROOM_CRASH_DSN`; whether to strip page addresses on the Mac before upload is the user's call
 - [x] 6.2 Deltas published with each release; release notes in the appcast (`9745d17`)
 - [x] 6.1 `scripts/release.sh`, `docs/releases/0.3.0.html`, version 0.3.0 build 27 (`b54a22f`)
-- [ ] 0.3.0 (27) packaged, signed, notarized; publishing is the user's go
+- [x] 0.3.0 (27) packaged, signed, notarized: `build/release/` (DMG 217.6 MB, the 27←24 delta 36.5 MB, checked byte-identical when applied)
+- [ ] Publish 0.3.0 (27): `scripts/release-publish.sh build/release 27`, the user's go
 
 ## Log
 
@@ -1374,4 +1376,8 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
   - CI spec run locally (`xcodegen --spec xcodegen/ci.yml`, `CI=1 xcodebuild … build test`): 741 tests, 0 failed. GitHub CI stays off (B-93).
   - Decisions (the user, 2026-11-01): Chapter 6 starts now ("there are already people using Room"); the next build ships on Chromium 157 (rebase); crash reports go to a self-hosted collector the user deploys.
   - Next: Chapter 6's spec, then 6.4's rebase to 157 and the release pipeline's pieces; the published build waits for all of it.
-
+- 2026-11-02 — Chapter 6, the 157 build and 0.3.0 (27) (Claude Code, Mac mini).
+  - Done: the official 157 engine (patch 0030's hook moved out of `namespace crash_reporter`, which only the framework's link could see); `EngineRoomCore` follows the stage the package script builds (`ROOMCORE_STAGE`); the checks on 157 (spike-results "Phase 6.4"); crash reports end to end (`scripts/crash-upload-check.sh`, the `crashupload` spike), which found the collector refusing Crashpad's chunked uploads and its cleanup thread dying on a stray file (both fixed); the crash setting says a report names the crashed page; the tour's card fill check counts gaps, not samples; 0.3.0 (27) signed, notarized, appcast with deltas and notes in `build/release/` (build-log "Rebase 156.0.8078.48 → 157.0.8103.26").
+  - **The CI spec locally** (`xcodegen --spec xcodegen/ci.yml`, the `Room` scheme's `build test` with `CI=1`, `build/ci-6.4/ci.log`): **TEST SUCCEEDED, 743 tests, 0 failed**; the normal project regenerated.
+  - For the user: publish (`scripts/release-publish.sh build/release 27`); deploy the crash collector and set `ROOM_CRASH_DSN` (until then reports stay on each Mac); decide whether reports keep page addresses (`url-chunk`, `top-origin`, `loaded-origin-*`) or Room strips them before upload.
+  - Mistakes: the test servers I had started earlier held the tour's ports; stopped by their PIDs. Earlier the same night, `pkill -f` with trailing options killed the user's apps (logged above; memory `feedback-no-pkill-patterns`).
