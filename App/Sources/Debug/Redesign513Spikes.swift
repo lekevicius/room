@@ -2,9 +2,11 @@
 import AppKit
 import Design
 import Engine
+import ImageIO
 import Model
 import Sidebar
 import Store
+import Tabs
 import UIKitCore
 
 /// Phase 5.13 spike `redesign513` (`ROOM_FIXES_SPIKE=redesign513 scripts/fixes-check.sh`) on a throwaway
@@ -15,6 +17,11 @@ import UIKitCore
 /// - `overflow`: the selected tab scrolled out of view: the pill with its icon, then a click brings it back;
 /// - `narrow`: the top bar at the narrowest sidebar (Reload and the toggle go, the puzzle piece stays);
 /// - `peek`: a Peek opened after a click low on the page: the card grows from there, the page behind fades.
+/// - `polish` (not by default): a full sidebar (five Essentials, folders, a split, long titles) and each 5.13
+///   surface over it, the window with its child windows and popovers at full scale
+///   (`phase-5.13-polish-<surface>-<appearance>.png`), for the review of the whole look.
+/// - `playermotion` (not by default): the mini-player's expansion and collapse as the window server drew them,
+///   a capture every ~25 ms (`phase-5.13-playermotion-<n>-<appearance>.png`), for a contact sheet.
 /// `-RoomSpikeCaptureDirectory` keeps captures named `phase-5.13-<name>-<appearance>.png`.
 extension SpikeRunner.Context {
     func redesign513Checks() async {
@@ -34,6 +41,8 @@ extension SpikeRunner.Context {
         if runs("overflow") { await r513Overflow() }
         if runs("narrow") { await r513Narrow() }
         if runs("peek") { await r513Peek() }
+        if only.contains("playermotion") { await r513PlayerMotion() }
+        if only.contains("polish") { await r513Polish() }
     }
 
     private var r513Appearance: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
@@ -109,6 +118,148 @@ extension SpikeRunner.Context {
         sidebar.debugExpandMediaRow(false)
         try? await Task.sleep(for: .milliseconds(400))
         sidebar.setMediaRow(nil)
+    }
+
+    private func r513PlayerMotion() async {
+        guard let page = await open(URL(string: Self.r513Base + "find.html?playermotion")!), let entry = tabs.entryID(for: page) else {
+            return SpikeRunner.record("error", "playermotion: no page")
+        }
+        let artwork = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            NSGradient(colors: [.systemIndigo, .systemPink])?.draw(in: rect, angle: 45)
+            return true
+        }
+        sidebar.setMediaRow(MediaRowContent(entry: entry, title: "Human After All", subtitle: "Daft Punk", image: artwork, isPlaying: true,
+                                            canGoNext: true, canGoPrevious: true, position: .init(duration: 156, elapsed: 22, rate: 1, date: Date())))
+        try? await Task.sleep(for: .milliseconds(800))
+        var index = 0
+        for expanded in [true, false] {
+            let start = Date()
+            sidebar.debugExpandMediaRow(expanded)
+            while Date().timeIntervalSince(start) < Motion.medium + 0.15 {
+                try? await Task.sleep(for: .milliseconds(25))
+                r513Capture(String(format: "playermotion-%02d", index))
+                SpikeRunner.record("playermotion_\(index)", String(format: "t=%.0fms presented=%@", Date().timeIntervalSince(start) * 1000,
+                                                                     NSStringFromRect(sidebar.debugMediaRowPresentedFrame)))
+                index += 1
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        sidebar.setMediaRow(nil)
+    }
+
+    // MARK: polish
+
+    /// The window with its popovers and child windows, full scale.
+    private func r513Shot(_ name: String) async {
+        guard let directory = UserDefaults.standard.string(forKey: "RoomSpikeCaptureDirectory"),
+              let image = await matrixShot(scale: 1) else { return }
+        let url = URL(fileURLWithPath: directory).appending(path: "phase-5.13-polish-\(name)-\(r513Appearance).png")
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, image, nil)
+        SpikeRunner.record("polish_\(name)", CGImageDestinationFinalize(destination) ? url.lastPathComponent : "failed")
+    }
+
+    private func r513Polish() async {
+        let space = sidebar.activeSpaceID
+        let base = Self.r513Base + "find.html?"
+        for (index, title) in ["Mail", "Calendar", "Figma", "Linear", "Notion"].enumerated() {
+            _ = try? store.addEntry(.essential, url: base + "essential-\(index)", title: title, space: space)
+        }
+        let reading = try? store.addFolder(name: "Reading list for the long weekend", space: space)
+        let design = try? store.addFolder(name: "Design", space: space)
+        let titles = ["Liquid Glass — Human Interface Guidelines — Apple Developer Documentation",
+                      "Designing for macOS Tahoe: windows, toolbars and sidebars", "A short one"]
+        for (index, title) in titles.enumerated() {
+            _ = try? store.addEntry(.pinned, url: base + "reading-\(index)", title: title, space: space, folder: reading?.id)
+            _ = try? store.addEntry(.pinned, url: base + "design-\(index)", title: "Design \(title)", space: space, folder: design?.id)
+        }
+        if let design { try? store.setFolderCollapsed(design.id, true) }
+        var today: [UUID] = []
+        for title in ["1Password on the Mac: a new look for passkeys and everything else", "NVIDIA/cuda-samples: Samples for CUDA developers",
+                      "mantrakp04/agentic-browser", "A farewell to the old web, and what comes next", "Amazon.co.uk: Low Prices in Electronics, Books",
+                      "Hacker News", "The Verge"] {
+            if let entry = try? store.addEntry(.today, url: base + "today-\(today.count)", title: title, space: space, window: sidebar.windowID) {
+                today.append(entry.id)
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(600))
+        if today.count > 3 {
+            sidebar.select(today[0])
+            try? await Task.sleep(for: .milliseconds(800))
+            sidebar.joinIntoSplit(today[1], with: today[0])
+            try? await Task.sleep(for: .milliseconds(600))
+            sidebar.select(today[2])
+            try? await Task.sleep(for: .milliseconds(800))
+            sidebar.joinIntoSplit(today[3], with: today[2])
+            try? await Task.sleep(for: .milliseconds(600))
+            sidebar.select(today[5])
+        }
+        try? await Task.sleep(for: .milliseconds(1200))
+        await r513Shot("sidebar")
+
+        if let design {
+            sidebar.showFolderPreview(design.id)
+            _ = await waitUntil(2) { self.sidebar.debugFolderPreviewWindow?.isVisible == true }
+            try? await Task.sleep(for: .milliseconds(500))
+            await r513Shot("folder-preview")
+            sidebar.debugFolderPreviewWindow?.orderOut(nil)
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+
+        if let switcher = AppDelegate.current?.activeWindow?.switcher {
+            switcher.debugShow()
+            try? await Task.sleep(for: .milliseconds(900))
+            await r513Shot("switcher")
+            switcher.debugEnd()
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+
+        if let page = tabs.current, let entry = tabs.entryID(for: page) {
+            let artwork = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+                NSGradient(colors: [.systemIndigo, .systemPink])?.draw(in: rect, angle: 45)
+                return true
+            }
+            sidebar.setMediaRow(MediaRowContent(entry: entry, title: "Human After All (Official Music Video)", subtitle: "Daft Punk", image: artwork,
+                                                isPlaying: true, canGoNext: true, canGoPrevious: true,
+                                                position: .init(duration: 156, elapsed: 22, rate: 0, date: Date())))
+            try? await Task.sleep(for: .milliseconds(600))
+            await r513Shot("player")
+            sidebar.debugExpandMediaRow(true)
+            try? await Task.sleep(for: .milliseconds(700))
+            await r513Shot("player-expanded")
+            sidebar.debugExpandMediaRow(false)
+            AppDelegate.current?.showUpdateReady(version: "0.3.1") {}
+            try? await Task.sleep(for: .milliseconds(800))
+            await r513Shot("banner-player")
+            sidebar.setMediaRow(nil)
+        }
+
+        for index in 0..<30 {
+            _ = try? store.addEntry(.today, url: base + "more-\(index)", title: "More reading \(index)", space: space, window: sidebar.windowID)
+        }
+        try? await Task.sleep(for: .milliseconds(600))
+        sidebar.debugOutline.scrollRowToVisible(sidebar.debugOutline.numberOfRows - 1)
+        try? await Task.sleep(for: .milliseconds(700))
+        await r513Shot("overflow")
+        sidebar.debugOutline.scrollRowToVisible(0)
+
+        if let page = tabs.current {
+            tabs.openPeek(URL(string: base + "peeked")!, from: page)
+            try? await Task.sleep(for: .milliseconds(1200))
+            await r513Shot("peek")
+            _ = tabs.closeShownPeek()
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+
+        if let palette = AppDelegate.current?.palette {
+            palette.toggleNew()
+            palette.setText("design")
+            try? await Task.sleep(for: .milliseconds(900))
+            await r513Shot("palette")
+            palette.escape()
+            palette.escape()
+            try? await Task.sleep(for: .milliseconds(400))
+        }
     }
 
     // MARK: banner
