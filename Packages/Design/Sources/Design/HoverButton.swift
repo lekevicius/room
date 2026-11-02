@@ -33,6 +33,10 @@ open class HoverButton: NSButton {
         feedback.reset()
         feedback.isEnabled = false
         layer?.cornerRadius = 0
+        // The glass's rim and shadow reach past the button's square; the corner radius set at init turned
+        // AppKit's clipping back on and cut them at the sides (5.13).
+        clipsToBounds = false
+        layer?.masksToBounds = false
         isBordered = true
         bezelStyle = .glass
         controlSize = .large
