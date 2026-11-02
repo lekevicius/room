@@ -57,10 +57,8 @@ final class SplitGroupCellView: NSTableCellView {
         let count = model.segments.count
         while icons.count < count {
             let icon = FaviconView()
-            let title = NSTextField(labelWithString: "")
+            let title = FadingLabel()
             title.font = Typography.sidebarRow
-            title.lineBreakMode = .byTruncatingTail
-            title.maximumNumberOfLines = 1
             icons.append(icon)
             titles.append(title)
             addSubview(icon)

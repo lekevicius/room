@@ -49,31 +49,6 @@ private func makeIconButton(_ symbol: Symbol, style: IconStyle, label: String) -
     return button
 }
 
-extension NSTextField {
-    /// Ends text too long for the field with a `titleFadeWidth` fade instead
-    /// of an ellipsis (the Room Browser design); `enabled` false (an inline
-    /// rename) or text that fits shows it whole. The field must clip.
-    func updateTrailingFade(enabled: Bool = true) {
-        let fade = SidebarMetrics.titleFadeWidth
-        let overflows = (cell?.cellSize.width ?? 0) > bounds.width
-        guard enabled, overflows, bounds.width > fade else {
-            layer?.mask = nil
-            return
-        }
-        wantsLayer = true
-        let mask = layer?.mask as? CAGradientLayer ?? CAGradientLayer()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        mask.frame = bounds
-        mask.startPoint = CGPoint(x: 0, y: 0.5)
-        mask.endPoint = CGPoint(x: 1, y: 0.5)
-        mask.colors = [NSColor.black.cgColor, NSColor.black.cgColor, NSColor.clear.cgColor]
-        mask.locations = [0, NSNumber(value: Double((bounds.width - fade) / bounds.width)), 1]
-        layer?.mask = mask
-        CATransaction.commit()
-    }
-}
-
 /// An entry or folder row: icon, title, hover sublabel, and on the trailing
 /// side the audio indicator and (Today tabs) the close button.
 final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
@@ -179,12 +154,10 @@ final class EntryCellView: NSTableCellView, NSTextFieldDelegate {
         layer?.insertSublayer(glowClip, at: 0)
     }
 
-    /// The glow of what the favicon square shows: the favicon blurred, else its letter tile's colour
-    /// (no custom icon's).
+    /// The glow of the favicon, blurred; none while the square shows a fallback (5.13: the letter
+    /// tile's colour glowed until the favicon loaded, a different colour a moment later).
     static func glowImage(_ model: EntryRowModel) -> CGImage? {
-        if let favicon = model.page.favicon { return FaviconGlow.image(of: favicon, color: nil) }
-        guard SpaceIcon(model.entry.customIcon) == .none else { return nil }
-        return FaviconGlow.image(of: nil, color: Palette.letterTileColor(for: EntryLabel.domain(model.entry.currentURL) ?? EntryLabel.title(model.entry)))
+        model.page.favicon.flatMap { FaviconGlow.image(of: $0, color: nil) }
     }
 
     /// The glow shows on the selected row (not a folder's).

@@ -312,9 +312,8 @@ private final class SwitcherCardView: NSView {
         icon.letterSource = row.domain
         icon.isUnloaded = !row.isLoaded
         addSubview(icon)
-        let title = NSTextField(labelWithString: row.title)
+        let title = FadingLabel(string: row.title)
         title.font = Typography.row
-        title.lineBreakMode = .byTruncatingTail
         title.textColor = row.isLoaded ? .labelColor : .secondaryLabelColor
         let titleHeight = ceil(title.cell?.cellSize.height ?? 16)
         let x = icon.frame.maxX + SidebarMetrics.faviconTitleGap

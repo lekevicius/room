@@ -198,7 +198,7 @@ private final class FolderPreviewRow: NSView {
     var onClick: (() -> Void)?
     var isHighlighted = false { didSet { needsDisplay = true } }
     private let favicon = FaviconView()
-    private let title = NSTextField(labelWithString: "")
+    private let title = FadingLabel()
 
     init(item: FolderPreviewController.Item) {
         super.init(frame: .zero)
@@ -207,7 +207,6 @@ private final class FolderPreviewRow: NSView {
         favicon.customIcon = item.customIcon
         title.stringValue = item.title
         title.font = Typography.row
-        title.lineBreakMode = .byTruncatingTail
         setAccessibilityRole(.button)
         setAccessibilityLabel(item.title)
         addSubview(favicon)
