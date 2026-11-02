@@ -616,14 +616,26 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 ### Chapter 6 — Ship (started 2026-11-02; spec in ROADMAP)
 - [x] 6.4 Rebase to 157.0.8103.26 (`b415018`, `56fc665`, `59300d7`: three hand merges, `//chrome/browser/ui:ui` gone, patch 0031 for TabDialogs; all `//room` objects compile)
 - [x] 6.4 Official engine at 157 (first attempt 3 h 33 min, a link error in 0030, `16e89c3`; relink 207 s); the checks on 157: `fixes` and `fixes512` as on 156, the tour's layout, tabs and netlog groups 206 / 5 (B-56, the card check's hard-coded total, quits under load also slow on 156), netlog 0 requests
-- [ ] 6.4 The dev engine (`out/dev`) at 157
+- [x] 6.4 The dev engine (`out/dev`) at 157 (12,243 s from the 156 objects; staged; 5.13's three incremental builds 17–30 s)
 - [x] 6.3 Crash uploads to the user's collector: patch 0030, `RoomApplication.crashUploadURL`/`crashUploadsEnabled`, `ROOM_CRASH_DSN`, Sentry Cocoa removed (`a7e1d3a`, `cae7275`, `b4a4f7c`); `tools/crash-collector/` and `scripts/crash-symbols.sh` (`5e33e8d`); the collector checked locally (an upload stored, a wrong key refused)
 - [x] 6.3 End to end on the 157 build (`scripts/crash-upload-check.sh`, the `crashupload` spike): off, the renderer's minidump stays in `Crashpad/` and nothing is posted; on, the next one reaches the local collector (789,616 bytes, `ptype` renderer, `ver` 157.0.8103.26). The collector first refused every upload: Crashpad on the Mac streams the form chunked, with no length (fixed, `5b6ff16`). A report carries the crashed page's address (`url-chunk`); the setting now says so (`c07fb71`)
 - [ ] 6.3 The user deploys the collector (`tools/crash-collector/README.md`) and sets `ROOM_CRASH_DSN`; whether to strip page addresses on the Mac before upload is the user's call
 - [x] 6.2 Deltas published with each release; release notes in the appcast (`9745d17`)
 - [x] 6.1 `scripts/release.sh`, `docs/releases/0.3.0.html`, version 0.3.0 build 27 (`b54a22f`)
 - [x] 0.3.0 (27) packaged, signed, notarized: `build/release/` (DMG 217.6 MB, the 27←24 delta 36.5 MB, checked byte-identical when applied)
-- [ ] Publish 0.3.0 (27): `scripts/release-publish.sh build/release 27`, the user's go
+- [ ] Publish 0.3.0 (27): `scripts/release-publish.sh build/release 27`, the user's go. The user (2026-11-02): not yet, "quite a lot of iteration" first (5.13); 27 will be superseded by a later build
+
+### Phase 5.13 — The user's design iteration (added 2026-11-02; Figma 157:233)
+- [x] Delete in the palette with a completion selected did nothing: it took the completion, which came straight back (`507fa0b`, a test)
+- [x] No glow for the fallback icon; tab titles fade everywhere (split rows, ⌃Tab, the folder preview: `FadingLabel`); the downloads popover opaque (`3f8575f`, `1fb5083`)
+- [x] AppKit's glass buttons and a glass group (`ee55ea8`); the top bar (toggle, extensions group with the puzzle piece, Back/Forward group, Reload dropped first), the address field's fill and hairline, the Essentials' hairline, the footer in glass (`7fd0a7c`, TopBarLayout tests)
+- [ ] Favorites and tabs scrolling under the fixed chrome with the system's scroll edge effect: AppKit draws it only for an `NSSplitViewController` that is the window's content controller, with the sidebar as its sidebar-behaviour item (spike below); Room's window is its own view tree. The user's call: restructure the window, or not
+- [x] The mini-player (`a4e9e8f`), the update banner and automatic downloads (`d7442c6`, a test), the out-of-view pill (`8acedbf`)
+- [x] Picture-in-picture when the window is occluded (`9c3f5d8`, Chrome's `AutoPictureInPictureOnWindowOccluded`), the mini-player's PiP button (`6554eb3`), the call panel's hover chrome (`1e709bd`), the video window's frosted controls (`71c3a16`; its look is the user's to see: the in-process capture of Chrome's window is blank)
+- [x] Peek (`f0358bb`): the page behind fades, the card nearly full height, glass buttons beside it, opening from the click (the start offset's sign was inverted)
+- [x] ⌃Tab as Dia's, measured on the user's capture (`9aca6b7`)
+- [x] Full Keyboard Access's order by a row's centre (`KeyViewLoop`, the a11y suite caught the footer's items after New)
+- [x] CI spec: 744 tests, 0 failed; the window tiers of UIKitCore, Sidebar, Palette, Tabs, Design, Chrome, Card pass
 
 ## Log
 
@@ -1381,3 +1393,9 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
   - **The CI spec locally** (`xcodegen --spec xcodegen/ci.yml`, the `Room` scheme's `build test` with `CI=1`, `build/ci-6.4/ci.log`): **TEST SUCCEEDED, 743 tests, 0 failed**; the normal project regenerated.
   - For the user: publish (`scripts/release-publish.sh build/release 27`); deploy the crash collector and set `ROOM_CRASH_DSN` (until then reports stay on each Mac); decide whether reports keep page addresses (`url-chunk`, `top-origin`, `loaded-origin-*`) or Room strips them before upload.
   - Mistakes: the test servers I had started earlier held the tour's ports; stopped by their PIDs. Earlier the same night, `pkill -f` with trailing options killed the user's apps (logged above; memory `feedback-no-pkill-patterns`).
+- 2026-11-02 — Phase 5.13: the user's design iteration (Claude Code, Mac mini; the user away for most of it). Commits `507fa0b` to this entry's. The user held 0.3.0 (27) back for this round.
+  - **Done:** the 5.13 checklist above. Causes worth keeping: the palette's Delete counted a deletion only when the typed text got shorter, and deleting a selected completion leaves it the same; `NSSegmentedControl` draws a grey fill outside a toolbar in every style on macOS 27, so the groups are an `NSGlassEffectView` with the owner's buttons; Peek's open offset was computed in view space with a guessed flip (now in the card layer's superlayer space, the spike checks the start rect's centre is the click); Chrome already has automatic PiP on occlusion behind a feature.
+  - **Scroll edge spike** (`research/screenshots/phase-5.13/edge-spike-*.png`, a standalone AppKit app): the soft edge effect under split-view-item accessories renders only when the `NSSplitViewController` is the window's `contentViewController` (one item, or the sidebar as a `.sidebar` item beside the content). Embedded as a child controller, or as a second default item, AppKit adds the `NSScrollPocket` views without their blur filter (filters 0). The other public carrier is a titlebar accessory, which spans the window. So the native effect means rebuilding the window around `NSSplitViewController` (the sidebar's material becomes the system sidebar's; hide and reveal, the splitter and Peek move with it).
+  - **Checks:** `redesign513` spike (new; bar, player, banner, overflow, narrow, peek) and its captures; `media-check.sh` pip and backtotab (the call panel grows 8 pt around the page, which keeps its origin to the point; Back to Tab and ⌘W close it); `fixes512` switcher and pip (controls decorated, the capture blank as in 5.12). The CI spec locally (`build/ci-5.13/ci.log`): TEST SUCCEEDED, 744 tests, 0 failed; the normal project regenerated. GitHub CI stays off (B-93).
+  - **For the user:** the scroll-under decision; whether automatic update checks should default on at first run (today the onboarding toggle starts off; with checks on, updates now download by themselves); the video PiP window's frosted controls and the glass strengths by eye.
+

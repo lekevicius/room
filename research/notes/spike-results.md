@@ -4628,3 +4628,19 @@ Debug app on the dev framework (156.0.8078.48 + patch 0029), throwaway states un
 | tour, groups layout, tabs, netlog, light (`build/grand-tour/20261102-044803-roomcore`) | **206 passed, 5 failed**, 8.1 min. `resize` ×2: 0 gaps in 648 samples, the check had the total 576 hard-coded (the card one row taller; fixed to count gaps). `tabs`: B-56 (renderers 15 → 15 after six discards, as on 156). `quittiming` runs 2 and 3: 2.37 and 2.33 s at load 79–81 |
 | quit timing, alternated (`build/6.4/quitab`, scratch loop: open10, the AppleEvent quit, `ps` of the children at 1.5 s) | 156 dev (component) 1.03–7.95 s, three of nine over 6 s; 157 release framework 0.34–6.42 s, one of nine over 1.5 s; in every slow quit the main process outlived its helpers, which were exiting (`Z`, `?E`) under load 70–85. Not a 157 change. Before it, eight 157 quits at load 55–68: 0.34–0.50 s |
 | netlog | 10 / 10: 0 requests from Room's own code, 0 from the engine |
+
+## Phase 5.13 — the user's design iteration (2026-11-02, Mac mini, dev engine 157, load 250–340 from iCloud's sync)
+
+| check | result |
+|---|---|
+| scroll edge effect (standalone AppKit app, macOS 27 SDK) | split view controller as the window's content, one item: top and bottom `NSScrollPocket` backdrops with 1 filter each, soft edge visible; two items (default + default): top only, 0 filters; two items with the first `.sidebar`: both, rendered through the sidebar's glass; embedded as a child controller (plain, nested scroll view, sidebar item, `automaticallyAdjustsSafeAreaInsets`): top only, 0 filters, no effect |
+| glass controls | `NSButton` `.glass` `.large` `.circle` at 32 pt; `NSSegmentedControl` `.regular`/`.large`/`.extraLarge` 24/28/36 pt tall, a grey fill in every `segmentStyle` outside a toolbar |
+| `redesign513` bar (light, 1200 × 780) | toggle (94, 32 × 32); Back alone 24 × 24 in a 32 pt circle at x 224; with Forward the group 67 pt from x 189 (forward at 220); Reload 32 pt at x 260; the pinned extension shown; spaces group 98 × 32 |
+| `redesign513` narrow | 180 pt: toggle and Reload hidden, Back from x 144; 250 pt: toggle shown, Reload hidden |
+| `redesign513` player | collapsed 284 × 44; expanded 284 × 116 (previous at x 96, PiP at x 256); the elapsed time moved 0:22 → 0:24 in 1.6 s |
+| `redesign513` banner | 284 × 52 above the footer; Restart called the install block |
+| `redesign513` overflow | the selected row above the visible rows: top pill shown; its click: neither pill, the row visible |
+| `redesign513` peek | click at (225, 624) in a 900 × 780 content area: the start rect centred on it, the first frame's centre (247, 600); rest 684 × 748 at (108, 16); the page behind 0.30, back to 1.00 on close; buttons 32 pt beside the card's top-right corner |
+| `fixes512` switcher | 3 cards, pictures 153 × 102, panel 562 × 174 |
+| `media-check` pip | call panel 320 × 180 → 336 × 232 on hover, the page's screen rect unchanged; Back to Tab and `performClose` close it |
+| `fixes512` pip | controls decorated (`pip_controls_shown: 1`), the in-process capture blank (as in 5.12) |

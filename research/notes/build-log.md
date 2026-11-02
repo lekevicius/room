@@ -870,3 +870,14 @@ The Mac mini (24 GB, `ROOM_BUILD_JOBS=6`), from the command line; the user's app
 | package (`roomcore-package.sh --release`) | stage 4 s, Release app 109 s | first failed: `Packages/EngineRoomCore` always compiled against `build/roomcore` (the dev stage, still 156, without `crashUploadURL`); its manifest now reads `ROOMCORE_STAGE`, which the script exports (`44c8fb5`). Framework binary 271 MB, helpers 11 MB, resources 84 MB |
 | release 0.3.0 (27), `scripts/release.sh --no-engine` | 05:08:50 → 05:25 (16 min) | package 112 s; sign and notarize 97 s (notarized in 72 s, "accepted", Notarized Developer ID); the live 0.1.0 (24) DMG fetched in 4 s; DMG `Room-0.3.0-27.dmg` 217,593,160 bytes in 10 s; deltas 27←24 **36,463,182** bytes (17 % of the DMG), 27←21 40,758,078, 27←20 40,751,438 (the deltas from builds 20 and 21 against their DMGs left from Chapter 3); appcast verified, release notes embedded. Build 24 with the 27←24 delta applied (`BinaryDelta apply`) is byte-identical to the signed 27 (399 files, SHA-256) and passes `codesign --verify --deep --strict` |
 | dev `out/dev` at 157 | not built yet | the next session's (Debug work runs on the Debug app over the release framework meanwhile) |
+
+### 2026-11-02 — the dev engine at 157 and 5.13's incremental builds (Mac mini, `ROOM_BUILD_JOBS=6`)
+
+| step | time |
+|---|---|
+| `roomcore-build.sh` (`out/dev`, nohup, started 05:29:29 over the 156 objects) | **12,243 s (3 h 24 min)** |
+| `roomcore-package.sh` (stage and both apps) | 47 s |
+| incremental: `room_network_policy.cc` (5.13) | 17 s |
+| incremental: `room_web_contents.mm` (`mediaEnterPictureInPicture`) | 30 s |
+| incremental: `room_video_overlay.mm` | 26 s (one failed attempt first: an unused private field under `-Werror`) |
+
