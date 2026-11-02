@@ -557,7 +557,10 @@ final class ImportSheetModel {
         guard let preview = plan?.preview else { return "" }
         var parts: [String] = []
         if preview.duplicates > 0 { parts.append("\(preview.duplicates) duplicates skipped") }
-        if preview.foldersFlattened > 0 { parts.append("\(preview.foldersFlattened) folders deeper than \(FolderRules.maxDepth) levels flattened") }
+        // Folders are one level deep (5.13): a subfolder's links go into the folder above it.
+        if preview.foldersFlattened > 0 {
+            parts.append(preview.foldersFlattened == 1 ? "1 subfolder merged into its folder" : "\(preview.foldersFlattened) subfolders merged into their folders")
+        }
         if preview.essentialsOverflow > 0 { parts.append("\(preview.essentialsOverflow) past the Essentials cap (\(EntryRules.essentialsCap)) pinned instead") }
         if !preview.skipped.isEmpty { parts.append("\(preview.skipped.count) items skipped") }
         return parts.joined(separator: "; ")

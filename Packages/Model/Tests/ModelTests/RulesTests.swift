@@ -129,7 +129,7 @@ struct ConversionTests {
     }
 }
 
-@Suite("Rule: folder depth ≤ 5 (§A.6)")
+@Suite("Rule: folders one level deep (§A.6; 5.13, the user: nested folders dropped)")
 struct FolderDepthTests {
     /// A chain of `count` nested folders; returns them outermost first.
     func chain(_ count: Int, space: UUID = UUID(), profile: UUID = UUID()) -> [Entry] {
@@ -142,33 +142,31 @@ struct FolderDepthTests {
 
     func map(_ entries: [Entry]) -> [UUID: Entry] { Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) }) }
 
-    @Test("Depth counts folders from the root")
+    @Test("Depth counts folders from the root (a state may still hold nested ones from before)")
     func depth() {
-        let folders = chain(5)
+        let folders = chain(3)
         let entries = map(folders)
         #expect(folders.enumerated().allSatisfy { FolderRules.depth(of: $0.element.id, in: entries) == $0.offset + 1 })
     }
 
-    @Test("A sixth level is refused; a tab may go into the fifth")
+    @Test("No folder inside a folder; a tab goes into one")
     func newFolder() throws {
-        let folders = chain(5)
+        let folders = chain(1)
         let entries = map(folders)
-        try FolderRules.validateNewFolder(in: folders[3].id, in: entries)
-        #expect(throws: FolderPlacementError.tooDeep(maxDepth: 5)) { try FolderRules.validateNewFolder(in: folders[4].id, in: entries) }
+        try FolderRules.validateNewFolder(in: nil, in: entries)
+        #expect(throws: FolderPlacementError.tooDeep(maxDepth: 1)) { try FolderRules.validateNewFolder(in: folders[0].id, in: entries) }
         let tab = Entry(kind: .pinned, spaceID: folders[0].spaceID, profileID: folders[0].profileID)
-        try FolderRules.validatePlacement(of: tab.id, into: folders[4].id, in: map(folders + [tab]))
+        try FolderRules.validatePlacement(of: tab.id, into: folders[0].id, in: map(folders + [tab]))
     }
 
-    @Test("Moving a subtree counts its own height")
+    @Test("A folder never moves into another")
     func subtree() throws {
-        let outer = chain(3)
-        let moving = chain(2)
-        let entries = map(outer + moving)
-        try FolderRules.validatePlacement(of: moving[0].id, into: outer[2].id, in: entries)
-        let deeper = chain(3)
-        #expect(throws: FolderPlacementError.tooDeep(maxDepth: 5)) {
-            try FolderRules.validatePlacement(of: deeper[0].id, into: outer[2].id, in: map(outer + deeper))
+        let outer = chain(1)
+        let moving = chain(1)
+        #expect(throws: FolderPlacementError.tooDeep(maxDepth: 1)) {
+            try FolderRules.validatePlacement(of: moving[0].id, into: outer[0].id, in: map(outer + moving))
         }
+        try FolderRules.validatePlacement(of: moving[0].id, into: nil, in: map(outer + moving))
     }
 
     @Test("A folder cannot move into itself or a descendant")

@@ -21,7 +21,7 @@ import UIKitCore
 /// - `clear` (B-118): Clear as the pointer leaves and enters the sidebar;
 /// - `dialogs` (B-116): the first alert without the checkbox, the second with
 ///   it, checked: the third answered unseen; a reload ends it;
-/// - `folders` (B-117): New Folder with Tab inside a folder, New Subfolder to
+/// - `folders` (B-117; one level since 5.13, so it records the refusals): New Folder with Tab inside a folder, New Subfolder to
 ///   depth 5 (then disabled), the folder-onto-folder drop's feedback;
 /// - `folderdrag`: two folders for a real drag by computer use (stays
 ///   running with `-RoomSpikeKeepRunning YES`; the rows' window points recorded);

@@ -52,7 +52,6 @@ public enum CommandName {
     public static let editPinnedURL = "Edit Pinned URL…"
     public static let remove = "Remove"
     // Folders (spec §A.6)
-    public static let newSubfolder = "New Subfolder"
     public static let unloadAllTabs = "Unload All Tabs"
     public static let copyAllLinks = "Copy All Links"
     public static let pasteURLAsNewTab = "Paste URL as New Tab"

@@ -9,10 +9,16 @@ public enum FolderPlacementError: Error, Equatable, Sendable {
 }
 
 /// Folder nesting (spec §A.6). Depth counts folders on the path from the
-/// pinned root: a top-level folder has depth 1, its subfolder 2, … up to 5
-/// (Zen's `zen.folders.max-subfolders`).
+/// pinned root: a top-level folder has depth 1, its subfolder 2. One level
+/// only since 5.13 (the user, 2026-11-02: nested folders dropped; was 5, Zen's
+/// `zen.folders.max-subfolders`): no folder goes inside another, an import's
+/// subfolders give their links to their top-level folder. Folders already
+/// nested in a state stay as they are.
 public enum FolderRules {
-    public static let maxDepth = 5
+    public static let maxDepth = 1
+
+    /// What the user is told when a folder would go inside another.
+    public static let refusal = "Folders can't go inside other folders"
 
     /// Depth of `folderID` (1 for a top-level folder); `nil` if a parent is
     /// missing or the chain loops.

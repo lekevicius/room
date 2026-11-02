@@ -440,8 +440,8 @@ extension SidebarController {
         case .conversion(.essentialsFull(let cap)):
             grid.shake()
             toasts?.show(Toast(id: "essentials-full", symbol: .info, message: "Essentials are full (\(cap)/\(cap))"))
-        case .folder(.tooDeep(let max)):
-            toasts?.show(Toast(id: "folder-depth", symbol: .info, message: "Folders nest at most \(max) deep"))
+        case .folder(.tooDeep):
+            toasts?.show(Toast(id: "folder-depth", symbol: .info, message: FolderRules.refusal))
         case .splitFull:
             showSplitFullToast()
         default:

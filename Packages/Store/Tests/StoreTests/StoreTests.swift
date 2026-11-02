@@ -346,57 +346,42 @@ struct SidebarStoreTests {
         #expect(sidebar.essentials(profile: profile.id).first?.id == last.id)
     }
 
-    @Test("A folder moves into a folder with its subtree, up to depth 5 (B-117)")
+    @Test("A folder never goes into another (5.13: folders one level deep); the move leaves nothing changed")
     func folderIntoFolder() throws {
         let outer = try sidebar.addFolder(name: "Outer", space: space.id, parent: nil)
         let moving = try sidebar.addFolder(name: "Moving", space: space.id, parent: nil)
-        let child = try sidebar.addFolder(name: "Child", space: space.id, parent: moving.id)
         let target = Container.pinned(space: space.id, folder: outer.id)
-        #expect((try? sidebar.canMove([moving.id], to: target).get()) != nil)
-        try sidebar.move(moving.id, to: target, at: 0)
-        #expect(sidebar.entry(moving.id)?.folderID == outer.id && sidebar.entry(child.id)?.folderID == moving.id)
-        // Outer → Moving → Child is three deep: a two-deep subtree fits under Child's level 3, a three-deep one does not.
-        let deep = try sidebar.addFolder(name: "D1", space: space.id, parent: nil)
-        let deep2 = try sidebar.addFolder(name: "D2", space: space.id, parent: deep.id)
-        #expect((try? sidebar.canMove([deep.id], to: .pinned(space: space.id, folder: child.id)).get()) != nil)
-        _ = try sidebar.addFolder(name: "D3", space: space.id, parent: deep2.id)
-        #expect(throws: SidebarError.folder(.tooDeep(maxDepth: FolderRules.maxDepth))) {
-            try sidebar.move(deep.id, to: .pinned(space: space.id, folder: child.id), at: 0)
-        }
+        #expect((try? sidebar.canMove([moving.id], to: target).get()) == nil)
+        let before = store.currentState()
+        #expect(throws: SidebarError.folder(.tooDeep(maxDepth: FolderRules.maxDepth))) { try sidebar.move(moving.id, to: target, at: 0) }
+        #expect(store.currentState() == before)
     }
 
-    @Test("Folders nest to depth 5; a sixth level and cycles are refused")
+    @Test("Folders are one level: a subfolder and a folder into itself are refused; a tab goes into a folder")
     func folderDepth() throws {
-        var parent: UUID?
-        var chain: [Entry] = []
-        for level in 1...5 {
-            let folder = try sidebar.addFolder(name: "L\(level)", space: space.id, parent: parent)
-            chain.append(folder)
-            parent = folder.id
-        }
-        #expect(throws: SidebarError.folder(.tooDeep(maxDepth: 5))) { try sidebar.addFolder(name: "L6", space: space.id, parent: parent) }
+        let folder = try sidebar.addFolder(name: "L1", space: space.id, parent: nil)
+        #expect(throws: SidebarError.folder(.tooDeep(maxDepth: 1))) { try sidebar.addFolder(name: "L2", space: space.id, parent: folder.id) }
         #expect(throws: SidebarError.folder(.cycle)) {
-            try sidebar.move(chain[1].id, to: .pinned(space: space.id, folder: chain[3].id), at: 0)
+            try sidebar.move(folder.id, to: .pinned(space: space.id, folder: folder.id), at: 0)
         }
         let tab = try sidebar.addEntry(.today, url: "https://deep", space: space.id)
-        try sidebar.move(tab.id, to: .pinned(space: space.id, folder: chain[4].id), at: 0)
+        try sidebar.move(tab.id, to: .pinned(space: space.id, folder: folder.id), at: 0)
         #expect(sidebar.entry(tab.id)?.kind == .pinned)
-        #expect(throws: SidebarError.conversion(.folderOutsidePinned)) { try sidebar.move(chain[0].id, to: .today(space: space.id), at: 0) }
+        #expect(throws: SidebarError.conversion(.folderOutsidePinned)) { try sidebar.move(folder.id, to: .today(space: space.id), at: 0) }
     }
 
     @Test("Moving a folder to another space moves its subtree")
     func folderAcrossSpaces() throws {
         let other = try sidebar.createSpace(name: "Other", profile: profile.id)
         let outer = try sidebar.addFolder(name: "Outer", space: space.id)
-        let inner = try sidebar.addFolder(name: "Inner", space: space.id, parent: outer.id)
-        let leaf = try sidebar.addEntry(.pinned, url: "https://leaf", space: space.id, folder: inner.id)
+        let leaf = try sidebar.addEntry(.pinned, url: "https://leaf", space: space.id, folder: outer.id)
         try sidebar.move(outer.id, to: .pinned(space: other.id, folder: nil), at: 0)
-        #expect([outer.id, inner.id, leaf.id].allSatisfy { sidebar.entry($0)?.spaceID == other.id })
-        #expect(sidebar.pinned(space: other.id, folder: inner.id).map(\.id) == [leaf.id])
+        #expect([outer.id, leaf.id].allSatisfy { sidebar.entry($0)?.spaceID == other.id })
+        #expect(sidebar.pinned(space: other.id, folder: outer.id).map(\.id) == [leaf.id])
         #expect(sidebar.pinned(space: space.id).isEmpty)
         store.close()
         let reopened = try test.reopen()
-        #expect(reopened.sidebar.pinned(space: other.id, folder: inner.id).map(\.id) == [leaf.id])
+        #expect(reopened.sidebar.pinned(space: other.id, folder: outer.id).map(\.id) == [leaf.id])
     }
 
     @Test("Removing a folder moves its children into its place (§A.6 Delete)")

@@ -19,7 +19,7 @@ private func scan(_ kind: BrowserKind, profile: ImportProfileChoice? = nil) thro
 
 @Suite("Import: the plan and its preview (ROADMAP 4.3a task 2)")
 struct PlannerTests {
-    @Test("Chrome, one space, the bar into Essentials: 12 essentials, the rest pinned, folders clipped at depth 5, duplicates skipped")
+    @Test("Chrome, one space, the bar into Essentials: 12 essentials, the rest pinned, folders one level (5.13: the subfolders' links go to their top-level folder), duplicates skipped")
     func chromeOneSpace() throws {
         let (state, profile, _) = freshState()
         var options = ImportOptions(targetSpace: .new(name: "Chrome"), targetProfile: profile.id)
@@ -29,7 +29,7 @@ struct PlannerTests {
         let preview = plan.preview
         #expect(preview.spaces == 1 && preview.newProfiles == 0)
         #expect(preview.essentials == EntryRules.essentialsCap && preview.essentialsOverflow == 2)
-        #expect(preview.pinned == 15 && preview.folders == 7 && preview.foldersFlattened == 2)
+        #expect(preview.pinned == 15 && preview.folders == 3 && preview.foldersFlattened == 6)
         #expect(preview.duplicates == 3)
         #expect(preview.skipped.map(\.reason) == ["a javascript: link", "hidden (a subframe)", "a chrome: page"])
         #expect(preview.historyURLs == 9 && preview.historyVisits == 15 && plan.historyProfile == profile.id)
@@ -61,7 +61,7 @@ struct PlannerTests {
         let options = ImportOptions(targetSpace: .existing(space.id), targetProfile: profile.id)
         let plan = ImportPlanner.plan(try scan(.bookmarksFile), options: options, target: ImportTarget(state: state))
         #expect(plan.preview.spaces == 0 && plan.preview.duplicates == 2)
-        #expect(plan.preview.pinned == 4 && plan.preview.folders == 3)
+        #expect(plan.preview.pinned == 4 && plan.preview.folders == 2 && plan.preview.foldersFlattened == 1)
         #expect(plan.preview.skipped.map(\.reason) == ["no URL", "a place: link"])
         #expect(plan.batch.spaces.map(\.space) == [.existing(space.id)])
     }
@@ -79,7 +79,8 @@ struct PlannerTests {
         ])
         #expect(plan.batch.essentials.map(\.links.count) == [2, 1])
         let preview = plan.preview
-        #expect(preview.spaces == 3 && preview.newProfiles == 1 && preview.essentials == 3 && preview.pinned == 5 && preview.folders == 2)
+        #expect(preview.spaces == 3 && preview.newProfiles == 1 && preview.essentials == 3 && preview.pinned == 5 && preview.folders == 1)
+        #expect(preview.foldersFlattened == 1)
         #expect(preview.today == 3 && preview.duplicates == 1 && preview.skipped.count == 2 && plan.history.isEmpty)
         // A Room profile named "work" already there is used, not duplicated.
         var named = state

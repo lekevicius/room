@@ -116,10 +116,11 @@ struct OutlineSyncTests {
         #expect(f.rows() == f.expectedRows())
 
         let docs = try s.addFolder(name: "Docs", space: space)
-        let inner = try s.addFolder(name: "Inner", space: space, parent: docs.id)
+        // Folders are one level deep (5.13): a second folder beside the first.
+        let inner = try s.addFolder(name: "Inner", space: space)
         try s.move(a.id, to: .pinned(space: space, folder: nil), at: 0)
-        try s.move(b.id, to: .pinned(space: space, folder: docs.id), at: 0)
-        try s.move(c.id, to: .pinned(space: space, folder: inner.id), at: 0)
+        try s.move(b.id, to: .pinned(space: space, folder: inner.id), at: 0)
+        try s.move(c.id, to: .pinned(space: space, folder: docs.id), at: 0)
         #expect(f.rows() == f.expectedRows())
 
         // Reorder within a list, then across sections and back.
@@ -132,7 +133,8 @@ struct OutlineSyncTests {
         f.controller.select(c.id)
         try s.setFolderCollapsed(docs.id, true)
         #expect(f.rows() == f.expectedRows())
-        #expect(f.rows().contains("    C"), "selected entry peeks under the collapsed top folder")
+        #expect(f.rows().contains { $0.hasPrefix(" ") && $0.trimmingCharacters(in: .whitespaces) == "C" },
+                "selected entry peeks under the collapsed folder")
         f.controller.select(a.id)
         #expect(f.rows() == f.expectedRows())
         try s.setFolderCollapsed(docs.id, false)
