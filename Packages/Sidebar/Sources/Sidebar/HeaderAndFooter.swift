@@ -500,8 +500,6 @@ protocol SpaceIconDropEvents: AnyObject {
 final class SidebarFooterView: NSView {
     let downloadsButton = DownloadsButton()
     let plusButton = HoverButton()
-    /// The downloads button's glass circle (5.13: the button draws its ring and badge itself).
-    private let downloadsGlass = NSGlassEffectView()
     /// The space icons in one glass group, the active one filled (5.13, the user's design, Figma 157:233).
     private let iconRow = GlassButtonGroup()
     private let nameLabel = NSTextField(labelWithString: "")
@@ -534,8 +532,6 @@ final class SidebarFooterView: NSView {
         plusButton.action = #selector(plusClicked)
         plusButton.setAccessibilityIdentifier("footer-plus")
         plusButton.makeGlass()
-        downloadsGlass.style = .regular
-        downloadsGlass.cornerRadius = GlassControlMetrics.size / 2
         // 5.10 (the user on build 24): no ring behind the active space; its full size and opacity mark it.
         iconRow.setAccessibilityIdentifier("space-icons")
         // The icons as one group (5.3a); the hovered name beside them repeats an icon's label.
@@ -552,7 +548,6 @@ final class SidebarFooterView: NSView {
         nameChip.wantsLayer = true
         nameChip.alphaValue = 0
         nameChip.addSubview(nameLabel)
-        addSubview(downloadsGlass)
         addSubview(downloadsButton)
         addSubview(iconRow)
         addSubview(plusButton)
@@ -667,7 +662,6 @@ final class SidebarFooterView: NSView {
         let inset = SidebarMetrics.rowHorizontalInset
         let y = ((bounds.height - side) / 2).rounded()
         downloadsButton.frame = NSRect(x: inset, y: y, width: side, height: side)
-        downloadsGlass.frame = downloadsButton.frame
         plusButton.frame = NSRect(x: bounds.width - inset - side, y: y, width: side, height: side)
         let available = max(0, plusButton.frame.minX - downloadsButton.frame.maxX - 2 * GlassControlMetrics.gap)
         let rowWidth = min(GlassControlMetrics.groupWidth(icons.count), available)

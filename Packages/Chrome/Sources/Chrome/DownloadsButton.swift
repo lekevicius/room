@@ -9,26 +9,32 @@ public final class DownloadsButton: PressableView {
     /// Right-click: the button's menu (Open Library, Show Downloads Folder).
     public var menuProvider: (() -> NSMenu?)?
 
-    private let icon = NSImageView()
+    /// AppKit's glass button, as the footer's New and the top bar's (5.13: a glass circle under the
+    /// chrome's own rounded-square hover fill read as two controls); its hover and press are AppKit's.
+    private let glass = HoverButton()
+    /// The ring and the badge, above the glass and never hit.
+    private let ornament = PassThroughView()
     private let track = CAShapeLayer()
     private let ring = CAShapeLayer()
     private let badge = NSTextField(labelWithString: "")
     private let badgeBackground = CALayer()
-    private var pressed = false
-    /// Hover fill and press (B-111), as the header's buttons.
-    public private(set) lazy var feedback = ControlFeedback(view: self)
+    /// The glass button's (disabled: AppKit draws the hover); kept for the motion and matrix spikes.
+    public var feedback: ControlFeedback { glass.feedback }
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = ControlMetrics.cornerRadius
-        layer?.cornerCurve = .continuous
-        _ = feedback
-        icon.image = Symbol.downloadsButton.image(.control, accessibilityDescription: "Downloads")
-        // As the other glass buttons' glyphs (5.13).
-        icon.contentTintColor = .labelColor
-        icon.imageScaling = .scaleNone
-        addSubview(icon)
+        glass.makeGlass()
+        glass.image = Symbol.downloadsButton.image(.control, accessibilityDescription: "Downloads")
+        glass.target = self
+        glass.action = #selector(glassClicked)
+        // This view is the key view and the accessibility element; the glass is only its look and its click.
+        glass.refusesFirstResponder = true
+        glass.setAccessibilityElement(false)
+        glass.cell?.setAccessibilityElement(false)
+        addSubview(glass)
+        ornament.wantsLayer = true
+        addSubview(ornament)
         for shape in [track, ring] {
             shape.fillColor = nil
             shape.lineWidth = DownloadsMetrics.ringWidth
@@ -36,24 +42,23 @@ public final class DownloadsButton: PressableView {
             shape.isHidden = true
             // Only explicit animations (5.1b: the motion harness found the implicit 0.25 s ones).
             shape.actions = CALayer.noImplicitActions.merging(["strokeEnd": NSNull()]) { $1 }
-            layer?.addSublayer(shape)
+            ornament.layer?.addSublayer(shape)
         }
         ring.strokeEnd = 0
         badgeBackground.isHidden = true
         badgeBackground.actions = CALayer.noImplicitActions
-        layer?.addSublayer(badgeBackground)
+        ornament.layer?.addSublayer(badgeBackground)
         badge.font = Typography.badge
         badge.textColor = .white
         badge.alignment = .center
         badge.isHidden = true
-        addSubview(badge)
+        ornament.addSubview(badge)
         toolTip = "Downloads (⇧⌘J)"
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("Downloads")
         setAccessibilityHelp("⇧⌘J")
         setAccessibilityIdentifier("downloads")
-        icon.hideFromAccessibility()
     }
 
     @available(*, unavailable)
@@ -62,6 +67,8 @@ public final class DownloadsButton: PressableView {
     public override var isFlipped: Bool { true }
     public override var mouseDownCanMoveWindow: Bool { false }
     public override var wantsUpdateLayer: Bool { true }
+    /// The glass's rim and shadow reach past the square (as `makeGlass`).
+    public override var clipsToBounds: Bool { get { false } set {} }
 
     // MARK: State
 
@@ -117,7 +124,7 @@ public final class DownloadsButton: PressableView {
         track.isHidden = !active
         ring.isHidden = !active
         // The arrow shrinks into the ring while downloading.
-        icon.image = (active ? Symbol.downloadInProgress : Symbol.downloadsButton)
+        glass.image = (active ? Symbol.downloadInProgress : Symbol.downloadsButton)
             .image(active ? .downloadProgress : .control, accessibilityDescription: "Downloads")
         guard let progress else {
             ring.removeAnimation(forKey: "spin")
@@ -160,7 +167,8 @@ public final class DownloadsButton: PressableView {
 
     public override func layout() {
         super.layout()
-        icon.frame = bounds
+        glass.frame = bounds
+        ornament.frame = bounds
         let side = min(bounds.width, bounds.height) - 2 * DownloadsMetrics.ringInset
         let rect = CGRect(x: (bounds.width - side) / 2, y: (bounds.height - side) / 2, width: side, height: side)
         for shape in [track, ring] { shape.frame = bounds }
@@ -183,41 +191,7 @@ public final class DownloadsButton: PressableView {
 
     // MARK: Mouse
 
-    public override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-                                       owner: self, userInfo: nil))
-    }
-
-    public override func mouseEntered(with event: NSEvent) { feedback.setHovering(true) }
-    public override func mouseExited(with event: NSEvent) { feedback.setHovering(false) }
-
-    public override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        feedback.reset()
-    }
-
-    public override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        feedback.appearanceChanged()
-    }
-
-    public override func mouseDown(with event: NSEvent) {
-        pressed = true
-        feedback.setPressed(true)
-    }
-
-    public override func mouseDragged(with event: NSEvent) {
-        feedback.setPressed(pressed && bounds.contains(convert(event.locationInWindow, from: nil)))
-    }
-
-    public override func mouseUp(with event: NSEvent) {
-        feedback.setPressed(false)
-        defer { pressed = false }
-        guard pressed, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
-        onClick?()
-    }
+    @objc private func glassClicked() { onClick?() }
 
     public override func rightMouseDown(with event: NSEvent) {
         guard let menu = menuProvider?() else { return }
@@ -303,4 +277,10 @@ public enum DownloadsMetrics {
     public static let flyIconSize: CGFloat = 32
     /// A click this recent starts the flight; otherwise it starts at the card's centre (chosen).
     public static let clickMemory: TimeInterval = 3
+}
+
+/// The downloads button's ring and badge: drawn above its glass, never the target of a click.
+private final class PassThroughView: NSView {
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
