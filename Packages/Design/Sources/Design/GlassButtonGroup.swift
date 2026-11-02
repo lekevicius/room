@@ -16,6 +16,11 @@ public final class GlassButtonGroup: NSView {
         didSet { if selectedIndex != oldValue { needsLayout = true } }
     }
     private let selection = CALayer()
+    /// The gaps that get a hairline, by the index of the item before them; `nil`, every gap (5.13, the user:
+    /// the extension bar parts the puzzle piece from the pinned actions, not the actions from each other).
+    public var separatorsAfter: Set<Int>? {
+        didSet { if separatorsAfter != oldValue { needsLayout = true } }
+    }
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -81,7 +86,7 @@ public final class GlassButtonGroup: NSView {
         let m = GlassControlMetrics.self
         let lineColor = resolved(NSColor.separatorColor)
         for (index, line) in separators.enumerated() {
-            line.isHidden = index >= frames.count - 1
+            line.isHidden = index >= frames.count - 1 || separatorsAfter.map { !$0.contains(index) } == true
             guard !line.isHidden else { continue }
             let x = frames[index].maxX + m.separatorWidth / 2
             let width = 1 / (window?.backingScaleFactor ?? 2)

@@ -315,6 +315,8 @@ public final class ExtensionBarView: NSView {
         for (index, button) in actionButtons.enumerated() { button.isHidden = index >= shown }
         let items: [NSButton] = (overflow ? [overflowButton] : []) + Array(actionButtons.prefix(shown))
         group.setItems(items)
+        // One line, after the puzzle piece; none between the pinned actions (5.13, the user).
+        group.separatorsAfter = overflow ? [0] : []
         group.isHidden = items.isEmpty
         let width = GlassControlMetrics.groupWidth(items.count)
         group.frame = NSRect(x: 0, y: ((bounds.height - GlassControlMetrics.size) / 2).rounded(), width: width, height: GlassControlMetrics.size)
@@ -364,6 +366,8 @@ public final class ExtensionBarView: NSView {
     public var extensionActionIDs: [String] { actionButtons.map(\.model.id) }
     /// The pinned extensions the bar shows, in order (B-125: the tour reads these, not the pinned list).
     public var shownActionIDs: [String] { shownButtons.map(\.model.id) }
+    /// Spikes: the group's items left to right ("puzzle" for the overflow button, else the action's id).
+    public var debugGroupOrder: [String] { group.items.map { $0 === overflowButton ? "puzzle" : (($0 as? ExtensionActionButton)?.model.id ?? "?") } }
 
     /// The extensions menu (4.5): the pinned actions that did not fit, then the
     /// unpinned ones, each with its icon and badge (a click runs it: its popup
