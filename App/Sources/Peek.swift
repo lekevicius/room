@@ -69,16 +69,46 @@ final class PeekPresenter: PeekDisplay {
         }
     }
 
-    /// The page card (a split's panes with it) and the toolbar fade while Peek shows (5.13).
+    /// The page card (a split's panes with it) and the toolbar fade and shrink a little while Peek
+    /// shows (5.13, the user: the page behind recedes, scaled down as well as faded).
     private func fadeBackground(to alpha: CGFloat, animated: Bool) {
         guard let rootView else { return }
         let views: [NSView] = [rootView.cardView, rootView.toolbarView]
-        guard animated, CardMotion.peekOpen.animates else { return views.forEach { $0.alphaValue = alpha } }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.fast
-            for view in views { view.animator().alphaValue = alpha }
+        let receding = alpha < 1
+        let animates = animated && CardMotion.peekOpen.animates
+        if animates {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Motion.medium
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                for view in views { view.animator().alphaValue = alpha }
+            }
+        } else {
+            views.forEach { $0.alphaValue = alpha }
         }
+        // The scale only moves: under Reduce Motion the page fades alone.
+        let scale = receding && CardMotion.peekOpen.variant == .full ? PeekMetrics.backgroundScale : 1
+        guard let layer = rootView.cardView.layer else { return }
+        let bounds = layer.bounds
+        // About the card's centre (AppKit's layers anchor at their origin).
+        let target = CATransform3DConcat(CATransform3DConcat(CATransform3DMakeTranslation(-bounds.midX, -bounds.midY, 0),
+                                                             CATransform3DMakeScale(scale, scale, 1)),
+                                         CATransform3DMakeTranslation(bounds.midX, bounds.midY, 0))
+        if animates {
+            let spring = CASpringAnimation(perceptualDuration: Motion.slow, bounce: 0)
+            spring.keyPath = "transform"
+            spring.fromValue = NSValue(caTransform3D: layer.presentation()?.transform ?? layer.transform)
+            spring.toValue = NSValue(caTransform3D: target)
+            spring.duration = spring.settlingDuration
+            layer.add(spring, forKey: "peek-recede")
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = target
+        CATransaction.commit()
     }
+
+    /// Spikes: the page behind's scale.
+    var debugBackgroundScale: CGFloat { rootView?.cardView.layer.map { $0.transform.m11 } ?? -1 }
 
     /// Spikes: the page behind's opacity.
     var debugBackgroundAlpha: CGFloat { rootView?.cardView.alphaValue ?? -1 }
@@ -95,6 +125,8 @@ final class PeekPresenter: PeekDisplay {
     func layout() {
         guard let rootView, !overlay.isHidden else { return }
         overlay.frame = rootView.currentLayout.card
+        // The page behind keeps its scale about its new centre.
+        if isShown { fadeBackground(to: PeekMetrics.backgroundAlpha, animated: false) }
     }
 
     private func focus(_ contents: any WebContents) {

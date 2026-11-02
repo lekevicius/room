@@ -100,6 +100,9 @@ extension SpikeRunner.Context {
         SpikeRunner.record("player_collapsed", "frame=\(r513Frame("media-row"))")
         r513Capture("player-collapsed")
         sidebar.debugExpandMediaRow(true)
+        try? await Task.sleep(for: .milliseconds(Int(Motion.medium * 1000 / 3)))
+        SpikeRunner.record("player_mid", "presented=\(NSStringFromRect(sidebar.debugMediaRowPresentedFrame)) "
+            + "between=\(sidebar.debugMediaRowPresentedFrame.height > MediaRowMetrics.height + 1 && sidebar.debugMediaRowPresentedFrame.height < MediaRowMetrics.expandedHeight - 1)")
         try? await Task.sleep(for: .milliseconds(1600))
         SpikeRunner.record("player_expanded", "frame=\(r513Frame("media-row")) pip=\(r513Frame("media-row-pip")) previous=\(r513Frame("media-row-previous"))")
         r513Capture("player-expanded")
@@ -171,12 +174,12 @@ extension SpikeRunner.Context {
             + "first_frame_centre=\(Int(shown.midX)),\(Int(shown.midY)) size=\(Int(shown.width))x\(Int(shown.height)) rest=\(NSStringFromRect(rest)) "
             + "from_click=\(abs(start.midX - origin.x) < 2 && abs(start.midY - origin.y) < 2) "
             + "first_frame_towards_click=\(abs(shown.midY - origin.y) < abs(rest.midY - origin.y) && abs(shown.midX - origin.x) < abs(rest.midX - origin.x))")
-        SpikeRunner.record("peek_layout", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha)) close=\(r513Frame("peek-close")) "
+        SpikeRunner.record("peek_layout", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha)) scale=\(String(format: "%.2f", peek.debugBackgroundScale)) close=\(r513Frame("peek-close")) "
             + "open_as_tab=\(r513Frame("peek-open-as-tab")) split=\(r513Frame("peek-split"))")
         r513Capture("peek")
         _ = tabs.closeShownPeek()
         try? await Task.sleep(for: .milliseconds(500))
-        SpikeRunner.record("peek_closed", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha))")
+        SpikeRunner.record("peek_closed", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha)) scale=\(String(format: "%.2f", peek.debugBackgroundScale))")
     }
 
     // MARK: narrow
