@@ -4617,3 +4617,14 @@ Debug app on the dev framework (156.0.8078.48 + patch 0029), throwaway states un
 - **Switcher.** Three tabs visited: `pictured=3 size={160, 100}` (later 144 × 90 to fit five cards in a 1,200 pt window).
 - **Picker.** 1,894 emoji in 9 groups (Unicode 16.0, fully qualified, no skin-tone or hair variants), 198 symbols; `picker_typed: icon=🦊` (an emoji typed into the search sets it).
 - **PiP.** `pip_controls_shown: 2`; the window 590 × 332 pt; captured by computer use (`phase-5.12-pip-*.jpg`; the in-process capture of Chrome's overlay window is blank, as in 4.6).
+
+## Phase 6.4 — the checks on 157.0.8103.26 (2026-11-02, Mac mini M4, 24 GB; RoomCore 157.0.8103.26, series 29; the Debug app over the release framework, `build/roomcore-release/DerivedData/Build/Products/Debug/Room.app`; load 55–112 from the user's apps, FileProvider and Spotlight)
+
+| Check | Result |
+|---|---|
+| `scripts/fixes-check.sh` (5.11's `fixes`), light | every line as on 156 (`build/5.11/fixes-dark.txt`) but `insertion_line_seen=true` (5.12's drag fix); 0 minidumps (`build/6.4/fixes.txt`) |
+| `ROOM_FIXES_SPIKE=fixes512`, light | every line as on 156: reveal slides (mid x −95/−93), Forward hidden then shown after Back, the switcher pictures 3 of 3 tabs, the extension menu's item has its 16×16 image, the picker sets 🦊, folder favicons `[false, true]`, press scale 0.900 and released; `pip_controls_shown: -99` (a release framework has no spike hooks); 0 minidumps (`build/6.4/f512.txt`, captures `build/6.4/caps-512/`) |
+| `scripts/crash-upload-check.sh` (new; 6.3) | off: `engine_uploads=false`, the crashed page shown, 1 minidump in `Crashpad/completed`, 0 posted. On: `engine_uploads=true`, the second minidump posted and stored by `collector.py` in 15 s: 789,616 bytes, 68 fields (`prod` Room_Mac, `ver` 157.0.8103.26, `ptype` renderer, `url-chunk` the crashed page's address). The first run posted nothing: Crashpad's metadata read `upload_count 1, uploaded 0` and the collector had answered 413, since Crashpad on the Mac streams the form chunked with no Content-Length (`5b6ff16`) |
+| tour, groups layout, tabs, netlog, light (`build/grand-tour/20261102-044803-roomcore`) | **206 passed, 5 failed**, 8.1 min. `resize` ×2: 0 gaps in 648 samples, the check had the total 576 hard-coded (the card one row taller; fixed to count gaps). `tabs`: B-56 (renderers 15 → 15 after six discards, as on 156). `quittiming` runs 2 and 3: 2.37 and 2.33 s at load 79–81 |
+| quit timing, alternated (`build/6.4/quitab`, scratch loop: open10, the AppleEvent quit, `ps` of the children at 1.5 s) | 156 dev (component) 1.03–7.95 s, three of nine over 6 s; 157 release framework 0.34–6.42 s, one of nine over 1.5 s; in every slow quit the main process outlived its helpers, which were exiting (`Z`, `?E`) under load 70–85. Not a 157 change. Before it, eight 157 quits at load 55–68: 0.34–0.50 s |
+| netlog | 10 / 10: 0 requests from Room's own code, 0 from the engine |
