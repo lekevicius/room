@@ -1191,7 +1191,8 @@ public final class SidebarBodyView: NSView {
         didSet {
             guard mediaRowView !== oldValue else { return }
             oldValue?.removeFromSuperview()
-            if let mediaRowView { addSubview(mediaRowView) }
+            // Over the list, under the footer: the hovered space's name rises from the footer over the cards (5.13: it was hidden behind them).
+            if let mediaRowView { addSubview(mediaRowView, positioned: .above, relativeTo: listContainer) }
             needsLayout = true
         }
     }
@@ -1200,7 +1201,7 @@ public final class SidebarBodyView: NSView {
         didSet {
             guard updateBannerView !== oldValue else { return }
             oldValue?.removeFromSuperview()
-            if let updateBannerView { addSubview(updateBannerView) }
+            if let updateBannerView { addSubview(updateBannerView, positioned: .above, relativeTo: listContainer) }
             needsLayout = true
         }
     }
