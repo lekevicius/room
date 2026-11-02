@@ -46,11 +46,13 @@ public enum KeyViewLoop {
         return result
     }
 
-    /// Top to bottom, then leading to trailing, in window coordinates (rows whose tops share a 4 pt band are one line).
+    /// Top to bottom, then leading to trailing, in window coordinates (controls whose centres share a 4 pt band
+    /// are one line; 5.13: by centre, not top, as the footer's 24 pt space items sit in a 32 pt glass group
+    /// beside 32 pt buttons, and their tops put them on a line after New).
     static func ordered(_ views: [NSView]) -> [NSView] {
         let keyed = views.enumerated().map { offset, view in
             let frame = view.convert(view.bounds, to: nil)
-            return (line: -(frame.maxY / ReadingOrder.tolerance).rounded(), x: frame.minX, offset: offset, view: view)
+            return (line: -(frame.midY / ReadingOrder.tolerance).rounded(), x: frame.minX, offset: offset, view: view)
         }
         return keyed.sorted { ($0.line, $0.x, $0.offset) < ($1.line, $1.x, $1.offset) }.map(\.view)
     }
