@@ -50,6 +50,8 @@ struct DownloadsListView: View {
             }
         }
         .frame(width: DownloadsMetrics.popoverWidth)
+        // Opaque (5.13): the popover's glass let the page show through the list.
+        .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
     }
 }
 
