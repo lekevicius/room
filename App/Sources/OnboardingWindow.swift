@@ -207,7 +207,7 @@ struct OnboardingView: View {
                 }
                 Toggle(isOn: Binding(get: { onboarding.automaticUpdateChecks }, set: { onboarding.automaticUpdateChecks = $0 })) {
                     Text("Check for updates automatically")
-                    Text("Asks Room's update server once a day.")
+                    Text("Asks Room's update server once a day and downloads new versions in the background.")
                 }
             }
             .formStyle(.columns)

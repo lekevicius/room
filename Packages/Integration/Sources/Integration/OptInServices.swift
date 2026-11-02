@@ -9,6 +9,9 @@ public protocol UpdateChecking: AnyObject {
     func start() throws
     /// A check the user asked for; it shows its own result.
     func checkNow()
+    /// An update was downloaded and installs when Room quits (5.13: updates download on their own
+    /// while checks are automatic): its version, and what installs it and relaunches now.
+    var onReadyToInstall: ((_ version: String, _ installNow: @escaping @MainActor () -> Void) -> Void)? { get set }
 }
 
 /// The crash reporter (6.3: the engine's Crashpad, uploading to the user's
@@ -33,6 +36,10 @@ public final class OptInServices {
     public private(set) var crashReporter: (any CrashReporting)?
     /// The crash reporter is started.
     public private(set) var isReportingCrashes = false
+    /// A downloaded update waits for a restart (the sidebar's banner, 5.13); passed to the updater.
+    public var onUpdateReady: ((_ version: String, _ installNow: @escaping @MainActor () -> Void) -> Void)? {
+        didSet { updater?.onReadyToInstall = onUpdateReady }
+    }
 
     public init(dsn: String, makeUpdater: @escaping () -> any UpdateChecking,
                 makeCrashReporter: @escaping () -> any CrashReporting) {
@@ -80,6 +87,7 @@ public final class OptInServices {
         }
         let updater = makeUpdater()
         updater.automaticallyChecks = automaticallyChecks
+        updater.onReadyToInstall = onUpdateReady
         do {
             try updater.start()
         } catch {

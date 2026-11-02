@@ -130,6 +130,7 @@ struct OptInServicesTests {
         var canCheckNow = true
         func start() throws { log.events.append("updater.start") }
         func checkNow() { log.events.append("updater.check") }
+        var onReadyToInstall: ((_ version: String, _ installNow: @escaping @MainActor () -> Void) -> Void)?
     }
 
     final class FakeReporter: CrashReporting {
@@ -151,6 +152,18 @@ struct OptInServicesTests {
         services.apply(crashReports: false, automaticUpdateChecks: false)
         #expect(log.events.isEmpty)
         #expect(services.updater == nil && services.crashReporter == nil && !services.isReportingCrashes)
+    }
+
+    @Test("A downloaded update reaches the sidebar's banner: the handler set before or after the updater starts (5.13)")
+    func updateReady() {
+        let (services, _) = services()
+        var ready: [String] = []
+        services.onUpdateReady = { version, _ in ready.append(version) }
+        services.apply(crashReports: false, automaticUpdateChecks: true)
+        services.updater?.onReadyToInstall?("0.3.1", {})
+        services.onUpdateReady = { version, _ in ready.append("again " + version) }
+        services.updater?.onReadyToInstall?("0.3.2", {})
+        #expect(ready == ["0.3.1", "again 0.3.2"])
     }
 
     @Test("The collector's minidump URL from its DSN (6.3, the Sentry shape); none from an empty or malformed one")

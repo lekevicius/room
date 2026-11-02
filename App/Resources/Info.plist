@@ -85,10 +85,10 @@
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
-	<key>RoomSentryDSN</key>
-	<string>$(ROOM_SENTRY_DSN)</string>
+	<key>RoomCrashDSN</key>
+	<string>$(ROOM_CRASH_DSN)</string>
 	<key>SUAutomaticallyUpdate</key>
-	<false/>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
 	<key>SUEnableSystemProfiling</key>

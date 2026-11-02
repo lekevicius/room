@@ -175,7 +175,7 @@ targets:
         SUFeedURL: $(ROOM_UPDATE_FEED_URL)
         SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
         SUEnableAutomaticChecks: false
-        SUAutomaticallyUpdate: false
+        SUAutomaticallyUpdate: true
         SUEnableSystemProfiling: false
         # The crash collector (6.3): read by BuildConfiguration.crashDSN; empty = crash reports unavailable.
         RoomCrashDSN: $(ROOM_CRASH_DSN)

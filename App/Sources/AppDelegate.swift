@@ -121,6 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     let defaultBrowser = DefaultBrowser()
     /// Sparkle and the crash reports behind their opt-ins (ROADMAP 2.8 task 5); nil while the store is not open.
     private(set) var optIns: OptInServices?
+    /// A downloaded update that installs on quit (5.13): every window's sidebar shows its banner.
+    private(set) var updateReady: (version: String, installNow: @MainActor () -> Void)?
     /// Room's built-in blocker (B-30): Settings ▸ Privacy and the site panel.
     private(set) var contentBlocking: ContentBlockingController?
     /// Settings ▸ Appearance ▸ App Icon follows the light or dark appearance (`applyAppIcon`).
@@ -226,6 +228,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if let size = store?.settings.settings.sidebarTextSize { TextScale.size = TextScale.Size(rawValue: size.rawValue) ?? .medium }
         // Before anything else runs: crash reports start here when the user opted in, and only then.
         optIns = makeOptIns()
+        optIns?.onUpdateReady = { [weakSelf = MainActorWeak(self)] version, installNow in
+            MainActor.assumeIsolated { weakSelf.value?.showUpdateReady(version: version, installNow: installNow) }
+        }
         applyOptIns()
         // Before the first window: the Dock swaps to the chosen icon as the app starts.
         applyAppIcon()
@@ -371,6 +376,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if let override = UserDefaults.standard.string(forKey: "RoomCrashDSN") { return override }
         #endif
         return BuildConfiguration.crashDSN()
+    }
+
+    /// An update was downloaded (Sparkle, 5.13): the banner in every window; Restart installs and relaunches.
+    func showUpdateReady(version: String, installNow: @escaping @MainActor () -> Void) {
+        updateReady = (version, installNow)
+        for session in windows.all { session.sidebar?.setUpdateBanner(version: version, onRestart: installNow) }
     }
 
     private func makeOptIns() -> OptInServices? {
@@ -839,6 +850,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sidebar.onShowSpaceWindow = { [weak self, weak sidebar] space, focus in self?.showSpaceWindow(space, focus: focus, from: sidebar) }
         // The footer's media row (4.6): its buttons call the page's media session controls.
         sidebar.onMediaRowAction = { [weak tabs] action, entry in tabs?.performMediaRowAction(action, entry: entry) }
+        if let updateReady { sidebar.setUpdateBanner(version: updateReady.version, onRestart: updateReady.installNow) }
         // "Open Link in Incognito Window" (4.8b, B-50): into the profile's incognito window.
         tabs.openOffTheRecord = { [weakSelf = MainActorWeak(self)] contents, url, profileID in
             weakSelf.value?.adoptOffTheRecordPage(contents, url: url, profileID: profileID)

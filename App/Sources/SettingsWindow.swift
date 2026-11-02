@@ -308,7 +308,7 @@ private struct SettingsSectionView: View {
             }
             Toggle(isOn: binding(\.automaticUpdateChecks)) {
                 Text("Check for updates automatically")
-                Text("Asks Room's update server once a day (Sparkle). Off: Room asks only when you choose Check for Updates or Check Now.")
+                Text("Asks Room's update server once a day (Sparkle) and downloads a new version in the background; it installs when Room restarts. Off: Room asks only when you choose Check for Updates or Check Now.")
             }
             LabeledContent {
                 Button("Check Now") { services.checkForUpdates() }
