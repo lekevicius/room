@@ -13,7 +13,8 @@ import UIKitCore
 /// - `player`: the mini-player with a fixture's content, collapsed and expanded, its progress moving;
 /// - `banner`: the update banner (Sparkle's ready-to-install, as the app hears it);
 /// - `overflow`: the selected tab scrolled out of view: the pill with its icon, then a click brings it back;
-/// - `narrow`: the top bar at the narrowest sidebar (Reload and the toggle go, the puzzle piece stays).
+/// - `narrow`: the top bar at the narrowest sidebar (Reload and the toggle go, the puzzle piece stays);
+/// - `peek`: a Peek opened after a click low on the page: the card grows from there, the page behind fades.
 /// `-RoomSpikeCaptureDirectory` keeps captures named `phase-5.13-<name>-<appearance>.png`.
 extension SpikeRunner.Context {
     func redesign513Checks() async {
@@ -32,6 +33,7 @@ extension SpikeRunner.Context {
         if runs("banner") { await r513Banner() }
         if runs("overflow") { await r513Overflow() }
         if runs("narrow") { await r513Narrow() }
+        if runs("peek") { await r513Peek() }
     }
 
     private var r513Appearance: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
@@ -144,6 +146,37 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(700))
         let after = sidebar.bodyView.debugOverflow
         SpikeRunner.record("overflow_click", "top=\(after.top) bottom=\(after.bottom) visible=\(sidebar.debugRowVisible(selected))")
+    }
+
+    // MARK: peek
+
+    private func r513Peek() async {
+        guard let session = AppDelegate.current?.activeWindow, let peek = session.peek,
+              let page = await open(URL(string: Self.r513Base + "find.html?peek")!) else { return SpikeRunner.record("error", "peek: no page") }
+        let root = controller.rootView
+        let card = root.currentLayout.card
+        // A click at the content area's lower left, as on a link there.
+        let click = CGPoint(x: card.minX + card.width * 0.25, y: card.minY + card.height * 0.8)
+        session.lastClick = (click, ProcessInfo.processInfo.systemUptime)
+        tabs.openPeek(URL(string: Self.r513Base + "find.html?peeked")!, from: page)
+        try? await Task.sleep(for: .milliseconds(30))
+        // The first frame's card, back in the overlay's view space: its centre should be the click.
+        let presented = peek.overlay.card.layer?.presentation()?.frame ?? .zero
+        let shown = peek.overlay.convertFromLayer(presented)
+        let origin = peek.lastOpenOrigin ?? .zero
+        let start = peek.lastOpenStart.map { peek.overlay.convertFromLayer($0) } ?? .zero
+        try? await Task.sleep(for: .milliseconds(900))
+        let rest = peek.overlay.card.frame
+        SpikeRunner.record("peek_open", "click=\(Int(origin.x)),\(Int(origin.y)) start_rect_centre=\(Int(start.midX)),\(Int(start.midY)) "
+            + "first_frame_centre=\(Int(shown.midX)),\(Int(shown.midY)) size=\(Int(shown.width))x\(Int(shown.height)) rest=\(NSStringFromRect(rest)) "
+            + "from_click=\(abs(start.midX - origin.x) < 2 && abs(start.midY - origin.y) < 2) "
+            + "first_frame_towards_click=\(abs(shown.midY - origin.y) < abs(rest.midY - origin.y) && abs(shown.midX - origin.x) < abs(rest.midX - origin.x))")
+        SpikeRunner.record("peek_layout", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha)) close=\(r513Frame("peek-close")) "
+            + "open_as_tab=\(r513Frame("peek-open-as-tab")) split=\(r513Frame("peek-split"))")
+        r513Capture("peek")
+        _ = tabs.closeShownPeek()
+        try? await Task.sleep(for: .milliseconds(500))
+        SpikeRunner.record("peek_closed", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha))")
     }
 
     // MARK: narrow
