@@ -24,8 +24,9 @@ public final class DownloadsButton: PressableView {
         layer?.cornerRadius = ControlMetrics.cornerRadius
         layer?.cornerCurve = .continuous
         _ = feedback
-        icon.image = Symbol.downloads.image(.control, accessibilityDescription: "Downloads")
-        icon.contentTintColor = .secondaryLabelColor
+        icon.image = Symbol.downloadsButton.image(.control, accessibilityDescription: "Downloads")
+        // As the other glass buttons' glyphs (5.13).
+        icon.contentTintColor = .labelColor
         icon.imageScaling = .scaleNone
         addSubview(icon)
         for shape in [track, ring] {
@@ -116,7 +117,7 @@ public final class DownloadsButton: PressableView {
         track.isHidden = !active
         ring.isHidden = !active
         // The arrow shrinks into the ring while downloading.
-        icon.image = (active ? Symbol.downloadInProgress : Symbol.downloads)
+        icon.image = (active ? Symbol.downloadInProgress : Symbol.downloadsButton)
             .image(active ? .downloadProgress : .control, accessibilityDescription: "Downloads")
         guard let progress else {
             ring.removeAnimation(forKey: "spin")

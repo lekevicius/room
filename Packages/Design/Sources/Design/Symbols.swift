@@ -60,6 +60,9 @@ public enum Symbol: CaseIterable, Sendable {
 
     // Footer, downloads, library (§F, §H)
     case downloads
+    /// The footer's glass Downloads button (5.13, the user: the circled arrow read smaller than the
+    /// other glass buttons' glyphs): the arrow alone, the glass is its circle.
+    case downloadsButton
     case downloadInProgress
     case library
     case archive
@@ -190,6 +193,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .deleteSpace: "trash"
         case .importData: "square.and.arrow.down.on.square"
         case .downloads: "arrow.down.circle"
+        case .downloadsButton: "arrow.down"
         case .downloadInProgress: "arrow.down.circle.dotted"
         case .library: "books.vertical"
         case .archive: "archivebox"
