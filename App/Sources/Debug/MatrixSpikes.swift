@@ -370,9 +370,9 @@ extension SpikeRunner.Context {
     // MARK: Peek, split
 
     private var peekNotes: [String] {
-        [String(format: "PeekMetrics: %.0f%% of the card, corner %.0f, dim black %.0f%%, header %.0f pt, buttons %.0f; shadow %.0f at %.2f / %.2f.",
-                PeekMetrics.sizeFraction * 100, PeekMetrics.cornerRadius, PeekMetrics.dimAlpha * 100, PeekMetrics.headerHeight,
-                PeekMetrics.headerButtonSize, PeekMetrics.shadowRadius, PeekMetrics.shadowOpacityLight, PeekMetrics.shadowOpacityDark)]
+        [String(format: "PeekMetrics: inset %.0f pt top and bottom, sides %.0f%%, corner %.0f, the page behind at %.0f%%, header %.0f pt, buttons %.0f; shadow %.0f at %.2f / %.2f.",
+                PeekMetrics.verticalInset, PeekMetrics.sideFraction * 100, PeekMetrics.cornerRadius, PeekMetrics.backgroundAlpha * 100, PeekMetrics.headerHeight,
+                PeekMetrics.buttonSize, PeekMetrics.shadowRadius, PeekMetrics.shadowOpacityLight, PeekMetrics.shadowOpacityDark)]
     }
 
     func peekStates() -> [MatrixState] {

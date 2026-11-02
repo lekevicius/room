@@ -752,17 +752,22 @@ public enum Timing {
 public enum TabSwitcherMetrics {
     /// Entries listed.
     public static let limit = 5
-    public static let width: CGFloat = 340
-    public static let rowHeight: CGFloat = 36
-    public static let padding: CGFloat = 8
     /// 5.12 (B-119, the user on build 26, as Dia's): a card per tab, its page's picture over its icon
-    /// and title, side by side; the picture's corner and the gap between cards.
-    public static let cardWidth: CGFloat = 144
-    public static let thumbnailHeight: CGFloat = 90
-    public static let cardGap: CGFloat = 6
-    public static let cardPadding: CGFloat = 8
-    public static let thumbnailCorner: CGFloat = Radius.small
-    public static let titleHeight: CGFloat = 28
+    /// and title, side by side. 5.13 (the user: "not correctly spaced and aligned like Dia"; measured
+    /// on the user's capture of Dia): 153 × 102 pictures, each card padded 12 pt (the highlight's
+    /// rect), cards touching (24 pt between pictures), the panel 15 pt around them, the icon at the
+    /// picture's leading edge, the title under the picture.
+    public static let cardWidth: CGFloat = 153
+    public static let thumbnailHeight: CGFloat = 102
+    public static let cardGap: CGFloat = 0
+    public static let cardPadding: CGFloat = 12
+    public static let panelPadding: CGFloat = 15
+    public static let panelCorner: CGFloat = 32
+    public static let highlightCorner: CGFloat = 14
+    public static let thumbnailCorner: CGFloat = Radius.medium
+    /// The icon and title's row under the picture.
+    public static let titleHeight: CGFloat = 32
+    public static let titleFontSize: CGFloat = 14
     /// Pictures kept in memory (each 288 × 180 px, 200 KB).
     public static let thumbnailsKept = 24
 }
@@ -862,16 +867,21 @@ public enum ToolbarMetrics {
 
 /// Peek: off-site links from permanent entries in an overlay card (spec §A.4, §I.6).
 public enum PeekMetrics {
-    /// The card's share of the content area's width and height (spec §I.6: 86%).
-    public static let sizeFraction: CGFloat = 0.86
+    /// 5.13 (the user's design): the peeked page nearly the content area's full height, its sides
+    /// leaving room for the buttons beside it (the larger of `sideFraction` and the buttons' column).
+    public static let verticalInset: CGFloat = 16
+    public static let sideFraction: CGFloat = 0.12
     /// The card's corner (spec §I.6: 24 px).
     public static let cornerRadius: CGFloat = 24
-    /// The content under the card is dimmed with black at this alpha (spec §I.6: 30%).
-    public static let dimAlpha: CGFloat = 0.30
-    /// The header with the domain, Open as Tab, Split and × (chosen).
-    public static let headerHeight: CGFloat = 40
-    public static let headerButtonSize: CGFloat = 28
-    public static let headerPadding: CGFloat = 10
+    /// The page behind fades to this opacity (5.13: no dark layer, so a split's panes fade alike).
+    public static let backgroundAlpha: CGFloat = 0.3
+    /// The header: the page's domain, centred and quiet (5.13).
+    public static let headerHeight: CGFloat = 32
+    /// Close, Open as Tab and Split as glass circles beside the card's top-right corner (5.13).
+    public static let buttonSize: CGFloat = GlassControlMetrics.size
+    public static let buttonGap: CGFloat = Spacing.s
+    /// Between the card and the buttons.
+    public static let buttonInset: CGFloat = Spacing.m
     /// The card floats higher than the page card (chosen).
     public static let shadowRadius: CGFloat = 24
     public static let shadowOpacityLight: Float = 0.25

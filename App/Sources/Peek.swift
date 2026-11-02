@@ -6,11 +6,13 @@ import Observation
 import Tabs
 import UIKitCore
 
-/// Peek on screen (spec §I.6): the content area dimmed 30%, an overlay card
-/// of 86% of it with 24 pt corners, a header with the domain, Open as Tab
-/// (⌘O), Split (⇧⌘O) and ×, and the page in its own `PageContainerView`
-/// with its own tool and prompt layers. A click on the dim closes it; nothing
-/// under the dim gets an event. It opens scaling up from the click.
+/// Peek on screen (spec §I.6; 5.13, the user's design): the page behind fades
+/// (its opacity, no dark layer, so a split's panes fade alike), an overlay card
+/// nearly the content area's height with 24 pt corners and a quiet header with
+/// the domain, Close, Open as Tab (⌘O) and Split (⇧⌘O) as glass circles beside
+/// its top-right corner, and the page in its own `PageContainerView` with its
+/// own tool and prompt layers. A click beside the card closes it; nothing
+/// under the overlay gets an event. It opens growing from the click.
 final class PeekPresenter: PeekDisplay {
     private weak var rootView: BrowserWindowView?
     let overlay = PeekOverlayView()
@@ -30,9 +32,9 @@ final class PeekPresenter: PeekDisplay {
         self.rootView = rootView
         overlay.isHidden = true
         overlay.onDimClick = { [weak self] in self?.onClose?() }
-        overlay.header.onClose = { [weak self] in self?.onClose?() }
-        overlay.header.onExpand = { [weak self] in self?.onExpand?() }
-        overlay.header.onSplit = { [weak self] in self?.onSplit?() }
+        overlay.buttons.onClose = { [weak self] in self?.onClose?() }
+        overlay.buttons.onExpand = { [weak self] in self?.onExpand?() }
+        overlay.buttons.onSplit = { [weak self] in self?.onSplit?() }
         // Under the sidebar's overlay, over the card.
         rootView.addSubview(overlay, positioned: .below, relativeTo: rootView.overlayView)
     }
@@ -51,9 +53,11 @@ final class PeekPresenter: PeekDisplay {
             onFocus?(contents, overlay.container)
             focus(contents)
             if animated { animateOpen() } else { overlay.card.layer?.transform = CATransform3DIdentity }
+            fadeBackground(to: PeekMetrics.backgroundAlpha, animated: animated)
             CATransaction.setCompletionBlock { [weak self] in self?.onPresented?() }
         } else if previous != nil {
             onFocus?(nil, nil)
+            fadeBackground(to: 1, animated: animated)
             if animated, CardMotion.peekClose.animates {
                 NSAnimationContext.runAnimationGroup({ context in
                     context.duration = Motion.fast
@@ -64,6 +68,20 @@ final class PeekPresenter: PeekDisplay {
             }
         }
     }
+
+    /// The page card (a split's panes with it) and the toolbar fade while Peek shows (5.13).
+    private func fadeBackground(to alpha: CGFloat, animated: Bool) {
+        guard let rootView else { return }
+        let views: [NSView] = [rootView.cardView, rootView.toolbarView]
+        guard animated, CardMotion.peekOpen.animates else { return views.forEach { $0.alphaValue = alpha } }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.fast
+            for view in views { view.animator().alphaValue = alpha }
+        }
+    }
+
+    /// Spikes: the page behind's opacity.
+    var debugBackgroundAlpha: CGFloat { rootView?.cardView.alphaValue ?? -1 }
 
     /// Off screen once closed (the container lets go of a page view Open as Tab already took into the card).
     private func detach() {
@@ -89,8 +107,8 @@ final class PeekPresenter: PeekDisplay {
         }
     }
 
-    /// Scales up from the click (the engine reports no link rect) over `Motion.slow`;
-    /// the dim fades in. Reduce Motion: a fade.
+    /// Grows from the click (the engine reports no link rect) over `Motion.slow`;
+    /// the buttons fade in. Reduce Motion: a fade.
     private func animateOpen() {
         guard let layer = overlay.card.layer else { return }
         overlay.layoutSubtreeIfNeeded()
@@ -100,19 +118,27 @@ final class PeekPresenter: PeekDisplay {
         let variant = CardMotion.peekOpen.variant
         guard variant != .instant else { return }
         fade.duration = variant == .full ? Motion.fast : Motion.medium
-        overlay.dim.layer?.add(fade, forKey: "peek-open")
+        overlay.buttons.layer?.add(fade, forKey: "peek-open")
         if variant == .crossfade {
             layer.add(fade, forKey: "peek-open")
             return
         }
         let frame = overlay.card.frame
         let click = recentClick().map { overlay.convert($0, from: rootView) } ?? CGPoint(x: frame.midX, y: frame.midY)
+        lastOpenOrigin = click
         let scale = PeekMetrics.openStartScale
-        // The card's layer scales about its frame origin (AppKit's anchor), the
-        // top-left corner here (flipped): move that corner so the small card centres on the click.
-        let dx = click.x - frame.minX - frame.width * scale / 2
-        let dy = click.y - frame.minY - frame.height * scale / 2
-        let start = CATransform3DConcat(CATransform3DMakeScale(scale, scale, 1), CATransform3DMakeTranslation(dx, overlay.isFlipped ? -dy : dy, 0))
+        // In the card layer's superlayer space (5.13: the view-space offset had the wrong sign there,
+        // so a click low on the page grew the card from the top): the click converted into it, and the
+        // small card (scaled about the layer's anchor) moved so its centre sits on the click.
+        let superlayerClick = overlay.convertToLayer(click)
+        let size = layer.bounds.size
+        let scaledOrigin = CGPoint(x: layer.position.x - layer.anchorPoint.x * size.width * scale,
+                                   y: layer.position.y - layer.anchorPoint.y * size.height * scale)
+        let dx = superlayerClick.x - scaledOrigin.x - size.width * scale / 2
+        let dy = superlayerClick.y - scaledOrigin.y - size.height * scale / 2
+        lastOpenStart = CGRect(x: scaledOrigin.x + dx, y: scaledOrigin.y + dy, width: size.width * scale, height: size.height * scale)
+        lastOpenClickInLayer = superlayerClick
+        let start = CATransform3DConcat(CATransform3DMakeScale(scale, scale, 1), CATransform3DMakeTranslation(dx, dy, 0))
         let grow = CASpringAnimation(perceptualDuration: Motion.slow, bounce: 0)
         grow.keyPath = "transform"
         grow.fromValue = NSValue(caTransform3D: start)
@@ -121,6 +147,12 @@ final class PeekPresenter: PeekDisplay {
         layer.add(grow, forKey: "peek-open")
         layer.add(fade, forKey: "peek-open-fade")
     }
+
+    /// Spikes: where the last open animation started (overlay coordinates), the start rect and the
+    /// click in the card layer's superlayer space.
+    private(set) var lastOpenOrigin: CGPoint?
+    private(set) var lastOpenStart: CGRect?
+    private(set) var lastOpenClickInLayer: CGPoint?
 
     /// The header's domain and the card's fill follow the page.
     private func trackHeader(_ contents: any WebContents) {
@@ -142,18 +174,20 @@ final class PeekPresenter: PeekDisplay {
     }
 }
 
-/// The dim over the content area with Peek's card in it.
+/// Peek's overlay over the content area: a clear backdrop (a click on it closes Peek), the card
+/// and the buttons beside it.
 final class PeekOverlayView: NSView {
     let dim = PeekDimView()
     let card = CardView()
     let header = PeekHeaderView()
+    let buttons = PeekButtonsView()
     let container = PageContainerView()
     var onDimClick: (() -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         setAccessibilityIdentifier("peek")
-        // One group over the page (5.3a): its header's buttons and the peeked page inside; Esc closes it.
+        // One group over the page (5.3a): its buttons and the peeked page inside; Esc closes it.
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Peek")
@@ -167,6 +201,7 @@ final class PeekOverlayView: NSView {
         card.setAccessibilityIdentifier("peek-card")
         addSubview(dim)
         addSubview(card)
+        addSubview(buttons)
     }
 
     @available(*, unavailable)
@@ -175,36 +210,35 @@ final class PeekOverlayView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    /// The card is 86% of the content area, centred (spec §I.6).
+    /// The card: nearly the full height, centred, its sides leaving room for the buttons (5.13).
     static func cardFrame(in bounds: CGRect) -> CGRect {
-        let width = (bounds.width * PeekMetrics.sizeFraction).rounded()
-        let height = (bounds.height * PeekMetrics.sizeFraction).rounded()
-        return CGRect(x: (bounds.midX - width / 2).rounded(), y: (bounds.midY - height / 2).rounded(), width: width, height: height)
+        let column = PeekMetrics.buttonInset + PeekMetrics.buttonSize + PeekMetrics.buttonInset
+        let side = max(column, (bounds.width * PeekMetrics.sideFraction).rounded())
+        let inset = PeekMetrics.verticalInset
+        return CGRect(x: bounds.minX + side, y: bounds.minY + inset, width: max(0, bounds.width - 2 * side), height: max(0, bounds.height - 2 * inset))
     }
 
     override func layout() {
         super.layout()
         dim.frame = bounds
         card.frame = Self.cardFrame(in: bounds)
+        let size = buttons.fittingSize
+        buttons.frame = NSRect(x: card.frame.maxX + PeekMetrics.buttonInset, y: card.frame.minY, width: size.width, height: size.height)
     }
 
-    /// Everything under the overlay is the dim's or the card's: nothing reaches the page below.
+    /// Everything under the overlay is the backdrop's, the card's or a button's: nothing reaches the page below.
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !isHidden, frame.contains(point) else { return nil }
         return super.hitTest(point) ?? dim
     }
 }
 
-/// Black at `PeekMetrics.dimAlpha` over the content area, in the card's corner; a click closes Peek.
+/// Clear over the content area (5.13: the page behind fades instead of a dark layer); a click closes Peek.
 final class PeekDimView: NSView, AccessibilityBackdrop {
     var onClick: (() -> Void)?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.black.withAlphaComponent(PeekMetrics.dimAlpha).cgColor
-        layer?.cornerRadius = CardMetrics.cornerRadius
-        layer?.cornerCurve = .continuous
         setAccessibilityIdentifier("peek-dim")
     }
 
@@ -218,33 +252,19 @@ final class PeekDimView: NSView, AccessibilityBackdrop {
     override func scrollWheel(with event: NSEvent) {}
 }
 
-/// Peek's header: the domain (the title on hover as a tooltip), Open as Tab, Split and ×.
+/// Peek's header (5.13): the page's domain, centred and quiet; the title is its tooltip.
 final class PeekHeaderView: NSView {
-    var onExpand: (() -> Void)?
-    var onSplit: (() -> Void)?
-    var onClose: (() -> Void)?
     private let domain = NSTextField(labelWithString: "")
-    private let expand = PeekHeaderView.button(.peekExpand, "Open as Tab (⌘O)")
-    let split = PeekHeaderView.button(.peekSplit, "Open in Split View (⇧⌘O)")
-    private let close = PeekHeaderView.button(.closeTab, "Close (Esc)")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        domain.font = Typography.spaceTitle
+        domain.font = Typography.secondary
         domain.textColor = .secondaryLabelColor
+        domain.alignment = .center
         domain.lineBreakMode = .byTruncatingMiddle
         domain.setAccessibilityIdentifier("peek-domain")
         domain.hideFromAccessibility()
-        expand.target = self
-        expand.action = #selector(expandClicked)
-        expand.setAccessibilityIdentifier("peek-open-as-tab")
-        split.target = self
-        split.action = #selector(splitClicked)
-        split.setAccessibilityIdentifier("peek-split")
-        close.target = self
-        close.action = #selector(closeClicked)
-        close.setAccessibilityIdentifier("peek-close")
-        [domain, expand, split, close].forEach(addSubview)
+        addSubview(domain)
     }
 
     @available(*, unavailable)
@@ -267,14 +287,51 @@ final class PeekHeaderView: NSView {
 
     override func layout() {
         super.layout()
-        let size = PeekMetrics.headerButtonSize, padding = PeekMetrics.headerPadding
-        let y = ((bounds.height - size) / 2).rounded()
-        close.frame = NSRect(x: bounds.width - padding - size, y: y, width: size, height: size)
-        split.frame = close.frame.offsetBy(dx: -size, dy: 0)
-        expand.frame = split.frame.offsetBy(dx: -size, dy: 0)
         let height = domain.cell?.cellSize.height ?? 16
-        domain.frame = NSRect(x: padding + Spacing.xs, y: ((bounds.height - height) / 2).rounded(), width: max(0, expand.frame.minX - padding - Spacing.xs),
-                              height: height)
+        let padding = Spacing.l
+        domain.frame = NSRect(x: padding, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - 2 * padding), height: height)
+    }
+}
+
+/// Close, Open as Tab and Split beside the card's top-right corner, as AppKit's glass circles (5.13).
+final class PeekButtonsView: NSView {
+    var onExpand: (() -> Void)?
+    var onSplit: (() -> Void)?
+    var onClose: (() -> Void)?
+    private let close = PeekButtonsView.button(.closeTab, "Close (Esc)")
+    private let expand = PeekButtonsView.button(.peekExpand, "Open as Tab (⌘O)")
+    let split = PeekButtonsView.button(.peekSplit, "Open in Split View (⇧⌘O)")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        expand.target = self
+        expand.action = #selector(expandClicked)
+        expand.setAccessibilityIdentifier("peek-open-as-tab")
+        split.target = self
+        split.action = #selector(splitClicked)
+        split.setAccessibilityIdentifier("peek-split")
+        close.target = self
+        close.action = #selector(closeClicked)
+        close.setAccessibilityIdentifier("peek-close")
+        [close, expand, split].forEach(addSubview)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+    override var fittingSize: NSSize {
+        NSSize(width: PeekMetrics.buttonSize, height: 3 * PeekMetrics.buttonSize + 2 * PeekMetrics.buttonGap)
+    }
+
+    override func layout() {
+        super.layout()
+        let size = PeekMetrics.buttonSize
+        for (index, button) in [close, expand, split].enumerated() {
+            button.frame = NSRect(x: 0, y: CGFloat(index) * (size + PeekMetrics.buttonGap), width: size, height: size)
+        }
     }
 
     @objc private func expandClicked() { onExpand?() }
@@ -284,7 +341,7 @@ final class PeekHeaderView: NSView {
     private static func button(_ symbol: Symbol, _ tip: String) -> NSButton {
         let button = HoverButton()
         button.image = symbol.image(.control, accessibilityDescription: tip)
-        button.contentTintColor = .secondaryLabelColor
+        button.makeGlass()
         button.setTip(tip)
         return button
     }
