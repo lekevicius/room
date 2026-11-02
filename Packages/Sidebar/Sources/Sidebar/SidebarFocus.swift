@@ -420,24 +420,26 @@ final class OverflowIndicatorView: NSView {
 
     let edge: Edge
     var onClick: (() -> Void)?
-    private let pill = NSView()
+    /// AppKit's glass, as the chrome's other floating controls (5.13 review: a translucent fill let the
+    /// rows' text show through it); it answers the pointer itself where the system offers it.
+    private let pill = NSGlassEffectView()
     private let favicon = FaviconView()
     private let arrow = NSImageView()
-    private lazy var feedback = ControlFeedback(view: pill)
 
     init(edge: Edge) {
         self.edge = edge
         super.init(frame: .zero)
         wantsLayer = true
-        pill.wantsLayer = true
+        pill.style = .regular
+        if #available(macOS 27, *) { pill.effectIsInteractive = true }
+        let content = NSView()
+        pill.contentView = content
         arrow.image = NSImage(systemSymbolName: edge == .top ? "arrow.up" : "arrow.down", accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: OverflowPillMetrics.arrowSize, weight: .medium))
         arrow.contentTintColor = .labelColor
         addSubview(pill)
-        pill.addSubview(favicon)
-        pill.addSubview(arrow)
-        feedback.restFill = { Palette.sidebarSelection }
-        feedback.hoverFill = { Palette.sidebarSelection }
+        content.addSubview(favicon)
+        content.addSubview(arrow)
         isHidden = true
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
@@ -498,31 +500,12 @@ final class OverflowIndicatorView: NSView {
         let icon = SidebarMetrics.faviconSize
         favicon.frame = NSRect(x: m.padding, y: (m.height - icon) / 2, width: icon, height: icon)
         arrow.frame = NSRect(x: favicon.frame.maxX + m.gap, y: (m.height - m.arrowSize - 2) / 2, width: m.arrowSize, height: m.arrowSize + 2)
-        guard let layer = pill.layer else { return }
-        layer.cornerRadius = m.height / 2
-        layer.cornerCurve = .continuous
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer.shadowColor = Palette.cardShadow.cgColor
-            layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark) * 2
-            layer.shadowRadius = m.shadowRadius
-            layer.shadowOffset = CGSize(width: 0, height: -2)
-            feedback.appearanceChanged()
-        }
+        pill.cornerRadius = m.height / 2
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: pill.frame, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil))
-    }
-
-    override func mouseEntered(with event: NSEvent) { feedback.setHovering(true) }
-    override func mouseExited(with event: NSEvent) { feedback.setHovering(false) }
-
-    override func mouseDown(with event: NSEvent) { feedback.setPressed(true) }
+    override func mouseDown(with event: NSEvent) {}
 
     override func mouseUp(with event: NSEvent) {
-        feedback.setPressed(false)
         if pill.frame.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
     }
 

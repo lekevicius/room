@@ -349,7 +349,6 @@ public enum OverflowPillMetrics {
     public static let arrowSize: CGFloat = 12
     /// From the list's edge.
     public static let inset: CGFloat = 8
-    public static let shadowRadius: CGFloat = 8
 }
 
 /// The update banner above the mini-player (5.13; chosen: the mini-player's card).
