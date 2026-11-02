@@ -14,7 +14,7 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     # Apple silicon only: the fork build is arm64.
     ARCHS: arm64
-    MARKETING_VERSION: "0.3.0"
+    MARKETING_VERSION: "0.3.0 split"
     CURRENT_PROJECT_VERSION: "28"
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
