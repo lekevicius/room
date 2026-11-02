@@ -254,6 +254,15 @@ final class TabSwitcherPanel: NSView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// The cards side by side inside the panel's padding (5.13: the stack's top alignment left its
+    /// bottom inset out of the fitting size, and the highlight ran to the panel's edge).
+    override var fittingSize: NSSize {
+        let count = CGFloat(stack.arrangedSubviews.count)
+        let m = TabSwitcherMetrics.self
+        let cardWidth = m.cardWidth + 2 * m.cardPadding
+        return NSSize(width: count * cardWidth + max(0, count - 1) * m.cardGap + 2 * m.panelPadding, height: m.cardHeight + 2 * m.panelPadding)
+    }
+
     func setRows(_ rows: [Row], highlighted: Int) {
         self.highlighted = highlighted
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -292,7 +301,9 @@ private final class SwitcherCardView: NSView {
             picture.layer?.borderColor = Palette.hairline.cgColor
             picture.layer?.backgroundColor = Palette.sidebarHover.cgColor
         }
-        picture.frame = NSRect(x: inset, y: inset + TabSwitcherMetrics.titleHeight, width: width, height: TabSwitcherMetrics.thumbnailHeight)
+        // Not flipped: the title's line at the bottom, the picture above it, `cardPadding` from the top.
+        let titleY = TabSwitcherMetrics.titleBottomPadding
+        picture.frame = NSRect(x: inset, y: titleY + TabSwitcherMetrics.titleCenterOffset, width: width, height: TabSwitcherMetrics.thumbnailHeight)
         if let thumbnail = row.thumbnail {
             picture.layer?.contents = thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil)
             picture.layer?.contentsGravity = .resizeAspectFill
@@ -307,7 +318,7 @@ private final class SwitcherCardView: NSView {
         }
         addSubview(picture)
         // The row under the picture: the icon at the picture's leading edge, the title after it.
-        let icon = FaviconView(frame: NSRect(x: inset, y: inset + ((TabSwitcherMetrics.titleHeight - SidebarMetrics.faviconSize) / 2).rounded(),
+        let icon = FaviconView(frame: NSRect(x: inset, y: (titleY - SidebarMetrics.faviconSize / 2).rounded(),
                                              width: SidebarMetrics.faviconSize, height: SidebarMetrics.faviconSize))
         icon.image = row.favicon
         icon.letterSource = row.domain
@@ -318,7 +329,7 @@ private final class SwitcherCardView: NSView {
         title.textColor = row.isLoaded ? .labelColor : .secondaryLabelColor
         let titleHeight = ceil(title.cell?.cellSize.height ?? 16)
         let x = icon.frame.maxX + SidebarMetrics.faviconTitleGap
-        title.frame = NSRect(x: x, y: inset + ((TabSwitcherMetrics.titleHeight - titleHeight) / 2).rounded(),
+        title.frame = NSRect(x: x, y: (titleY - titleHeight / 2).rounded(),
                              width: inset + width - x, height: titleHeight)
         addSubview(title)
         setAccessibilityElement(true)
@@ -326,7 +337,7 @@ private final class SwitcherCardView: NSView {
         setAccessibilityLabel(row.title)
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: width + 2 * inset),
-            heightAnchor.constraint(equalToConstant: TabSwitcherMetrics.thumbnailHeight + TabSwitcherMetrics.titleHeight + 2 * inset),
+            heightAnchor.constraint(equalToConstant: TabSwitcherMetrics.cardHeight),
         ])
     }
 
