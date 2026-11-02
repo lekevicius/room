@@ -208,7 +208,7 @@ public enum Symbol: CaseIterable, Sendable {
         case .unsplit: "rectangle"
         case .dragGrip: "line.3.horizontal"
         case .peekExpand: "arrow.up.left.and.arrow.down.right"
-        case .peekSplit: "rectangle.righthalf.inset.filled"
+        case .peekSplit: "rectangle.split.2x1"
         case .audible: "speaker.wave.2.fill"
         case .muted: "speaker.slash.fill"
         case .audibleShape: "speaker.wave.2.circle.fill"
