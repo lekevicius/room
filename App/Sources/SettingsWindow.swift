@@ -304,7 +304,7 @@ private struct SettingsSectionView: View {
                 Text("Send crash reports")
                 Text(services.crashReportsUnavailable
                      ? "This build has no crash collector yet: reports stay on this Mac, whatever this says."
-                     : "When Room crashes, its report goes to Room's developer's own server. A report may hold fragments of what was on the page. Off: reports stay on this Mac.")
+                     : "When Room crashes, its report goes to Room's developer's own server: the crashed process's memory stack, Room's version and the address of the page that crashed. Off: reports stay on this Mac.")
             }
             Toggle(isOn: binding(\.automaticUpdateChecks)) {
                 Text("Check for updates automatically")

@@ -456,8 +456,8 @@ public struct Settings: Hashable, Sendable, Codable {
     /// Onboarding (5.7b, B-121; Chapter 2's first-run card before it) was finished or skipped:
     /// it no longer shows at launch; Help ▸ Welcome to Room… shows it again.
     public var firstRunDone: Bool = false
-    /// Crash reports to Sentry: off unless the user turns it on (first run or
-    /// Settings ▸ Privacy); while off the SDK is never started (ROADMAP 2.8 task 5).
+    /// Crash reports to the user's collector (6.3: the engine's Crashpad posts them): off unless the
+    /// user turns it on (first run or Settings ▸ Privacy); while off minidumps stay on disk (ROADMAP 2.8 task 5).
     public var crashReports: Bool = false
     /// Sparkle's scheduled update checks: off unless the user turns them on;
     /// while off the updater is not started at launch (ROADMAP 2.8 task 5).
