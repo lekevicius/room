@@ -332,9 +332,13 @@ final class MediaRowView: NSView {
         let headerMid = imageView.frame.midY
         let expandedPad = MediaRowMetrics.expandedPadding
         let expandedMid = expandedPad + MediaRowMetrics.expandedImageSize / 2
-        closeButton.frame = NSRect(x: width - expandedPad - close + 2, y: (expandedMid - close / 2).rounded(), width: close, height: close)
-        compactPlayButton.frame = NSRect(x: width - MediaRowMetrics.padding - button + 2, y: (headerMid - button / 2).rounded(),
-                                         width: button, height: button)
+        // The trailing glyphs' edges as far from the card's edge as the artwork's leading one (5.13 review: the
+        // squares' own air put the pause glyph 15 pt in against the artwork's 8).
+        let glyph = IconStyle.player.pointSize
+        closeButton.frame = NSRect(x: (width - expandedPad - close + (close - IconStyle.media.pointSize) / 2).rounded(),
+                                   y: (expandedMid - close / 2).rounded(), width: close, height: close)
+        compactPlayButton.frame = NSRect(x: (width - MediaRowMetrics.padding - button + (button - glyph) / 2 - 2).rounded(),
+                                         y: (headerMid - button / 2).rounded(), width: button, height: button)
         let trailing = (isExpanded ? closeButton.frame.minX : compactPlayButton.frame.minX) - Spacing.xs
         let textWidth = max(0, trailing - textX)
         let titleY = isExpanded ? headerMid - (lineHeight + subHeight) / 2 : headerMid - lineHeight / 2
