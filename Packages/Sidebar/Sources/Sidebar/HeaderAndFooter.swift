@@ -504,7 +504,7 @@ final class SidebarFooterView: NSView {
     private let iconRow = GlassButtonGroup()
     private let nameLabel = NSTextField(labelWithString: "")
     /// The name's backing above the icon row (5.10).
-    private let nameChip = NSView()
+    private let nameChip = NSGlassEffectView()
     private var icons: [SpaceIconView] = []
     private var spaces: [Space] = []
     private var activeID: UUID?
@@ -545,9 +545,13 @@ final class SidebarFooterView: NSView {
         nameLabel.alignment = .center
         nameLabel.lineBreakMode = .byTruncatingTail
         // 5.10: the hovered space's name above its icon, a small label on the selection's fill.
-        nameChip.wantsLayer = true
+        // 5.13: AppKit's glass, as the chrome's other floating pieces (a translucent fill read weakly over the
+        // mini-player and the update banner it rises over).
         nameChip.alphaValue = 0
-        nameChip.addSubview(nameLabel)
+        nameChip.cornerRadius = SpaceIconMetrics.nameChipHeight / 2
+        let chipContent = NSView()
+        chipContent.addSubview(nameLabel)
+        nameChip.contentView = chipContent
         addSubview(downloadsButton)
         addSubview(iconRow)
         addSubview(plusButton)
@@ -632,27 +636,7 @@ final class SidebarFooterView: NSView {
         }
     }
 
-    override func updateLayer() {
-        styleNameChip()
-    }
-
     override var wantsUpdateLayer: Bool { true }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { styleNameChip() }
-    }
-
-    private func styleNameChip() {
-        guard let layer = nameChip.layer else { return }
-        layer.backgroundColor = Palette.sidebarSelection.cgColor
-        layer.cornerRadius = SpaceIconMetrics.nameChipHeight / 2
-        layer.cornerCurve = .continuous
-        layer.shadowColor = Palette.cardShadow.cgColor
-        layer.shadowOpacity = SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark)
-        layer.shadowRadius = SidebarMetrics.pillShadowRadius
-        layer.shadowOffset = SidebarMetrics.pillShadowOffset
-    }
 
     override func layout() {
         super.layout()
