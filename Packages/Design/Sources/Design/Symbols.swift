@@ -89,6 +89,10 @@ public enum Symbol: CaseIterable, Sendable {
     case play
     case pause
     case nextTrack
+    case previousTrack
+    /// The mini-player's volume button (5.13): sound on, and muted.
+    case playerVolume
+    case playerMuted
     case pictureInPicture
     /// Document picture-in-picture's back to tab (B-107).
     case pictureInPictureExit
@@ -207,7 +211,10 @@ public enum Symbol: CaseIterable, Sendable {
         case .mutedShape: "speaker.slash.circle.fill"
         case .play: "play.fill"
         case .pause: "pause.fill"
-        case .nextTrack: "forward.fill"
+        case .nextTrack: "forward.end.fill"
+        case .previousTrack: "backward.end.fill"
+        case .playerVolume: "speaker.wave.2.fill"
+        case .playerMuted: "speaker.slash.fill"
         case .pictureInPicture: "pip.enter"
         case .pictureInPictureExit: "pip.exit"
         case .find: "text.magnifyingglass"
@@ -294,6 +301,9 @@ public enum IconStyle: String, CaseIterable, Sendable {
     case tileBadge
     /// The media row's buttons and its placeholder glyph.
     case media
+    /// The mini-player's controls (5.13), and its play/pause.
+    case player
+    case playerMain
     /// The downloads button's arrow inside the progress ring.
     case downloadProgress
     /// The palette field's search glyph.
@@ -316,6 +326,8 @@ public enum IconStyle: String, CaseIterable, Sendable {
         case .tileBadge: 8
         case .spaceDot: SpaceIconMetrics.dotSize
         case .paletteField: 15
+        case .player: 15
+        case .playerMain: 19
         case .interstitial: PromptMetrics.interstitialIconSize
         }
     }
@@ -324,7 +336,7 @@ public enum IconStyle: String, CaseIterable, Sendable {
         switch self {
         case .menu, .control, .controlSmall, .paneControl, .rowGlyph, .folder, .spaceDot, .media, .downloadProgress,
              .paletteField, .paletteRow, .interstitial: .regular
-        case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset: .medium
+        case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset, .player, .playerMain: .medium
         case .findButton, .disclosure, .spaceTitle, .tileBadge, .paletteDelete: .semibold
         }
     }

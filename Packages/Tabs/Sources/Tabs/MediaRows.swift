@@ -68,6 +68,8 @@ extension TabController {
         }
         page.mediaWasPlaying = playing
         page.mediaHadSession = session != nil
+        let position = session?.position
+        if position != page.mediaPosition?.value { page.mediaPosition = position.map { ($0, now()) } }
         setNeedsMediaRowUpdate()
     }
 
@@ -114,9 +116,17 @@ extension TabController {
         let title = session.map(\.title).flatMap { $0.isEmpty ? nil : $0 } ?? contents.title ?? host
         let artist = session.map(\.artist).flatMap { $0.isEmpty ? nil : $0 } ?? host
         let playing = session.map { $0.playbackState == .playing } ?? contents.isAudible
+        let position = page.mediaPosition.flatMap { reported in
+            reported.value.duration.isFinite && reported.value.duration > 0
+                ? MediaRowContent.Position(duration: reported.value.duration, elapsed: reported.value.position,
+                                           rate: playing ? reported.value.rate : 0, date: reported.date)
+                : nil
+        }
         return MediaRowContent(entry: entry, title: title, subtitle: artist == title ? "" : artist,
                                image: artworkImage(session?.artwork) ?? page.favicon ?? contents.favicon,
-                               isPlaying: playing, canGoNext: session?.actions.contains(.nextTrack) ?? false)
+                               isPlaying: playing, canGoNext: session?.actions.contains(.nextTrack) ?? false,
+                               canGoPrevious: session?.actions.contains(.previousTrack) ?? false,
+                               isMuted: contents.isMuted, position: position)
     }
 
     /// The session's artwork as an image, decoded once per artwork.
@@ -138,6 +148,17 @@ extension TabController {
             if playing { contents.mediaPause() } else { contents.mediaPlay() }
         case .next:
             contents?.mediaNextTrack()
+        case .previous:
+            contents?.mediaPreviousTrack()
+        case .seek(let seconds):
+            contents?.mediaSeek(to: seconds)
+        case .toggleMute:
+            guard let contents else { return }
+            contents.isMuted.toggle()
+            sidebar?.pageStateDidChange([entry])
+            updateMediaRow()
+        case .pictureInPicture:
+            contents?.mediaEnterPictureInPicture()
         case .dismiss:
             // Hidden until a page starts playing again (the next session).
             mediaDismissedAt = mediaClock

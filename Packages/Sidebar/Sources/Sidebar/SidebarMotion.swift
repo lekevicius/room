@@ -48,6 +48,8 @@ public enum SidebarMotion: String, CaseIterable, Sendable {
     case audioIndicator
     /// The folder preview's popover.
     case folderPreview
+    /// The mini-player grows and shrinks under the pointer (5.13; a crossfade of its extra rows under Reduce Motion).
+    case mediaRowExpansion
 
     /// The variant under Reduce Motion.
     public var reduced: MotionVariant {
@@ -56,7 +58,7 @@ public enum SidebarMotion: String, CaseIterable, Sendable {
              .loadingRing, .audioIndicator, .folderPreview:
             .instant
         case .spaceSlide, .spaceName, .essentialFade, .refusedDrop, .changedDot, .resetIconSwap, .resetCrossfade,
-             .clearSlide, .clearReveal:
+             .clearSlide, .clearReveal, .mediaRowExpansion:
             .crossfade
         }
     }

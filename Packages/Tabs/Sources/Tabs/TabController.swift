@@ -63,6 +63,8 @@ final class Page {
     var mediaWasPlaying = false
     var mediaHadSession = false
     var mediaStartedAt = 0
+    /// The session's last reported position and when it arrived (the mini-player's clock, 5.13).
+    var mediaPosition: (value: MediaSessionInfo.Position, date: Date)?
     /// The row's audio glyph outlasts the sound until then (`AudibleHold`, 5.12).
     var audibleHeldUntil: Date?
     var wasAudible = false
