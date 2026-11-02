@@ -16,14 +16,13 @@ public final class AddressFieldView: PressableView {
     private let siteButton = HoverButton()
     private let domainField = NSTextField(labelWithString: "")
     private let copyButton = HoverButton()
-    /// Liquid Glass under the field (5.10, the Room Browser design); it deepens under the pointer.
-    private let glass = GlassPillView()
     private var hovering = false { didSet { if hovering != oldValue { updateHover() } } }
-    /// The press (B-111); the hover is the glass's (5.10), so the field's own layer stays clear.
+    /// The resting fill, deeper under the pointer, and the press (B-111). 5.13 (the user's design,
+    /// Figma 157:233): back to the fill from before 5.10's Liquid Glass, with a hairline.
     private lazy var feedback: ControlFeedback = {
         let feedback = ControlFeedback(view: self)
-        feedback.restFill = { .clear }
-        feedback.hoverFill = { .clear }
+        feedback.restFill = { Palette.sidebarHover }
+        feedback.hoverFill = { Palette.addressFieldHover }
         return feedback
     }()
     private var url: String?
@@ -60,8 +59,6 @@ public final class AddressFieldView: PressableView {
         // A hover affordance: the keyboard has ⇧⌘C, and Tab never lands on a button that hides as the field loses focus.
         copyButton.refusesFirstResponder = true
         copyButton.setAccessibilityIdentifier("copy-url")
-        glass.strength = GlassMetrics.addressFieldStrength
-        addSubview(glass)
         addSubview(siteButton)
         addSubview(domainField)
         addSubview(copyButton)
@@ -130,12 +127,18 @@ public final class AddressFieldView: PressableView {
     public override func updateLayer() {
         layer?.cornerRadius = SidebarMetrics.pillCornerRadius
         layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1 / (window?.backingScaleFactor ?? 2)
+        layer?.borderColor = Palette.addressFieldStroke.cgColor
         feedback.appearanceChanged()
+    }
+
+    public override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsDisplay = true
     }
 
     public override func layout() {
         super.layout()
-        glass.frame = bounds
         let padding = SidebarMetrics.addressFieldPadding
         let button = SidebarMetrics.addressButtonSize
         // The button's icon lines up `padding` from the trailing edge, as the domain does from the leading one.
@@ -151,7 +154,6 @@ public final class AddressFieldView: PressableView {
 
     private func updateHover() {
         copyButton.isHidden = !(hovering && url != nil)
-        glass.isHighlighted = hovering
         feedback.setHovering(hovering)
         needsLayout = true
     }
@@ -223,11 +225,10 @@ extension AddressFieldView: NSDraggingSource {
     }
 }
 
-/// The extensions in the sidebar's top bar, packed against Back (the Room
-/// Browser design): the extensions menu's button (the puzzle piece; "···" until
-/// 5.11) first, then the pinned
-/// extensions' action buttons (3.6b), aligned to the bar's trailing edge.
-/// Pinned buttons that do not fit the bar's width move into the overflow menu.
+/// The extensions in the sidebar's top bar (5.13, the user's design, Figma 157:233): one Liquid
+/// Glass group beside the toggle, the extensions menu's button (the puzzle piece) first, then the
+/// pinned extensions' action buttons (3.6b) that fit the strip; the rest go into the menu. With
+/// room for nothing else the puzzle piece alone (a glass circle) lists them all.
 public final class ExtensionBarView: NSView {
     /// The pinned extensions' action buttons, in order.
     private var actionButtons: [ExtensionActionButton] = []
@@ -236,8 +237,7 @@ public final class ExtensionBarView: NSView {
     /// Shows while an extension with an action is unpinned, or a pinned one does not fit; its menu lists them.
     private let overflowButton = HoverButton()
     private var overflowActions: [HeaderExtensionAction] = []
-    /// The buttons' side: the bar's height (the top bar's button size).
-    private var buttonSize: CGFloat { bounds.height }
+    private let group = GlassButtonGroup()
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -249,19 +249,20 @@ public final class ExtensionBarView: NSView {
         overflowButton.toolTip = "Extensions"
         overflowButton.isHidden = true
         overflowButton.setAccessibilityIdentifier("extension-overflow")
-        addSubview(overflowButton)
+        addSubview(group)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     public override var isFlipped: Bool { true }
+    public override var mouseDownCanMoveWindow: Bool { false }
 
-    /// Every button side by side.
+    /// The least the bar shows: the puzzle piece alone, while there is an extension with an action
+    /// (the top bar keeps this much before Reload).
     public override var fittingSize: NSSize {
-        let count = actionButtons.count + (overflowActions.isEmpty ? 0 : 1)
-        let side = SidebarMetrics.topBarButtonSize
-        return NSSize(width: CGFloat(count) * side, height: side)
+        let any = !actionButtons.isEmpty || !overflowActions.isEmpty
+        return NSSize(width: any ? GlassControlMetrics.size : 0, height: GlassControlMetrics.size)
     }
 
     /// The pinned extensions' buttons (3.6b), in order; reuses buttons by id.
@@ -274,11 +275,11 @@ public final class ExtensionBarView: NSView {
             button.model = action
             button.target = self
             button.action = #selector(extensionClicked(_:))
-            if button.superview !== self { addSubview(button) }
             buttons.append(button)
         }
         reusable.values.forEach { $0.removeFromSuperview() }
         actionButtons = buttons
+        superview?.needsLayout = true
         needsLayout = true
         layoutSubtreeIfNeeded()
     }
@@ -287,34 +288,34 @@ public final class ExtensionBarView: NSView {
     public func setOverflowActions(_ actions: [HeaderExtensionAction]) {
         guard actions != overflowActions else { return }
         overflowActions = actions
+        superview?.needsLayout = true
         needsLayout = true
         layoutSubtreeIfNeeded()
     }
 
-    /// How many pinned buttons the width holds, and whether the overflow button shows.
+    /// How many pinned buttons the width holds, and whether the puzzle piece shows.
     private var fit: (pinned: Int, overflow: Bool) {
-        let slots = buttonSize > 0 ? Int((bounds.width / buttonSize).rounded(.down)) : 0
+        let width = bounds.width
         let pinned = actionButtons.count
-        if pinned + (overflowActions.isEmpty ? 0 : 1) <= slots { return (pinned, !overflowActions.isEmpty) }
-        guard slots > 0 else { return (0, false) }
-        return (slots - 1, true)
+        let needsMenu = !overflowActions.isEmpty
+        if pinned + (needsMenu ? 1 : 0) == 0 { return (0, false) }
+        if GlassControlMetrics.groupWidth(pinned + (needsMenu ? 1 : 0)) <= width { return (pinned, needsMenu) }
+        guard width >= GlassControlMetrics.size else { return (0, false) }
+        var shown = pinned - 1
+        while shown > 0, GlassControlMetrics.groupWidth(shown + 1) > width { shown -= 1 }
+        return (max(0, shown), true)
     }
 
     public override func layout() {
         super.layout()
         let (shown, overflow) = fit
-        let y: CGFloat = 0
-        var x = bounds.width - CGFloat(shown + (overflow ? 1 : 0)) * buttonSize
         overflowButton.isHidden = !overflow
-        if overflow {
-            overflowButton.frame = NSRect(x: x, y: y, width: buttonSize, height: buttonSize)
-            x += buttonSize
-        }
-        for (index, button) in actionButtons.enumerated() {
-            button.isHidden = index >= shown
-            button.frame = NSRect(x: x, y: y, width: buttonSize, height: buttonSize)
-            if !button.isHidden { x += buttonSize }
-        }
+        for (index, button) in actionButtons.enumerated() { button.isHidden = index >= shown }
+        let items: [NSButton] = (overflow ? [overflowButton] : []) + Array(actionButtons.prefix(shown))
+        group.setItems(items)
+        group.isHidden = items.isEmpty
+        let width = GlassControlMetrics.groupWidth(items.count)
+        group.frame = NSRect(x: 0, y: ((bounds.height - GlassControlMetrics.size) / 2).rounded(), width: width, height: GlassControlMetrics.size)
     }
 
     /// The pinned buttons the bar shows (the rest are in the overflow menu).
@@ -456,7 +457,10 @@ protocol SpaceIconDropEvents: AnyObject {
 final class SidebarFooterView: NSView {
     let downloadsButton = DownloadsButton()
     let plusButton = HoverButton()
-    private let iconRow = FlippedRow()
+    /// The downloads button's glass circle (5.13: the button draws its ring and badge itself).
+    private let downloadsGlass = NSGlassEffectView()
+    /// The space icons in one glass group, the active one filled (5.13, the user's design, Figma 157:233).
+    private let iconRow = GlassButtonGroup()
     private let nameLabel = NSTextField(labelWithString: "")
     /// The name's backing above the icon row (5.10).
     private let nameChip = NSView()
@@ -486,6 +490,9 @@ final class SidebarFooterView: NSView {
         plusButton.target = self
         plusButton.action = #selector(plusClicked)
         plusButton.setAccessibilityIdentifier("footer-plus")
+        plusButton.makeGlass()
+        downloadsGlass.style = .regular
+        downloadsGlass.cornerRadius = GlassControlMetrics.size / 2
         // 5.10 (the user on build 24): no ring behind the active space; its full size and opacity mark it.
         iconRow.setAccessibilityIdentifier("space-icons")
         // The icons as one group (5.3a); the hovered name beside them repeats an icon's label.
@@ -502,6 +509,7 @@ final class SidebarFooterView: NSView {
         nameChip.wantsLayer = true
         nameChip.alphaValue = 0
         nameChip.addSubview(nameLabel)
+        addSubview(downloadsGlass)
         addSubview(downloadsButton)
         addSubview(iconRow)
         addSubview(plusButton)
@@ -540,9 +548,10 @@ final class SidebarFooterView: NSView {
                 icon.onMenu = { [weak self] in self?.spaceMenu?(space.id) }
                 icon.onHover = { [weak self] hovering in self?.iconHovered(space.id, hovering) }
                 icon.onDrag = { [weak self] event, phase in self?.iconDragged(space.id, event, phase) }
-                iconRow.addSubview(icon)
                 return icon
             } : []
+            iconRow.setItems(icons)
+            iconRow.isHidden = icons.isEmpty
         } else {
             // A switch: only the active icon changes (no layout pass, Phase 2.5 switch timing).
             for (icon, space) in zip(icons, spaces) where icon.space != space { icon.update(space) }
@@ -557,6 +566,7 @@ final class SidebarFooterView: NSView {
 
     private func applyActive(animated: Bool) {
         guard let index = spaces.firstIndex(where: { $0.id == activeID }), icons.indices.contains(index) else { return }
+        iconRow.selectedIndex = index
         let duration = animated && SidebarMotion.spaceIndicator.animates ? Motion.medium : 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
@@ -608,23 +618,17 @@ final class SidebarFooterView: NSView {
 
     override func layout() {
         super.layout()
-        // B-110: the top bar's metric. The buttons are `ControlMetrics` squares at the rows' inset,
-        // as Back, Forward and Reload end at it; each space icon is a square of the same size.
-        let side = SidebarMetrics.footerButtonSize
+        // 5.13 (the user's design, Figma 157:233): Downloads and New as glass circles at the rows'
+        // inset, the space icons between them in a glass group (its items, `GlassControlMetrics`).
+        let side = GlassControlMetrics.size
         let inset = SidebarMetrics.rowHorizontalInset
         let y = ((bounds.height - side) / 2).rounded()
         downloadsButton.frame = NSRect(x: inset, y: y, width: side, height: side)
+        downloadsGlass.frame = downloadsButton.frame
         plusButton.frame = NSRect(x: bounds.width - inset - side, y: y, width: side, height: side)
-        // Icons shrink to fit between the buttons (Zen shrinks its strip on overflow).
-        let available = max(0, plusButton.frame.minX - downloadsButton.frame.maxX - 2 * Spacing.xs)
-        let count = CGFloat(icons.count)
-        let pitch = count > 0 ? min(SpaceIconMetrics.pitch, available / count) : 0
-        let rowWidth = pitch * count
-        iconRow.frame = NSRect(x: ((bounds.width - rowWidth) / 2).rounded(), y: 0, width: rowWidth, height: bounds.height)
-        let box = min(side, pitch)
-        for (index, icon) in icons.enumerated() {
-            icon.frame = NSRect(x: CGFloat(index) * pitch + (pitch - box) / 2, y: ((bounds.height - box) / 2).rounded(), width: box, height: box)
-        }
+        let available = max(0, plusButton.frame.minX - downloadsButton.frame.maxX - 2 * GlassControlMetrics.gap)
+        let rowWidth = min(GlassControlMetrics.groupWidth(icons.count), available)
+        iconRow.frame = NSRect(x: ((bounds.width - rowWidth) / 2).rounded(), y: y, width: rowWidth, height: side)
         // The name above the hovered icon, centred on it, kept inside the footer's width.
         let labelSize = nameLabel.cell?.cellSize ?? NSSize(width: 0, height: 14)
         let chipHeight = SpaceIconMetrics.nameChipHeight
@@ -641,15 +645,15 @@ final class SidebarFooterView: NSView {
 
     private func iconDragged(_ space: UUID, _ event: NSEvent, _ phase: SpaceIconView.DragPhase) {
         guard let from = spaces.firstIndex(where: { $0.id == space }), !icons.isEmpty else { return }
-        let pitch = iconRow.bounds.width / CGFloat(icons.count)
+        let slots = iconRow.itemFrames
         let x = iconRow.convert(event.locationInWindow, from: nil).x
-        let index = min(max(Int(x / max(pitch, 1)), 0), icons.count - 1)
+        let index = slots.firstIndex { x < $0.maxX + GlassControlMetrics.separatorWidth / 2 } ?? icons.count - 1
         switch phase {
         case .moved:
             if reorder?.index != index {
                 if reorder != nil { Haptics.alignment() }
                 reorder = (space, index)
-                layoutReorder(moving: from, to: index, pitch: pitch)
+                layoutReorder(moving: from, to: index, slots: slots)
             }
             // The dragged icon follows the pointer.
             icons[from].frame.origin.x = min(max(x - icons[from].frame.width / 2, 0), iconRow.bounds.width - icons[from].frame.width)
@@ -661,7 +665,7 @@ final class SidebarFooterView: NSView {
     }
 
     /// The other icons make room for the dragged one at `to`.
-    private func layoutReorder(moving from: Int, to: Int, pitch: CGFloat) {
+    private func layoutReorder(moving from: Int, to: Int, slots: [NSRect]) {
         var order = Array(icons.indices)
         order.remove(at: from)
         order.insert(from, at: to)
@@ -669,9 +673,8 @@ final class SidebarFooterView: NSView {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = animates ? Motion.standard : 0
             for (slot, index) in order.enumerated() where index != from {
-                var frame = icons[index].frame
-                frame.origin.x = CGFloat(slot) * pitch + (pitch - frame.width) / 2
-                icons[index].animator().frame = frame
+                guard slots.indices.contains(slot) else { continue }
+                icons[index].animator().frame = slots[slot]
             }
         }
     }
@@ -842,7 +845,7 @@ final class SpaceIconView: PressableView {
     }
 
     override func updateLayer() {
-        layer?.cornerRadius = ControlMetrics.cornerRadius
+        layer?.cornerRadius = bounds.height / 2
         layer?.cornerCurve = .continuous
         feedback.restFill = { [weak self] in self?.isDropTarget == true ? Palette.sidebarMultiSelection : nil }
         feedback.appearanceChanged()
@@ -943,11 +946,6 @@ enum SpaceIcon: Equatable {
             self = .emoji(String(icon.prefix(1)))
         }
     }
-}
-
-private final class FlippedRow: NSView {
-    override var isFlipped: Bool { true }
-    override var mouseDownCanMoveWindow: Bool { true }
 }
 
 /// macOS 27 hides menu items' images unless the item asks (`NSMenuItem.preferredImageVisibility`,

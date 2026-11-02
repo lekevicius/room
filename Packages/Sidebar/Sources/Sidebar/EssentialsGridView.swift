@@ -408,7 +408,7 @@ final class EssentialTileView: PressableView {
         // hover fill; selected, the tinted glass (`glass`) with the design's lift.
         layer.backgroundColor = !isSelected && hovering ? Palette.sidebarHover.cgColor : nil
         layer.borderWidth = isSelected ? 0 : Hairline.width(in: self) * SidebarMetrics.essentialBorderPixels
-        layer.borderColor = Palette.hairline.cgColor
+        layer.borderColor = Palette.essentialStroke.cgColor
         layer.shadowColor = Palette.cardShadow.cgColor
         layer.shadowOpacity = isSelected ? SidebarMetrics.pillShadowOpacity(dark: effectiveAppearance.isDark) : 0
         layer.shadowRadius = SidebarMetrics.essentialShadowRadius

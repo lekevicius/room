@@ -29,18 +29,24 @@ public final class SidebarView: NSView {
         }
     }
 
-    /// Back, Forward, Reload at the top bar's trailing end, three buttons wide.
-    public var navigationView: NSView? {
+    /// Back (and Forward) and Reload at the top bar's trailing end.
+    public var navigationView: NavigationButtonsView? {
         didSet {
             guard navigationView !== oldValue else { return }
             oldValue?.removeFromSuperview()
-            if let navigationView { contentView.addSubview(navigationView) }
+            oldValue?.onWidthChange = nil
+            if let navigationView {
+                contentView.addSubview(navigationView)
+                // Forward slides in or out: the bar lays out again over `Motion.fast`.
+                navigationView.onWidthChange = { [weak self] in self?.animateTopBar() }
+            }
             needsLayout = true
         }
     }
 
     /// Between the toggle and the navigation buttons: gets all the width
-    /// there is and shows what fits (the extension bar).
+    /// there is and shows what fits (the extension bar); its `fittingSize` width is the least
+    /// it can show (the puzzle piece alone), which the bar keeps before Reload.
     public var accessoryView: NSView? {
         didSet {
             guard accessoryView !== oldValue else { return }
@@ -107,7 +113,7 @@ public final class SidebarView: NSView {
         badgeField.setAccessibilityIdentifier("sidebar-badge")
         contentView.addSubview(badgeField)
         toggleButton.image = Symbol.toggleSidebar.image(.control, accessibilityDescription: "Toggle Sidebar")
-        toggleButton.contentTintColor = .labelColor
+        toggleButton.makeGlass()
         toggleButton.toolTip = "Toggle Sidebar (⌘S)"
         toggleButton.target = self
         toggleButton.action = #selector(toggleClicked)
@@ -141,9 +147,10 @@ public final class SidebarView: NSView {
 
     public override func layout() {
         super.layout()
-        let bar = TopBarLayout(width: bounds.width, trafficLights: trafficLights)
+        let bar = topBar
         toggleButton.isHidden = bar.toggle == nil
         if let toggle = bar.toggle { toggleButton.frame = backingAlignedRect(toggle, options: .alignAllEdgesNearest) }
+        navigationView?.showsReload = bar.showsReload
         navigationView?.frame = backingAlignedRect(bar.navigation, options: .alignAllEdgesNearest)
         accessoryView?.frame = backingAlignedRect(bar.accessory, options: .alignAllEdgesNearest)
 
@@ -172,6 +179,23 @@ public final class SidebarView: NSView {
             bodyTop = badgeField.frame.maxY + WindowMetrics.incognitoLabelGap
         }
         bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
+    }
+
+    private var topBar: TopBarLayout {
+        let widths = navigationView.map { (withReload: $0.preferredWidth(showsReload: true), withoutReload: $0.preferredWidth(showsReload: false)) }
+        return TopBarLayout(width: bounds.width, trafficLights: trafficLights, navigationWidth: widths,
+                            accessoryMinimum: accessoryView?.fittingSize.width ?? 0)
+    }
+
+    private func animateTopBar() {
+        guard window != nil, !Motion.reduceMotion else { return needsLayout = true }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.fast
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = true
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        }
     }
 
     @objc private func toggleClicked() { onToggleSidebar?() }

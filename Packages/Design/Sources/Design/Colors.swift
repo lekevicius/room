@@ -33,6 +33,15 @@ public enum Palette {
     public static var sidebarHover: NSColor { named("SidebarHover") }
     /// The address field under the pointer: its resting fill (`sidebarHover`) deepened to 10% (B-111, 5.1b; chosen).
     public static var addressFieldHover: NSColor { named("AddressFieldHover") }
+    /// The address field's hairline (5.13, the user's design, Figma 157:233: 0.5 pt, black 15%;
+    /// white 15% in dark, chosen to match).
+    public static let addressFieldStroke = NSColor(name: "RoomAddressFieldStroke") { appearance in
+        appearance.isDark ? NSColor(white: 1, alpha: 0.15) : NSColor(white: 0, alpha: 0.15)
+    }
+    /// An Essential tile's hairline (5.13, the design: 0.5 pt, black 25%; white 22% in dark, chosen).
+    public static let essentialStroke = NSColor(name: "RoomEssentialStroke") { appearance in
+        appearance.isDark ? NSColor(white: 1, alpha: 0.22) : NSColor(white: 0, alpha: 0.25)
+    }
     /// Space tint when a space has no theme colors.
     public static var spaceTintDefault: NSColor { named("SpaceTintDefault") }
     /// Secondary text over the sidebar's tinted material (sublabels, the folder glyph, the unloaded

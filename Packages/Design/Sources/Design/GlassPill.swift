@@ -107,8 +107,6 @@ public final class GlassPillView: NSView {
 
 /// The glass pills' tokens (5.10).
 public enum GlassMetrics {
-    /// The address field's glass (`GlassPillView.strength`): quieter than the selected row's.
-    public static let addressFieldStrength: CGFloat = 0.5
     /// The palette's glass (5.12, the user on build 26: the new tab field "a bit less transparent,
     /// more white, keep Liquid Glass"): tinted toward white, in Dark Mode toward the window's grey.
     public static var paletteTint: NSColor {

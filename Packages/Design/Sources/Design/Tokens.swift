@@ -31,6 +31,27 @@ public enum ControlMetrics {
     public static let cornerRadius: CGFloat = Radius.small
 }
 
+/// AppKit's Liquid Glass controls in the sidebar (5.13, the user's design, Figma 157:233): a
+/// `.glass` button is a 32 pt circle (`.large`), a group of buttons a 32 pt glass capsule with
+/// 28 × 24 items 4 pt inside it and 3 pt separators (the macOS 27 kit's XL segmented control).
+public enum GlassControlMetrics {
+    public static let size: CGFloat = 32
+    public static let groupPadding: CGFloat = 4
+    public static let itemWidth: CGFloat = 28
+    public static let itemHeight: CGFloat = 24
+    public static let separatorWidth: CGFloat = 3
+    /// The separator's line inside its slot.
+    public static let separatorHeight: CGFloat = 16
+    /// Between a button and the next button or group.
+    public static let gap: CGFloat = 8
+
+    /// A group of `count` items: one item is a circle (`size`), more a capsule.
+    public static func groupWidth(_ count: Int) -> CGFloat {
+        guard count > 1 else { return count == 1 ? size : 0 }
+        return 2 * groupPadding + CGFloat(count) * itemWidth + CGFloat(count - 1) * separatorWidth
+    }
+}
+
 /// The keyboard focus ring (5.3a): AppKit draws it in the system's focus
 /// colour (`NSColor.keyboardFocusIndicatorColor`, the accent) around a mask
 /// shaped like the control's own fill, so the ring follows the tokens'
@@ -165,8 +186,9 @@ public enum SidebarMetrics {
     public static let essentialIconSize: CGFloat = 16
     /// A hovered tile: the selection fill at this alpha over the tile's own (before 5.10).
     public static let essentialHoverAlpha: CGFloat = 0.5
-    /// A tile at rest is outlined (5.10, the Room Browser design: 1 px at 10% black): the hairline, this many device pixels wide.
-    public static let essentialBorderPixels: CGFloat = 2
+    /// A tile at rest is outlined (5.10, the Room Browser design): this many device pixels wide. 5.13 (the
+    /// user's design, Figma 157:233): a hairline, darker for it (`Palette.essentialStroke`), was 2 px at 10%.
+    public static let essentialBorderPixels: CGFloat = 1
     /// The selected tile's lift (the design: `drop-shadow 0 0.5 1 rgba(0,0,0,.15)`).
     public static let essentialShadowRadius: CGFloat = 0.5
     public static let essentialsGap: CGFloat = Spacing.s
@@ -182,7 +204,7 @@ public enum SidebarMetrics {
     /// An extension action's badge height (3.6b).
     public static let extensionBadgeHeight: CGFloat = 10
     /// Bottom bar (spec §F).
-    public static let footerHeight: CGFloat = 40
+    public static let footerHeight: CGFloat = 48
     /// Drag insertion line, drop-onto ring and keyboard focus ring (spec §A.9, §I.13).
     public static let insertionLineWidth: CGFloat = 2
     /// The lifted row under the pointer while dragging: scale and shadow (spec §A.9).
@@ -209,16 +231,16 @@ public enum SpaceIconMetrics {
     /// (B-110, 5.2a: the top bar's `ControlMetrics.size`; was 26 with a 20 pt box).
     public static let pitch: CGFloat = ControlMetrics.size
     public static let dotSize: CGFloat = 6
-    /// The active icon's scale (spec §B).
-    public static let activeScale: CGFloat = 1.15
+    /// The active icon's scale (spec §B; 5.13, the user's design: none, the glass group fills the active item).
+    public static let activeScale: CGFloat = 1
     /// The highlight behind the active icon extended this far around it (before 5.10, which removed it).
     public static let indicatorPadding: CGFloat = 2
     /// The hovered space's name above the icons (5.10): its capsule, padding and gap above the footer (chosen).
     public static let nameChipHeight: CGFloat = 20
     public static let nameChipPadding: CGFloat = Spacing.s
     public static let nameChipGap: CGFloat = Spacing.xs
-    /// An inactive icon's opacity.
-    public static let inactiveAlpha: CGFloat = 0.55
+    /// An inactive icon's opacity (5.13, the user's design: full, the active one is filled; was 0.55).
+    public static let inactiveAlpha: CGFloat = 1
     /// Pointer travel that turns a press on an icon into a reorder drag (Zen: 5 px).
     public static let reorderThreshold: CGFloat = 5
 }
