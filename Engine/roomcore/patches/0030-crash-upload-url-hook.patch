@@ -12,11 +12,11 @@ no URL nothing can upload whatever the consent says.
 
 Phase 6.3, 2026-11-02. //room: room/core/room_application.mm.
 diff --git a/components/crash/core/app/crash_reporter_client.cc b/components/crash/core/app/crash_reporter_client.cc
-index 0941e78cef594..c25fa613dc458 100644
+index 0941e78cef594..17945c1fe980b 100644
 --- a/components/crash/core/app/crash_reporter_client.cc
 +++ b/components/crash/core/app/crash_reporter_client.cc
-@@ -140,7 +140,17 @@ void CrashReporterClient::GetSanitizationInformation(
- }
+@@ -15,6 +15,13 @@
+ #include "base/files/file_path.h"
  #endif
  
 +namespace room {
@@ -26,9 +26,15 @@ index 0941e78cef594..c25fa613dc458 100644
 +std::string (*g_crash_upload_url_hook)() = nullptr;
 +}  // namespace room
 +
+ namespace crash_reporter {
+ 
+ namespace {
+@@ -141,6 +148,9 @@ void CrashReporterClient::GetSanitizationInformation(
+ #endif
+ 
  std::string CrashReporterClient::GetUploadUrl() {
-+  if (room::g_crash_upload_url_hook) {
-+    return room::g_crash_upload_url_hook();
++  if (::room::g_crash_upload_url_hook) {
++    return ::room::g_crash_upload_url_hook();
 +  }
  #if BUILDFLAG(GOOGLE_CHROME_BRANDING) && defined(OFFICIAL_BUILD)
    return kDefaultUploadURL;
