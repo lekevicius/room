@@ -161,7 +161,8 @@ link_settings=(ROOMCORE_STAGE="$STAGE")
 xcodegen --quiet
 build_scheme() {  # scheme, derived data, log name, extra settings...
   local scheme="$1" derived="$2" log="$STAGE/$3"; shift 3
-  if ! xcodebuild -project Room.xcodeproj -scheme "$scheme" -configuration "$CONFIGURATION" \
+  # The environment too: Packages/EngineRoomCore's manifest reads ROOMCORE_STAGE.
+  if ! ROOMCORE_STAGE="$STAGE" xcodebuild -project Room.xcodeproj -scheme "$scheme" -configuration "$CONFIGURATION" \
       -derivedDataPath "$derived" "$@" build > "$log" 2>&1; then
     grep -E 'error:|BUILD FAILED' "$log" | head -40 >&2
     echo "xcodebuild ($scheme) failed; full log: $log" >&2
