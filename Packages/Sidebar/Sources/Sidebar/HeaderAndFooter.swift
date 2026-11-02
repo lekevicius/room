@@ -238,6 +238,8 @@ public final class ExtensionBarView: NSView {
     private let overflowButton = HoverButton()
     private var overflowActions: [HeaderExtensionAction] = []
     private let group = GlassButtonGroup()
+    /// The shown buttons' badges, above the group (its glass clips what is inside it).
+    private var badges: [ExtensionBadgeView] = []
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -316,6 +318,29 @@ public final class ExtensionBarView: NSView {
         group.isHidden = items.isEmpty
         let width = GlassControlMetrics.groupWidth(items.count)
         group.frame = NSRect(x: 0, y: ((bounds.height - GlassControlMetrics.size) / 2).rounded(), width: width, height: GlassControlMetrics.size)
+        group.layoutSubtreeIfNeeded()
+        layoutBadges(for: Array(actionButtons.prefix(shown)))
+    }
+
+    /// A badge per shown button with badge text, its trailing end at the icon's bottom-trailing corner.
+    private func layoutBadges(for buttons: [ExtensionActionButton]) {
+        let badged = buttons.filter { !$0.model.badgeText.isEmpty }
+        while badges.count < badged.count {
+            let badge = ExtensionBadgeView()
+            addSubview(badge, positioned: .above, relativeTo: group)
+            badges.append(badge)
+        }
+        for (index, badge) in badges.enumerated() {
+            guard index < badged.count else { badge.isHidden = true; continue }
+            let button = badged[index]
+            badge.isHidden = false
+            badge.action = button.model
+            badge.alphaValue = button.model.isEnabled ? 1 : 0.4
+            let anchor = convert(button.badgeAnchor, from: button)
+            let size = badge.intrinsicContentSize
+            // Flipped: the badge's bottom at the anchor.
+            badge.frame = NSRect(x: (anchor.x - size.width).rounded(), y: (anchor.y - size.height).rounded(), width: size.width, height: size.height)
+        }
     }
 
     /// The pinned buttons the bar shows (the rest are in the overflow menu).
@@ -418,25 +443,43 @@ final class ExtensionActionButton: HoverButton {
         needsDisplay = true
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard !model.badgeText.isEmpty else { return }
-        let font = Typography.badgeSmall
-        let text = NSAttributedString(string: model.badgeText, attributes: [
-            .font: font, .foregroundColor: model.badgeTextColor ?? NSColor.white,
+    /// Where the badge sits: over the icon's bottom-trailing corner, in the button's coordinates.
+    var badgeAnchor: NSPoint {
+        let icon = SidebarMetrics.faviconSize
+        let maxX = (bounds.width + icon) / 2 + 3
+        let bottom = (bounds.height + icon) / 2 + 2
+        return NSPoint(x: maxX, y: isFlipped ? bottom : bounds.height - bottom)
+    }
+}
+
+/// An extension's badge (3.6b), drawn over the glass group rather than inside its button (5.13, the
+/// user: the glass clips its content to the capsule and cut the badge; AppKit's badges,
+/// `NSItemBadge`, are for toolbar items only). It takes no clicks.
+final class ExtensionBadgeView: NSView {
+    var action: HeaderExtensionAction? {
+        didSet { needsDisplay = true; invalidateIntrinsicContentSize() }
+    }
+
+    private var text: NSAttributedString {
+        NSAttributedString(string: action?.badgeText ?? "", attributes: [
+            .font: Typography.badgeSmall, .foregroundColor: action?.badgeTextColor ?? NSColor.white,
         ])
+    }
+
+    override var intrinsicContentSize: NSSize {
         let height = SidebarMetrics.extensionBadgeHeight
-        let width = max(height, ceil(text.size().width) + 4)
-        // At the icon's bottom-trailing corner.
-        let iconMaxX = (bounds.width + SidebarMetrics.faviconSize) / 2 + 3
-        let iconBottom = (bounds.height + SidebarMetrics.faviconSize) / 2 + 2
-        let flipped = isFlipped
-        let y = flipped ? iconBottom - height : bounds.height - iconBottom
-        let rect = NSRect(x: min(bounds.width, iconMaxX) - width, y: y, width: width, height: height)
-        (model.badgeBackgroundColor ?? NSColor.systemBlue).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
-        let size = text.size()
-        text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+        return NSSize(width: max(height, ceil(text.size().width) + 4), height: height)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let action, !action.badgeText.isEmpty else { return }
+        let height = bounds.height
+        (action.badgeBackgroundColor ?? NSColor.systemBlue).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: height / 2, yRadius: height / 2).fill()
+        let label = text, size = label.size()
+        label.draw(at: NSPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2))
     }
 }
 
