@@ -18,7 +18,7 @@ folder-preview-light: active=true dark=false image=568x1520
 folder-preview-popover-light: active=true dark=false image=644x204
 folder-preview-dark: active=true dark=true image=568x1520
 folder-preview-popover-dark: active=true dark=true image=644x204
-overflow-light: active=true dark=false image=568x920 outline={{0, 0}, {260, 528}} clip={{0, 350}, {260, 178}}
+overflow-light: active=true dark=false image=568x920 outline={{0, 0}, {260, 492}} clip={{0, 318}, {260, 174}}
 essentials-full-light: active=true dark=false image=568x1520
 clear-mid-light: active=true dark=false image=568x1520
 clear-toast-light: active=true dark=false image=568x1520
