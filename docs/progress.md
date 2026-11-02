@@ -112,7 +112,7 @@ Exit checklist, spec §A.2–A.9 against `FakeEngine` (`[-]` = a later phase, na
 - [x] A.5 Reset to pinned URL (menu; click on the selected changed entry) with the 150 ms favicon crossfade
 - [x] A.5 Replace pinned URL with current → "Pinned URL updated"
 - [x] A.5 Edit Pinned URL…: popover, fixup, inline error, toast
-- [x] A.6 Folders in the pinned section only, nesting ≤ 5
+- [x] A.6 Folders in the pinned section only, nesting ≤ 5 (one level since 5.13)
 - [x] A.6 Create: "+" ▸ New Folder; Move to Folder ▸ New Folder…; New Folder with N Tabs on a multi-selection; drop one pinned entry onto another and hold 500 ms
 - [x] A.6 A collapsed folder shows its selected child peeking
 - [x] A.6 Folder preview: 500 ms on a collapsed folder, "Search {folder}…", first result highlighted, Enter opens, Esc closes
@@ -637,7 +637,7 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
 - [x] Full Keyboard Access's order by a row's centre (`KeyViewLoop`, the a11y suite caught the footer's items after New)
 - [x] CI spec: 744 tests, 0 failed; the window tiers of UIKitCore, Sidebar, Palette, Tabs, Design, Chrome, Card pass
 - [x] The user's second round: Essentials 3 + 2 with the sixth slot empty (`0fadb16`); glass buttons unclipped (`e497523`); Peek's page behind scaled to 94% too (`6319349`); the player's pause at the other icons' size; the call PiP panel's frame animating around a still page, the pill's and banner's fades (`2911e69`); ⌃Tab's padding even (`ef12ad2`); the footer's Downloads arrow as heavy as the other glass glyphs; the demo fixture's folders one level deep
-- [ ] Nested folders: the user (2026-11-02) "a feature we dropped"; the record says the opposite (B-117 made them reachable, `FolderRules.maxDepth` 5). Only the fixtures changed; lowering the depth (which also flattens imports) waits for the user
+- [x] Folders one level deep (the user, 2026-11-02, asked after the record showed B-117 had made nesting reachable): `FolderRules.maxDepth` 1, the nesting affordances gone, imports merge subfolders into their top-level folder; folders already nested in a state are left as they are. The `details` spike's folders section records the refusals
 
 ## Log
 
@@ -1401,4 +1401,5 @@ Spec: `ROADMAP.md` Chapter 5 (written 2026-10-06, confirmed at the 4.9 review). 
   - **Checks:** `redesign513` spike (new; bar, player, banner, overflow, narrow, peek) and its captures; `media-check.sh` pip and backtotab (the call panel grows 8 pt around the page, which keeps its origin to the point; Back to Tab and ⌘W close it); `fixes512` switcher and pip (controls decorated, the capture blank as in 5.12). The CI spec locally (`build/ci-5.13/ci.log`): TEST SUCCEEDED, 744 tests, 0 failed; the normal project regenerated. GitHub CI stays off (B-93).
   - **For the user:** the scroll-under decision; whether automatic update checks should default on at first run (today the onboarding toggle starts off; with checks on, updates now download by themselves); the video PiP window's frosted controls and the glass strengths by eye.
   - **Second round (the same day):** the user's notes on the captures, in the checklist above. Causes: `HoverButton`'s init corner radius had turned clipping on, which cut the glass's rim; the switcher's stack, top-aligned, left its bottom inset out of its fitting size. The scroll edge question researched (WWDC25 "Build an AppKit app with the new design"): AppKit applies the effect under toolbar items, titlebar accessories and split item accessories only; toolbars and titlebar accessories span the window and sit at the top, so a sidebar column blurred at both ends needs `NSSplitViewController`. Checks: `redesign513` player (mid-expansion 106 of 116 pt) and peek (scale 0.94, back to 1.00), `media-check` pip (mid-transition panel 329 × 209 with the page still), `fixes512` switcher (panel 562 × 184), the sidebar snapshots.
+  - **Folders one level (the user's answer):** the rule, the menus, the import planner's and the store's flattening, 12 tests rewritten (Model 2, Store 5, Import 3, Sidebar 1, Sidebar's sync test); the `details` spike: New Folder from a tab inside a folder makes a top-level folder, no Move to Folder on a folder, a folder onto a folder refused (the held drop reorders at the root).
 
