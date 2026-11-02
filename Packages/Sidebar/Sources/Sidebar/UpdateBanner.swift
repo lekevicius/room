@@ -26,7 +26,9 @@ final class UpdateBannerView: NSView {
         versionLabel.textColor = Palette.sidebarSecondaryLabel
         restartButton.bezelStyle = .glass
         restartButton.tintProminence = .primary
-        restartButton.controlSize = .regular
+        // A capsule at the glass circles' height, as the rest of the chrome's glass (5.13 review: the automatic shape was a rounded rectangle).
+        restartButton.controlSize = .large
+        restartButton.borderShape = .capsule
         restartButton.target = self
         restartButton.action = #selector(restartClicked)
         restartButton.setAccessibilityIdentifier("update-restart")
