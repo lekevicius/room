@@ -452,6 +452,30 @@ final class OverflowIndicatorView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// Shown or hidden with a short fade (5.13); at once under Reduce Motion.
+    func setShown(_ shown: Bool) {
+        guard shown != (!isHidden && alphaValue > 0) else { return }
+        guard window != nil, !Motion.reduceMotion else {
+            alphaValue = 1
+            isHidden = !shown
+            return
+        }
+        if shown {
+            alphaValue = 0
+            isHidden = false
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = Motion.fast
+            animator().alphaValue = shown ? 1 : 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !shown, self.alphaValue == 0 else { return }
+                self.isHidden = true
+                self.alphaValue = 1
+            }
+        })
+    }
+
     /// The selected tab's icon.
     func setIcon(image: NSImage?, letterSource: String, customIcon: String?) {
         favicon.image = image

@@ -84,7 +84,18 @@ extension SidebarController {
         }
         guard updateBanner.isHidden != (version == nil) else { return }
         updateBanner.isHidden = version == nil
-        bodyView.needsLayout = true
+        // It rises into its place as the list above it shortens (5.13).
+        let animates = updateBanner.window != nil && !Motion.reduceMotion && version != nil
+        guard animates else { return bodyView.needsLayout = true }
+        updateBanner.alphaValue = 0
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.medium
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = true
+            bodyView.needsLayout = true
+            bodyView.layoutSubtreeIfNeeded()
+            updateBanner.animator().alphaValue = 1
+        }
     }
 
     /// Whether the banner shows (spikes).

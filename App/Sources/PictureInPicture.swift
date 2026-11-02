@@ -183,6 +183,8 @@ final class PictureInPictureContentView: NSView {
     private let bar = PictureInPictureBar()
     private(set) var isExpanded = false
     private var collapseWork: DispatchWorkItem?
+    /// While the panel's frame animates, the page holds this screen rect (it never moves on screen).
+    private var pinnedPage: NSRect?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -193,6 +195,7 @@ final class PictureInPictureContentView: NSView {
         layer?.backgroundColor = NSColor(white: 0.12, alpha: 1).cgColor
         pageHolder.wantsLayer = true
         pageHolder.layer?.cornerCurve = .continuous
+        pageHolder.layer?.cornerRadius = PictureInPictureMetrics.cornerRadius
         pageHolder.layer?.masksToBounds = true
         bar.alphaValue = 0
         bar.onClose = { [weak self] in self?.onClose?() }
@@ -214,8 +217,11 @@ final class PictureInPictureContentView: NSView {
         let inset = isExpanded ? PictureInPictureMetrics.frameInset : 0
         let top = isExpanded ? PictureInPictureMetrics.barHeight : 0
         bar.frame = NSRect(x: 0, y: 0, width: bounds.width, height: PictureInPictureMetrics.barHeight)
-        pageHolder.frame = NSRect(x: inset, y: top, width: max(0, bounds.width - 2 * inset), height: max(0, bounds.height - top - inset))
-        pageHolder.layer?.cornerRadius = isExpanded ? PictureInPictureMetrics.pageCornerRadius : PictureInPictureMetrics.cornerRadius
+        if let pinnedPage, let window {
+            pageHolder.frame = convert(window.convertFromScreen(pinnedPage), from: nil)
+        } else {
+            pageHolder.frame = NSRect(x: inset, y: top, width: max(0, bounds.width - 2 * inset), height: max(0, bounds.height - top - inset))
+        }
         pageView?.frame = pageHolder.bounds
     }
 
@@ -239,7 +245,9 @@ final class PictureInPictureContentView: NSView {
     }
 
     /// Grows the panel around the page (or back), the page keeping its place on screen (spikes call it too).
-    func setExpanded(_ expanded: Bool) {
+    /// The panel's frame animates (5.13, the user: "nicely transition"), the page pinned to its screen
+    /// rect on every step; the bar fades; the page's corner eases to the inner radius.
+    func setExpanded(_ expanded: Bool, animated: Bool = true) {
         guard expanded != isExpanded, let window else { return }
         isExpanded = expanded
         let inset = PictureInPictureMetrics.frameInset, barHeight = PictureInPictureMetrics.barHeight
@@ -249,14 +257,23 @@ final class PictureInPictureContentView: NSView {
         frame.origin.y -= grow * inset
         frame.size.width += grow * 2 * inset
         frame.size.height += grow * (inset + barHeight)
-        // The frame changes at once (the page must not move on screen); the bar fades.
-        window.setFrame(frame, display: true, animate: false)
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.fast
+        pinnedPage = window.convertToScreen(pageHolder.convert(pageHolder.bounds, to: nil))
+        let radius = expanded ? PictureInPictureMetrics.pageCornerRadius : PictureInPictureMetrics.cornerRadius
+        let animates = animated && !Motion.reduceMotion
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = animates ? Motion.medium : 0
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = animates
+            if animates { window.animator().setFrame(frame, display: true) } else { window.setFrame(frame, display: true) }
             bar.animator().alphaValue = expanded ? 1 : 0
-        }
+            pageHolder.layer?.cornerRadius = radius
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isExpanded == expanded else { return }
+                self.pinnedPage = nil
+                self.needsLayout = true
+            }
+        })
     }
 }
 

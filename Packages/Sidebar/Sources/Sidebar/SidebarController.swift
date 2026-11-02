@@ -1318,8 +1318,8 @@ public final class SidebarBodyView: NSView {
     }
 
     func setOverflow(above: Bool, below: Bool) {
-        overflowTop.isHidden = !above
-        overflowBottom.isHidden = !below
+        overflowTop.setShown(above)
+        overflowBottom.setShown(below)
     }
 
     func setOverflowIcon(image: NSImage?, letterSource: String, customIcon: String?) {
@@ -1327,7 +1327,9 @@ public final class SidebarBodyView: NSView {
     }
 
     /// Which overflow lines show (spikes).
-    public var debugOverflow: (top: Bool, bottom: Bool) { (!overflowTop.isHidden, !overflowBottom.isHidden) }
+    public var debugOverflow: (top: Bool, bottom: Bool) {
+        (!overflowTop.isHidden && overflowTop.alphaValue > 0, !overflowBottom.isHidden && overflowBottom.alphaValue > 0)
+    }
     /// Clicks the shown line (as a press and release on it would).
     public func debugClickOverflow() { (overflowTop.isHidden ? overflowBottom : overflowTop).onClick?() }
 

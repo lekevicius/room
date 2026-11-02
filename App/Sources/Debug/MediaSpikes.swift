@@ -326,6 +326,12 @@ extension SpikeRunner.Context {
             if let content = panel.contentView as? PictureInPictureContentView {
                 let pageBefore = content.subviews.first.map { panel.convertToScreen($0.convert($0.bounds, to: nil)) } ?? .zero
                 content.setExpanded(true)
+                // Mid-transition (5.13): the panel between its sizes, the page where it was.
+                try? await Task.sleep(for: .milliseconds(80))
+                let panelMid = panel.frame
+                let pageMid = content.subviews.first.map { panel.convertToScreen($0.convert($0.bounds, to: nil)) } ?? .zero
+                SpikeRunner.record("docpip_hover_mid", "panel=\(NSStringFromRect(panelMid)) page=\(NSStringFromRect(pageMid)) "
+                    + "page_still=\(abs(pageMid.minX - pageBefore.minX) < 1 && abs(pageMid.minY - pageBefore.minY) < 1)")
                 try? await Task.sleep(for: .milliseconds(500))
                 let pageAfter = content.subviews.first.map { panel.convertToScreen($0.convert($0.bounds, to: nil)) } ?? .zero
                 SpikeRunner.record("docpip_hover", "panel=\(NSStringFromRect(panel.frame)) page_before=\(NSStringFromRect(pageBefore)) "
