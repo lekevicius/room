@@ -4,8 +4,9 @@
 namespace room {
 
 // Restyles Chrome's video picture-in-picture controls through patch 0029's
-// hook (5.12): Back to Tab and Close as labelled pills, the origin centred,
-// the playback buttons growing under the pointer.
+// hook (5.12, 5.13): every button on a frosted disc and the progress row on a
+// frosted capsule, the origin centred, the playback buttons growing under the
+// pointer.
 void InstallVideoOverlayHook();
 
 // Spikes (`roomSpikeAction:` "pip-show-controls"): shows every open window's

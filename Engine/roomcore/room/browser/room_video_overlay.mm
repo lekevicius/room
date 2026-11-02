@@ -1,11 +1,13 @@
-// The video picture-in-picture window's controls, restyled (5.12, the user on
-// build 26: "nicer icons with a subtle scale up on hover, back to tab, URL,
-// close header"). Patch 0029 calls `DecorateVideoOverlay` once Chrome's views
-// exist and after each of its layouts. Chrome's Back to Tab and Close buttons
-// stay the click targets: they are made transparent and stretched over Room's
-// labelled pills, which draw beneath them and follow their hover. The origin
-// sits centred between the pills, without the favicon; the playback buttons
-// grow a little under the pointer. Chrome's minimize button goes.
+// The video picture-in-picture window's controls, restyled. 5.12 (the user
+// on build 26): the playback buttons grow a little under the pointer, the
+// origin centred, Chrome's minimize button gone. 5.13 (the user: "native
+// liquid glass controls", Dia's window for the vibe): every button sits on a
+// frosted disc and the progress row on a frosted capsule, the video blurred
+// beneath them (the compositor's backdrop blur with a translucent fill and a
+// light rim; AppKit's NSGlassEffectView cannot go beneath Views' buttons, as
+// AppKit views draw above the window's compositor layer). Patch 0029 calls
+// `DecorateVideoOverlay` once Chrome's views exist and after each of its
+// layouts; Chrome's buttons stay the click targets and keep their places.
 
 #import <AppKit/AppKit.h>
 
@@ -61,81 +63,42 @@ namespace room {
 namespace {
 
 // View ids of Room's views inside Chrome's controls container.
-constexpr int kBackPillId = 0x524f0001;
-constexpr int kClosePillId = 0x524f0002;
 constexpr int kDecorationsId = 0x524f0003;
 
-constexpr int kPillHeight = 28;
-constexpr int kPillMargin = 8;
-constexpr int kPillPadding = 11;
-constexpr int kPillIconSize = 13;
-constexpr int kPillGap = 6;
 constexpr int kOriginMargin = 12;
+constexpr int kTopControlsHeight = 34;
 constexpr float kHoverScale = 1.1f;
 constexpr base::TimeDelta kHoverDuration = base::Milliseconds(150);
-constexpr SkAlpha kPillAlpha = 0x33;
-constexpr SkAlpha kPillHoverAlpha = 0x55;
+// The frosted backdrops: the blur, the fill and rim (white), the disc's
+// margin around a button and the capsule's around the progress row.
+constexpr float kFrostBlur = 12.f;
+constexpr SkAlpha kFrostAlpha = 0x2e;
+constexpr SkAlpha kFrostHoverAlpha = 0x4a;
+constexpr SkAlpha kFrostRimAlpha = 0x55;
+constexpr int kDiscMargin = 6;
+constexpr int kCapsuleMargin = 6;
 
-// An SF Symbol in white at `size` points (the window's controls are white on
-// its dark scrim), as Views' image.
-gfx::ImageSkia SymbolImage(NSString* name, int size) {
-  NSImage* symbol = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
-  NSImageSymbolConfiguration* config = [[NSImageSymbolConfiguration
-      configurationWithPointSize:size
-                          weight:NSFontWeightSemibold]
-      configurationByApplyingConfiguration:[NSImageSymbolConfiguration
-                                               configurationWithPaletteColors:@[ NSColor.whiteColor ]]];
-  NSImage* image = [symbol imageWithSymbolConfiguration:config];
-  return image ? gfx::Image(image).AsImageSkia() : gfx::ImageSkia();
-}
-
-// "Back to Tab" or "Close": a rounded translucent pill with a symbol and a
-// label. It takes no events (Chrome's button over it does) and brightens
-// while that button is hovered or pressed.
-class OverlayPill : public views::View {
-  METADATA_HEADER(OverlayPill, views::View)
+// A frosted shape under a control: the video blurred behind it, a translucent
+// white fill and a light rim. It takes no events and follows its control's
+// bounds (`Follow`) and hover (`SetHighlighted`).
+class FrostView : public views::View {
+  METADATA_HEADER(FrostView, views::View)
 
  public:
-  OverlayPill(NSString* symbol, const std::u16string& text, int id) {
-    SetID(id);
+  FrostView() {
     SetCanProcessEventsWithinSubtree(false);
-    icon_ = AddChildView(std::make_unique<views::ImageView>());
-    icon_->SetImage(ui::ImageModel::FromImageSkia(SymbolImage(symbol, kPillIconSize - 2)));
-    label_ = AddChildView(std::make_unique<views::Label>(text));
-    label_->SetEnabledColor(SK_ColorWHITE);
-    label_->SetBackgroundColor(SK_ColorTRANSPARENT);
-    label_->SetAutoColorReadabilityEnabled(false);
-    label_->SetFontList(gfx::FontList().DeriveWithSizeDelta(0).DeriveWithWeight(gfx::Font::Weight::MEDIUM));
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
+    layer()->SetBackgroundBlur(kFrostBlur);
+    layer()->SetBackdropFilterQuality(0.5f);
   }
 
-  int PreferredWidth() const {
-    return 2 * kPillPadding + kPillIconSize + kPillGap + label_->GetPreferredSize().width();
+  // A disc around `target`'s bounds (the capsule's bounds are set by its owner).
+  void Follow(const gfx::Rect& target) {
+    const int side = std::max(target.width(), target.height()) + 2 * kDiscMargin;
+    SetBoundsRect(gfx::Rect(target.CenterPoint().x() - side / 2, target.CenterPoint().y() - side / 2, side, side));
   }
 
-  void Follow(views::Button* button) {
-    subscription_ = button->AddStateChangedCallback(base::BindRepeating(
-        [](OverlayPill* pill, views::Button* button) {
-          pill->SetHighlighted(button->GetState() == views::Button::STATE_HOVERED ||
-                               button->GetState() == views::Button::STATE_PRESSED);
-        },
-        base::Unretained(this), base::Unretained(button)));
-  }
-
-  void Layout(PassKey) override {
-    const int y = (height() - kPillIconSize) / 2;
-    icon_->SetBounds(kPillPadding, y, kPillIconSize, kPillIconSize);
-    const int x = kPillPadding + kPillIconSize + kPillGap;
-    label_->SetBounds(x, 0, width() - x - kPillPadding, height());
-  }
-
-  void OnPaint(gfx::Canvas* canvas) override {
-    cc::PaintFlags flags;
-    flags.setAntiAlias(true);
-    flags.setColor(SkColorSetA(SK_ColorWHITE, highlighted_ ? kPillHoverAlpha : kPillAlpha));
-    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), height() / 2.f, flags);
-  }
-
- private:
   void SetHighlighted(bool highlighted) {
     if (highlighted_ == highlighted) {
       return;
@@ -144,17 +107,37 @@ class OverlayPill : public views::View {
     SchedulePaint();
   }
 
-  raw_ptr<views::ImageView> icon_ = nullptr;
-  raw_ptr<views::Label> label_ = nullptr;
+  void OnBoundsChanged(const gfx::Rect& previous) override {
+    const float radius = std::min(width(), height()) / 2.f;
+    layer()->SetRoundedCornerRadius(gfx::RoundedCornersF(radius));
+  }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    const gfx::RectF bounds(GetLocalBounds());
+    const float radius = std::min(bounds.width(), bounds.height()) / 2.f;
+    cc::PaintFlags fill;
+    fill.setAntiAlias(true);
+    fill.setColor(SkColorSetA(SK_ColorWHITE, highlighted_ ? kFrostHoverAlpha : kFrostAlpha));
+    canvas->DrawRoundRect(bounds, radius, fill);
+    cc::PaintFlags rim;
+    rim.setAntiAlias(true);
+    rim.setStyle(cc::PaintFlags::kStroke_Style);
+    rim.setStrokeWidth(1.f);
+    rim.setColor(SkColorSetA(SK_ColorWHITE, kFrostRimAlpha));
+    gfx::RectF inset = bounds;
+    inset.Inset(0.5f);
+    canvas->DrawRoundRect(inset, radius - 0.5f, rim);
+  }
+
+ private:
   bool highlighted_ = false;
-  base::CallbackListSubscription subscription_;
 };
 
-BEGIN_METADATA(OverlayPill)
+BEGIN_METADATA(FrostView)
 END_METADATA
 
-// Holds the playback buttons' hover subscriptions for as long as the window's
-// controls live; its id marks a window already decorated.
+// Holds the frosted backdrops and the buttons' hover subscriptions for as
+// long as the window's controls live; its id marks a window already decorated.
 class OverlayDecorations : public views::View {
   METADATA_HEADER(OverlayDecorations, views::View)
 
@@ -164,13 +147,23 @@ class OverlayDecorations : public views::View {
     SetCanProcessEventsWithinSubtree(false);
   }
 
-  void Grow(views::Button* button) {
-    button->SetPaintToLayer();
-    button->layer()->SetFillsBoundsOpaquely(false);
+  // A disc under `button` (in its parent, beneath it), brightening and growing with its hover.
+  void Frost(views::Button* button, bool grows) {
+    views::View* parent = button->parent();
+    auto* frost = parent->AddChildViewAt(std::make_unique<FrostView>(), parent->GetIndexOf(button).value());
+    discs_.push_back({button, frost});
+    if (grows) {
+      button->SetPaintToLayer();
+      button->layer()->SetFillsBoundsOpaquely(false);
+    }
     subscriptions_.push_back(button->AddStateChangedCallback(base::BindRepeating(
-        [](views::Button* button) {
+        [](views::Button* button, FrostView* frost, bool grows) {
           const bool hovered = button->GetState() == views::Button::STATE_HOVERED ||
                                button->GetState() == views::Button::STATE_PRESSED;
+          frost->SetHighlighted(hovered);
+          if (!grows) {
+            return;
+          }
           gfx::Transform transform;
           if (hovered) {
             const gfx::PointF center = gfx::RectF(button->GetLocalBounds()).CenterPoint();
@@ -183,10 +176,43 @@ class OverlayDecorations : public views::View {
           settings.SetTweenType(gfx::Tween::EASE_OUT);
           button->layer()->SetTransform(transform);
         },
-        base::Unretained(button))));
+        base::Unretained(button), base::Unretained(frost), grows)));
+  }
+
+  // The capsule under the progress row, in `playback`.
+  void FrostProgress(views::View* playback) {
+    capsule_ = playback->AddChildViewAt(std::make_unique<FrostView>(), 0);
+  }
+
+  // After Chrome's layout: each disc on its button (hidden with it), the capsule around the
+  // progress bar and the timestamp.
+  void Follow(views::View* playback) {
+    for (auto& [button, frost] : discs_) {
+      frost->SetVisible(button->GetVisible());
+      frost->Follow(button->bounds());
+    }
+    if (!capsule_) {
+      return;
+    }
+    gfx::Rect row;
+    for (views::View* child : playback->children()) {
+      if (child == capsule_.get() || !child->GetVisible() || views::IsViewClass<views::Button>(child) ||
+          views::IsViewClass<FrostView>(child)) {
+        continue;
+      }
+      // The progress bar and the timestamp: the views in the bottom quarter.
+      if (child->bounds().y() > playback->height() * 3 / 4 && !child->bounds().IsEmpty()) {
+        row.Union(child->bounds());
+      }
+    }
+    capsule_->SetVisible(!row.IsEmpty());
+    row.Inset(-kCapsuleMargin);
+    capsule_->SetBoundsRect(row);
   }
 
  private:
+  std::vector<std::pair<raw_ptr<views::Button>, raw_ptr<FrostView>>> discs_;
+  raw_ptr<FrostView> capsule_ = nullptr;
   std::vector<base::CallbackListSubscription> subscriptions_;
 };
 
@@ -214,25 +240,19 @@ void Decorate(views::View* controls,
   std::erase_if(Decorated(), [](const auto& tracker) { return !tracker->view(); });
   Decorated().push_back(std::make_unique<views::ViewTracker>(controls));
   Decorated().push_back(std::make_unique<views::ViewTracker>(title));
-  // The pills go beneath Chrome's buttons, which stay on top for the clicks.
-  auto back_pill = std::make_unique<OverlayPill>(@"arrow.up.left", u"Back to Tab", kBackPillId);
-  back_pill->Follow(back_to_tab);
-  controls->AddChildViewAt(std::move(back_pill), controls->GetIndexOf(back_to_tab).value());
-  auto close_pill = std::make_unique<OverlayPill>(@"xmark", u"Close", kClosePillId);
-  close_pill->Follow(close);
-  controls->AddChildViewAt(std::move(close_pill), controls->GetIndexOf(close).value());
-  for (views::Button* button : {back_to_tab, close}) {
-    button->SetPaintToLayer();
-    button->layer()->SetOpacity(0);
-  }
+  decorations->Frost(back_to_tab, /*grows=*/false);
+  decorations->Frost(close, /*grows=*/false);
   minimize->SetVisible(false);
   favicon->SetVisible(false);
   origin->SetHorizontalAlignment(gfx::ALIGN_CENTER);
   origin->SetEnabledColor(SK_ColorWHITE);
   origin->SetElideBehavior(gfx::ELIDE_HEAD);
-  for (views::View* child : playback->children()) {
+  decorations->FrostProgress(playback);
+  // A copy: frosting adds views to `playback`.
+  const std::vector<views::View*> children(playback->children().begin(), playback->children().end());
+  for (views::View* child : children) {
     if (auto* button = views::AsViewClass<views::Button>(child)) {
-      decorations->Grow(button);
+      decorations->Frost(button, /*grows=*/true);
     }
   }
 }
@@ -242,26 +262,25 @@ void Layout(views::View* controls,
             views::Label* origin,
             views::Button* back_to_tab,
             views::Button* close,
-            views::View* minimize) {
-  auto* back_pill = static_cast<OverlayPill*>(controls->GetViewByID(kBackPillId));
-  auto* close_pill = static_cast<OverlayPill*>(controls->GetViewByID(kClosePillId));
-  if (!back_pill || !close_pill) {
+            views::View* minimize,
+            views::View* playback) {
+  auto* decorations = static_cast<OverlayDecorations*>(controls->GetViewByID(kDecorationsId));
+  if (!decorations) {
     return;
   }
-  const int width = controls->width();
-  const gfx::Rect back(kPillMargin, kPillMargin, back_pill->PreferredWidth(), kPillHeight);
-  const int close_width = close_pill->PreferredWidth();
-  const gfx::Rect close_rect(width - kPillMargin - close_width, kPillMargin, close_width, kPillHeight);
-  back_pill->SetBoundsRect(back);
-  close_pill->SetBoundsRect(close_rect);
-  back_to_tab->SetBoundsRect(back);
-  close->SetBoundsRect(close_rect);
   minimize->SetBoundsRect(gfx::Rect());
   minimize->SetVisible(false);
-  // The origin between the pills, centred on the window, at their height.
-  title->SetBounds(0, 0, width, kPillMargin + kPillHeight);
-  const int side = std::max(back.right(), width - close_rect.x()) + kOriginMargin;
-  origin->SetBounds(side, kPillMargin, std::max(0, width - 2 * side), kPillHeight);
+  decorations->Follow(playback);
+  // The origin centred on the window between the top buttons, at their height.
+  const int width = controls->width();
+  int side = 0;
+  for (views::Button* button : {back_to_tab, close}) {
+    const gfx::Rect bounds = button->bounds();
+    side = std::max(side, bounds.CenterPoint().x() < width / 2 ? bounds.right() : width - bounds.x());
+  }
+  const int margin = side + kOriginMargin;
+  title->SetBounds(0, 0, width, kTopControlsHeight + kOriginMargin);
+  origin->SetBounds(margin, 0, std::max(0, width - 2 * margin), kTopControlsHeight + kOriginMargin);
 }
 
 void VideoOverlayHook(views::View* controls,
@@ -276,7 +295,7 @@ void VideoOverlayHook(views::View* controls,
   if (!layout) {
     Decorate(controls, title, origin, favicon, back_to_tab, close, minimize, playback);
   }
-  Layout(controls, title, origin, back_to_tab, close, minimize);
+  Layout(controls, title, origin, back_to_tab, close, minimize, playback);
 }
 
 }  // namespace
