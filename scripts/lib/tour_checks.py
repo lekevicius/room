@@ -198,7 +198,9 @@ def _scroll(c):
 @step_check("resize")
 def _resize(c):
     for key in ("bound_card_fill", "control_clear_card_fill"):
-        c.contains(key, "samples inside card: 0/576", label=f"{key}: no material inside the card (0/576)")
+        # The total follows the card's height (rows every 80 pt down the edge): 576 at the tour's
+        # usual window, 648 when the restored window is a row taller (6.4); only the count of gaps matters.
+        c.contains(key, "samples inside card: 0/", label=f"{key}: no material inside the card (0 of the samples)")
     c.number("control_transparent_page_clear_card")
 
 
