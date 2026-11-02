@@ -400,7 +400,9 @@ private struct SettingsSectionView: View {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: folder.path))
                         .resizable()
                         .frame(width: 16, height: 16)
+                    // One line, its middle elided (5.13 review: a long folder name wrapped onto two centred lines).
                     Text(FileManager.default.displayName(atPath: folder.path)).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
                     Button("Change…") { chooseFolder() }
                 }
             }
