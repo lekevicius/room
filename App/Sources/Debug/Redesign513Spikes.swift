@@ -70,10 +70,18 @@ extension SpikeRunner.Context {
         try? await Task.sleep(for: .milliseconds(400))
         if let center = AppDelegate.current?.extensions, let section = center.sections.first {
             _ = await waitUntil(10) { section.extensions.isReady }
-            let fixture = SpikeRunner.pagesDirectory.deletingLastPathComponent().appending(path: "phase-3.6/extension", directoryHint: .isDirectory)
-            if let id = try? await section.extensions.loadUnpacked(at: fixture) {
-                _ = await waitUntil(5) { center.sections.first?.installed.first { $0.id == id }?.action?.icon != nil }
-                if let item = center.sections.first?.installed.first(where: { $0.id == id }) { center.setPinned(true, item, in: section) }
+            // Three pinned actions: the separators between them and the puzzle piece (5.13, the user: one line, after the puzzle).
+            // A third (a copy of 1.4's: an unpacked extension's id follows its folder), so the bar can show the puzzle piece and one.
+            let spikes = SpikeRunner.pagesDirectory.deletingLastPathComponent()
+            let copy = FileManager.default.temporaryDirectory.appending(path: "room-513-extension-copy", directoryHint: .isDirectory)
+            try? FileManager.default.removeItem(at: copy)
+            try? FileManager.default.copyItem(at: spikes.appending(path: "phase-1.4/extension"), to: copy)
+            for fixture in [spikes.appending(path: "phase-3.6/extension", directoryHint: .isDirectory),
+                            spikes.appending(path: "phase-1.4/extension", directoryHint: .isDirectory), copy] {
+                if let id = try? await section.extensions.loadUnpacked(at: fixture) {
+                    _ = await waitUntil(5) { center.sections.first?.installed.first { $0.id == id }?.action != nil }
+                    if let item = center.sections.first?.installed.first(where: { $0.id == id }) { center.setPinned(true, item, in: section) }
+                }
             }
         }
         guard let page = await open(URL(string: Self.r513Base + "find.html?bar-a")!) else { return SpikeRunner.record("error", "bar: no page") }
@@ -89,6 +97,18 @@ extension SpikeRunner.Context {
         SpikeRunner.record("bar_forward", "back=\(r513Frame("nav-back")) forward=\(r513Frame("nav-forward")) reload=\(r513Frame("nav-reload")) "
             + "extensions_shown=\(sidebar.extensionBar.shownActionIDs.count) puzzle=\(r513Frame("extension-overflow")) spaces=\(r513Frame("space-icons"))")
         r513Capture("bar-forward")
+        // Wider, until the puzzle piece and one action share the group: one line, after the puzzle piece.
+        for width in stride(from: 300, through: 360, by: 5) {
+            controller.sidebarWidth = CGFloat(width)
+            try? await Task.sleep(for: .milliseconds(300))
+            let shown = sidebar.extensionBar.shownActionIDs.count
+            guard shown == 1 else { continue }
+            SpikeRunner.record("bar_forward_wide", "width=\(width) extensions_shown=\(shown) puzzle=\(r513Frame("extension-overflow")) "
+                + "order=\(sidebar.extensionBar.debugGroupOrder)")
+            r513Capture("bar-forward-wide")
+            break
+        }
+        controller.sidebarWidth = SidebarMetrics.defaultWidth
     }
 
     // MARK: player
