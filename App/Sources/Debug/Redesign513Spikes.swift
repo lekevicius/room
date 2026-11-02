@@ -231,6 +231,14 @@ extension SpikeRunner.Context {
             AppDelegate.current?.showUpdateReady(version: "0.3.1") {}
             try? await Task.sleep(for: .milliseconds(800))
             await r513Shot("banner-player")
+            // The hovered space's name over the cards (5.13: it was hidden behind them).
+            if let profile = store.profiles.first, let work = try? store.createSpace(name: "Work", profile: profile.id, icon: "suitcase") {
+                try? await Task.sleep(for: .milliseconds(500))
+                sidebar.debugHoverSpaceIcon(work.id)
+                try? await Task.sleep(for: .milliseconds(500))
+                await r513Shot("space-name-over-player")
+                sidebar.debugHoverSpaceIcon(nil)
+            }
             sidebar.setMediaRow(nil)
         }
 
