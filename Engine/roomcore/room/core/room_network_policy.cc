@@ -109,6 +109,19 @@ base::CallbackListSubscription InstallNetworkPolicy() {
   disabled += ",ExtensionsPinnedByDefault";
   command_line->AppendSwitchASCII("disable-features", disabled);
 
+  // Not network: picture-in-picture also when Room goes to the background
+  // (5.13, the user). Chrome's automatic picture-in-picture enters on a tab
+  // switch; with this feature (off upstream) also when the active tab's window
+  // is occluded (the WebContents' OCCLUDED visibility on mac), and leaves when
+  // it shows again. The page must still register for it (a video playing with
+  // sound, or a call's media session).
+  std::string enabled = command_line->GetSwitchValueASCII("enable-features");
+  if (!enabled.empty()) {
+    enabled += ",";
+  }
+  enabled += "AutoPictureInPictureOnWindowOccluded";
+  command_line->AppendSwitchASCII("enable-features", enabled);
+
   // M154's global manifest broker registers/downloads its manifest even with
   // model execution disabled. Its supported local manifest override provides
   // an empty component catalog without modifying Chromium or faking a URL.
