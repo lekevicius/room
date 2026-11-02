@@ -211,7 +211,10 @@ struct OnboardingView: View {
                 }
             }
             .formStyle(.columns)
-            .fixedSize()
+            // Its descriptions wrap inside the window's padding (5.13 review: at its ideal width the update
+            // check's longer description pushed the form past both edges).
+            .frame(maxWidth: OnboardingMetrics.width - 4 * OnboardingMetrics.padding)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
