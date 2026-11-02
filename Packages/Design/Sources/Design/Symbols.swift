@@ -301,9 +301,8 @@ public enum IconStyle: String, CaseIterable, Sendable {
     case tileBadge
     /// The media row's buttons and its placeholder glyph.
     case media
-    /// The mini-player's controls (5.13), and its play/pause.
+    /// The mini-player's controls (5.13; play/pause the same size, the user: "consistent with other icon sizes").
     case player
-    case playerMain
     /// The downloads button's arrow inside the progress ring.
     case downloadProgress
     /// The palette field's search glyph.
@@ -327,7 +326,6 @@ public enum IconStyle: String, CaseIterable, Sendable {
         case .spaceDot: SpaceIconMetrics.dotSize
         case .paletteField: 15
         case .player: 15
-        case .playerMain: 19
         case .interstitial: PromptMetrics.interstitialIconSize
         }
     }
@@ -336,7 +334,7 @@ public enum IconStyle: String, CaseIterable, Sendable {
         switch self {
         case .menu, .control, .controlSmall, .paneControl, .rowGlyph, .folder, .spaceDot, .media, .downloadProgress,
              .paletteField, .paletteRow, .interstitial: .regular
-        case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset, .player, .playerMain: .medium
+        case .rowButton, .rowAction, .rowChevron, .spaceIcon, .tileReset, .player: .medium
         case .findButton, .disclosure, .spaceTitle, .tileBadge, .paletteDelete: .semibold
         }
     }

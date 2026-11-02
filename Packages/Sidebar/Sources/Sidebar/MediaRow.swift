@@ -129,7 +129,7 @@ final class MediaRowView: NSView {
             self?.onAction?(.seek(fraction * duration))
         }
         for (button, symbol, style, label, action) in [
-            (playButton, Symbol.pause, IconStyle.playerMain, "Pause", #selector(playPauseClicked)),
+            (playButton, Symbol.pause, IconStyle.player, "Pause", #selector(playPauseClicked)),
             (nextButton, Symbol.nextTrack, IconStyle.player, "Next Track", #selector(nextClicked)),
             (previousButton, Symbol.previousTrack, IconStyle.player, "Previous Track", #selector(previousClicked)),
             (muteButton, Symbol.playerVolume, IconStyle.player, "Mute", #selector(muteClicked)),
@@ -169,7 +169,7 @@ final class MediaRowView: NSView {
         subtitleLabel.stringValue = content.subtitle
         imageView.image = content.image ?? Symbol.audible.image(.media, accessibilityDescription: nil)
         let (symbol, label) = content.isPlaying ? (Symbol.pause, "Pause") : (Symbol.play, "Play")
-        playButton.image = symbol.image(.playerMain, accessibilityDescription: label)
+        playButton.image = symbol.image(.player, accessibilityDescription: label)
         playButton.setTip(label)
         nextButton.isEnabled = content.canGoNext
         previousButton.isEnabled = content.canGoPrevious
@@ -211,8 +211,8 @@ final class MediaRowView: NSView {
         updateTimer()
         let animates = window != nil && SidebarMotion.mediaRowExpansion.animates
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = animates ? Motion.fast : 0
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = animates ? Motion.medium : 0
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
             // Reduce Motion: the card's height changes at once and its rows cross-fade.
             context.allowsImplicitAnimation = animates && SidebarMotion.mediaRowExpansion.variant == .full
             for view in expandedViews { (animates ? view.animator() : view).alphaValue = expanded ? 1 : 0 }
@@ -498,6 +498,9 @@ extension SidebarController {
         case .select, .seek: mediaRow.onAction?(action)
         }
     }
+
+    /// Spikes: the mini-player's card as drawn now (mid-transition, its presentation's frame).
+    public var debugMediaRowPresentedFrame: NSRect { mediaRow.layer?.presentation()?.frame ?? mediaRow.frame }
 
     /// Spikes and captures: the mini-player expanded as under the pointer, or collapsed.
     public func debugExpandMediaRow(_ expanded: Bool) {

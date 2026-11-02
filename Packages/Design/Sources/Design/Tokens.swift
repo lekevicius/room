@@ -772,8 +772,12 @@ public enum TabSwitcherMetrics {
     public static let panelCorner: CGFloat = 32
     public static let highlightCorner: CGFloat = 14
     public static let thumbnailCorner: CGFloat = Radius.medium
-    /// The icon and title's row under the picture.
-    public static let titleHeight: CGFloat = 32
+    /// The icon and title's line: its centre this far below the picture, and the card's bottom this far
+    /// below it (Dia: 21 and 18; the highlight ran to the panel's edge before, 5.13).
+    public static let titleCenterOffset: CGFloat = 21
+    public static let titleBottomPadding: CGFloat = 18
+    /// A card's height: padding, picture, the title line.
+    public static var cardHeight: CGFloat { cardPadding + thumbnailHeight + titleCenterOffset + titleBottomPadding }
     public static let titleFontSize: CGFloat = 14
     /// Pictures kept in memory (each 288 × 180 px, 200 KB).
     public static let thumbnailsKept = 24
@@ -882,6 +886,8 @@ public enum PeekMetrics {
     public static let cornerRadius: CGFloat = 24
     /// The page behind fades to this opacity (5.13: no dark layer, so a split's panes fade alike).
     public static let backgroundAlpha: CGFloat = 0.3
+    /// …and shrinks to this scale about its centre (5.13, the user: "the lower page is not scaled down").
+    public static let backgroundScale: CGFloat = 0.94
     /// The header: the page's domain, centred and quiet (5.13).
     public static let headerHeight: CGFloat = 32
     /// Close, Open as Tab and Split as glass circles beside the card's top-right corner (5.13).
