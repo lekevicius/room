@@ -1494,14 +1494,23 @@ public final class SidebarBodyView: NSView {
         super.scrollWheel(with: event)
     }
 
+    /// The experiment (split sidebar): the body fills the sidebar and its own content starts here; the
+    /// lists run the whole height, inset at both ends, under the chrome (`nil`: the body starts below the header).
+    public var listTopInset: CGFloat? {
+        didSet { if listTopInset != oldValue { needsLayout = true } }
+    }
+    /// The chrome's reach at the top and the bottom (the split's accessories follow it).
+    public var onChromeInsets: ((_ top: CGFloat, _ bottom: CGFloat) -> Void)?
+
     public override func layout() {
         super.layout()
         let inset = SidebarMetrics.rowHorizontalInset
         let width = max(0, bounds.width - 2 * inset)
         let gridHeight = grid?.height(forWidth: width) ?? 0
+        let origin = listTopInset ?? 0
         // The sidebar view leaves `addressRowGap` above the body: the grid starts at its top.
-        grid?.frame = NSRect(x: inset, y: 0, width: width, height: gridHeight)
-        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + SidebarMetrics.essentialsGap : 0
+        grid?.frame = NSRect(x: inset, y: origin, width: width, height: gridHeight)
+        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + SidebarMetrics.essentialsGap : origin
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         var bodyBottom = bounds.height - footerHeight
@@ -1524,7 +1533,12 @@ public final class SidebarBodyView: NSView {
         let listBottom = bodyBottom
         let listFrom = listContainer.layer?.position
         let wasShown = listContainer.frame.height > 0
-        listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
+        if listTopInset != nil {
+            listContainer.frame = bounds
+            onChromeInsets?(top, bounds.height - listBottom)
+        } else {
+            listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
+        }
         if reflowsListAnimated, wasShown, window != nil, let layer = listContainer.layer, let listFrom, listFrom != layer.position {
             let move = CABasicAnimation(keyPath: "position")
             move.fromValue = NSValue(point: listFrom)
@@ -1536,14 +1550,25 @@ public final class SidebarBodyView: NSView {
         reflowsListAnimated = false
         for list in listContainer.subviews {
             list.frame = listContainer.bounds
+            if listTopInset != nil, let scrollView = list as? NSScrollView {
+                let insets = NSEdgeInsets(top: top, left: 0, bottom: bounds.height - listBottom, right: 0)
+                if scrollView.contentInsets.top != insets.top || scrollView.contentInsets.bottom != insets.bottom {
+                    let atTop = scrollView.contentView.bounds.minY <= -scrollView.contentInsets.top + 1
+                    scrollView.contentInsets = insets
+                    scrollView.scrollerInsets = insets
+                    if atTop { scrollView.contentView.scroll(to: NSPoint(x: 0, y: -insets.top)); scrollView.reflectScrolledClipView(scrollView.contentView) }
+                }
+            }
             guard !list.isHidden, let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { continue }
             outline.sizeLastColumnToFit()
             outline.tile()
         }
         // The pills float over the list's edges (5.13), above the mini-player and the banner.
         let strip = OverflowPillMetrics.height + 2 * OverflowPillMetrics.inset
-        overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: strip)
-        overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - strip, width: bounds.width, height: strip)
+        let visibleTop = listTopInset != nil ? top : listContainer.frame.minY
+        let visibleBottom = listTopInset != nil ? listBottom : listContainer.frame.maxY
+        overflowTop.frame = NSRect(x: 0, y: visibleTop, width: bounds.width, height: strip)
+        overflowBottom.frame = NSRect(x: 0, y: visibleBottom - strip, width: bounds.width, height: strip)
         onScroll?()
     }
 

@@ -34,6 +34,7 @@ extension SpikeRunner.Context {
         if runs("overflow") { await r513Overflow() }
         if runs("narrow") { await r513Narrow() }
         if runs("peek") { await r513Peek() }
+        if runs("split") { await r513Split() }
     }
 
     private var r513Appearance: String { UserDefaults.standard.string(forKey: "RoomSpikeAppearance") == "dark" ? "dark" : "light" }
@@ -47,7 +48,7 @@ extension SpikeRunner.Context {
     }
 
     private func r513Frame(_ identifier: String) -> String {
-        guard let view = Self.f512View(in: controller.rootView, identifier: identifier), !view.isHiddenOrHasHiddenAncestor else { return "hidden" }
+        guard let root = window.contentView, let view = Self.f512View(in: root, identifier: identifier), !view.isHiddenOrHasHiddenAncestor else { return "hidden" }
         return NSStringFromRect(view.convert(view.bounds, to: nil))
     }
 
@@ -180,6 +181,41 @@ extension SpikeRunner.Context {
         _ = tabs.closeShownPeek()
         try? await Task.sleep(for: .milliseconds(500))
         SpikeRunner.record("peek_closed", "background_alpha=\(String(format: "%.2f", peek.debugBackgroundAlpha)) scale=\(String(format: "%.2f", peek.debugBackgroundScale))")
+    }
+
+    // MARK: split (the experiment branch)
+
+    private func r513Split() async {
+        guard let split = controller.split else { return SpikeRunner.record("split", "not a split window") }
+        let space = sidebar.activeSpaceID
+        for index in 0..<40 {
+            _ = try? store.addEntry(.today, url: Self.r513Base + "find.html?row=\(index)", title: "Row \(index)", space: space, window: sidebar.windowID)
+        }
+        try? await Task.sleep(for: .milliseconds(600))
+        let outline = sidebar.debugOutline
+        outline.scrollRowToVisible(min(20, outline.numberOfRows - 1))
+        try? await Task.sleep(for: .milliseconds(400))
+        let scroll = outline.enclosingScrollView
+        SpikeRunner.record("split_list", "insets=\(scroll.map { "\($0.contentInsets.top),\($0.contentInsets.bottom)" } ?? "none") "
+            + "scroll_frame=\(scroll.map { NSStringFromRect($0.convert($0.bounds, to: nil)) } ?? "none") "
+            + "pockets=\(scroll?.subviews.filter { String(describing: Swift.type(of: $0)).contains("Backdrop") }.count ?? -1)")
+        r513Capture("split-midscroll")
+        controller.toggleSidebarVisibility(nil)
+        try? await Task.sleep(for: .milliseconds(800))
+        SpikeRunner.record("split_hidden", "collapsed=\(split.sidebarItem.isCollapsed) open=\(controller.isSidebarOpen) card=\(NSStringFromRect(controller.cardView.convert(controller.cardView.bounds, to: nil)))")
+        r513Capture("split-hidden")
+        controller.toggleSidebarVisibility(nil)
+        try? await Task.sleep(for: .milliseconds(800))
+        controller.sidebarWidth = 260
+        try? await Task.sleep(for: .milliseconds(400))
+        SpikeRunner.record("split_shown", "collapsed=\(split.sidebarItem.isCollapsed) width=\(Int(split.splitView.subviews.first?.frame.width ?? -1)) "
+            + "card=\(NSStringFromRect(controller.cardView.convert(controller.cardView.bounds, to: nil)))")
+        controller.sidebarWidth = SidebarMetrics.defaultWidth
+        try? await Task.sleep(for: .milliseconds(400))
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        try? await Task.sleep(for: .milliseconds(500))
+        r513Capture("split-midscroll-dark")
+        NSApp.appearance = NSAppearance(named: .aqua)
     }
 
     // MARK: narrow

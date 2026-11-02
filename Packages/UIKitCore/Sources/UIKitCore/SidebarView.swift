@@ -56,6 +56,13 @@ public final class SidebarView: NSView {
         }
     }
 
+    /// The experiment (split sidebar): the body fills the whole sidebar so its lists run under the
+    /// header; `onBodyTop` tells it where its own content starts.
+    public var listsUnderChrome = false {
+        didSet { needsLayout = true }
+    }
+    public var onBodyTop: ((CGFloat) -> Void)?
+
     /// Fills the sidebar below the header row.
     public var bodyView: NSView? {
         didSet {
@@ -178,7 +185,12 @@ public final class SidebarView: NSView {
                                                          height: WindowMetrics.incognitoLabelHeight), options: .alignAllEdgesNearest)
             bodyTop = badgeField.frame.maxY + WindowMetrics.incognitoLabelGap
         }
-        bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
+        if listsUnderChrome {
+            bodyView?.frame = bounds
+            onBodyTop?(bodyTop)
+        } else {
+            bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
+        }
     }
 
     private var topBar: TopBarLayout {

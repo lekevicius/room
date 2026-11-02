@@ -18,9 +18,24 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// The hidden sidebar's hover reveal (spec §E).
     public private(set) var reveal: SidebarRevealController!
 
+    /// The experiment (branch experiment/split-sidebar): the window's content is an
+    /// `NSSplitViewController` with the sidebar as its sidebar item, for AppKit's scroll edge effect
+    /// under the sidebar's fixed chrome (`-RoomSplitSidebar NO` turns it off).
+    public static var usesSplitSidebar: Bool {
+        UserDefaults.standard.object(forKey: "RoomSplitSidebar") as? Bool ?? true
+    }
+    public private(set) var split: SidebarSplitController?
+
     public init(contentSize: NSSize = RoomWindow.defaultContentSize) {
         let window = RoomWindow(contentRect: NSRect(origin: .zero, size: contentSize))
-        window.contentView = rootView
+        if Self.usesSplitSidebar {
+            let split = SidebarSplitController(rootView: rootView)
+            self.split = split
+            window.contentViewController = split
+            window.setContentSize(contentSize)
+        } else {
+            window.contentView = rootView
+        }
         trafficLights = TrafficLightLayout(window: window)
         activity = WindowActivity(window: window)
         super.init(window: window)
@@ -28,13 +43,20 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
         window.center()
 
         rootView.trafficLights = trafficLights
-        trafficLights.onChange = { [weak self] _ in
+        trafficLights.onChange = { [weak self] geometry in
             self?.rootView.needsLayout = true
+            // The experiment: the sidebar item sits at the window's origin, as the docked sidebar did.
+            if self?.split != nil { self?.sidebarView.trafficLights = geometry }
         }
         sidebarView.trafficLights = trafficLights.geometry
         activity.onChange = { [weak self] active in self?.applyActivity(active) }
         applyActivity(activity.isActive)
 
+        split?.onWidthChange = { [weak self] width in
+            guard let self else { return }
+            rootView.sidebarWidth = width
+            onSidebarStateChange?(width, isSidebarOpen)
+        }
         rootView.splitterView.onDrag = { [weak self] proposed in self?.splitterDragged(to: proposed) }
         rootView.splitterView.onEnd = { [weak self] in self?.splitterDragEnded() }
 
@@ -122,12 +144,18 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// Stored width (180–500); kept while the sidebar is closed.
     public var sidebarWidth: CGFloat {
         get { rootView.sidebarWidth }
-        set { rootView.sidebarWidth = min(max(newValue, SidebarMetrics.minWidth), SidebarMetrics.maxWidth) }
+        set {
+            rootView.sidebarWidth = min(max(newValue, SidebarMetrics.minWidth), SidebarMetrics.maxWidth)
+            split?.setSidebarWidth(rootView.sidebarWidth)
+        }
     }
 
     public var isSidebarOpen: Bool {
         get { rootView.isSidebarOpen }
-        set { rootView.isSidebarOpen = newValue }
+        set {
+            rootView.isSidebarOpen = newValue
+            split?.setSidebarCollapsed(!newValue, animated: false)
+        }
     }
 
     /// The user changed the sidebar's width or visibility (toggle, splitter
@@ -149,6 +177,7 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
     /// responder chain (2.7b; Room's menu routes through the app delegate).
     @objc public func toggleSidebarVisibility(_ sender: Any?) {
         rootView.setSidebarOpen(!isSidebarOpen, animated: true)
+        split?.setSidebarCollapsed(!isSidebarOpen, animated: true)
         onSidebarStateChange?(sidebarWidth, isSidebarOpen)
     }
 
@@ -211,6 +240,12 @@ public final class RoomWindowController: NSWindowController, NSWindowDelegate, N
             materialView.state = newValue.map { $0 ? .active : .inactive } ?? .followsWindowActiveState
             applyActivity(activity.isActive)
         }
+    }
+
+    /// The sidebar's fixed chrome in its own coordinates (the experiment): the top accessory reaches
+    /// `top` (the address field and the Essentials), the bottom one `bottom` (the footer's stack).
+    public func setSidebarChrome(top: CGFloat, bottom: CGFloat) {
+        split?.setChrome(top: top, bottom: bottom)
     }
 
     private func applyActivity(_ active: Bool) {
@@ -289,7 +324,8 @@ public final class BrowserWindowView: NSView {
     /// overlay, no toolbar (whose leading end holds them), no fullscreen page (they are in the menu
     /// bar's window then).
     public var hidesTrafficLights: Bool {
-        !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
+        // The split experiment has no hover overlay to bring them back: they stay.
+        !hostsSidebarOutside && !isSidebarOpen && !isOverlayShown && !isPageFullscreen && !showsToolbar
     }
 
     /// Nothing of the sidebar is under the traffic lights: they sit over the card's top-left corner.
@@ -372,8 +408,9 @@ public final class BrowserWindowView: NSView {
     }
 
     public var currentLayout: WindowLayout {
-        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen, pageFullscreen: isPageFullscreen,
-                             insetCard: isCardInset)
+        // The split experiment: this view holds the card alone, laid out as with the sidebar hidden.
+        WindowLayout.compute(bounds: bounds, sidebarWidth: sidebarWidth, isSidebarOpen: isSidebarOpen && !hostsSidebarOutside,
+                             pageFullscreen: isPageFullscreen, insetCard: isCardInset)
     }
 
     /// Where the overlay sits while shown.
@@ -388,7 +425,7 @@ public final class BrowserWindowView: NSView {
     /// not: a reveal then only shows and slides it. Moving the sidebar into the overlay as the
     /// slide began cost 40 ms on the main thread and three frames of the slide (5.1b's motion
     /// harness); ⌘S pays it now, while nothing slides.
-    private var sidebarInOverlay: Bool { !isSidebarOpen && !isPageFullscreen && !isDockAnimating }
+    private var sidebarInOverlay: Bool { !hostsSidebarOutside && !isSidebarOpen && !isPageFullscreen && !isDockAnimating }
 
     // MARK: ⌘S's slide (5.11)
 
@@ -401,6 +438,7 @@ public final class BrowserWindowView: NSView {
     /// leaves as the card widens.
     public func setSidebarOpen(_ open: Bool, animated: Bool) {
         guard open != isSidebarOpen else { return }
+        if hostsSidebarOutside { return isSidebarOpen = open }
         let variant = WindowMotion.dock.variant
         guard animated, variant != .instant, window != nil, !isPageFullscreen else {
             isSidebarOpen = open
@@ -445,9 +483,34 @@ public final class BrowserWindowView: NSView {
         })
     }
 
+    /// The experiment (branch experiment/split-sidebar): the sidebar lives in an `NSSplitViewController`'s
+    /// sidebar item beside this view, which then holds the card alone (as with the sidebar hidden).
+    public var hostsSidebarOutside = false {
+        didSet { needsLayout = true }
+    }
+
     public override func layout() {
         super.layout()
         trafficLights?.update()
+        if hostsSidebarOutside {
+            let layout = currentLayout
+            cardView.frame = layout.card
+            splitterView.isHidden = true
+            if showsToolbar {
+                // Collapsed, the traffic lights sit over the card: the bar starts after them.
+                let geometry = trafficLights?.geometry ?? .none
+                if !isSidebarOpen, let buttons = geometry.buttonsRect {
+                    let origin = convert(NSPoint.zero, to: nil)
+                    toolbarView.leadingInset = buttons.maxX + SidebarMetrics.headerLeadingGap - layout.card.minX - origin.x
+                    toolbarView.contentCenterY = buttons.midY - layout.card.minY
+                } else {
+                    toolbarView.leadingInset = ToolbarMetrics.padding
+                    toolbarView.contentCenterY = nil
+                }
+            }
+            onLayout?()
+            return
+        }
         let layout = currentLayout
         let geometry = trafficLights?.geometry ?? .none
         placeSidebar()
@@ -519,7 +582,7 @@ public final class BrowserWindowView: NSView {
     /// instead (`WindowMotion.reveal`). Ignored while the sidebar is docked or
     /// a page is fullscreen.
     public func setOverlayShown(_ shown: Bool, animated: Bool = true) {
-        guard shown != isOverlayShown else { return }
+        guard shown != isOverlayShown, !hostsSidebarOutside else { return }
         if shown, isSidebarOpen || isPageFullscreen { return }
         isOverlayShown = shown
         overlayGeneration += 1

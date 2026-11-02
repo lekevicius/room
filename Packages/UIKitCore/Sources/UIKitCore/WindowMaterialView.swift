@@ -35,13 +35,30 @@ public final class WindowMaterialView: NSVisualEffectView {
     /// when `animated` (the space switch's slide runs alongside).
     public func setTint(_ tint: SpaceTint?, animated: Bool) {
         tintView.setTint(tint, animated: animated)
+        mirror?.setTint(tint, animated: animated)
+    }
+
+    /// The split experiment: the sidebar item's own material follows this one (tint, activity, state).
+    public var mirror: WindowMaterialView? {
+        didSet {
+            mirror?.state = state
+            mirror?.isWindowActive = isWindowActive
+            mirror?.tintView.setTint(tintView.tint, animated: false)
+        }
+    }
+
+    public override var state: NSVisualEffectView.State {
+        didSet { mirror?.state = state }
     }
 
     /// Follows `WindowActivity`; the material itself already follows the
     /// window's active state unless `state` is forced.
     public var isWindowActive: Bool {
         get { tintView.isWindowActive }
-        set { tintView.isWindowActive = newValue }
+        set {
+            tintView.isWindowActive = newValue
+            mirror?.isWindowActive = newValue
+        }
     }
 
     public override var mouseDownCanMoveWindow: Bool { false }

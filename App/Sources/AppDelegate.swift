@@ -782,6 +782,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         controller.sidebarView.accessoryView = sidebar.extensionBar
         controller.sidebarView.onToggleSidebar = { [weak controller] in controller?.toggleSidebarVisibility(nil) }
         controller.sidebarView.bodyView = sidebar.bodyView
+        // The experiment (split sidebar): the lists run under the header and the footer; the split's
+        // accessories follow the chrome so AppKit's scroll edge effect sits behind it.
+        if controller.split != nil {
+            controller.sidebarView.listsUnderChrome = true
+            controller.sidebarView.onBodyTop = { [weak sidebar] top in sidebar?.bodyView.listTopInset = top }
+            sidebar.bodyView.onChromeInsets = { [weak controller] top, bottom in controller?.setSidebarChrome(top: top, bottom: bottom) }
+        }
         // The Tab order (5.3a, ROADMAP 5.3 task 2): sidebar → header → card (and Peek over it) → footer.
         (controller.window as? RoomWindow)?.keyViewRegions = { [weak sidebar, weak controller, weakSession = MainActorWeak(session)] in
             guard let sidebar, let controller else { return [] }
