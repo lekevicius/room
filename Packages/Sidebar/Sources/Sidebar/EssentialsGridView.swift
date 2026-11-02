@@ -18,7 +18,8 @@ protocol EssentialsDropEvents: AnyObject {
 }
 
 /// Layout of the Essentials grid (spec §I.2): tiles `essentialTileHeight`
-/// tall that stretch to fill their row. The column count is as many as fit
+/// tall, every one a column of the fullest row wide (5.13, the user: five tiles
+/// are 3 + 2 with the sixth slot left empty, not a row of two wider tiles). The column count is as many as fit
 /// at `essentialTileMinWidth`, at most `essentialMaxColumns`, never more
 /// than there are tiles; the rows that count needs are then filled evenly,
 /// left to right, so no row is shorter than another by more than one (five
@@ -44,8 +45,10 @@ public enum EssentialsLayout {
         let gap = SidebarMetrics.essentialsGap
         let height = SidebarMetrics.essentialTileHeight
         var frames: [CGRect] = []
-        for (row, tiles) in rowCounts(count: count, width: width).enumerated() {
-            let tileWidth = (width - gap * CGFloat(tiles - 1)) / CGFloat(tiles)
+        let rows = rowCounts(count: count, width: width)
+        let columns = rows.first ?? 0
+        let tileWidth = (width - gap * CGFloat(columns - 1)) / CGFloat(max(columns, 1))
+        for (row, tiles) in rows.enumerated() {
             for column in 0..<tiles {
                 frames.append(CGRect(x: (CGFloat(column) * (tileWidth + gap)).rounded(), y: CGFloat(row) * (height + gap),
                                      width: tileWidth.rounded(), height: height))

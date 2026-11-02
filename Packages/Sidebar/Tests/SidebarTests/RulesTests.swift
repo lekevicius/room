@@ -123,7 +123,9 @@ struct EssentialsLayoutTests {
         let frames = EssentialsLayout.frames(count: 5, width: 228)
         #expect(frames.count == 5)
         #expect(frames[3].minY > frames[2].minY, "fourth tile starts the second row")
-        #expect(abs(frames[2].maxX - 228) <= 1 && abs(frames[4].maxX - 228) <= 1, "both rows fill the width")
+        #expect(abs(frames[2].maxX - 228) <= 1, "the first row fills the width")
+        #expect(frames[3].width == frames[0].width && frames[4].minX == frames[1].minX, "the second row's tiles are the first row's columns")
+        #expect(frames[4].maxX < 228 - frames[0].width, "the sixth slot stays empty (5.13)")
     }
 
     @Test("Rows are balanced: never shorter than another by more than one (2.2a review)", arguments: [

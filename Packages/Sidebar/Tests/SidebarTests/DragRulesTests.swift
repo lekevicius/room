@@ -80,7 +80,7 @@ struct DropRulesTests {
         let frames = EssentialsLayout.frames(count: 5, width: 228)
         #expect(DropRules.gridIndex(frames: frames, point: CGPoint(x: 2, y: 10)) == 0)
         #expect(DropRules.gridIndex(frames: frames, point: CGPoint(x: frames[1].midX + 1, y: 10)) == 2)
-        #expect(DropRules.gridIndex(frames: frames, point: CGPoint(x: 227, y: frames[4].midY)) == 5)
+        #expect(DropRules.gridIndex(frames: frames, point: CGPoint(x: frames[4].maxX + 4, y: frames[4].midY)) == 5)
         #expect(DropRules.gridIndex(frames: [], point: .zero) == 0)
     }
 }
