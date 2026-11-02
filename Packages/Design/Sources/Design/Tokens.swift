@@ -138,6 +138,8 @@ public enum SidebarMetrics {
     public static let rowHorizontalInset: CGFloat = Spacing.s
     /// Gap between the pill's leading edge and the favicon.
     public static let rowContentInset: CGFloat = 10
+    /// The blur of rows scrolled under the header and the bottom cards (5.13, `ScrollEdgeBlurView`).
+    public static let chromeBlurRadius: CGFloat = 16
     public static let faviconSize: CGFloat = 16
     public static let faviconTitleGap: CGFloat = 10
     /// Extra leading inset per folder level (chosen).

@@ -1158,8 +1158,17 @@ extension SidebarController: SidebarOutlineEvents, EntryRowActions, EssentialTil
 /// spec §I.11), the footer. Space switches slide the lists (spec §B); the
 /// grid and the footer stay put. A double-click on its empty background is
 /// a new tab (spec §F).
-public final class SidebarBodyView: NSView {
+public final class SidebarBodyView: NSView, SidebarChromeInsetting {
     private(set) var grid: EssentialsGridView?
+    /// Where the body's own content starts under the sidebar's header (the body fills the sidebar; 5.13).
+    public var chromeTop: CGFloat = 0 {
+        didSet { if chromeTop != oldValue { needsLayout = true } }
+    }
+    /// Rows scrolled under the header and the bottom cards blur behind them (5.13).
+    private let topBlur = ScrollEdgeBlurView()
+    private let bottomBlur = ScrollEdgeBlurView()
+    /// The lists' visible span between the chrome, from the last layout.
+    private var listSpan: ClosedRange<CGFloat> = 0...0
     private(set) var footer: SidebarFooterView?
     /// Clips the lists while they slide.
     let listContainer = ListContainerView()
@@ -1192,7 +1201,7 @@ public final class SidebarBodyView: NSView {
             guard mediaRowView !== oldValue else { return }
             oldValue?.removeFromSuperview()
             // Over the list, under the footer: the hovered space's name rises from the footer over the cards (5.13: it was hidden behind them).
-            if let mediaRowView { addSubview(mediaRowView, positioned: .above, relativeTo: listContainer) }
+            if let mediaRowView { addSubview(mediaRowView, positioned: .above, relativeTo: bottomBlur) }
             needsLayout = true
         }
     }
@@ -1201,7 +1210,7 @@ public final class SidebarBodyView: NSView {
         didSet {
             guard updateBannerView !== oldValue else { return }
             oldValue?.removeFromSuperview()
-            if let updateBannerView { addSubview(updateBannerView, positioned: .above, relativeTo: listContainer) }
+            if let updateBannerView { addSubview(updateBannerView, positioned: .above, relativeTo: bottomBlur) }
             needsLayout = true
         }
     }
@@ -1285,8 +1294,11 @@ public final class SidebarBodyView: NSView {
         footer.onEmptyDoubleClick = { [weak self] in self?.onEmptyDoubleClick?() }
         listContainer.wantsLayer = true
         listContainer.layer?.masksToBounds = true
-        addSubview(grid)
+        // The lists under everything: the blur bands, then the chrome over them.
         addSubview(listContainer)
+        addSubview(topBlur)
+        addSubview(bottomBlur)
+        addSubview(grid)
         addSubview(footer)
         addSubview(overflowTop)
         addSubview(overflowBottom)
@@ -1495,14 +1507,25 @@ public final class SidebarBodyView: NSView {
         super.scrollWheel(with: event)
     }
 
+    /// Rows scrolled under the chrome take no clicks (5.13): over the header the click is the header's,
+    /// over the bottom cards' gaps the body's own (a drag, a double-click's new tab).
+    public override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        guard let hit, replacementView == nil, hit.isDescendant(of: listContainer) else { return hit }
+        let y = convert(point, from: superview).y
+        if y < listSpan.lowerBound { return nil }
+        if y > listSpan.upperBound { return self }
+        return hit
+    }
+
     public override func layout() {
         super.layout()
         let inset = SidebarMetrics.rowHorizontalInset
         let width = max(0, bounds.width - 2 * inset)
         let gridHeight = grid?.height(forWidth: width) ?? 0
-        // The sidebar view leaves `addressRowGap` above the body: the grid starts at its top.
-        grid?.frame = NSRect(x: inset, y: 0, width: width, height: gridHeight)
-        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + SidebarMetrics.essentialsGap : 0
+        // The sidebar view leaves `addressRowGap` above the body's content: the grid starts at `chromeTop`.
+        grid?.frame = NSRect(x: inset, y: chromeTop, width: width, height: gridHeight)
+        let top = gridHeight > 0 ? (grid?.frame.maxY ?? 0) + SidebarMetrics.essentialsGap : chromeTop
         let footerHeight = SidebarMetrics.footerHeight
         footer?.frame = NSRect(x: 0, y: bounds.height - footerHeight, width: bounds.width, height: footerHeight)
         var bodyBottom = bounds.height - footerHeight
@@ -1519,13 +1542,21 @@ public final class SidebarBodyView: NSView {
             bodyBottom -= MediaRowMetrics.height + MediaRowMetrics.gap
         }
         if let replacementView {
-            replacementView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: max(0, bodyBottom))
+            replacementView.frame = NSRect(x: 0, y: chromeTop, width: bounds.width, height: max(0, bodyBottom - chromeTop))
+            topBlur.isHidden = true
+            bottomBlur.isHidden = true
             return
         }
         let listBottom = bodyBottom
         let listFrom = listContainer.layer?.position
         let wasShown = listContainer.frame.height > 0
-        listContainer.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, listBottom - top))
+        // The lists run the body's whole height, inset at both ends, under the chrome and its blur (5.13).
+        listContainer.frame = bounds
+        listSpan = top...max(top, listBottom)
+        topBlur.isHidden = false
+        bottomBlur.isHidden = false
+        topBlur.frame = NSRect(x: 0, y: 0, width: bounds.width, height: top)
+        bottomBlur.frame = NSRect(x: 0, y: listBottom, width: bounds.width, height: max(0, bounds.height - listBottom))
         if reflowsListAnimated, wasShown, window != nil, let layer = listContainer.layer, let listFrom, listFrom != layer.position {
             let move = CABasicAnimation(keyPath: "position")
             move.fromValue = NSValue(point: listFrom)
@@ -1537,14 +1568,27 @@ public final class SidebarBodyView: NSView {
         reflowsListAnimated = false
         for list in listContainer.subviews {
             list.frame = listContainer.bounds
+            if let scrollView = list as? NSScrollView {
+                let insets = NSEdgeInsets(top: top, left: 0, bottom: bounds.height - listBottom, right: 0)
+                if scrollView.contentInsets.top != insets.top || scrollView.contentInsets.bottom != insets.bottom {
+                    // A list at its top stays there as the chrome's reach changes.
+                    let atTop = scrollView.contentView.bounds.minY <= -scrollView.contentInsets.top + 1
+                    scrollView.contentInsets = insets
+                    scrollView.scrollerInsets = insets
+                    if atTop {
+                        scrollView.contentView.scroll(to: NSPoint(x: 0, y: -insets.top))
+                        scrollView.reflectScrolledClipView(scrollView.contentView)
+                    }
+                }
+            }
             guard !list.isHidden, let outline = (list as? NSScrollView)?.documentView as? NSOutlineView else { continue }
             outline.sizeLastColumnToFit()
             outline.tile()
         }
-        // The pills float over the list's edges (5.13), above the mini-player and the banner.
+        // The pills float over the lists' visible edges (5.13), above the mini-player and the banner.
         let strip = OverflowPillMetrics.height + 2 * OverflowPillMetrics.inset
-        overflowTop.frame = NSRect(x: 0, y: listContainer.frame.minY, width: bounds.width, height: strip)
-        overflowBottom.frame = NSRect(x: 0, y: listContainer.frame.maxY - strip, width: bounds.width, height: strip)
+        overflowTop.frame = NSRect(x: 0, y: listSpan.lowerBound, width: bounds.width, height: strip)
+        overflowBottom.frame = NSRect(x: 0, y: listSpan.upperBound - strip, width: bounds.width, height: strip)
         onScroll?()
     }
 

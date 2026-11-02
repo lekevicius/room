@@ -56,7 +56,8 @@ public final class SidebarView: NSView {
         }
     }
 
-    /// Fills the sidebar below the header row.
+    /// Fills the sidebar; its own content starts below the header row (5.13, the user: "enough to simply let
+    /// content go under our toolbars": a `SidebarChromeInsetting` body scrolls its lists under the header).
     public var bodyView: NSView? {
         didSet {
             guard bodyView !== oldValue else { return }
@@ -178,7 +179,12 @@ public final class SidebarView: NSView {
                                                          height: WindowMetrics.incognitoLabelHeight), options: .alignAllEdgesNearest)
             bodyTop = badgeField.frame.maxY + WindowMetrics.incognitoLabelGap
         }
-        bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
+        if let inset = bodyView as? SidebarChromeInsetting {
+            inset.chromeTop = bodyTop
+            bodyView?.frame = bounds
+        } else {
+            bodyView?.frame = NSRect(x: 0, y: bodyTop, width: bounds.width, height: max(0, bounds.height - bodyTop))
+        }
     }
 
     private var topBar: TopBarLayout {

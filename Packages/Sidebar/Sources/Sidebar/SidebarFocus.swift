@@ -289,7 +289,12 @@ extension SidebarController {
             let row = outline.row(forItem: node)
             if row >= 0 {
                 let rect = outline.rect(ofRow: row)
-                let visible = outline.visibleRect
+                var visible = outline.visibleRect
+                // The lists run under the chrome (5.13): rows under it are out of view.
+                if let insets = outline.enclosingScrollView?.contentInsets, insets.top + insets.bottom > 0 {
+                    visible.origin.y += insets.top
+                    visible.size.height -= insets.top + insets.bottom
+                }
                 above = rect.maxY <= visible.minY
                 below = rect.minY >= visible.maxY
             }
