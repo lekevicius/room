@@ -24,6 +24,22 @@ open class HoverButton: NSButton {
     @available(*, unavailable)
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// AppKit's Liquid Glass button (5.13, the user's design: "liquid glass buttons instead of our
+    /// custom ghost ones"): a `GlassControlMetrics.size` circle whose hover and press are AppKit's.
+    public private(set) var isGlass = false
+
+    public func makeGlass() {
+        isGlass = true
+        feedback.reset()
+        feedback.isEnabled = false
+        layer?.cornerRadius = 0
+        isBordered = true
+        bezelStyle = .glass
+        controlSize = .large
+        borderShape = .circle
+        contentTintColor = .labelColor
+    }
+
     open override var mouseDownCanMoveWindow: Bool { false }
 
     // MARK: VoiceOver and keyboard (5.3a)
@@ -79,12 +95,12 @@ open class HoverButton: NSButton {
     open override var focusRingMaskBounds: NSRect { bounds }
 
     open override func drawFocusRingMask() {
-        let radius = layer?.cornerRadius ?? FocusRing.controlCornerRadius
+        let radius = isGlass ? bounds.height / 2 : layer?.cornerRadius ?? FocusRing.controlCornerRadius
         NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
     }
 
     open override var isEnabled: Bool {
-        didSet { feedback.isEnabled = isEnabled }
+        didSet { feedback.isEnabled = isEnabled && !isGlass }
     }
 
     /// NSButton's tracking highlights the button while it is pressed with the pointer inside.
