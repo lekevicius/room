@@ -44,6 +44,23 @@ struct PaletteEngineTests {
         #expect(profile.autocompleteControllers.count == 1)
     }
 
+    @Test("Delete on the selected completion removes it and it stays removed (it came straight back, 2026-11-02)")
+    func deleteCompletion() throws {
+        let (f, _, history) = try engineFixture()
+        history.addVisit(URL(string: "https://github.com/")!, title: "GitHub", transition: .typed)
+        f.palette.toggleNew()
+        f.palette.setText("gi")
+        #expect(f.palette.result.inlineCompletion == "thub.com")
+        // Delete with "thub.com" selected leaves the typed "gi".
+        f.palette.setText("gi")
+        #expect(f.palette.result.inlineCompletion == nil)
+        #expect(f.palette.fieldText == "gi")
+        f.palette.setText("gi")
+        #expect(f.palette.result.inlineCompletion == nil)
+        f.palette.setText("git")
+        #expect(f.palette.result.inlineCompletion == "hub.com")
+    }
+
     @Test("Suggestions off: SearchProvider is never asked; on: asked per keystroke and its suggestions join the search group; off again drops them")
     func switchRule() throws {
         let f = try PaletteFixture()

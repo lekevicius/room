@@ -715,7 +715,9 @@ public final class PaletteController: NSObject, NSTextFieldDelegate {
     private func textChanged(to text: String, composing: Bool = false) {
         // A deletion (the new text is a prefix of what was there) never completes inline;
         // nor does text an input method is still composing (its marked text must stay as it is).
-        let deleting = typedText.hasPrefix(text) && text.count < typedText.count
+        // The typed text unchanged is a deletion too: Delete took the selected completion and left
+        // what was typed, and completing again put it straight back (Delete did nothing, 2026-11-02).
+        let deleting = typedText.hasPrefix(text) && text.count <= typedText.count
         typedText = text
         showsSelection = false
         query(preventingInline: deleting || composing)
