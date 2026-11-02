@@ -322,6 +322,18 @@ extension SpikeRunner.Context {
                 + "opener_alive=\(page.state) blockers=\(blockerNames(page))")
             try? await Task.sleep(for: .milliseconds(1500))
             captureMedia("docpip-panel", window: panel)
+            // 5.13: under the pointer the panel grows around the page (the page keeps its place) with its bar.
+            if let content = panel.contentView as? PictureInPictureContentView {
+                let pageBefore = content.subviews.first.map { panel.convertToScreen($0.convert($0.bounds, to: nil)) } ?? .zero
+                content.setExpanded(true)
+                try? await Task.sleep(for: .milliseconds(500))
+                let pageAfter = content.subviews.first.map { panel.convertToScreen($0.convert($0.bounds, to: nil)) } ?? .zero
+                SpikeRunner.record("docpip_hover", "panel=\(NSStringFromRect(panel.frame)) page_before=\(NSStringFromRect(pageBefore)) "
+                    + "page_after=\(NSStringFromRect(pageAfter)) page_kept_origin=\(abs(pageBefore.minX - pageAfter.minX) < 1 && abs(pageBefore.minY - pageAfter.minY) < 1)")
+                captureMedia("docpip-panel-hover", window: panel)
+                content.setExpanded(false)
+                try? await Task.sleep(for: .milliseconds(400))
+            }
             captureMedia("docpip-opener-window")
             // What the engine painted (independent of the window server's capture).
             if let image = try? await item.contents.captureViewport() {

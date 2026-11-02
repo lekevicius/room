@@ -54,7 +54,9 @@ extension SpikeRunner.Context {
         sidebar.select(otherEntry)
         try? await Task.sleep(for: .milliseconds(500))
         let otherBefore = sidebar.selectedEntryID == otherEntry
-        let button = item.panel.titlebarAccessoryViewControllers.first?.view as? NSButton
+        // 5.13: Back to Tab is in the panel's hover bar.
+        (item.panel.contentView as? PictureInPictureContentView)?.setExpanded(true)
+        let button = item.panel.contentView.flatMap { Self.f512View(in: $0, identifier: "pip-back-to-tab") } as? NSButton
         if let button { button.performClick(nil) } else { panels.backToTab(item) }
         let docSelected = await waitUntil(5) { self.sidebar.selectedEntryID == openerEntry }
         let docClosed = await waitUntil(5) { panels.items.isEmpty && !item.panel.isVisible }

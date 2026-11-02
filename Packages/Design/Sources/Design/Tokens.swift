@@ -355,6 +355,13 @@ public enum UpdateBannerMetrics {
 public enum PictureInPictureMetrics {
     /// The smallest panel content (a page asking less gets this).
     public static let minimumSize = CGSize(width: 160, height: 90)
+    /// 5.13 (the user's design, from Dia's call window): at rest the page alone, rounded; under the
+    /// pointer the panel grows around it: `frameInset` at the sides and bottom, a `barHeight` bar on
+    /// top with Close, the title and Back to Tab (glass circles).
+    public static let cornerRadius: CGFloat = 16
+    public static let pageCornerRadius: CGFloat = 12
+    public static let frameInset: CGFloat = 8
+    public static let barHeight: CGFloat = 44
 }
 
 /// The screenshot overlay over the card (⇧⌘2, 4.7a): the dimmed outside, the
