@@ -881,3 +881,4 @@ The Mac mini (24 GB, `ROOM_BUILD_JOBS=6`), from the command line; the user's app
 | incremental: `room_web_contents.mm` (`mediaEnterPictureInPicture`) | 30 s |
 | incremental: `room_video_overlay.mm` | 26 s (one failed attempt first: an unused private field under `-Werror`) |
 
+| `out/dev` after the Xcode 27.2 update (the SDK changed, so every module-importing object was dirty), with the native PiP controls (patch 0029 rewritten), started 21:51:17 | **13,007 s (3 h 37 min)**, load 38 → 14 |
