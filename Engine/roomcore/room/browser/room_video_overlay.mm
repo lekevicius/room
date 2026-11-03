@@ -23,6 +23,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/scoped_multi_source_observation.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -40,6 +41,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/view_tracker.h"
 #include "ui/views/widget/widget.h"
 
@@ -555,7 +557,7 @@ namespace {
 // Lives in Chrome's (hidden) controls container for as long as the window's
 // views do: owns Room's AppKit controls, reads the window's state for them and
 // carries out their clicks.
-class RoomControls : public views::View {
+class RoomControls : public views::View, public views::ViewObserver {
   METADATA_HEADER(RoomControls, views::View)
 
  public:
@@ -566,12 +568,15 @@ class RoomControls : public views::View {
 
   ~RoomControls() override { [view_ removeFromSuperview]; }
 
-  // Once the widget has its NSWindow: the controls into its content view, the
-  // window rounded.
+  // Once the widget has its NSWindow: the controls over its content view, the
+  // window rounded. The controls are the content view's sibling, not its
+  // subview: Chrome's content view answers every hit test itself (the root
+  // view, or nil for a drag), so a subview would never get a click.
   void Attach() {
     NSWindow* window = window_->GetNativeWindow().GetNativeNSWindow();
     NSView* content = window.contentView;
-    if (!window || !content || view_.superview == content) {
+    NSView* frame = content.superview;
+    if (!window || !content || !frame || view_.superview == frame) {
       return;
     }
     window.opaque = NO;
@@ -589,9 +594,9 @@ class RoomControls : public views::View {
         return;
       }
     }
-    view_.frame = content.bounds;
+    view_.frame = content.frame;
     view_.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [content addSubview:view_ positioned:NSWindowAbove relativeTo:nil];
+    [frame addSubview:view_ positioned:NSWindowAbove relativeTo:content];
     [window invalidateShadow];
     Update();
     // Shown for a moment as the window opens (Chrome showed its title too).
@@ -603,23 +608,23 @@ class RoomControls : public views::View {
   // After each of Chrome's layouts: keep Chrome's own controls hidden, follow
   // the window's size.
   void AfterLayout(views::View* controls, views::View* title) {
-    controls->SetVisible(false);
-    title->SetVisible(false);
+    KeepHidden(controls);
+    KeepHidden(title);
     // The scrims: the window's views after the video (which follows the background) up to the title.
     if (views::View* holder = title->parent()) {
       const std::optional<size_t> background = holder->GetIndexOf(window_->GetWindowBackgroundView());
       const std::optional<size_t> title_index = holder->GetIndexOf(title);
       if (background && title_index) {
         for (size_t i = *background + 2; i < *title_index; ++i) {
-          holder->children()[i]->SetVisible(false);
+          KeepHidden(holder->children()[i]);
         }
       }
     }
     Attach();
     if (view_) {
-      NSView* content = view_.superview;
-      if (content && !NSEqualRects(view_.frame, content.bounds)) {
-        view_.frame = content.bounds;
+      NSView* content = view_.window.contentView;
+      if (content && !NSEqualRects(view_.frame, content.frame)) {
+        view_.frame = content.frame;
       }
       [view_.window invalidateShadow];
     }
@@ -632,6 +637,27 @@ class RoomControls : public views::View {
   }
 
  private:
+  // Chrome shows its controls, title and scrims again on hover (its fade
+  // animation sets each visible on every step); they go straight back.
+  void KeepHidden(views::View* view) {
+    if (!hidden_.IsObservingSource(view)) {
+      hidden_.AddObservation(view);
+    }
+    view->SetVisible(false);
+  }
+
+  // views::ViewObserver:
+  void OnViewVisibilityChanged(views::View* observed,
+                               views::View* starting,
+                               bool visible) override {
+    if (observed == starting && visible) {
+      observed->SetVisible(false);
+    }
+  }
+  void OnViewIsDeleting(views::View* observed) override {
+    hidden_.RemoveObservation(observed);
+  }
+
   content::VideoPictureInPictureWindowController* controller() const {
     return static_cast<content::VideoPictureInPictureWindowController*>(
         window_->GetController());
@@ -731,6 +757,7 @@ class RoomControls : public views::View {
   // A RoomVideoControlsView (macOS 26; typed as its base outside the checks).
   NSView* __strong view_ = nil;
   base::RepeatingTimer timer_;
+  base::ScopedMultiSourceObservation<views::View, views::ViewObserver> hidden_{this};
   base::WeakPtrFactory<RoomControls> weak_factory_{this};
 };
 
