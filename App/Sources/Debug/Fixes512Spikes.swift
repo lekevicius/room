@@ -279,7 +279,8 @@ extension SpikeRunner.Context {
         SpikeRunner.record("pip", "window=\(NSStringFromRect(overlay.frame))")
         // 5.13: Room's AppKit controls in the window's content view, the corners rounded.
         let content = overlay.contentView
-        let controls = content?.subviews.first { NSStringFromClass(Swift.type(of: $0)).contains("RoomVideoControls") }
+        // Beside the content view, in the frame view (5.13: Chrome's content view hit-tests for itself).
+        let controls = content?.superview?.subviews.first { NSStringFromClass(Swift.type(of: $0)).contains("RoomVideoControls") }
         func describe(_ view: NSView, depth: Int = 0) -> [String] {
             guard depth < 3 else { return [] }
             let own = view.isHidden || view.alphaValue == 0 ? [] : ["\(String(describing: Swift.type(of: view)))\(NSStringFromRect(view.frame))"]

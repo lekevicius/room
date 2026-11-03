@@ -2,8 +2,11 @@
 <meta charset="utf-8">
 <title>A seekable video</title>
 <p><button id="video-pip">Video PiP</button></p>
-<video id="v" src="clip.mp4" width="640" height="360" muted playsinline loop></video>
+<video id="v" width="640" height="360" muted playsinline loop></video>
 <script>
+// The test servers are Python's http.server, which answers no range requests,
+// so a plain src cannot seek; a blob of the whole clip can.
 const v = document.getElementById('v');
-document.getElementById('video-pip').onclick = async () => { await v.play(); await v.requestPictureInPicture(); };
+const loaded = fetch('clip.mp4').then(r => r.blob()).then(b => { v.src = URL.createObjectURL(b); });
+document.getElementById('video-pip').onclick = async () => { await loaded; await v.play(); await v.requestPictureInPicture(); };
 </script>
