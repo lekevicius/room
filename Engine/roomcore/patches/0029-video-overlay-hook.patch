@@ -1,14 +1,15 @@
-Room: the video picture-in-picture window's controls restyled by //room.
+Room: the video picture-in-picture window's controls drawn by //room.
 
-The user asked for Dia's look on the floating video (5.12): Back to Tab and
-Close as labelled pills, the origin centred, the playback buttons growing a
-little under the pointer. VideoOverlayWindowViews builds and lays out its
-views itself with no seam for an embedder, so two calls hand them to //room:
-once the views exist and after each layout. //room keeps Chrome's buttons as
-the click targets (transparent, stretched over Room's pills) so the window's
-hit test and accessibility stay Chrome's.
+The user asked for Dia's look on the floating video (5.12), then for
+AppKit's own Liquid Glass controls (5.13). VideoOverlayWindowViews builds
+and lays out its views itself with no seam for an embedder, so two calls
+hand them to //room: once the views exist and after each layout. Since
+5.13 //room hides Chrome's controls and scrims and puts AppKit glass
+controls over the video in the window's content view; they act through
+the window's controller. Two accessors give //room the session's position
+and whether it is live, which Chrome's controls read from private members.
 
-Phase 5.12, 2026-11-01. //room: room/browser/room_video_overlay.mm.
+Phase 5.12, 2026-11-01; 5.13, 2026-11-02. //room: room/browser/room_video_overlay.mm.
 diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
 index 0afdeb691c3ee..66b92f3ab1f18 100644
 --- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
@@ -60,3 +61,20 @@ index 0afdeb691c3ee..66b92f3ab1f18 100644
  }
  
  #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.h b/chrome/browser/ui/views/overlay/video_overlay_window_views.h
+index 222a5167b5e71..c22cc009f9e54 100644
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.h
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.h
+@@ -168,6 +168,12 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
+   views::View* GetTitleView() const;
+   views::View* GetControlsTopScrimView() const;
+ 
++  // Room draws the window's controls itself (//room/browser/room_video_overlay.mm).
++  const media_session::MediaPosition& room_media_position() const {
++    return position_;
++  }
++  bool room_is_live() const { return is_live_; }
++
+   gfx::Size& GetNaturalSize();
+ 
+   // Shows the controls on a gesture tap if they are not already shown. Returns

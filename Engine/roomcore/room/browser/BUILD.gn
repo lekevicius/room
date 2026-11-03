@@ -42,6 +42,7 @@ source_set("browser") {
     "//components/input",
     "//components/web_modal",
     "//content/public/browser",
+    "//services/media_session/public/cpp",
     "//third_party/blink/public/mojom:mojom_platform",
     "//ui/base",
     "//ui/compositor",
@@ -50,5 +51,8 @@ source_set("browser") {
     "//skia",
     "//url",
   ]
-  frameworks = [ "AppKit.framework" ]
+  frameworks = [
+    "AppKit.framework",
+    "QuartzCore.framework",
+  ]
 }
