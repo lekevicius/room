@@ -882,3 +882,5 @@ The Mac mini (24 GB, `ROOM_BUILD_JOBS=6`), from the command line; the user's app
 | incremental: `room_video_overlay.mm` | 26 s (one failed attempt first: an unused private field under `-Werror`) |
 
 | `out/dev` after the Xcode 27.2 update (the SDK changed, so every module-importing object was dirty), with the native PiP controls (patch 0029 rewritten), started 21:51:17 | **13,007 s (3 h 37 min)**, load 38 → 14 |
+| `out/release` after the Xcode 27.2 update (the SDK changed), for 0.3.0 (29): started 11:48 on 2026-11-04 and stopped by the user after ~500 steps; restarted 19:11:52 (48,386 steps left) | **13,582 s (3 h 46 min)**, load up to ~285 in the final ThinLTO link |
+| 0.3.0 (29) after the engine: package 3 min, notarized in 86 s, DMG 217,672,753 bytes in 13 s, four deltas (20, 21, 24, 28) ~20 min; redone without 28: DMG 217,694,255 bytes, three deltas ~20 min | |
